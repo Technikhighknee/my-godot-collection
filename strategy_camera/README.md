@@ -71,7 +71,7 @@ The camera expects:
 - `camera_forward`
 - `camera_back`
 
-The included demo registers WASD for these actions.
+Define these actions in your project's Input Map.
 
 ## Small API
 
