@@ -54,8 +54,8 @@ var _pointer_pan_anchor := Vector2.ZERO;
 var _rotating := false;
 
 var _rotation_capture_active := false;
-var _rotation_rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
-var _rotation_rotation_restore_mouse_position := Vector2.ZERO;
+var _rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
+var _rotation_restore_mouse_position := Vector2.ZERO;
 
 
 func _ready() -> void:
