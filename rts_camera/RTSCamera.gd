@@ -21,6 +21,7 @@ enum GroundMode {
 
 
 const MAX_INPUT_DELTA := 0.1;
+const PAN_SAMPLE_PIXELS := 32.0;
 
 
 @export_group("Camera")
@@ -33,8 +34,7 @@ const MAX_INPUT_DELTA := 0.1;
 @export var max_zoom := 120.0;
 
 @export_group("Movement")
-@export var min_pan_speed := 4.0;
-@export var max_pan_speed := 110.0;
+@export_range(0.05, 3.0, 0.05) var pan_screen_speed := 0.75;
 @export var move_smoothing := 16.0;
 
 @export_group("Zoom")
@@ -446,11 +446,60 @@ func _handle_pan_input(delta: float) -> void:
 	_zoom_anchor_active = false;
 	_cancel_look_transition();
 
+	var movement := _screen_space_pan_delta(input, delta);
+	_target_focus += movement;
+
+
+func _screen_space_pan_delta(input: Vector2, delta: float) -> Vector3:
+	var viewport_size := get_viewport().get_visible_rect().size;
+
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return _fallback_pan_delta(input, delta);
+
+	var center := viewport_size * 0.5;
+	var center_world := _world_at_screen(center);
+
+	if not center_world.is_finite():
+		return _fallback_pan_delta(input, delta);
+
+	var right_per_pixel := _ground_delta_per_pixel(center, center_world, Vector2.RIGHT);
+	var down_per_pixel := _ground_delta_per_pixel(center, center_world, Vector2.DOWN);
+
+	if not right_per_pixel.is_finite() or not down_per_pixel.is_finite():
+		return _fallback_pan_delta(input, delta);
+
+	right_per_pixel.y = 0.0;
+	down_per_pixel.y = 0.0;
+
+	var pixels_per_second := viewport_size.y * pan_screen_speed;
+	return (right_per_pixel * input.x + down_per_pixel * input.y) * pixels_per_second * delta;
+
+
+func _ground_delta_per_pixel(center: Vector2, center_world: Vector3, axis: Vector2) -> Vector3:
+	var sample := center + axis * PAN_SAMPLE_PIXELS;
+	var sample_world := _world_at_screen(sample);
+
+	if sample_world.is_finite():
+		return (sample_world - center_world) / PAN_SAMPLE_PIXELS;
+
+	sample = center - axis * PAN_SAMPLE_PIXELS;
+	sample_world = _world_at_screen(sample);
+
+	if sample_world.is_finite():
+		return (center_world - sample_world) / PAN_SAMPLE_PIXELS;
+
+	return Vector3.INF;
+
+
+func _fallback_pan_delta(input: Vector2, delta: float) -> Vector3:
 	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
 	var backward := Vector3(sin(_yaw), 0.0, cos(_yaw));
-	var movement := right * input.x + backward * input.y;
+	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
+	var pitch_scale := maxf(sin(_pitch), 0.1);
+	var visible_height := 2.0 * _zoom * half_fov_tan / pitch_scale;
+	var speed := visible_height * pan_screen_speed;
 
-	_target_focus += movement * _get_pan_speed() * delta;
+	return (right * input.x + backward * input.y) * speed * delta;
 
 
 func _keyboard_pan_blocked_by_gui() -> bool:
@@ -940,10 +989,6 @@ func _ground_view_corner(
 	return resolve_ground_ray(eye, ray_direction);
 
 
-func _get_pan_speed() -> float:
-	return lerpf(min_pan_speed, max_pan_speed, get_zoom_ratio());
-
-
 func _normalize_configuration() -> void:
 	ground_max_skips = maxi(ground_max_skips, 0);
 	ground_query_distance = maxf(ground_query_distance, 0.001);
@@ -958,8 +1003,7 @@ func _normalize_configuration() -> void:
 	max_pitch = clampf(max_pitch, min_pitch, 89.0);
 	initial_pitch = clampf(initial_pitch, min_pitch, max_pitch);
 
-	min_pan_speed = maxf(min_pan_speed, 0.0);
-	max_pan_speed = maxf(max_pan_speed, min_pan_speed);
+	pan_screen_speed = maxf(pan_screen_speed, 0.01);
 	move_smoothing = maxf(move_smoothing, 0.0);
 	zoom_smoothing = maxf(zoom_smoothing, 0.0);
 	rotation_smoothing = maxf(rotation_smoothing, 0.0);
