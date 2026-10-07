@@ -52,6 +52,8 @@ const MAX_INPUT_DELTA := 0.1;
 @export var ground_mode: GroundMode = GroundMode.PLANE;
 @export var ground_height := 0.0;
 @export_flags_3d_physics var ground_collision_mask: int = 1;
+@export var ground_required_group: StringName = &"";
+@export_range(0, 32, 1) var ground_max_skips := 8;
 @export var ground_query_distance := 5000.0;
 @export var ground_probe_up := 1000.0;
 @export var ground_probe_down := 2000.0;
@@ -599,13 +601,30 @@ func resolve_ground_ray(origin: Vector3, direction: Vector3, max_distance := -1.
 	query.collide_with_areas = ground_collide_with_areas;
 	query.collide_with_bodies = true;
 
-	var result := get_world_3d().direct_space_state.intersect_ray(query);
+	var excluded: Array[RID] = [];
 
-	if result.is_empty():
-		return Vector3.INF;
+	for _index in range(ground_max_skips + 1):
+		query.exclude = excluded;
 
-	var position: Vector3 = result["position"];
-	return position;
+		var result := get_world_3d().direct_space_state.intersect_ray(query);
+
+		if result.is_empty():
+			return Vector3.INF;
+
+		if ground_required_group == &"":
+			var position: Vector3 = result["position"];
+			return position;
+
+		var collider: Object = result["collider"];
+
+		if collider is Node and (collider as Node).is_in_group(ground_required_group):
+			var position: Vector3 = result["position"];
+			return position;
+
+		var rid: RID = result["rid"];
+		excluded.append(rid);
+
+	return Vector3.INF;
 
 
 func _ground_at_xz(position: Vector3) -> Vector3:
@@ -791,6 +810,7 @@ func _get_pan_speed() -> float:
 
 
 func _normalize_configuration() -> void:
+	ground_max_skips = maxi(ground_max_skips, 0);
 	ground_query_distance = maxf(ground_query_distance, 0.001);
 	ground_probe_up = maxf(ground_probe_up, 0.0);
 	ground_probe_down = maxf(ground_probe_down, 0.001);
