@@ -2,22 +2,18 @@
 
 A compact RTS / city-builder camera for Godot 4.
 
-## Current core
+## Core behavior
 
 - Camera-relative WASD panning through configurable Input Map actions.
-- Screen-space pan speed stays visually consistent across zoom, pitch, FOV, aspect ratio and terrain.
-- Zoom follows a configurable pitch arc: close views become lower and more forward-looking, distant views become more top-down.
-- Free LOOK rotation is independent from the zoom rig, so the camera can look toward the horizon or sky without destroying its ground navigation anchor.
-- Optional ORBIT rotation moves the camera rig around the current ground focus.
-- Right-mouse world dragging with no pixel sensitivity constant.
-- Multiplicative, high-precision-aware wheel zoom.
-- Cursor-anchored zoom.
+- Optional soft edge scrolling through the same pan pipeline.
+- Right-mouse grab-and-drag world movement.
+- Middle-mouse LOOK or ORBIT rotation.
+- Multiplicative wheel zoom with cursor anchoring when a stable ground point exists.
+- A height-based zoom rig that becomes more forward-looking when close and more top-down when far away.
 - Plane or Physics Ground resolution through one shared ground-contact path.
-- Optional focus bounds or view-aware bounds.
-- Optional UI-aware edge scrolling with a soft speed ramp near the viewport edge.
-- Physics Ground can use manual render interpolation without unsafe physics queries from render frames.
-- Keyboard panning is suppressed while a text-editing Control owns GUI focus.
-- Transient drag/rotate/zoom state is cleared when the game window loses focus.
+- Optional focus bounds or finite-view bounds.
+- Manual render interpolation for Physics Ground mode.
+- Direct pointer modes are exclusive and recover cleanly from lost/consumed releases.
 
 ## Setup
 
@@ -30,108 +26,239 @@ Add these Input Map actions:
 
 The included demo registers WASD for these actions at runtime.
 
-Instantiate `RTSCamera.tscn`. Its root position is the initial ground focus. The Camera3D child transform does not need to be configured; the controller derives the camera pose from the logical rig state.
+Instantiate `RTSCamera.tscn`. Its root position is the logical ground-navigation focus. The Camera3D child transform does not need to be configured manually.
 
 Default mouse controls:
 
-- Middle mouse: rotate yaw and pitch using the selected rotation mode.
+- Middle mouse: rotate using the selected rotation mode.
 - Right mouse: grab and drag the world.
-- Wheel: cursor-anchored zoom.
+- Wheel: zoom.
 
-Middle-mouse rotation captures the pointer by default so yaw is not limited by the window edge. The previous mouse mode and cursor position are restored on release. Rotation uses Godot's screen-relative mouse delta for resolution-independent sensitivity.
+Middle-mouse rotation captures the pointer by default so rotation is not limited by the window edge. The previous mouse mode and cursor position are restored afterward.
 
 ## Camera model
 
-The controller deliberately separates the physical camera rig from the viewing direction.
+The controller separates three concepts:
 
-The ground focus is the navigation anchor. Zoom and rig yaw decide where the camera is positioned relative to that anchor. The zoom distance also feeds a configurable pitch curve:
+1. Ground-navigation focus.
+2. Physical camera rig.
+3. Viewing direction.
 
-- `near_pitch` is the rig pitch at minimum zoom.
-- `far_pitch` is the rig pitch at maximum zoom.
-- `zoom_arc_curve` shapes the transition between them.
+This prevents free look, zoom geometry and terrain navigation from corrupting each other's state.
 
-The normalized zoom value is eased before pitch interpolation, so the camera travels through a smooth spatial arc rather than changing height and viewing angle linearly.
+### Zoom height
 
-LOOK rotation changes only the viewing direction. The camera eye and ground focus stay fixed while the mouse is held. Look pitch is allowed from `min_look_pitch` to `max_look_pitch`, independent of the rig pitch, so looking above the horizon does not require inventing a ground intersection.
+`zoom` is the camera rig height above the ground-navigation focus, not radial distance to the focus.
 
-ORBIT rotation changes the rig yaw and adds a persistent pitch offset to the zoom arc. With zero look offset, ORBIT keeps the camera pointed toward its ground focus.
+The defaults are:
 
-Manual LOOK offsets are preserved while zooming. This means zoom still changes the underlying camera pose, while the player's chosen relative viewing direction remains intact. `reset_look()` returns the viewing direction to the natural rig direction.
+- Initial height: 30 m.
+- Minimum height: 5 m.
+- Maximum height: 120 m.
+
+Wheel zoom is multiplicative. The normalized zoom ratio is therefore logarithmic as well, so equal multiplicative wheel steps move through the camera curve consistently.
+
+### Zoom arc
+
+The natural rig pitch changes with zoom height:
+
+- `near_pitch`: 25 degrees.
+- `far_pitch`: 65 degrees.
+- `zoom_arc_curve`: 0.75.
+
+The logarithmic zoom ratio is smoothstep-eased and then shaped by `zoom_arc_curve`. Close views therefore become lower and more forward-looking while distant views become more top-down, without a linear mechanical tilt.
+
+### Raised rig target
+
+The navigation focus stays on the ground, but the natural camera rig aims at a point `rig_target_height` above it.
+
+Default:
+
+- `rig_target_height = 1.5` m.
+
+This prevents close camera poses from staring directly at the ground. The physical camera eye still remains exactly `zoom` units above the ground focus.
+
+## Rotation modes
+
+### LOOK
+
+LOOK rotates only the viewing direction.
+
+When LOOK begins, the current rig-facing direction is captured as an absolute view orientation. Mouse movement then changes that orientation without moving the camera eye or ground focus.
+
+Free look can point toward the horizon or sky:
+
+- `min_look_pitch = -85` degrees.
+- `max_look_pitch = 85` degrees.
+
+While LOOK remains detached, later zooming moves the physical rig but does not silently rewrite the chosen viewing direction.
+
+`reset_look()` returns the view to the natural rig direction. A non-immediate reset is smoothed.
+
+### ORBIT
+
+ORBIT keeps the view attached to the rig and rotates the rig around its raised target above the ground focus.
+
+Vertical ORBIT input is stored as an offset from the natural zoom-arc pitch, so zoom can still retain its characteristic camera curve.
+
+Defaults:
+
+- Minimum orbit pitch: 5 degrees.
+- Maximum orbit pitch: 85 degrees.
+
+## Zoom anchoring
+
+Wheel zoom attempts to preserve the world point under the cursor.
+
+If the current viewing ray does not resolve ground, or if the hit lies at an unstable near-horizon distance, the controller falls back to ordinary rig zoom rather than producing a giant translation.
+
+The same shallow-angle guard is used for RMB world grabbing.
+
+Direct wheel input takes ownership of the current zoom target on its first wheel event. Additional wheel events compound from that target until the zoom settles.
+
+## World dragging
+
+RMB drag is based on world-space ground intersections rather than pixel sensitivity.
+
+If the pointer temporarily leaves valid ground, dragging pauses. As soon as a stable ground point is available again, the controller re-anchors there without a jump.
+
+RMB and MMB are exclusive direct-pointer modes. Starting one cleanly terminates the other, including pointer capture and stale button state.
 
 ## Movement feel
 
-Keyboard and edge panning are expressed in screen space rather than guessed world-units-per-second. The controller samples the ground around the viewport center to derive local world distance per screen pixel, then applies `pan_screen_speed` in viewport-heights per second. This naturally adapts to zoom, viewing angle, FOV, aspect ratio and sloped Physics Ground.
+WASD and edge scrolling use screen-space scale rather than hard-coded world speed.
 
-If the center of the screen is looking above the ground or a local sample cannot resolve a surface, an analytic perspective fallback keeps movement available.
+The controller derives world-units-per-pixel from the natural camera rig and uses the actual viewing yaw for movement direction. This keeps movement speed stable even when free LOOK is near the horizon or pointing toward the sky.
+
+`pan_screen_speed` is expressed in viewport-heights per second.
+
+Default:
+
+- `pan_screen_speed = 0.75`.
+
+Manual pan input takes ownership of the focus target when it begins, so it does not accidentally continue an older programmatic `focus_on()` movement.
 
 ## Ground modes
 
-`PLANE` is the default and resolves all camera/world interaction against the horizontal `ground_height` plane. It stays render-frame driven and requires no physics world.
+### PLANE
 
-`PHYSICS` resolves camera/world interaction through 3D ray queries. Because direct physics-space queries must stay in the physics-safe path when threaded physics is in use, the camera performs its logical update in `_physics_process()` in this mode. Pointer events are buffered in order and consumed there.
+`PLANE` resolves all world interaction against the horizontal `ground_height` plane.
 
-For Physics Ground:
+It runs in the normal render-frame update path and does not require a physics world.
 
-- Put valid camera surfaces on the layers selected by `ground_collision_mask`.
-- Prefer a dedicated collision layer for terrain or other valid camera surfaces.
-- `ground_required_group` can optionally add semantic filtering. A collider matches when it or one of its Node ancestors belongs to the group.
-- Non-matching hits are skipped and the ray continues behind them, up to `ground_max_skips`.
-- `ground_probe_up` and `ground_probe_down` define the vertical probe used to keep the navigation focus attached to terrain while panning.
-- `ground_query_distance` limits arbitrary view rays.
-- `ground_collide_with_areas` is off by default so trigger volumes do not become camera ground accidentally.
+### PHYSICS
 
-The public `resolve_ground_ray()` method is the single ground-contact path used internally by screen picking, zoom anchoring and view-footprint bounds.
+`PHYSICS` resolves ground through 3D physics rays.
 
-Physics Ground uses manual render interpolation by default. Logical camera state remains fixed-timestep and physics-safe, while the rendered pose interpolates between the last two physics states. RMB drag and MMB rotation bypass that interpolation while held so direct manipulation does not gain an extra tick of input latency. The controller disables Godot's automatic interpolation on its own node branch to avoid double interpolation.
+Relevant settings:
+
+- `ground_collision_mask`
+- `ground_required_group`
+- `ground_max_skips`
+- `ground_query_distance`
+- `ground_probe_up`
+- `ground_probe_down`
+- `ground_collide_with_areas`
+
+A required group can be placed on the collider itself or one of its Node ancestors. Non-matching colliders are skipped until a valid ground surface is found or `ground_max_skips` is exhausted.
+
+Physics-space queries remain inside the physics-safe update path.
+
+Pointer events are buffered and consumed there. The first pointer hit of a physics tick uses the last visible camera presentation pose, so clicking or beginning a drag corresponds to what was actually rendered rather than a hidden fixed-timestep pose.
+
+## Physics presentation
+
+Physics Ground can use manual render interpolation through `physics_render_interpolation`.
+
+Logical camera state remains fixed-timestep and physics-safe. Render frames interpolate the actual eye position and viewing angles between physics states.
+
+Direct RMB/MMB manipulation bypasses this interpolation while active to avoid adding an extra tick of perceived input latency.
+
+Godot's automatic physics interpolation is disabled on the camera node branch to avoid double interpolation.
 
 ## Bounds
 
 Bounds are disabled by default and use a `Rect2` in world X/Z coordinates.
 
-`FOCUS` bounds only constrain the navigation focus.
+### FOCUS
 
-`VIEW` bounds constrain the actual finite ground footprint visible through the perspective camera. The footprint uses the real camera eye and free viewing direction, including zoom arc, manual LOOK offsets, FOV, keep-aspect mode and viewport aspect ratio.
+Only the ground-navigation focus is constrained.
 
-If the camera is looking far enough upward that all viewport corners cannot resolve ground, VIEW bounds fall back to focus bounds rather than pretending a finite ground footprint exists.
+### VIEW
+
+When the view is attached to the rig, the controller projects all four perspective-frustum corners onto ground and constrains the resulting finite ground footprint.
+
+The calculation includes:
+
+- zoom height,
+- rig pitch,
+- rig yaw,
+- raised rig target,
+- FOV,
+- Camera3D keep-aspect mode,
+- viewport aspect ratio.
+
+If the full viewport does not have a finite ground footprint, VIEW bounds fall back to focus bounds.
+
+While free LOOK is detached, bounds also use focus mode. Pure free-looking therefore cannot move the camera eye merely because the visible ground footprint changed.
 
 When the visible footprint is larger than the configured bounds on an axis, it is centered on that axis instead of oscillating between opposite edges.
 
-Bounds are the final spatial constraint: at an edge they intentionally take priority over exact cursor anchoring.
-
-`get_visible_ground_rect()` exposes the current finite ground footprint when available; `has_finite_ground_footprint()` reports whether that footprint is valid.
-
 ## Edge scrolling
 
-Edge scrolling is disabled by default. When enabled, it feeds the same screen-space pan pipeline as WASD. `edge_scroll_speed_multiplier` scales its maximum speed independently of keyboard input.
+Edge scrolling is disabled by default.
 
-It automatically stops while the window is unfocused, while the camera is being dragged or rotated, during a Godot GUI drag operation, and while the pointer is over a Control unless `edge_scroll_over_gui` is enabled.
+It stops automatically while:
+
+- the window is unfocused,
+- RMB drag is active,
+- MMB rotation is active,
+- a Godot GUI drag is active,
+- the pointer is over a Control unless `edge_scroll_over_gui` is enabled.
+
+`edge_scroll_speed_multiplier` independently scales its maximum speed.
 
 ## Programmatic API
 
-The compact control API is:
+The compact public control API is:
 
 - `focus_on(position, immediate)`
-- `zoom_to(distance, immediate)`
+- `zoom_to(height, immediate)`
 - `rotate_to(yaw_degrees, pitch_degrees, immediate)`
 - `reset_look(immediate)`
 - `snap()`
 
-`rotate_to()` follows the selected rotation mode. In LOOK mode the requested angles are absolute viewing angles. In ORBIT mode they describe the rig orientation.
+Queries:
+
+- `get_focus_position()`
+- `get_zoom()`
+- `get_zoom_ratio()`
+- `get_yaw()`
+- `get_pitch()`
+- `get_rig_pitch()`
+- `get_visible_ground_rect()`
+- `has_finite_ground_footprint()`
+
+`get_zoom()` returns rig height. `get_zoom_ratio()` returns the logarithmically normalized target zoom ratio.
+
+`rotate_to()` follows the selected rotation mode:
+
+- LOOK: absolute viewing yaw/pitch.
+- ORBIT: rig yaw/pitch.
 
 ## Defaults
 
-The defaults assume Godot's normal metric 3D convention:
-
 - Perspective FOV: 45 degrees.
-- Initial zoom: 30 m.
-- Minimum zoom: 5 m.
-- Maximum zoom: 120 m.
-- Near rig pitch: 20 degrees.
-- Far rig pitch: 60 degrees.
+- Initial zoom height: 30 m.
+- Minimum zoom height: 5 m.
+- Maximum zoom height: 120 m.
+- Near rig pitch: 25 degrees.
+- Far rig pitch: 65 degrees.
 - Zoom arc curve: 0.75.
+- Rig target height: 1.5 m.
 - Free look pitch: -85 to +85 degrees.
-- Orbit pitch limits: 5 to 85 degrees.
-- Pan screen speed: 0.75 viewport heights per second at full input.
+- Orbit pitch: 5 to 85 degrees.
+- Pan screen speed: 0.75 viewport heights per second.
 - Movement smoothing: 16.
 - Zoom factor: 0.85 per wheel unit.
 - Zoom smoothing: 18.
@@ -141,4 +268,4 @@ The defaults assume Godot's normal metric 3D convention:
 - Edge scroll margin: 24 px.
 - Edge scroll curve: 2.0.
 
-Invalid min/max relationships are normalized once on startup so malformed Inspector values cannot leave the controller in an impossible state.
+Malformed min/max relationships are normalized once on startup so invalid Inspector values cannot leave the controller in an impossible state.
