@@ -85,9 +85,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return;
 
 	if event is InputEventMouseButton:
-		_handle_mouse_button(event);
+		_handle_mouse_button(event as InputEventMouseButton);
 	elif event is InputEventMouseMotion and _dragging:
-		_handle_drag(event);
+		_handle_drag(event as InputEventMouseMotion);
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
@@ -97,6 +97,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_zoom_anchor_active = false;
 
 		if _dragging:
+			_target_focus = _focus;
 			var point := _world_at_screen(event.position);
 
 			if point.is_finite():
@@ -169,6 +170,7 @@ func _begin_zoom_anchor(screen_position: Vector2) -> void:
 		_zoom_anchor_active = false;
 		return;
 
+	_target_focus = _focus;
 	_zoom_anchor_screen = screen_position;
 	_zoom_anchor_world = point;
 	_zoom_anchor_active = true;
