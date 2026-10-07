@@ -560,11 +560,11 @@ func _rig_ground_units_per_pixel(axis: Vector2) -> float:
 func _fallback_pan_delta(input: Vector2, delta: float) -> Vector3:
 	var view_yaw := _current_view_yaw();
 	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
+	var rig_distance := _rig_distance_for_height(_zoom, rig_pitch);
 	var right := Vector3(cos(view_yaw), 0.0, -sin(view_yaw));
 	var backward := Vector3(sin(view_yaw), 0.0, cos(view_yaw));
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
-	var pitch_scale := maxf(sin(rig_pitch), 0.1);
-	var visible_height := 2.0 * _zoom * half_fov_tan / pitch_scale;
+	var visible_height := 2.0 * rig_distance * half_fov_tan;
 	var speed := visible_height * pan_screen_speed;
 
 	return (right * input.x + backward * input.y) * speed * delta;
@@ -718,9 +718,11 @@ func _begin_zoom_anchor(screen_position: Vector2) -> void:
 		_zoom_anchor_active = false;
 		return;
 
+	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
+	var rig_distance := _rig_distance_for_height(_zoom, rig_pitch);
 	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
 
-	if eye.distance_to(point) > _zoom * MAX_ZOOM_ANCHOR_DISTANCE_FACTOR:
+	if eye.distance_to(point) > rig_distance * MAX_ZOOM_ANCHOR_DISTANCE_FACTOR:
 		_zoom_anchor_active = false;
 		return;
 
@@ -751,10 +753,14 @@ func _update_zoom_anchor() -> void:
 
 
 func _zoom_arc_ratio(zoom: float) -> float:
-	var ratio := clampf(inverse_lerp(min_zoom, max_zoom, zoom), 0.0, 1.0);
-	var smooth_ratio := ratio * ratio * (3.0 - 2.0 * ratio);
-	return pow(smooth_ratio, zoom_arc_curve);
+	if is_equal_approx(min_zoom, max_zoom):
+		return 0.0;
 
+	var safe_zoom := clampf(zoom, min_zoom, max_zoom);
+	var ratio := log(safe_zoom / min_zoom) / log(max_zoom / min_zoom);
+	var smooth_ratio := ratio * ratio * (3.0 - 2.0 * ratio);
+
+	return pow(smooth_ratio, zoom_arc_curve);
 
 func _base_pitch_for_zoom(zoom: float) -> float:
 	return deg_to_rad(lerpf(near_pitch, far_pitch, _zoom_arc_ratio(zoom)));
@@ -801,6 +807,11 @@ func _apply_camera_transform() -> void:
 		_current_view_pitch()
 	);
 
+func _rig_distance_for_height(height: float, rig_pitch: float) -> float:
+	var vertical_factor := maxf(sin(rig_pitch), 0.001);
+	return height / vertical_factor;
+
+
 func _camera_position_for_state(
 	focus: Vector3,
 	zoom: float,
@@ -808,8 +819,9 @@ func _camera_position_for_state(
 	orbit_pitch_offset: float
 ) -> Vector3:
 	var rig_pitch := _rig_pitch(zoom, orbit_pitch_offset);
-	return focus - _view_direction(rig_yaw, rig_pitch) * zoom;
+	var distance := _rig_distance_for_height(zoom, rig_pitch);
 
+	return focus - _view_direction(rig_yaw, rig_pitch) * distance;
 
 func _apply_camera_transform_for_state(
 	focus: Vector3,
