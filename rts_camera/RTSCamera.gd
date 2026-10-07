@@ -42,14 +42,14 @@ const MAX_INPUT_DELTA := 0.1;
 @export var zoom_smoothing := 18.0;
 
 @export_group("Rotation")
-@export_enum("Look", "Orbit") var rotation_mode: int = RotationMode.LOOK;
+@export var rotation_mode: RotationMode = RotationMode.LOOK;
 @export var rotation_enabled := true;
 @export var mouse_yaw_sensitivity := 0.2;
 @export var mouse_pitch_sensitivity := 0.2;
 @export var rotation_smoothing := 18.0;
 
 @export_group("Ground")
-@export_enum("Plane", "Physics") var ground_mode: int = GroundMode.PLANE;
+@export var ground_mode: GroundMode = GroundMode.PLANE;
 @export var ground_height := 0.0;
 @export_flags_3d_physics var ground_collision_mask: int = 1;
 @export var ground_query_distance := 5000.0;
@@ -59,7 +59,7 @@ const MAX_INPUT_DELTA := 0.1;
 
 @export_group("Bounds")
 @export var bounds_enabled := false;
-@export_enum("Focus", "View") var bounds_mode: int = BoundsMode.VIEW;
+@export var bounds_mode: BoundsMode = BoundsMode.VIEW;
 @export var world_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0));
 
 @export_group("Edge Scroll")
@@ -251,7 +251,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled();
 	elif event is InputEventMouseMotion and (_rotate_button_down or _drag_button_down):
 		_pending_pointer_events.append(event);
-		get_viewport().set_input_as_handled();
 
 
 func _consume_pointer_events() -> void:
@@ -313,11 +312,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 		_cancel_look_transition();
 		_zoom_at(event.position, true, event.factor);
-		get_viewport().set_input_as_handled();
 	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		_cancel_look_transition();
 		_zoom_at(event.position, false, event.factor);
-		get_viewport().set_input_as_handled();
 
 
 func _handle_pan_input(delta: float) -> void:
@@ -646,6 +643,8 @@ func _constrain_target_state() -> void:
 
 
 func _constrain_current_state() -> Vector3:
+	_align_current_focus_to_ground();
+
 	if not bounds_enabled:
 		return Vector3.ZERO;
 
