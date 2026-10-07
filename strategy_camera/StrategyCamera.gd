@@ -11,7 +11,8 @@ const FAR_PITCH := 65.0;
 const ZOOM_ARC_CURVE := 0.75;
 const RIG_TARGET_HEIGHT := 1.5;
 
-const MIN_VIEW_PITCH := -30.0;
+const NEAR_MIN_VIEW_PITCH := -15.0;
+const FAR_MIN_VIEW_PITCH := 35.0;
 const NEAR_MAX_VIEW_PITCH := 45.0;
 const FAR_MAX_VIEW_PITCH := 75.0;
 
@@ -255,7 +256,12 @@ func _handle_pan_input(delta: float) -> void:
 
 
 func _edge_scroll_input() -> Vector2:
-	if not get_window().has_focus() or _dragging or _rotating:
+	if (
+		not get_window().has_focus()
+		or _dragging
+		or _rotating
+		or _wheel_zoom_active
+	):
 		return Vector2.ZERO;
 
 	var viewport := get_viewport();
@@ -410,13 +416,23 @@ func _view_pitch() -> float:
 
 func _constrain_pitch_offset() -> void:
 	var base_pitch := _base_pitch_for_zoom(_zoom);
-	var min_offset := deg_to_rad(MIN_VIEW_PITCH) - base_pitch;
+	var min_offset := _min_view_pitch_for_zoom(_zoom) - base_pitch;
 	var max_offset := _max_view_pitch_for_zoom(_zoom) - base_pitch;
 
 	_pitch_offset = clampf(
 		_pitch_offset,
 		min_offset,
 		max_offset
+	);
+
+
+func _min_view_pitch_for_zoom(zoom: float) -> float:
+	return deg_to_rad(
+		lerpf(
+			NEAR_MIN_VIEW_PITCH,
+			FAR_MIN_VIEW_PITCH,
+			_zoom_arc_ratio(zoom)
+		)
 	);
 
 
