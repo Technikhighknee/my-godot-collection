@@ -59,6 +59,9 @@ const MAX_INPUT_DELTA := 0.1;
 @export var ground_probe_down := 2000.0;
 @export var ground_collide_with_areas := false;
 
+@export_group("Physics Presentation")
+@export var physics_render_interpolation := true;
+
 @export_group("Bounds")
 @export var bounds_enabled := false;
 @export var bounds_mode: BoundsMode = BoundsMode.VIEW;
@@ -115,6 +118,15 @@ var _inside_ground_update := false;
 var _snap_requested := false;
 var _visible_ground_rect := Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
 
+var _active_ground_mode: GroundMode;
+var _physics_history_ready := false;
+var _physics_previous_focus: Vector3;
+var _physics_previous_zoom := 0.0;
+var _physics_previous_yaw := 0.0;
+var _physics_previous_pitch := 0.0;
+var _collapse_physics_history := false;
+var _direct_pointer_activity_this_tick := false;
+
 
 func _ready() -> void:
 	_normalize_configuration();
@@ -134,20 +146,40 @@ func _ready() -> void:
 	camera.make_current();
 	get_window().focus_exited.connect(_reset_transient_input);
 
+	_active_ground_mode = ground_mode;
+
 	if ground_mode == GroundMode.PLANE:
 		_initialize_ground_state();
 	else:
 		_apply_camera_transform();
 
+	_reset_physics_history();
+
 
 func _process(delta: float) -> void:
+	_sync_ground_mode();
+
 	if ground_mode == GroundMode.PLANE:
 		_update_camera(delta);
+	else:
+		_apply_physics_presentation();
 
 
 func _physics_process(delta: float) -> void:
-	if ground_mode == GroundMode.PHYSICS:
-		_update_camera(delta);
+	_sync_ground_mode();
+
+	if ground_mode != GroundMode.PHYSICS:
+		return;
+
+	_apply_camera_transform();
+	_begin_physics_history_step();
+	_direct_pointer_activity_this_tick = false;
+	_collapse_physics_history = false;
+
+	_update_camera(delta);
+
+	if _collapse_physics_history or _direct_pointer_activity_this_tick:
+		_reset_physics_history();
 
 
 func _update_camera(delta: float) -> void:
@@ -177,10 +209,15 @@ func _update_camera(delta: float) -> void:
 	var rotation_t := _smooth_factor(rotation_smoothing, delta);
 
 	if _look_transition_active:
+		var previous_yaw := _yaw;
+		var previous_pitch := _pitch;
+
 		_yaw = lerp_angle(_yaw, _target_yaw, rotation_t);
 		_pitch = lerpf(_pitch, _target_pitch, rotation_t);
 
 		if not _apply_look_from_eye(_look_transition_eye):
+			_yaw = previous_yaw;
+			_pitch = previous_pitch;
 			_cancel_look_transition();
 		elif _rotation_at_target():
 			_yaw = _target_yaw;
@@ -228,6 +265,62 @@ func _initialize_ground_state() -> void:
 	_apply_camera_transform();
 	_refresh_visible_ground_rect();
 	_ground_initialized = true;
+	_collapse_physics_history = true;
+
+
+func _sync_ground_mode() -> void:
+	if ground_mode == _active_ground_mode:
+		return;
+
+	_active_ground_mode = ground_mode;
+	_inside_ground_update = false;
+	_ground_initialized = false;
+	_snap_requested = false;
+	_reset_transient_input();
+
+	if ground_mode == GroundMode.PLANE:
+		_initialize_ground_state();
+	else:
+		_apply_camera_transform();
+
+	_reset_physics_history();
+
+
+func _begin_physics_history_step() -> void:
+	if not _physics_history_ready:
+		_reset_physics_history();
+		return;
+
+	_physics_previous_focus = _focus;
+	_physics_previous_zoom = _zoom;
+	_physics_previous_yaw = _yaw;
+	_physics_previous_pitch = _pitch;
+
+
+func _reset_physics_history() -> void:
+	_physics_previous_focus = _focus;
+	_physics_previous_zoom = _zoom;
+	_physics_previous_yaw = _yaw;
+	_physics_previous_pitch = _pitch;
+	_physics_history_ready = true;
+
+
+func _apply_physics_presentation() -> void:
+	if not _physics_history_ready or not physics_render_interpolation:
+		_apply_camera_transform();
+		return;
+
+	if _rotate_button_down or _drag_button_down:
+		_apply_camera_transform();
+		return;
+
+	var fraction := clampf(Engine.get_physics_interpolation_fraction(), 0.0, 1.0);
+	var focus := _physics_previous_focus.lerp(_focus, fraction);
+	var zoom := lerpf(_physics_previous_zoom, _zoom, fraction);
+	var yaw := lerp_angle(_physics_previous_yaw, _yaw, fraction);
+	var pitch := lerpf(_physics_previous_pitch, _pitch, fraction);
+
+	_apply_camera_transform_for_state(focus, zoom, yaw, pitch);
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -392,6 +485,8 @@ func _edge_scroll_axis(position: float, extent: float) -> float:
 
 
 func _handle_drag(event: InputEventMouseMotion) -> void:
+	_direct_pointer_activity_this_tick = true;
+
 	if not _drag_anchor_valid:
 		return;
 
@@ -420,6 +515,8 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 
 
 func _handle_rotation(event: InputEventMouseMotion) -> void:
+	_direct_pointer_activity_this_tick = true;
+
 	var yaw_delta := deg_to_rad(-event.relative.x * mouse_yaw_sensitivity);
 	var pitch_delta := deg_to_rad(event.relative.y * mouse_pitch_sensitivity);
 
@@ -518,11 +615,11 @@ func _apply_look_from_eye(eye: Vector3) -> bool:
 
 	var distance_to_ground := eye.distance_to(point);
 
-	if distance_to_ground <= 0.0:
+	if distance_to_ground < min_zoom or distance_to_ground > max_zoom:
 		return false;
 
 	_focus = point;
-	_zoom = clampf(distance_to_ground, min_zoom, max_zoom);
+	_zoom = distance_to_ground;
 
 	_target_focus = _focus;
 	_target_zoom = _zoom;
@@ -556,11 +653,15 @@ func _view_direction(yaw: float, pitch: float) -> Vector3:
 
 
 func _apply_camera_transform() -> void:
-	var offset := -_view_direction(_yaw, _pitch) * _zoom;
+	_apply_camera_transform_for_state(_focus, _zoom, _yaw, _pitch);
 
-	global_position = _focus;
-	camera.global_position = _focus + offset;
-	camera.look_at(_focus, Vector3.UP);
+
+func _apply_camera_transform_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> void:
+	var offset := -_view_direction(yaw, pitch) * zoom;
+
+	global_position = focus;
+	camera.global_position = focus + offset;
+	camera.look_at(focus, Vector3.UP);
 
 
 func _world_at_screen(screen_position: Vector2) -> Vector3:
@@ -929,6 +1030,8 @@ func snap() -> void:
 
 
 func _snap_now() -> void:
+	_collapse_physics_history = true;
+
 	if _look_transition_active:
 		_yaw = _target_yaw;
 		_pitch = _target_pitch;
