@@ -15,8 +15,7 @@ const MIN_VIEW_PITCH := -85.0;
 const MAX_VIEW_PITCH := 85.0;
 
 const PAN_SCREEN_SPEED := 0.75;
-const EDGE_SCROLL_MARGIN := 36.0;
-const EDGE_SCROLL_CURVE := 1.75;
+const EDGE_SCROLL_MARGIN := 24.0;
 const MOVE_SMOOTHING := 16.0;
 const ZOOM_SMOOTHING := 18.0;
 const ZOOM_FACTOR := 0.85;
@@ -276,20 +275,11 @@ func _edge_scroll_input() -> Vector2:
 func _edge_scroll_axis(position: float, extent: float) -> float:
 	var margin := minf(EDGE_SCROLL_MARGIN, extent * 0.5);
 
-	if margin <= 0.0:
-		return 0.0;
-
 	if position < margin:
-		var pressure := 1.0 - clampf(position / margin, 0.0, 1.0);
-		return -pow(pressure, EDGE_SCROLL_CURVE);
+		return -1.0;
 
 	if position > extent - margin:
-		var pressure := 1.0 - clampf(
-			(extent - position) / margin,
-			0.0,
-			1.0
-		);
-		return pow(pressure, EDGE_SCROLL_CURVE);
+		return 1.0;
 
 	return 0.0;
 

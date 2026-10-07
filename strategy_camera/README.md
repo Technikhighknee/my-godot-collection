@@ -7,7 +7,7 @@ The component deliberately has one camera model instead of a collection of modes
 ## Controls
 
 - WASD: pan relative to camera yaw.
-- Screen edge: smooth edge scrolling using the same pan model as WASD.
+- Screen edge: immediate full-speed edge scrolling using the same pan model as WASD.
 - Right mouse: grab and drag the world.
 - Middle mouse horizontal: rotate the camera around its ground focus.
 - Middle mouse vertical: look up/down relative to the natural zoom pose.
@@ -37,7 +37,7 @@ The feel constants live in the script rather than the Inspector:
 - Free pitch: -85° to +85°.
 - FOV: 45° from the scene.
 - Pan speed: 0.75 visible-heights per second.
-- Edge scroll margin: 36 px with a soft 1.75-power ramp.
+- Edge scroll margin: 24 px; entering it immediately uses normal pan speed.
 - Wheel factor: 0.85.
 - Mouse sensitivity: 0.2°/pixel.
 
