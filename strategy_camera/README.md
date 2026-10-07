@@ -8,7 +8,7 @@ The component deliberately has one camera model instead of a collection of modes
 
 - WASD: pan relative to camera yaw.
 - Screen edge: immediate full-speed edge scrolling using the same pan model as WASD.
-- Right mouse: grab and drag the world.
+- Right mouse: screen-space world grab with pitch-independent movement.
 - Middle mouse horizontal: rotate the camera around its ground focus.
 - Middle mouse vertical: look up/down relative to the natural zoom pose.
 - Wheel: zoom, anchored to the world under the cursor when that ray is at least 5° downward and therefore geometrically stable.
@@ -16,6 +16,8 @@ The component deliberately has one camera model instead of a collection of modes
 ## Camera model
 
 The root position is the initial ground focus. Its Y coordinate defines the horizontal ground plane. Its Y rotation defines the initial camera yaw.
+
+Zoom uses one logarithmic 0..1 coordinate from near to far. Wheel input moves through that coordinate in equal 5% steps, and the camera arc is linear in the same coordinate. This keeps every part of the range predictable instead of easing into a special-feeling final section.
 
 Zoom follows one built-in camera arc:
 
@@ -35,14 +37,14 @@ Horizontal rotation is equally simple: it rotates both the camera eye and its vi
 
 The feel constants live in the script rather than the Inspector:
 
-- Zoom: 5–120 m, initially 30 m.
+- Zoom: 5–120 m, initially 28.7 m (55% of the logarithmic zoom range).
 - Natural pitch: 25° close to 65° far.
 - Raised rig target: 1.5 m.
 - Pitch envelope: -30°…45° close, 10°…75° far away.
 - FOV: 45° from the scene.
 - Pan speed: 1.5 visible-heights per second.
 - Edge scroll margin: 24 px; entering it immediately uses normal pan speed.
-- Wheel factor: 0.85.
+- Wheel step: 5% of the logarithmic zoom range.
 - Mouse sensitivity: 0.2°/pixel.
 
 If one of these values proves wrong in actual play, change the opinionated default. Do not turn every value into a setting preemptively.
@@ -56,6 +58,8 @@ If one of these values proves wrong in actual play, change the opinionated defau
 - Runtime ground-mode switching.
 - Configurable mouse buttons or input action names.
 - A large programmatic transition API.
+
+Right-mouse dragging is intentionally screen-space based rather than a ray/ground-plane grab. A ray-plane grab becomes extremely sensitive near shallow view angles; screen-space dragging instead uses the same zoom-derived world scale at every pitch.
 
 Edge scrolling is intentionally part of the core because it reuses the same movement model without adding a second camera behavior. It is disabled while dragging or rotating, while the window is unfocused, and while the pointer is over UI. After pointer capture or a world drag ends, it waits for deliberate mouse movement before engaging so cursor restoration cannot trigger an accidental pan.
 
