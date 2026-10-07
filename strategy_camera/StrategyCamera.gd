@@ -286,7 +286,7 @@ func _update_zoom_anchor() -> void:
 
 	var current := _world_at_screen(_zoom_anchor_screen);
 
-	if not current.is_finite():
+	if not _ground_point_is_usable(current):
 		_zoom_anchor_active = false;
 		return;
 
