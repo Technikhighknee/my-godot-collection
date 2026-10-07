@@ -8,7 +8,7 @@ The camera deliberately has one spatial model instead of zoom modes, orbit modes
 
 - WASD: pan relative to camera yaw.
 - Screen edge: full-speed panning using the same movement model.
-- Right mouse hold: after a short hold, pin the visible cursor in place and pan in the same screen direction as WASD / edge panning. A normal right click is left untouched.
+- Right mouse hold: after a short hold, capture the pointer and pan in the same screen direction as WASD / edge panning. A normal right click is left untouched.
 - Middle mouse horizontal: rotate yaw.
 - Middle mouse vertical: change tilt.
 - Wheel: lower or raise the camera's physical height above the ground.
@@ -50,7 +50,16 @@ Calling `focus_on()` is also an explicit focus override and therefore releases f
 
 WASD, edge scrolling, and right-mouse dragging all use the same yaw-relative ground axes and the same height-derived world scale.
 
-Right mouse is click-safe: pressing and releasing it before the hold delay does nothing to the camera and is not consumed, leaving the click available to gameplay code. Holding it for 120 ms activates camera panning and pins the visible cursor at its current position. Mouse motion is applied to the camera and the cursor is immediately warped back to that anchor, without switching mouse mode. Moving the mouse right pans right and moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
+Right mouse is click-safe: pressing and releasing it before the hold delay does nothing to the camera and is not consumed, leaving the click available to gameplay code. Holding it for 120 ms activates camera panning and switches to captured pointer input. The system cursor therefore disappears while panning, and the original cursor position is restored when panning ends. Moving the mouse right pans right and moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
+
+### Custom cursor integration
+
+The camera does not own or render cursors. Games that already provide their own software cursor can keep it visually pinned during right-mouse panning by listening to:
+
+- `pointer_pan_started(anchor)`
+- `pointer_pan_ended(anchor)`
+
+The start signal provides the cursor position at the moment panning takes over. A custom cursor system can freeze its visual at that anchor while Godot keeps the real pointer captured, then resume normal cursor tracking when the end signal fires. Without a custom cursor system, no integration is required; the captured system cursor simply stays hidden during the pan.
 
 ## Opinionated defaults
 
