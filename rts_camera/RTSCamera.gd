@@ -36,7 +36,7 @@ const MAX_INPUT_DELTA := 0.1;
 @export var zoom_smoothing := 18.0;
 
 @export_group("Rotation")
-@export_enum("Look", "Orbit") var rotation_mode := RotationMode.LOOK;
+@export_enum("Look", "Orbit") var rotation_mode: int = RotationMode.LOOK;
 @export var rotation_enabled := true;
 @export var mouse_yaw_sensitivity := 0.2;
 @export var mouse_pitch_sensitivity := 0.2;
@@ -47,7 +47,7 @@ const MAX_INPUT_DELTA := 0.1;
 
 @export_group("Bounds")
 @export var bounds_enabled := false;
-@export_enum("Focus", "View") var bounds_mode := BoundsMode.VIEW;
+@export_enum("Focus", "View") var bounds_mode: int = BoundsMode.VIEW;
 @export var world_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0));
 
 @export_group("Edge Scroll")
