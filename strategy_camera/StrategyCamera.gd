@@ -2,30 +2,24 @@ class_name StrategyCamera
 extends Node3D;
 
 
-const MIN_ZOOM := 5.0;
-const MAX_ZOOM := 120.0;
-const INITIAL_ZOOM := 28.7135;
-const ZOOM_STEP := 0.05;
+const MIN_HEIGHT := 5.0;
+const MAX_HEIGHT := 120.0;
+const INITIAL_HEIGHT := 28.7135;
+const HEIGHT_STEP := 0.05;
 
-const NEAR_PITCH := 25.0;
-const FAR_PITCH := 65.0;
-const RIG_TARGET_HEIGHT := 1.5;
-
-const NEAR_MIN_VIEW_PITCH := -30.0;
-const FAR_MIN_VIEW_PITCH := 10.0;
-const NEAR_MAX_VIEW_PITCH := 45.0;
-const FAR_MAX_VIEW_PITCH := 75.0;
+const NEAR_MIN_TILT := 65.0;
+const FAR_MIN_TILT := 25.0;
+const MAX_TILT := 90.0;
 
 const PAN_SCREEN_SPEED := 1.5;
 const EDGE_SCROLL_MARGIN := 24.0;
 const MOVE_SMOOTHING := 16.0;
-const ZOOM_SMOOTHING := 18.0;
+const HEIGHT_SMOOTHING := 18.0;
 
 const MOUSE_YAW_SENSITIVITY := 0.2;
-const MOUSE_PITCH_SENSITIVITY := 0.2;
+const MOUSE_TILT_SENSITIVITY := 0.2;
 
 const MAX_INPUT_DELTA := 0.1;
-const MIN_GROUND_RAY_ANGLE := 5.0;
 
 const PAN_LEFT_ACTION: StringName = &"camera_left";
 const PAN_RIGHT_ACTION: StringName = &"camera_right";
@@ -41,27 +35,22 @@ var _ground_height := 0.0;
 var _focus: Vector3;
 var _target_focus: Vector3;
 
-var _zoom := INITIAL_ZOOM;
-var _target_zoom := INITIAL_ZOOM;
-var _wheel_zoom_active := false;
+var _height := INITIAL_HEIGHT;
+var _target_height := INITIAL_HEIGHT;
 
 var _yaw := 0.0;
-var _pitch_offset := 0.0;
+var _tilt_ratio := 0.0;
 
 var _pan_input_active := false;
 var _edge_scroll_waiting_for_motion := false;
 var _edge_scroll_block_position := Vector2.ZERO;
 
-var _dragging := false;
-
+var _panning := false;
 var _rotating := false;
+
 var _rotation_capture_active := false;
 var _rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
-var _rotation_restore_mouse_position: Vector2;
-
-var _zoom_anchor_active := false;
-var _zoom_anchor_screen: Vector2;
-var _zoom_anchor_world: Vector3;
+var _rotation_restore_mouse_position := Vector2.ZERO;
 
 
 func _ready() -> void:
@@ -84,24 +73,16 @@ func _process(delta: float) -> void:
 	_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
 	var move_t := _smooth_factor(MOVE_SMOOTHING, delta);
-	var zoom_t := _smooth_factor(ZOOM_SMOOTHING, delta);
+	var height_t := _smooth_factor(HEIGHT_SMOOTHING, delta);
 
 	_focus = _focus.lerp(_target_focus, move_t);
 	_focus.y = _ground_height;
-	_zoom = lerpf(_zoom, _target_zoom, zoom_t);
-	_constrain_pitch_offset();
+	_height = lerpf(_height, _target_height, height_t);
+
+	if absf(_height - _target_height) < 0.001:
+		_height = _target_height;
 
 	_apply_camera_transform();
-	_update_zoom_anchor();
-
-	if _zoom_anchor_active:
-		_apply_camera_transform();
-
-	if _wheel_zoom_active and absf(_zoom - _target_zoom) < 0.001:
-		_zoom = _target_zoom;
-		_constrain_pitch_offset();
-		_wheel_zoom_active = false;
-		_zoom_anchor_active = false;
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -110,8 +91,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion;
 
-		if _dragging:
-			_handle_drag(motion);
+		if _panning:
+			_handle_pointer_pan(motion);
 		elif _rotating:
 			_handle_rotation(motion);
 
@@ -121,9 +102,8 @@ func _reconcile_pointer_buttons() -> void:
 		_rotating = false;
 		_end_rotation_capture();
 
-	if _dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-		_dragging = false;
-		_drag_anchor_valid = false;
+	if _panning and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		_panning = false;
 		_suppress_edge_scroll_until_motion(
 			get_viewport().get_mouse_position()
 		);
@@ -132,13 +112,10 @@ func _reconcile_pointer_buttons() -> void:
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index == MOUSE_BUTTON_MIDDLE:
 		_rotating = event.pressed and not event.canceled;
-		_zoom_anchor_active = false;
 
 		if _rotating:
-			_dragging = false;
+			_panning = false;
 			_target_focus = _focus;
-			_target_zoom = _zoom;
-			_wheel_zoom_active = false;
 			_begin_rotation_capture(event.position);
 		else:
 			_end_rotation_capture();
@@ -147,29 +124,26 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		return;
 
 	if event.button_index == MOUSE_BUTTON_RIGHT:
-		_dragging = event.pressed and not event.canceled;
-		_zoom_anchor_active = false;
+		_panning = event.pressed and not event.canceled;
 
-		if _dragging:
+		if _panning:
 			_rotating = false;
 			_end_rotation_capture();
 			_target_focus = _focus;
-			_target_zoom = _zoom;
-			_wheel_zoom_active = false;
 		else:
 			_suppress_edge_scroll_until_motion(event.position);
 
 		get_viewport().set_input_as_handled();
 		return;
 
-	if not event.pressed or event.canceled or _dragging or _rotating:
+	if not event.pressed or event.canceled or _panning or _rotating:
 		return;
 
 	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-		_zoom_at(event.position, true, event.factor);
+		_change_height(-1.0, event.factor);
 		get_viewport().set_input_as_handled();
 	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		_zoom_at(event.position, false, event.factor);
+		_change_height(1.0, event.factor);
 		get_viewport().set_input_as_handled();
 
 
@@ -180,25 +154,24 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 		PI
 	);
 
-	_pitch_offset += deg_to_rad(
-		event.screen_relative.y * MOUSE_PITCH_SENSITIVITY
+	var tilt := _view_tilt();
+	tilt -= deg_to_rad(
+		event.screen_relative.y * MOUSE_TILT_SENSITIVITY
 	);
-	_constrain_pitch_offset();
+	_set_view_tilt(tilt);
 
 	_apply_camera_transform();
 	get_viewport().set_input_as_handled();
 
 
-func _handle_drag(event: InputEventMouseMotion) -> void:
-	var units_per_pixel := _world_units_per_pixel();
-	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
-	var backward := Vector3(sin(_yaw), 0.0, cos(_yaw));
+func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
 	var motion := event.relative;
+	var world_delta := _pan_world_delta(
+		motion,
+		_world_units_per_pixel()
+	);
 
-	_focus += (
-		-right * motion.x
-		-backward * motion.y
-	) * units_per_pixel;
+	_focus += world_delta;
 	_target_focus = _focus;
 
 	_apply_camera_transform();
@@ -206,7 +179,7 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 
 
 func _handle_pan_input(delta: float) -> void:
-	if _keyboard_pan_blocked_by_gui():
+	if _panning or _rotating or _keyboard_pan_blocked_by_gui():
 		_pan_input_active = false;
 		return;
 
@@ -216,9 +189,9 @@ func _handle_pan_input(delta: float) -> void:
 		PAN_FORWARD_ACTION,
 		PAN_BACK_ACTION
 	);
-	var input := (keyboard + _edge_scroll_input()).limit_length(1.0);
+	var input_vector := (keyboard + _edge_scroll_input()).limit_length(1.0);
 
-	if input == Vector2.ZERO:
+	if input_vector == Vector2.ZERO:
 		_pan_input_active = false;
 		return;
 
@@ -226,25 +199,24 @@ func _handle_pan_input(delta: float) -> void:
 		_target_focus = _focus;
 		_pan_input_active = true;
 
-	_zoom_anchor_active = false;
+	_target_focus += _pan_world_delta(
+		input_vector,
+		_pan_speed() * delta
+	);
 
+
+func _pan_world_delta(direction: Vector2, distance: float) -> Vector3:
 	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
 	var backward := Vector3(sin(_yaw), 0.0, cos(_yaw));
-	var speed := _pan_speed();
 
-	_target_focus += (
-		right * input.x
-		+ backward * input.y
-	) * speed * delta;
+	return (
+		right * direction.x
+		+ backward * direction.y
+	) * distance;
 
 
 func _edge_scroll_input() -> Vector2:
-	if (
-		not get_window().has_focus()
-		or _dragging
-		or _rotating
-		or _wheel_zoom_active
-	):
+	if not get_window().has_focus() or _panning or _rotating:
 		return Vector2.ZERO;
 
 	var viewport := get_viewport();
@@ -296,7 +268,7 @@ func _keyboard_pan_blocked_by_gui() -> bool:
 
 
 func _pan_speed() -> float:
-	return _visible_world_height() * PAN_SCREEN_SPEED;
+	return _world_span_at_height() * PAN_SCREEN_SPEED;
 
 
 func _world_units_per_pixel() -> float:
@@ -305,178 +277,82 @@ func _world_units_per_pixel() -> float:
 	if viewport_height <= 0.0:
 		return 0.0;
 
-	return _visible_world_height() / viewport_height;
+	return _world_span_at_height() / viewport_height;
 
 
-func _visible_world_height() -> float:
-	var distance := _rig_distance_for_zoom(_zoom);
+func _world_span_at_height() -> float:
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
+	return 2.0 * _height * half_fov_tan;
 
-	return 2.0 * distance * half_fov_tan;
 
-
-func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> void:
-	if not _wheel_zoom_active:
-		_target_zoom = _zoom;
-		_wheel_zoom_active = true;
-
-	_begin_zoom_anchor(screen_position);
-
+func _change_height(direction: float, event_factor: float) -> void:
 	var amount := event_factor if event_factor > 0.0 else 1.0;
-	var direction := -1.0 if zoom_in else 1.0;
-	var target_ratio := _normalized_zoom(_target_zoom);
+	var ratio := _normalized_height(_target_height);
 
-	target_ratio = clampf(
-		target_ratio + direction * ZOOM_STEP * amount,
+	ratio = clampf(
+		ratio + direction * HEIGHT_STEP * amount,
 		0.0,
 		1.0
 	);
-	_target_zoom = _zoom_for_ratio(target_ratio);
+	_target_height = _height_for_ratio(ratio);
 
 
-func _begin_zoom_anchor(screen_position: Vector2) -> void:
-	var point := _world_at_screen(screen_position);
-
-	if not _ground_point_is_usable(point):
-		_zoom_anchor_active = false;
-		return;
-
-	_target_focus = _focus;
-	_zoom_anchor_screen = screen_position;
-	_zoom_anchor_world = point;
-	_zoom_anchor_active = true;
+func _view_tilt() -> float:
+	var min_tilt := _min_tilt_for_height(_height);
+	return lerpf(min_tilt, deg_to_rad(MAX_TILT), _tilt_ratio);
 
 
-func _update_zoom_anchor() -> void:
-	if not _zoom_anchor_active:
-		return;
+func _set_view_tilt(tilt: float) -> void:
+	var min_tilt := _min_tilt_for_height(_height);
+	var max_tilt := deg_to_rad(MAX_TILT);
+	var clamped := clampf(tilt, min_tilt, max_tilt);
+	var span := max_tilt - min_tilt;
 
-	var current := _world_at_screen(_zoom_anchor_screen);
-
-	if not _ground_point_is_usable(current):
-		_zoom_anchor_active = false;
-		return;
-
-	var offset := _zoom_anchor_world - current;
-	offset.y = 0.0;
-
-	_focus += offset;
-	_target_focus += offset;
+	_tilt_ratio = 0.0 if span <= 0.0 else (clamped - min_tilt) / span;
 
 
-func _ground_point_is_usable(point: Vector3) -> bool:
-	return point.is_finite();
+func _min_tilt_for_height(height: float) -> float:
+	return deg_to_rad(
+		lerpf(
+			NEAR_MIN_TILT,
+			FAR_MIN_TILT,
+			_normalized_height(height)
+		)
+	);
 
 
-func _world_at_screen(screen_position: Vector2) -> Vector3:
-	var origin := camera.project_ray_origin(screen_position);
-	var direction := camera.project_ray_normal(screen_position);
-	var min_downward := sin(deg_to_rad(MIN_GROUND_RAY_ANGLE));
+func _normalized_height(height: float) -> float:
+	var safe_height := clampf(height, MIN_HEIGHT, MAX_HEIGHT);
 
-	if direction.y > -min_downward:
-		return Vector3.INF;
-
-	var distance := (_ground_height - origin.y) / direction.y;
-
-	if distance < 0.0:
-		return Vector3.INF;
-
-	return origin + direction * distance;
+	return clampf(
+		log(safe_height / MIN_HEIGHT) / log(MAX_HEIGHT / MIN_HEIGHT),
+		0.0,
+		1.0
+	);
 
 
-func _camera_position() -> Vector3:
-	var base_pitch := _base_pitch_for_zoom(_zoom);
-	var distance := _rig_distance_for_zoom(_zoom);
-	var target := _focus + Vector3.UP * RIG_TARGET_HEIGHT;
+func _height_for_ratio(ratio: float) -> float:
+	var safe_ratio := clampf(ratio, 0.0, 1.0);
+	return MIN_HEIGHT * pow(MAX_HEIGHT / MIN_HEIGHT, safe_ratio);
 
-	return target - _view_direction(_yaw, base_pitch) * distance;
+
+func _view_direction() -> Vector3:
+	var tilt := _view_tilt();
+	var horizontal := sin(tilt);
+
+	return Vector3(
+		-sin(_yaw) * horizontal,
+		-cos(tilt),
+		-cos(_yaw) * horizontal
+	);
 
 
 func _apply_camera_transform() -> void:
 	global_position = _focus;
-	camera.global_position = _camera_position();
+	camera.global_position = _focus + Vector3.UP * _height;
 	camera.look_at(
-		camera.global_position + _view_direction(_yaw, _view_pitch()),
+		camera.global_position + _view_direction(),
 		Vector3.UP
-	);
-
-
-func _view_pitch() -> float:
-	return _base_pitch_for_zoom(_zoom) + _pitch_offset;
-
-
-func _constrain_pitch_offset() -> void:
-	var base_pitch := _base_pitch_for_zoom(_zoom);
-	var min_offset := _min_view_pitch_for_zoom(_zoom) - base_pitch;
-	var max_offset := _max_view_pitch_for_zoom(_zoom) - base_pitch;
-
-	_pitch_offset = clampf(
-		_pitch_offset,
-		min_offset,
-		max_offset
-	);
-
-
-func _min_view_pitch_for_zoom(zoom: float) -> float:
-	return deg_to_rad(
-		lerpf(
-			NEAR_MIN_VIEW_PITCH,
-			FAR_MIN_VIEW_PITCH,
-			_normalized_zoom(zoom)
-		)
-	);
-
-
-func _max_view_pitch_for_zoom(zoom: float) -> float:
-	return deg_to_rad(
-		lerpf(
-			NEAR_MAX_VIEW_PITCH,
-			FAR_MAX_VIEW_PITCH,
-			_normalized_zoom(zoom)
-		)
-	);
-
-
-func _rig_distance_for_zoom(zoom: float) -> float:
-	var base_pitch := _base_pitch_for_zoom(zoom);
-	var vertical_span := maxf(zoom - RIG_TARGET_HEIGHT, 0.001);
-
-	return vertical_span / maxf(sin(base_pitch), 0.001);
-
-
-func _base_pitch_for_zoom(zoom: float) -> float:
-	return deg_to_rad(
-		lerpf(
-			NEAR_PITCH,
-			FAR_PITCH,
-			_normalized_zoom(zoom)
-		)
-	);
-
-
-func _normalized_zoom(zoom: float) -> float:
-	var safe_zoom := clampf(zoom, MIN_ZOOM, MAX_ZOOM);
-
-	return clampf(
-		log(safe_zoom / MIN_ZOOM) / log(MAX_ZOOM / MIN_ZOOM),
-		0.0,
-		1.0
-	);
-
-
-func _zoom_for_ratio(ratio: float) -> float:
-	var safe_ratio := clampf(ratio, 0.0, 1.0);
-
-	return MIN_ZOOM * pow(MAX_ZOOM / MIN_ZOOM, safe_ratio);
-
-
-func _view_direction(yaw: float, pitch: float) -> Vector3:
-	var horizontal := cos(pitch);
-
-	return Vector3(
-		-sin(yaw) * horizontal,
-		-sin(pitch),
-		-cos(yaw) * horizontal
 	);
 
 
@@ -504,11 +380,11 @@ func _end_rotation_capture() -> void:
 
 func _reset_pointer_state() -> void:
 	_end_rotation_capture();
-	_dragging = false;
-	_drag_anchor_valid = false;
+	_panning = false;
 	_rotating = false;
-	_zoom_anchor_active = false;
-	_suppress_edge_scroll_until_motion(get_viewport().get_mouse_position());
+	_suppress_edge_scroll_until_motion(
+		get_viewport().get_mouse_position()
+	);
 
 
 func _smooth_factor(speed: float, delta: float) -> float:
@@ -519,21 +395,17 @@ func focus_on(position: Vector3, immediate := false) -> void:
 	position.y = _ground_height;
 	_target_focus = position;
 	_pan_input_active = false;
-	_zoom_anchor_active = false;
 
 	if immediate:
 		_focus = _target_focus;
 		_apply_camera_transform();
 
 
-func zoom_to(height: float, immediate := false) -> void:
-	_target_zoom = clampf(height, MIN_ZOOM, MAX_ZOOM);
-	_wheel_zoom_active = false;
-	_zoom_anchor_active = false;
+func set_height(height: float, immediate := false) -> void:
+	_target_height = clampf(height, MIN_HEIGHT, MAX_HEIGHT);
 
 	if immediate:
-		_zoom = _target_zoom;
-		_constrain_pitch_offset();
+		_height = _target_height;
 		_apply_camera_transform();
 
 
@@ -541,13 +413,13 @@ func get_focus_position() -> Vector3:
 	return _focus;
 
 
-func get_zoom() -> float:
-	return _zoom;
+func get_height() -> float:
+	return _height;
 
 
 func get_yaw() -> float:
 	return rad_to_deg(_yaw);
 
 
-func get_pitch() -> float:
-	return rad_to_deg(_view_pitch());
+func get_tilt() -> float:
+	return rad_to_deg(_view_tilt());

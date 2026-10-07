@@ -2,68 +2,65 @@
 
 An opinionated 3D strategy / city-builder camera for Godot 4.
 
-The component deliberately has one camera model instead of a collection of modes.
+The camera deliberately has one spatial model instead of zoom modes, orbit modes, or cursor-anchored special cases.
 
 ## Controls
 
 - WASD: pan relative to camera yaw.
-- Screen edge: immediate full-speed edge scrolling using the same pan model as WASD.
-- Right mouse: screen-space world grab with pitch-independent movement.
-- Middle mouse horizontal: rotate the camera around its ground focus.
-- Middle mouse vertical: look up/down relative to the natural zoom pose.
-- Wheel: zoom, anchored to the world under the cursor when that ray is at least 5° downward and therefore geometrically stable.
+- Screen edge: full-speed panning using the same movement model.
+- Right mouse drag: pan in the same screen direction as WASD / edge panning.
+- Middle mouse horizontal: rotate yaw.
+- Middle mouse vertical: change tilt.
+- Wheel: lower or raise the camera's physical height above the ground.
 
 ## Camera model
 
-The root position is the initial ground focus. Its Y coordinate defines the horizontal ground plane. Its Y rotation defines the initial camera yaw.
+The root position is the camera's ground position. Its Y coordinate defines the horizontal ground plane.
 
-Zoom uses one logarithmic 0..1 coordinate from near to far. Wheel input moves through that coordinate in equal 5% steps, and the camera arc is linear in the same coordinate. This keeps every part of the range predictable instead of easing into a special-feeling final section.
+Wheel input changes only one thing: camera height. It does not move the ground focus, does not zoom toward the cursor, and does not perform a radial dolly.
 
-Zoom follows one built-in camera arc:
+Tilt uses a deliberately simple convention:
 
-- Close: lower and more forward-looking.
-- Far: higher and more top-down.
-- Middle-mouse vertical rotation adds a persistent pitch offset on top of that arc.
-- The upward limit follows the zoom gently: -30° close to 10° far away.
-- The downward limit follows the zoom: 45° close to 75° far away.
+- 0° = straight down.
+- 90° = straight ahead at the horizon.
+- The maximum is always 90°.
+- Only the minimum depends on height: 65° at minimum height, opening to 25° at maximum height.
 
-Manual looking never disables the zoom arc and zoom never recenters the camera by itself. The user's pitch offset stays intact. Both sides of the pitch envelope still follow zoom, but the upper side stays deliberately broad so the camera keeps its freedom instead of feeling tunnel-like.
+There is no explicit zoom arc. Instead, vertical mouse input is stored as a normalized position inside the currently allowed tilt range. When height changes, the moving minimum changes the actual tilt naturally while the fixed 90° maximum stays put. At the minimum tilt this reproduces the classic close/forward to far/top-down camera motion without maintaining a second arc state.
 
-Wheel zoom temporarily takes priority over edge scrolling so cursor anchoring and edge movement never fight over the ground focus.
+Height itself is logarithmic for input purposes. Each wheel step moves 5% through the 5–120 m height range, so every step has the same perceptual weight and the endpoints do not get a special partial transition.
 
-Horizontal rotation is equally simple: it rotates both the camera eye and its viewing yaw around the same ground focus. There is no LOOK/ORBIT mode switch.
+## Panning
+
+WASD, edge scrolling, and right-mouse dragging all use the same yaw-relative ground axes and the same height-derived world scale.
+
+Right-mouse dragging is not a world grab. Moving the mouse right pans right; moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
 
 ## Opinionated defaults
 
 The feel constants live in the script rather than the Inspector:
 
-- Zoom: 5–120 m, initially 28.7 m (55% of the logarithmic zoom range).
-- Natural pitch: 25° close to 65° far.
-- Raised rig target: 1.5 m.
-- Pitch envelope: -30°…45° close, 10°…75° far away.
+- Height: 5–120 m, initially 28.7 m.
+- Height step: 5% of the logarithmic range.
+- Minimum tilt: 65° close to 25° far away.
+- Maximum tilt: 90°.
 - FOV: 45° from the scene.
-- Pan speed: 1.5 visible-heights per second.
-- Edge scroll margin: 24 px; entering it immediately uses normal pan speed.
-- Wheel step: 5% of the logarithmic zoom range.
+- Pan speed: 1.5 screen-heights per second.
+- Edge scroll margin: 24 px.
 - Mouse sensitivity: 0.2°/pixel.
-
-If one of these values proves wrong in actual play, change the opinionated default. Do not turn every value into a setting preemptively.
 
 ## What is intentionally not in the core
 
+- Zoom-to-cursor.
+- Ground-ray dragging.
+- A separate camera arc.
 - Multiple rotation modes.
 - Physics-terrain following.
 - Terrain presentation smoothing.
 - View-aware bounds.
 - Runtime ground-mode switching.
 - Configurable mouse buttons or input action names.
-- A large programmatic transition API.
-
-Right-mouse dragging is intentionally screen-space based rather than a ray/ground-plane grab. A ray-plane grab becomes extremely sensitive near shallow view angles; screen-space dragging instead uses the same zoom-derived world scale at every pitch.
-
-Edge scrolling is intentionally part of the core because it reuses the same movement model without adding a second camera behavior. It is disabled while dragging or rotating, while the window is unfocused, and while the pointer is over UI. After pointer capture or a world drag ends, it waits for deliberate mouse movement before engaging so cursor restoration cannot trigger an accidental pan.
-
-The remaining features can return only when a concrete game needs them and the feature can remain conceptually small.
+- A large transition API.
 
 ## Input Map
 
@@ -79,8 +76,8 @@ The included demo registers WASD for these actions.
 ## Small API
 
 - `focus_on(position, immediate)`
-- `zoom_to(height, immediate)`
+- `set_height(height, immediate)`
 - `get_focus_position()`
-- `get_zoom()`
+- `get_height()`
 - `get_yaw()`
-- `get_pitch()`
+- `get_tilt()`
