@@ -22,7 +22,7 @@ enum GroundMode {
 
 const MAX_INPUT_DELTA := 0.1;
 const PAN_SAMPLE_PIXELS := 32.0;
-const MAX_ZOOM_ANCHOR_DISTANCE_FACTOR := 6.0;
+const MAX_DIRECT_GROUND_DISTANCE_FACTOR := 6.0;
 
 
 @export_group("Camera")
@@ -459,7 +459,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_target_zoom = _zoom;
 			var point := _world_at_screen(event.position);
 
-			if point.is_finite():
+			if _ground_point_is_directly_usable(point):
 				_drag_anchor = point;
 				_drag_anchor_valid = true;
 
@@ -635,7 +635,8 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 
 	var current := _world_at_screen(event.position);
 
-	if not current.is_finite():
+	if not _ground_point_is_directly_usable(current):
+		_drag_anchor_valid = false;
 		return;
 
 	var offset := _drag_anchor - current;
@@ -652,9 +653,8 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 	if not bounds_correction.is_zero_approx():
 		var constrained_anchor := _world_at_screen(event.position);
 
-		if constrained_anchor.is_finite():
+		if _ground_point_is_directly_usable(constrained_anchor):
 			_drag_anchor = constrained_anchor;
-
 
 func _handle_rotation(event: InputEventMouseMotion) -> void:
 	_direct_pointer_activity_this_tick = true;
@@ -722,6 +722,17 @@ func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> v
 
 	_target_zoom = clampf(_target_zoom, min_zoom, max_zoom);
 
+func _ground_point_is_directly_usable(point: Vector3) -> bool:
+	if not point.is_finite():
+		return false;
+
+	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
+	var rig_distance := _rig_distance_for_height(_zoom, rig_pitch);
+	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+
+	return eye.distance_to(point) <= rig_distance * MAX_DIRECT_GROUND_DISTANCE_FACTOR;
+
+
 func _begin_zoom_anchor(screen_position: Vector2) -> void:
 	if _look_detached:
 		_zoom_anchor_active = false;
@@ -729,15 +740,7 @@ func _begin_zoom_anchor(screen_position: Vector2) -> void:
 
 	var point := _world_at_screen(screen_position);
 
-	if not point.is_finite():
-		_zoom_anchor_active = false;
-		return;
-
-	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
-	var rig_distance := _rig_distance_for_height(_zoom, rig_pitch);
-	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
-
-	if eye.distance_to(point) > rig_distance * MAX_ZOOM_ANCHOR_DISTANCE_FACTOR:
+	if not _ground_point_is_directly_usable(point):
 		_zoom_anchor_active = false;
 		return;
 
