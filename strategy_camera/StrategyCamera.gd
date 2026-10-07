@@ -13,6 +13,7 @@ const MAX_TILT := 90.0;
 
 const PAN_SCREEN_SPEED := 1.5;
 const EDGE_SCROLL_MARGIN := 24.0;
+const POINTER_PAN_HOLD_DELAY := 0.12;
 const MOVE_SMOOTHING := 16.0;
 const HEIGHT_SMOOTHING := 18.0;
 
@@ -47,6 +48,8 @@ var _edge_scroll_waiting_for_motion := false;
 var _edge_scroll_block_position := Vector2.ZERO;
 
 var _panning := false;
+var _pan_hold_pending := false;
+var _pan_hold_elapsed := 0.0;
 var _rotating := false;
 
 var _pointer_capture_active := false;
@@ -95,6 +98,7 @@ func _assert_input_actions() -> void:
 
 func _process(delta: float) -> void:
 	_reconcile_pointer_buttons();
+	_update_pointer_pan_hold(delta);
 	_sync_follow_target();
 	_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
@@ -156,9 +160,38 @@ func _reconcile_pointer_buttons() -> void:
 		_rotating = false;
 		_end_pointer_capture();
 
+	if _pan_hold_pending and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		_cancel_pointer_pan_hold();
+
 	if _panning and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		_panning = false;
 		_end_pointer_capture();
+
+
+func _update_pointer_pan_hold(delta: float) -> void:
+	if not _pan_hold_pending:
+		return;
+
+	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		_cancel_pointer_pan_hold();
+		return;
+
+	_pan_hold_elapsed += delta;
+
+	if _pan_hold_elapsed < POINTER_PAN_HOLD_DELAY:
+		return;
+
+	_pan_hold_pending = false;
+	_pan_hold_elapsed = 0.0;
+	_panning = true;
+	_rotating = false;
+	_target_focus = _focus;
+	_begin_pointer_capture(get_viewport().get_mouse_position());
+
+
+func _cancel_pointer_pan_hold() -> void:
+	_pan_hold_pending = false;
+	_pan_hold_elapsed = 0.0;
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
@@ -166,6 +199,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_rotating = event.pressed and not event.canceled;
 
 		if _rotating:
+			_cancel_pointer_pan_hold();
 			_panning = false;
 			_target_focus = _focus;
 			_begin_pointer_capture(event.position);
@@ -176,16 +210,21 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		return;
 
 	if event.button_index == MOUSE_BUTTON_RIGHT:
-		_panning = event.pressed and not event.canceled;
+		if event.pressed and not event.canceled:
+			_pan_hold_pending = true;
+			_pan_hold_elapsed = 0.0;
+			return;
 
 		if _panning:
-			_rotating = false;
-			_target_focus = _focus;
-			_begin_pointer_capture(event.position);
-		elif not _rotating:
-			_end_pointer_capture();
+			_panning = false;
 
-		get_viewport().set_input_as_handled();
+			if not _rotating:
+				_end_pointer_capture();
+
+			get_viewport().set_input_as_handled();
+		else:
+			_cancel_pointer_pan_hold();
+
 		return;
 
 	if not event.pressed or event.canceled or _panning or _rotating:
@@ -276,7 +315,12 @@ func _pan_world_delta(direction: Vector2, distance: float) -> Vector3:
 
 
 func _edge_scroll_input() -> Vector2:
-	if not get_window().has_focus() or _panning or _rotating:
+	if (
+		not get_window().has_focus()
+		or _pan_hold_pending
+		or _panning
+		or _rotating
+	):
 		return Vector2.ZERO;
 
 	var viewport := get_viewport();
@@ -439,6 +483,7 @@ func _end_pointer_capture() -> void:
 
 
 func _reset_pointer_state() -> void:
+	_cancel_pointer_pan_hold();
 	_end_pointer_capture();
 	_panning = false;
 	_rotating = false;

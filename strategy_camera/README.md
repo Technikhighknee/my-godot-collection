@@ -8,7 +8,7 @@ The camera deliberately has one spatial model instead of zoom modes, orbit modes
 
 - WASD: pan relative to camera yaw.
 - Screen edge: full-speed panning using the same movement model.
-- Right mouse drag: capture the cursor and pan in the same screen direction as WASD / edge panning.
+- Right mouse hold: after a short hold, capture the cursor and pan in the same screen direction as WASD / edge panning. A normal right click is left untouched.
 - Middle mouse horizontal: rotate yaw.
 - Middle mouse vertical: change tilt.
 - Wheel: lower or raise the camera's physical height above the ground.
@@ -40,7 +40,7 @@ Manual translation does:
 
 - WASD breaks follow before moving.
 - Edge scrolling breaks follow before moving.
-- Right-mouse panning breaks follow on the first actual mouse movement.
+- Right-mouse panning breaks follow on the first actual mouse movement after the hold has activated. A normal right click does not affect follow.
 - `stop_following()` releases the target without moving the camera.
 - If the target leaves the scene tree, follow releases automatically.
 
@@ -50,7 +50,7 @@ Calling `focus_on()` is also an explicit focus override and therefore releases f
 
 WASD, edge scrolling, and right-mouse dragging all use the same yaw-relative ground axes and the same height-derived world scale.
 
-Right-mouse dragging is not a world grab. Moving the mouse right pans right; moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
+Right mouse is click-safe: pressing and releasing it before the hold delay does nothing to the camera and is not consumed, leaving the click available to gameplay code. Holding it for 120 ms activates camera panning and captures the cursor. From there, moving the mouse right pans right and moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
 
 ## Opinionated defaults
 
@@ -63,6 +63,7 @@ The feel constants live in the script rather than the Inspector:
 - FOV: 45° from the scene.
 - Pan speed: 1.5 screen-heights per second.
 - Edge scroll margin: 24 px.
+- Right-mouse pan hold delay: 120 ms.
 - Mouse sensitivity: 0.2°/pixel.
 
 ## What is intentionally not in the core
