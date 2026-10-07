@@ -6,8 +6,6 @@ func _ready() -> void:
 	_ensure_key_action(&"camera_right", KEY_D);
 	_ensure_key_action(&"camera_forward", KEY_W);
 	_ensure_key_action(&"camera_back", KEY_S);
-	_ensure_key_action(&"camera_rotate_left", KEY_Q);
-	_ensure_key_action(&"camera_rotate_right", KEY_E);
 
 
 func _ensure_key_action(action: StringName, keycode: Key) -> void:
