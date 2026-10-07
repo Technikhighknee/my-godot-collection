@@ -21,9 +21,10 @@ Zoom follows one built-in camera arc:
 
 - Close: lower and more forward-looking.
 - Far: higher and more top-down.
-- Middle-mouse vertical rotation adds a temporary pitch offset on top of that arc.
+- Middle-mouse vertical rotation adds a persistent pitch offset on top of that arc.
+- The allowed downward pitch follows the zoom: 45° when close, opening smoothly to 75° when far away.
 
-Manual looking changes the current composition without redefining the zoom path. As soon as zoom begins, that offset is smoothly blended back to zero with the zoom transition. A given zoom level therefore converges to the same natural pitch regardless of the pitch from which the zoom started.
+Manual looking never disables the zoom arc and zoom never recenters the camera by itself. The user's pitch offset stays intact until the moving pitch envelope would make that composition unreasonable. At that point the envelope carries the view with it smoothly because the zoom itself is smooth.
 
 Horizontal rotation is equally simple: it rotates both the camera eye and its viewing yaw around the same ground focus. There is no LOOK/ORBIT mode switch.
 
@@ -34,7 +35,8 @@ The feel constants live in the script rather than the Inspector:
 - Zoom: 5–120 m, initially 30 m.
 - Natural pitch: 25° close to 65° far.
 - Raised rig target: 1.5 m.
-- Free pitch: -30° to +75°.
+- Upward pitch limit: -30°.
+- Downward pitch limit: 45° close to 75° far away.
 - FOV: 45° from the scene.
 - Pan speed: 1.5 visible-heights per second.
 - Edge scroll margin: 24 px; entering it immediately uses normal pan speed.
