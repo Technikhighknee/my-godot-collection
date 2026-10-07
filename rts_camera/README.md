@@ -6,13 +6,16 @@ A compact RTS / city-builder camera for Godot 4.
 
 - Camera-relative WASD panning through configurable Input Map actions.
 - Pan speed scales with zoom.
-- Framerate-independent movement, zoom and programmatic orbit smoothing.
+- Framerate-independent movement, zoom and programmatic rotation smoothing.
 - Right-mouse world dragging with no pixel sensitivity constant.
-- Middle-mouse yaw and pitch orbit around the current focus.
+- Middle-mouse yaw and pitch rotation.
+- Two rotation modes:
+  - `LOOK` (default): the camera stays in place and the focus moves across the ground, like binoculars.
+  - `ORBIT`: the focus stays in place and the camera moves around it.
 - Multiplicative, high-precision-aware wheel zoom.
 - Cursor-anchored zoom.
-- Transient drag/orbit/zoom state is cleared when the game window loses focus.
-- Small programmatic API: `focus_on()`, `zoom_to()`, `orbit_to()`, `snap()`.
+- Transient drag/rotate/zoom state is cleared when the game window loses focus.
+- Small programmatic API: `focus_on()`, `zoom_to()`, `rotate_to()`, `snap()`.
 
 The current ground resolver is intentionally a horizontal plane at `ground_height`. Terrain, bounds and edge scrolling are later capabilities rather than dependencies of the core.
 
@@ -31,9 +34,19 @@ Instantiate `RTSCamera.tscn`. Its root position is the initial world focus. The 
 
 Default mouse controls:
 
-- Middle mouse: yaw and pitch around the current focus.
+- Middle mouse: rotate yaw and pitch using the selected rotation mode.
 - Right mouse: grab and drag the world.
 - Wheel: cursor-anchored zoom.
+
+## Rotation modes
+
+`LOOK` keeps the camera's world position fixed while rotating. The new focus is the intersection of the view direction with the ground plane. Because zoom remains a hard distance constraint, the usable pitch range becomes narrower automatically at extreme zoom distances rather than silently moving the camera.
+
+`ORBIT` keeps the focus fixed while yaw and pitch move the camera around it.
+
+Direct mouse rotation is intentionally unsmoothed. Programmatic `rotate_to()` uses `rotation_smoothing`, and direct player input cancels an in-progress automatic LOOK rotation.
+
+## Defaults
 
 The defaults assume Godot's normal metric 3D scale, where one world unit is one meter:
 
@@ -49,5 +62,4 @@ The defaults assume Godot's normal metric 3D scale, where one world unit is one 
 - Zoom smoothing: 18.
 - Mouse yaw sensitivity: 0.2 degrees/pixel.
 - Mouse pitch sensitivity: 0.2 degrees/pixel.
-
-Direct world dragging and mouse orbit intentionally bypass smoothing so the world stays attached to the pointer and orbit input feels immediate.
+- Rotation smoothing: 18.
