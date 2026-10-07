@@ -4,7 +4,7 @@ Some Godot bits and bobs.
 
 ## Collection
 
-- [Strategy Camera](strategy_camera/README.md) — 3D strategy / city-builder camera.
+- [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
 
 ---
 
