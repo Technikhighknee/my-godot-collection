@@ -21,9 +21,9 @@ Zoom follows one built-in camera arc:
 
 - Close: lower and more forward-looking.
 - Far: higher and more top-down.
-- Middle-mouse vertical rotation adds a persistent pitch offset on top of that arc.
+- Middle-mouse vertical rotation adds a temporary pitch offset on top of that arc.
 
-That last point is intentional: manually looking up or down never disables the zoom arc. The arc remains the base pose and the user's input remains an offset.
+Manual looking changes the current composition without redefining the zoom path. As soon as zoom begins, that offset is smoothly blended back to zero with the zoom transition. A given zoom level therefore converges to the same natural pitch regardless of the pitch from which the zoom started.
 
 Horizontal rotation is equally simple: it rotates both the camera eye and its viewing yaw around the same ground focus. There is no LOOK/ORBIT mode switch.
 
