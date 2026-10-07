@@ -6,6 +6,47 @@ Some Godot bits and bobs.
 
 - [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
 
+## Copy tool
+
+Each package declares its files in a local `manifest.json`.
+
+Copy one package to any directory:
+
+```bash
+python tools/copy_collection.py strategy_camera "D:\\Projects\\MyGame\\camera"
+```
+
+If existing destination files differ, the tool lists only those files and asks:
+
+```text
+Overwrite these files? [y/N/p]:
+```
+
+- `y` overwrites all listed files.
+- `N` cancels without changing anything.
+- `p` lets you pick individual files using numbers and ranges such as `1, 2, 6-9, 14`.
+- `-y` skips the prompt and overwrites all differing existing files.
+
+Identical files are skipped.
+
+A project can also contain a manifest that maps packages to target directories:
+
+```json
+{
+  "packages": {
+    "strategy_camera": "src/camera"
+  }
+}
+```
+
+Then copy everything declared there with:
+
+```bash
+python tools/copy_collection.py "D:\\Projects\\MyGame\\manifest.json"
+```
+
+Relative target paths are resolved from the project manifest's directory.
+
 ---
 
 ## Repository Notice
