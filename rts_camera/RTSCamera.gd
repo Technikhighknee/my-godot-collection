@@ -35,6 +35,7 @@ const MAX_ZOOM_ANCHOR_DISTANCE_FACTOR := 6.0;
 @export_range(1.0, 85.0, 0.1) var near_pitch := 25.0;
 @export_range(5.0, 89.0, 0.1) var far_pitch := 65.0;
 @export_range(0.5, 4.0, 0.05) var zoom_arc_curve := 0.75;
+@export var rig_target_height := 1.5;
 @export_range(0.1, 85.0, 0.1) var min_orbit_pitch := 5.0;
 @export_range(5.0, 89.0, 0.1) var max_orbit_pitch := 85.0;
 
@@ -535,7 +536,10 @@ func _rig_ground_units_per_pixel(axis: Vector2) -> float:
 	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
 	var up := right.cross(forward).normalized();
 	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
-	var center_world := _focus;
+	var center_world := resolve_ground_ray(eye, forward);
+
+	if not center_world.is_finite():
+		return INF;
 
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
 	var half_width: float;
@@ -830,9 +834,10 @@ func _apply_camera_transform() -> void:
 	);
 
 func _rig_distance_for_height(height: float, rig_pitch: float) -> float:
+	var vertical_span := maxf(height - rig_target_height, 0.001);
 	var vertical_factor := maxf(sin(rig_pitch), 0.001);
-	return height / vertical_factor;
 
+	return vertical_span / vertical_factor;
 
 func _camera_position_for_state(
 	focus: Vector3,
@@ -842,8 +847,9 @@ func _camera_position_for_state(
 ) -> Vector3:
 	var rig_pitch := _rig_pitch(zoom, orbit_pitch_offset);
 	var distance := _rig_distance_for_height(zoom, rig_pitch);
+	var target := focus + Vector3.UP * rig_target_height;
 
-	return focus - _view_direction(rig_yaw, rig_pitch) * distance;
+	return target - _view_direction(rig_yaw, rig_pitch) * distance;
 
 func _apply_camera_transform_for_state(
 	focus: Vector3,
@@ -1164,6 +1170,7 @@ func _normalize_configuration() -> void:
 	min_zoom = maxf(min_zoom, 0.001);
 	max_zoom = maxf(max_zoom, min_zoom);
 	initial_zoom = clampf(initial_zoom, min_zoom, max_zoom);
+	rig_target_height = clampf(rig_target_height, 0.0, maxf(min_zoom - 0.1, 0.0));
 
 	near_pitch = clampf(near_pitch, 1.0, 85.0);
 	far_pitch = clampf(far_pitch, near_pitch, 89.0);
