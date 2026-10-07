@@ -191,6 +191,7 @@ func _update_camera(delta: float) -> void:
 		_initialize_ground_state();
 
 	_consume_pointer_events();
+	_reconcile_pointer_buttons();
 
 	if _snap_requested:
 		_snap_requested = false;
@@ -370,6 +371,17 @@ func _consume_pointer_events() -> void:
 				_handle_drag(motion);
 			elif _rotating:
 				_handle_rotation(motion);
+
+
+func _reconcile_pointer_buttons() -> void:
+	if _rotate_button_down and not Input.is_mouse_button_pressed(rotate_button):
+		_rotate_button_down = false;
+		_rotating = false;
+
+	if _drag_button_down and not Input.is_mouse_button_pressed(drag_button):
+		_drag_button_down = false;
+		_dragging = false;
+		_drag_anchor_valid = false;
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
