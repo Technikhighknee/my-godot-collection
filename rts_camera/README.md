@@ -59,13 +59,15 @@ Bounds are disabled by default and use a `Rect2` in world X/Z coordinates.
 
 Bounds are the final spatial constraint: at an edge they intentionally take priority over exact cursor anchoring and LOOK eye preservation. Standard perspective Camera3D projection is supported by the view-footprint solver; unsupported projection customizations fall back to focus bounds rather than producing incorrect geometry.
 
-`get_visible_ground_rect()` exposes the current finite ground footprint when available.
+`get_visible_ground_rect()` exposes the current finite ground footprint when available; `has_finite_ground_footprint()` reports whether that footprint is valid.
 
 ## Edge scrolling
 
 Edge scrolling is disabled by default. When enabled, it feeds the same camera-relative pan pipeline as WASD instead of maintaining a second movement implementation.
 
 It automatically stops while the window is unfocused, while the camera is being dragged or rotated, during a Godot GUI drag operation, and while the pointer is over a Control unless `edge_scroll_over_gui` is enabled. The edge strength ramps smoothly according to `edge_scroll_curve`, so movement does not switch from zero to full speed at a single pixel boundary.
+
+Invalid min/max relationships are normalized once on startup so malformed Inspector values cannot leave the controller in an impossible state.
 
 ## Defaults
 
