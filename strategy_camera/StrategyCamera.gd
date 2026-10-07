@@ -596,7 +596,6 @@ func _rig_ground_units_per_pixel(axis: Vector2) -> float:
 
 func _fallback_pan_delta(input: Vector2, delta: float) -> Vector3:
 	var view_yaw := _current_view_yaw();
-	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
 	var rig_distance := _rig_distance_for_zoom(_zoom);
 	var right := Vector3(cos(view_yaw), 0.0, -sin(view_yaw));
 	var backward := Vector3(sin(view_yaw), 0.0, cos(view_yaw));
@@ -761,7 +760,6 @@ func _ground_point_is_directly_usable(point: Vector3) -> bool:
 	if not point.is_finite():
 		return false;
 
-	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
 	var rig_distance := _rig_distance_for_zoom(_zoom);
 	var eye := _camera_position_for_current_state();
 
