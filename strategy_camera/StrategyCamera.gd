@@ -4,6 +4,8 @@ extends Node3D;
 
 signal pointer_pan_started(anchor: Vector2);
 signal pointer_pan_ended(anchor: Vector2);
+signal pointer_rotation_started(anchor: Vector2);
+signal pointer_rotation_ended(anchor: Vector2);
 
 
 const MIN_HEIGHT := 5.0;
@@ -56,6 +58,7 @@ var _pan_hold_pending := false;
 var _pan_hold_elapsed := 0.0;
 var _pointer_pan_anchor := Vector2.ZERO;
 var _rotating := false;
+var _pointer_rotation_anchor := Vector2.ZERO;
 
 var _pointer_capture_active := false;
 var _pointer_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
@@ -162,8 +165,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _reconcile_pointer_buttons() -> void:
 	if _rotating and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
-		_rotating = false;
-		_end_pointer_capture();
+		_end_pointer_rotation();
 
 	if _pan_hold_pending and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		_cancel_pointer_pan_hold();
@@ -189,9 +191,8 @@ func _update_pointer_pan_hold(delta: float) -> void:
 	_pan_hold_elapsed = 0.0;
 
 	if _rotating:
-		_rotating = false;
-		_pointer_pan_anchor = _pointer_restore_mouse_position;
-		_end_pointer_capture();
+		_pointer_pan_anchor = _pointer_rotation_anchor;
+		_end_pointer_rotation();
 	else:
 		_pointer_pan_anchor = get_viewport().get_mouse_position();
 
@@ -208,9 +209,7 @@ func _cancel_pointer_pan_hold() -> void:
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index == MOUSE_BUTTON_MIDDLE:
-		_rotating = event.pressed and not event.canceled;
-
-		if _rotating:
+		if event.pressed and not event.canceled:
 			_cancel_pointer_pan_hold();
 
 			var capture_position := event.position;
@@ -220,9 +219,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 				_end_pointer_pan();
 
 			_target_focus = _focus;
-			_begin_pointer_capture(capture_position);
-		elif not _panning:
-			_end_pointer_capture();
+			_begin_pointer_rotation(capture_position);
+		elif _rotating:
+			_end_pointer_rotation();
 
 		get_viewport().set_input_as_handled();
 		return;
@@ -250,6 +249,25 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		_change_height(1.0, event.factor);
 		get_viewport().set_input_as_handled();
+
+
+func _begin_pointer_rotation(anchor: Vector2) -> void:
+	if _rotating:
+		return;
+
+	_rotating = true;
+	_pointer_rotation_anchor = anchor;
+	pointer_rotation_started.emit(anchor);
+	_begin_pointer_capture(anchor);
+
+
+func _end_pointer_rotation() -> void:
+	if not _rotating:
+		return;
+
+	_rotating = false;
+	_end_pointer_capture();
+	pointer_rotation_ended.emit(_pointer_rotation_anchor);
 
 
 func _handle_rotation(event: InputEventMouseMotion) -> void:
@@ -510,10 +528,11 @@ func _reset_pointer_state() -> void:
 
 	if _panning:
 		_end_pointer_pan();
+	elif _rotating:
+		_end_pointer_rotation();
 	else:
 		_end_pointer_capture();
 
-	_rotating = false;
 	_suppress_edge_scroll_until_motion(
 		get_viewport().get_mouse_position()
 	);

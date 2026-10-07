@@ -54,12 +54,14 @@ Right mouse is click-safe: pressing and releasing it before the hold delay does 
 
 ### Custom cursor integration
 
-The camera does not own or render cursors. Games that already provide their own software cursor can keep it visually pinned during right-mouse panning by listening to:
+The camera does not own or render cursors. Games that already provide their own software cursor can keep it visually pinned during both right-mouse panning and middle-mouse rotation by listening to:
 
 - `pointer_pan_started(anchor)`
 - `pointer_pan_ended(anchor)`
+- `pointer_rotation_started(anchor)`
+- `pointer_rotation_ended(anchor)`
 
-The start signal provides the cursor position at the moment panning takes over. A custom cursor system can freeze its visual at that anchor while Godot keeps the real pointer captured, then resume normal cursor tracking when the end signal fires. Without a custom cursor system, no integration is required; the captured system cursor simply stays hidden during the pan.
+Each start signal provides the cursor position at the moment that interaction takes over. A custom cursor system can freeze its visual at that anchor while Godot keeps the real pointer captured, then resume normal cursor tracking when the matching end signal fires. Without a custom cursor system, no integration is required; the captured system cursor simply stays hidden during pan or rotation.
 
 ## Opinionated defaults
 
