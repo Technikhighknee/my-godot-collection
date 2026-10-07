@@ -265,6 +265,8 @@ Queries:
 - Mouse yaw sensitivity: 0.2 degrees/pixel.
 - Mouse pitch sensitivity: 0.2 degrees/pixel.
 - Rotation smoothing: 18.
+- Terrain height smoothing: 10.
+- Terrain height max lag: 0.5 × current zoom height.
 - Edge scroll margin: 24 px.
 - Edge scroll curve: 2.0.
 
