@@ -15,6 +15,8 @@ const MIN_VIEW_PITCH := -85.0;
 const MAX_VIEW_PITCH := 85.0;
 
 const PAN_SCREEN_SPEED := 0.75;
+const EDGE_SCROLL_MARGIN := 36.0;
+const EDGE_SCROLL_CURVE := 1.75;
 const MOVE_SMOOTHING := 16.0;
 const ZOOM_SMOOTHING := 18.0;
 const ZOOM_FACTOR := 0.85;
@@ -47,6 +49,8 @@ var _yaw := 0.0;
 var _pitch_offset := 0.0;
 
 var _pan_input_active := false;
+var _edge_scroll_waiting_for_motion := false;
+var _edge_scroll_block_position := Vector2.ZERO;
 
 var _dragging := false;
 var _drag_anchor_valid := false;
@@ -146,6 +150,8 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			if _ground_point_is_usable(point):
 				_drag_anchor = point;
 				_drag_anchor_valid = true;
+		else:
+			_suppress_edge_scroll_until_motion(event.position);
 
 		get_viewport().set_input_as_handled();
 		return;
@@ -209,12 +215,13 @@ func _handle_pan_input(delta: float) -> void:
 		_pan_input_active = false;
 		return;
 
-	var input := Input.get_vector(
+	var keyboard := Input.get_vector(
 		PAN_LEFT_ACTION,
 		PAN_RIGHT_ACTION,
 		PAN_FORWARD_ACTION,
 		PAN_BACK_ACTION
 	);
+	var input := (keyboard + _edge_scroll_input()).limit_length(1.0);
 
 	if input == Vector2.ZERO:
 		_pan_input_active = false;
@@ -234,6 +241,62 @@ func _handle_pan_input(delta: float) -> void:
 		right * input.x
 		+ backward * input.y
 	) * speed * delta;
+
+
+func _edge_scroll_input() -> Vector2:
+	if not get_window().has_focus() or _dragging or _rotating:
+		return Vector2.ZERO;
+
+	var viewport := get_viewport();
+
+	if viewport.gui_is_dragging() or viewport.gui_get_hovered_control() != null:
+		return Vector2.ZERO;
+
+	var size := viewport.get_visible_rect().size;
+	var mouse := viewport.get_mouse_position();
+
+	if size.x <= 0.0 or size.y <= 0.0:
+		return Vector2.ZERO;
+
+	if mouse.x < 0.0 or mouse.y < 0.0 or mouse.x > size.x or mouse.y > size.y:
+		return Vector2.ZERO;
+
+	if _edge_scroll_waiting_for_motion:
+		if mouse.distance_squared_to(_edge_scroll_block_position) <= 4.0:
+			return Vector2.ZERO;
+
+		_edge_scroll_waiting_for_motion = false;
+
+	return Vector2(
+		_edge_scroll_axis(mouse.x, size.x),
+		_edge_scroll_axis(mouse.y, size.y)
+	).limit_length(1.0);
+
+
+func _edge_scroll_axis(position: float, extent: float) -> float:
+	var margin := minf(EDGE_SCROLL_MARGIN, extent * 0.5);
+
+	if margin <= 0.0:
+		return 0.0;
+
+	if position < margin:
+		var pressure := 1.0 - clampf(position / margin, 0.0, 1.0);
+		return -pow(pressure, EDGE_SCROLL_CURVE);
+
+	if position > extent - margin:
+		var pressure := 1.0 - clampf(
+			(extent - position) / margin,
+			0.0,
+			1.0
+		);
+		return pow(pressure, EDGE_SCROLL_CURVE);
+
+	return 0.0;
+
+
+func _suppress_edge_scroll_until_motion(position: Vector2) -> void:
+	_edge_scroll_waiting_for_motion = true;
+	_edge_scroll_block_position = position;
 
 
 func _keyboard_pan_blocked_by_gui() -> bool:
@@ -410,6 +473,7 @@ func _end_rotation_capture() -> void:
 
 	if _rotation_restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.warp_mouse(_rotation_restore_mouse_position);
+		_suppress_edge_scroll_until_motion(_rotation_restore_mouse_position);
 
 
 func _reset_pointer_state() -> void:
@@ -418,6 +482,7 @@ func _reset_pointer_state() -> void:
 	_drag_anchor_valid = false;
 	_rotating = false;
 	_zoom_anchor_active = false;
+	_suppress_edge_scroll_until_motion(get_viewport().get_mouse_position());
 
 
 func _smooth_factor(speed: float, delta: float) -> float:

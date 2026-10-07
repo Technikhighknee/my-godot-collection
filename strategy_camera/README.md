@@ -7,6 +7,7 @@ The component deliberately has one camera model instead of a collection of modes
 ## Controls
 
 - WASD: pan relative to camera yaw.
+- Screen edge: smooth edge scrolling using the same pan model as WASD.
 - Right mouse: grab and drag the world.
 - Middle mouse horizontal: rotate the camera around its ground focus.
 - Middle mouse vertical: look up/down relative to the natural zoom pose.
@@ -36,6 +37,7 @@ The feel constants live in the script rather than the Inspector:
 - Free pitch: -85° to +85°.
 - FOV: 45° from the scene.
 - Pan speed: 0.75 visible-heights per second.
+- Edge scroll margin: 36 px with a soft 1.75-power ramp.
 - Wheel factor: 0.85.
 - Mouse sensitivity: 0.2°/pixel.
 
@@ -46,13 +48,14 @@ If one of these values proves wrong in actual play, change the opinionated defau
 - Multiple rotation modes.
 - Physics-terrain following.
 - Terrain presentation smoothing.
-- Edge scrolling.
 - View-aware bounds.
 - Runtime ground-mode switching.
 - Configurable mouse buttons or input action names.
 - A large programmatic transition API.
 
-Those can return only when a concrete game needs them and the feature can remain conceptually small.
+Edge scrolling is intentionally part of the core because it reuses the same movement model without adding a second camera behavior. It is disabled while dragging or rotating, while the window is unfocused, and while the pointer is over UI. After pointer capture or a world drag ends, it waits for deliberate mouse movement before engaging so cursor restoration cannot trigger an accidental pan.
+
+The remaining features can return only when a concrete game needs them and the feature can remain conceptually small.
 
 ## Input Map
 
