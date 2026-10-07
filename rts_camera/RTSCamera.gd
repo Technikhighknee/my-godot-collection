@@ -754,10 +754,6 @@ func _ground_point_is_directly_usable(point: Vector3) -> bool:
 
 
 func _begin_zoom_anchor(screen_position: Vector2) -> void:
-	if _look_detached:
-		_zoom_anchor_active = false;
-		return;
-
 	var point := _world_at_screen(screen_position);
 
 	if not _ground_point_is_directly_usable(point):
@@ -1288,8 +1284,8 @@ func focus_on(position: Vector3, immediate := false) -> void:
 		else:
 			_snap_requested = true;
 
-func zoom_to(distance: float, immediate := false) -> void:
-	_target_zoom = clampf(distance, min_zoom, max_zoom);
+func zoom_to(height: float, immediate := false) -> void:
+	_target_zoom = clampf(height, min_zoom, max_zoom);
 	_wheel_zoom_active = false;
 	_zoom_anchor_active = false;
 	_cancel_rotation_transition();
