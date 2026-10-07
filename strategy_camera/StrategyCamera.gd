@@ -12,7 +12,8 @@ const ZOOM_ARC_CURVE := 0.75;
 const RIG_TARGET_HEIGHT := 1.5;
 
 const MIN_VIEW_PITCH := -30.0;
-const MAX_VIEW_PITCH := 75.0;
+const NEAR_MAX_VIEW_PITCH := 45.0;
+const FAR_MAX_VIEW_PITCH := 75.0;
 
 const PAN_SCREEN_SPEED := 1.5;
 const EDGE_SCROLL_MARGIN := 24.0;
@@ -42,7 +43,7 @@ var _target_focus: Vector3;
 
 var _zoom := INITIAL_ZOOM;
 var _target_zoom := INITIAL_ZOOM;
-var _zoom_transition_active := false;
+var _wheel_zoom_active := false;
 
 var _yaw := 0.0;
 var _pitch_offset := 0.0;
@@ -89,9 +90,7 @@ func _process(delta: float) -> void:
 	_focus = _focus.lerp(_target_focus, move_t);
 	_focus.y = _ground_height;
 	_zoom = lerpf(_zoom, _target_zoom, zoom_t);
-
-	if _zoom_transition_active:
-		_pitch_offset = lerpf(_pitch_offset, 0.0, zoom_t);
+	_constrain_pitch_offset();
 
 	_apply_camera_transform();
 	_update_zoom_anchor();
@@ -99,10 +98,10 @@ func _process(delta: float) -> void:
 	if _zoom_anchor_active:
 		_apply_camera_transform();
 
-	if _zoom_transition_active and absf(_zoom - _target_zoom) < 0.001:
+	if _wheel_zoom_active and absf(_zoom - _target_zoom) < 0.001:
 		_zoom = _target_zoom;
-		_pitch_offset = 0.0;
-		_zoom_transition_active = false;
+		_constrain_pitch_offset();
+		_wheel_zoom_active = false;
 		_zoom_anchor_active = false;
 
 
@@ -128,7 +127,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_drag_anchor_valid = false;
 			_target_focus = _focus;
 			_target_zoom = _zoom;
-			_zoom_transition_active = false;
+			_wheel_zoom_active = false;
 			_begin_rotation_capture(event.position);
 		else:
 			_end_rotation_capture();
@@ -146,7 +145,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_end_rotation_capture();
 			_target_focus = _focus;
 			_target_zoom = _zoom;
-			_zoom_transition_active = false;
+			_wheel_zoom_active = false;
 
 			var point := _world_at_screen(event.position);
 
@@ -177,15 +176,10 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 		PI
 	);
 
-	var base_pitch := _base_pitch_for_zoom(_zoom);
-	var min_offset := deg_to_rad(MIN_VIEW_PITCH) - base_pitch;
-	var max_offset := deg_to_rad(MAX_VIEW_PITCH) - base_pitch;
-
-	_pitch_offset = clampf(
-		_pitch_offset + deg_to_rad(event.screen_relative.y * MOUSE_PITCH_SENSITIVITY),
-		min_offset,
-		max_offset
+	_pitch_offset += deg_to_rad(
+		event.screen_relative.y * MOUSE_PITCH_SENSITIVITY
 	);
+	_constrain_pitch_offset();
 
 	_apply_camera_transform();
 	get_viewport().set_input_as_handled();
@@ -307,9 +301,9 @@ func _pan_speed() -> float:
 
 
 func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> void:
-	if not _zoom_transition_active:
+	if not _wheel_zoom_active:
 		_target_zoom = _zoom;
-		_zoom_transition_active = true;
+		_wheel_zoom_active = true;
 
 	_begin_zoom_anchor(screen_position);
 
@@ -397,10 +391,28 @@ func _apply_camera_transform() -> void:
 
 
 func _view_pitch() -> float:
-	return clampf(
-		_base_pitch_for_zoom(_zoom) + _pitch_offset,
-		deg_to_rad(MIN_VIEW_PITCH),
-		deg_to_rad(MAX_VIEW_PITCH)
+	return _base_pitch_for_zoom(_zoom) + _pitch_offset;
+
+
+func _constrain_pitch_offset() -> void:
+	var base_pitch := _base_pitch_for_zoom(_zoom);
+	var min_offset := deg_to_rad(MIN_VIEW_PITCH) - base_pitch;
+	var max_offset := _max_view_pitch_for_zoom(_zoom) - base_pitch;
+
+	_pitch_offset = clampf(
+		_pitch_offset,
+		min_offset,
+		max_offset
+	);
+
+
+func _max_view_pitch_for_zoom(zoom: float) -> float:
+	return deg_to_rad(
+		lerpf(
+			NEAR_MAX_VIEW_PITCH,
+			FAR_MAX_VIEW_PITCH,
+			_zoom_arc_ratio(zoom)
+		)
 	);
 
 
@@ -496,13 +508,12 @@ func focus_on(position: Vector3, immediate := false) -> void:
 
 func zoom_to(height: float, immediate := false) -> void:
 	_target_zoom = clampf(height, MIN_ZOOM, MAX_ZOOM);
-	_zoom_transition_active = true;
+	_wheel_zoom_active = false;
 	_zoom_anchor_active = false;
 
 	if immediate:
 		_zoom = _target_zoom;
-		_pitch_offset = 0.0;
-		_zoom_transition_active = false;
+		_constrain_pitch_offset();
 		_apply_camera_transform();
 
 
