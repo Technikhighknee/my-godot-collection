@@ -22,6 +22,9 @@ class FileCopy:
 
 
 def read_manifest(path: Path, key: str) -> object:
+    if path.is_dir():
+        raise CopyError(f"Expected a manifest file, got a directory: {path}")
+
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -282,6 +285,13 @@ def run(argv: list[str] | None = None) -> int:
         packages = [(args.source, Path(args.destination).expanduser().resolve())]
         display_base = Path.cwd()
     else:
+        package = repo / args.source
+        if package.is_dir() and (package / "manifest.json").is_file():
+            raise CopyError(
+                f"Destination missing for package {args.source!r}. "
+                f"Usage: copy_collection.py {args.source} <destination>"
+            )
+
         manifest = Path(args.source).expanduser().resolve()
         packages = project_packages(manifest)
         display_base = manifest.parent
