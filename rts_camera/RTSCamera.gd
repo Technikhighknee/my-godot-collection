@@ -192,7 +192,6 @@ func _physics_process(delta: float) -> void:
 	if ground_mode != GroundMode.PHYSICS:
 		return;
 
-	_apply_camera_transform();
 	_begin_physics_history_step();
 	_direct_pointer_activity_this_tick = false;
 	_collapse_physics_history = false;
