@@ -15,6 +15,8 @@ A compact RTS / city-builder camera for Godot 4.
 - Multiplicative, high-precision-aware wheel zoom.
 - Cursor-anchored zoom.
 - Optional focus bounds or view-aware bounds.
+- Optional UI-aware edge scrolling with a soft speed ramp near the viewport edge.
+- Keyboard panning is suppressed while a text-editing Control owns GUI focus.
 - Transient drag/rotate/zoom state is cleared when the game window loses focus.
 - Small programmatic API: `focus_on()`, `zoom_to()`, `rotate_to()`, `snap()`.
 
@@ -59,6 +61,12 @@ Bounds are the final spatial constraint: at an edge they intentionally take prio
 
 `get_visible_ground_rect()` exposes the current finite ground footprint when available.
 
+## Edge scrolling
+
+Edge scrolling is disabled by default. When enabled, it feeds the same camera-relative pan pipeline as WASD instead of maintaining a second movement implementation.
+
+It automatically stops while the window is unfocused, while the camera is being dragged or rotated, during a Godot GUI drag operation, and while the pointer is over a Control unless `edge_scroll_over_gui` is enabled. The edge strength ramps smoothly according to `edge_scroll_curve`, so movement does not switch from zero to full speed at a single pixel boundary.
+
 ## Defaults
 
 The defaults assume Godot's normal metric 3D scale, where one world unit is one meter:
@@ -76,3 +84,5 @@ The defaults assume Godot's normal metric 3D scale, where one world unit is one 
 - Mouse yaw sensitivity: 0.2 degrees/pixel.
 - Mouse pitch sensitivity: 0.2 degrees/pixel.
 - Rotation smoothing: 18.
+- Edge scroll margin: 24 px.
+- Edge scroll curve: 2.0.
