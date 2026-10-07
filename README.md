@@ -13,7 +13,7 @@ Each package declares its files in a local `manifest.json`.
 Copy one package to any directory:
 
 ```bash
-python tools/copy.py strategy_camera "D:\\Projects\\MyGame\\camera"
+python tools/copy_collection.py strategy_camera "D:\\Projects\\MyGame\\camera"
 ```
 
 If existing destination files differ, the tool lists only those files and asks:
@@ -42,7 +42,7 @@ A project can also contain a manifest that maps packages to target directories:
 Then copy everything declared there with:
 
 ```bash
-python tools/copy.py "D:\\Projects\\MyGame\\manifest.json"
+python tools/copy_collection.py "D:\\Projects\\MyGame\\manifest.json"
 ```
 
 Relative target paths are resolved from the project manifest's directory.
