@@ -144,6 +144,8 @@ func _ready() -> void:
 	_target_pitch = _pitch;
 
 	camera.make_current();
+	set_physics_interpolation_mode(Node.PHYSICS_INTERPOLATION_MODE_OFF);
+	camera.set_physics_interpolation_mode(Node.PHYSICS_INTERPOLATION_MODE_OFF);
 	get_window().focus_exited.connect(_reset_transient_input);
 
 	_active_ground_mode = ground_mode;
