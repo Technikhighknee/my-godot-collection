@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "copy_collection.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "deploy.py"
 SPEC = importlib.util.spec_from_file_location("collection_copy", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 copy_tool = importlib.util.module_from_spec(SPEC)

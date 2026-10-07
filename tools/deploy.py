@@ -289,7 +289,7 @@ def run(argv: list[str] | None = None) -> int:
         if package.is_dir() and (package / "manifest.json").is_file():
             raise CopyError(
                 f"Destination missing for package {args.source!r}. "
-                f"Usage: copy_collection.py {args.source} <destination>"
+                f"Usage: deploy.py {args.source} <destination>"
             )
 
         manifest = Path(args.source).expanduser().resolve()
