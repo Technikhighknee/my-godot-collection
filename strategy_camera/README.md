@@ -22,11 +22,10 @@ Zoom follows one built-in camera arc:
 - Close: lower and more forward-looking.
 - Far: higher and more top-down.
 - Middle-mouse vertical rotation adds a persistent pitch offset on top of that arc.
-- The entire allowed pitch envelope follows the zoom.
-- Close: -15° to 45°, allowing a low architectural view and some sky.
-- Far: 35° to 75°, keeping the camera unmistakably in strategic overview territory.
+- Upward pitch stays open to -30° at every zoom level.
+- The downward limit follows the zoom: 45° close to 75° far away.
 
-Manual looking never disables the zoom arc and zoom never recenters the camera by itself. The user's pitch offset stays intact until the moving pitch envelope would make that composition unreasonable. At that point the envelope carries the view with it smoothly because the zoom itself is smooth.
+Manual looking never disables the zoom arc and zoom never recenters the camera by itself. The user's pitch offset stays intact. Only the downward limit tightens or opens with zoom, so close views cannot become absurdly top-down while upward looking remains deliberately generous.
 
 Wheel zoom temporarily takes priority over edge scrolling so cursor anchoring and edge movement never fight over the ground focus.
 
@@ -39,7 +38,7 @@ The feel constants live in the script rather than the Inspector:
 - Zoom: 5–120 m, initially 30 m.
 - Natural pitch: 25° close to 65° far.
 - Raised rig target: 1.5 m.
-- Pitch envelope: -15°…45° close, 35°…75° far away.
+- Pitch: -30° upward at every zoom; downward limit 45° close to 75° far away.
 - FOV: 45° from the scene.
 - Pan speed: 1.5 visible-heights per second.
 - Edge scroll margin: 24 px; entering it immediately uses normal pan speed.
