@@ -34,9 +34,9 @@ The feel constants live in the script rather than the Inspector:
 - Zoom: 5–120 m, initially 30 m.
 - Natural pitch: 25° close to 65° far.
 - Raised rig target: 1.5 m.
-- Free pitch: -85° to +85°.
+- Free pitch: -30° to +75°.
 - FOV: 45° from the scene.
-- Pan speed: 0.75 visible-heights per second.
+- Pan speed: 1.5 visible-heights per second.
 - Edge scroll margin: 24 px; entering it immediately uses normal pan speed.
 - Wheel factor: 0.85.
 - Mouse sensitivity: 0.2°/pixel.
