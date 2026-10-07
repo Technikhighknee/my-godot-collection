@@ -5,7 +5,7 @@ A compact RTS / city-builder camera for Godot 4.
 ## Current core
 
 - Camera-relative WASD panning through configurable Input Map actions.
-- Pan speed scales with zoom.
+- Pan speed is derived from screen-space ground scale, so movement stays visually consistent across zoom, pitch, FOV, aspect ratio and terrain.
 - Framerate-independent movement, zoom and programmatic rotation smoothing.
 - Right-mouse world dragging with no pixel sensitivity constant.
 - Middle-mouse yaw and pitch rotation.
@@ -82,7 +82,7 @@ Bounds are the final spatial constraint: at an edge they intentionally take prio
 
 ## Edge scrolling
 
-Edge scrolling is disabled by default. When enabled, it feeds the same camera-relative pan pipeline as WASD instead of maintaining a second movement implementation.
+Edge scrolling is disabled by default. When enabled, it feeds the same screen-space pan pipeline as WASD instead of maintaining a second movement implementation. `edge_scroll_speed_multiplier` scales its maximum speed independently of keyboard input.
 
 It automatically stops while the window is unfocused, while the camera is being dragged or rotated, during a Godot GUI drag operation, and while the pointer is over a Control unless `edge_scroll_over_gui` is enabled. The edge strength ramps smoothly according to `edge_scroll_curve`, so movement does not switch from zero to full speed at a single pixel boundary.
 
@@ -98,7 +98,7 @@ The defaults assume Godot's normal metric 3D scale, where one world unit is one 
 - Initial zoom: 30 m.
 - Minimum zoom: 5 m.
 - Maximum zoom: 120 m.
-- Pan speed: 4 m/s close to 110 m/s at maximum zoom.
+- Pan screen speed: 0.75 viewport heights per second at full input.
 - Movement smoothing: 16.
 - Zoom factor: 0.85 per wheel unit.
 - Zoom smoothing: 18.
