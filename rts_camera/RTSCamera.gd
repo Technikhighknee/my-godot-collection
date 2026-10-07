@@ -8,7 +8,19 @@ enum RotationMode {
 }
 
 
+enum BoundsMode {
+	FOCUS,
+	VIEW,
+}
+
+
 const MAX_INPUT_DELTA := 0.1;
+const VIEW_CORNERS := [
+	Vector2(-1.0, 1.0),
+	Vector2(1.0, 1.0),
+	Vector2(1.0, -1.0),
+	Vector2(-1.0, -1.0),
+];
 
 
 @export_group("Camera")
@@ -38,6 +50,11 @@ const MAX_INPUT_DELTA := 0.1;
 
 @export_group("World")
 @export var ground_height := 0.0;
+
+@export_group("Bounds")
+@export var bounds_enabled := false;
+@export_enum("Focus", "View") var bounds_mode := BoundsMode.VIEW;
+@export var world_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0));
 
 @export_group("Input")
 @export var input_enabled := true;
@@ -92,6 +109,8 @@ func _ready() -> void:
 	camera.make_current();
 	get_window().focus_exited.connect(_reset_transient_input);
 
+	_constrain_target_state();
+	_focus = _target_focus;
 	_apply_camera_transform();
 
 
@@ -100,6 +119,8 @@ func _process(delta: float) -> void:
 		_reset_transient_input();
 	else:
 		_handle_keyboard(minf(delta, MAX_INPUT_DELTA));
+
+	_constrain_target_state();
 
 	var move_t := _smooth_factor(move_smoothing, delta);
 	var zoom_t := _smooth_factor(zoom_smoothing, delta);
@@ -124,6 +145,14 @@ func _process(delta: float) -> void:
 
 	_apply_camera_transform();
 	_update_zoom_anchor();
+	_constrain_target_state();
+
+	var bounds_correction := _constrain_current_state();
+
+	if _look_transition_active:
+		_look_transition_eye += bounds_correction;
+
+	_apply_camera_transform();
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -221,6 +250,9 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 	_focus += offset;
 	_target_focus += offset;
 
+	_constrain_current_state();
+	_target_focus = _focus;
+
 	_apply_camera_transform();
 	get_viewport().set_input_as_handled();
 
@@ -233,6 +265,10 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 		_rotate_look(yaw_delta, pitch_delta);
 	else:
 		_rotate_orbit(yaw_delta, pitch_delta);
+
+	_constrain_current_state();
+	_target_focus = _focus;
+	_target_zoom = _zoom;
 
 	_apply_camera_transform();
 	get_viewport().set_input_as_handled();
@@ -301,8 +337,6 @@ func _update_zoom_anchor() -> void:
 
 	_focus += offset;
 	_target_focus += offset;
-
-	_apply_camera_transform();
 
 	if absf(_zoom - _target_zoom) < 0.001:
 		_zoom = _target_zoom;
@@ -373,6 +407,145 @@ func _world_at_screen(screen_position: Vector2) -> Vector3:
 	return origin + direction * distance_to_plane;
 
 
+func _constrain_target_state() -> void:
+	if not bounds_enabled or _look_transition_active:
+		return;
+
+	var correction := _bounds_correction(_target_focus, _target_zoom, _target_yaw, _target_pitch);
+	_target_focus.x += correction.x;
+	_target_focus.z += correction.y;
+
+
+func _constrain_current_state() -> Vector3:
+	if not bounds_enabled:
+		return Vector3.ZERO;
+
+	var correction_2d := _bounds_correction(_focus, _zoom, _yaw, _pitch);
+	var correction := Vector3(correction_2d.x, 0.0, correction_2d.y);
+
+	_focus += correction;
+	_focus.y = ground_height;
+
+	return correction;
+
+
+func _bounds_correction(focus: Vector3, zoom: float, yaw: float, pitch: float) -> Vector2:
+	if bounds_mode == BoundsMode.FOCUS:
+		return _focus_bounds_correction(focus);
+
+	var view_rect := _ground_view_rect_for_state(focus, zoom, yaw, pitch);
+
+	if view_rect.size.x < 0.0 or view_rect.size.y < 0.0:
+		return _focus_bounds_correction(focus);
+
+	return _rect_fit_correction(view_rect);
+
+
+func _focus_bounds_correction(focus: Vector3) -> Vector2:
+	var bounds_min := Vector2(
+		minf(world_bounds.position.x, world_bounds.end.x),
+		minf(world_bounds.position.y, world_bounds.end.y)
+	);
+	var bounds_max := Vector2(
+		maxf(world_bounds.position.x, world_bounds.end.x),
+		maxf(world_bounds.position.y, world_bounds.end.y)
+	);
+	var position := Vector2(focus.x, focus.z);
+	var clamped := Vector2(
+		clampf(position.x, bounds_min.x, bounds_max.x),
+		clampf(position.y, bounds_min.y, bounds_max.y)
+	);
+
+	return clamped - position;
+
+
+func _rect_fit_correction(view_rect: Rect2) -> Vector2:
+	var bounds_min := Vector2(
+		minf(world_bounds.position.x, world_bounds.end.x),
+		minf(world_bounds.position.y, world_bounds.end.y)
+	);
+	var bounds_max := Vector2(
+		maxf(world_bounds.position.x, world_bounds.end.x),
+		maxf(world_bounds.position.y, world_bounds.end.y)
+	);
+	var view_min := Vector2(
+		minf(view_rect.position.x, view_rect.end.x),
+		minf(view_rect.position.y, view_rect.end.y)
+	);
+	var view_max := Vector2(
+		maxf(view_rect.position.x, view_rect.end.x),
+		maxf(view_rect.position.y, view_rect.end.y)
+	);
+	var correction := Vector2.ZERO;
+
+	if view_max.x - view_min.x > bounds_max.x - bounds_min.x:
+		correction.x = (bounds_min.x + bounds_max.x - view_min.x - view_max.x) * 0.5;
+	elif view_min.x < bounds_min.x:
+		correction.x = bounds_min.x - view_min.x;
+	elif view_max.x > bounds_max.x:
+		correction.x = bounds_max.x - view_max.x;
+
+	if view_max.y - view_min.y > bounds_max.y - bounds_min.y:
+		correction.y = (bounds_min.y + bounds_max.y - view_min.y - view_max.y) * 0.5;
+	elif view_min.y < bounds_min.y:
+		correction.y = bounds_min.y - view_min.y;
+	elif view_max.y > bounds_max.y:
+		correction.y = bounds_max.y - view_max.y;
+
+	return correction;
+
+
+func _ground_view_rect_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> Rect2:
+	if camera.projection != Camera3D.PROJECTION_PERSPECTIVE:
+		return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
+
+	if camera.attributes != null or not is_zero_approx(camera.h_offset) or not is_zero_approx(camera.v_offset):
+		return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
+
+	var viewport_size := get_viewport().get_visible_rect().size;
+
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
+
+	var aspect := viewport_size.x / viewport_size.y;
+	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
+	var half_width: float;
+	var half_height: float;
+
+	if camera.keep_aspect == Camera3D.KEEP_HEIGHT:
+		half_height = half_fov_tan;
+		half_width = half_height * aspect;
+	else:
+		half_width = half_fov_tan;
+		half_height = half_width / aspect;
+
+	var forward := _view_direction(yaw, pitch);
+	var right := Vector3(cos(yaw), 0.0, -sin(yaw));
+	var up := right.cross(forward).normalized();
+	var eye := focus - forward * zoom;
+	var ground_min := Vector2(INF, INF);
+	var ground_max := Vector2(-INF, -INF);
+
+	for corner in VIEW_CORNERS:
+		var ray_direction := (forward + right * corner.x * half_width + up * corner.y * half_height).normalized();
+
+		if ray_direction.y >= -0.00001:
+			return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
+
+		var distance_to_ground := (ground_height - eye.y) / ray_direction.y;
+
+		if distance_to_ground < 0.0:
+			return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
+
+		var point := eye + ray_direction * distance_to_ground;
+		ground_min.x = minf(ground_min.x, point.x);
+		ground_min.y = minf(ground_min.y, point.z);
+		ground_max.x = maxf(ground_max.x, point.x);
+		ground_max.y = maxf(ground_max.y, point.z);
+
+	return Rect2(ground_min, ground_max - ground_min);
+
+
 func _get_pan_speed() -> float:
 	return lerpf(min_pan_speed, max_pan_speed, get_zoom_ratio());
 
@@ -415,9 +588,11 @@ func focus_on(position: Vector3, immediate := false) -> void:
 	_target_focus = position;
 	_zoom_anchor_active = false;
 	_cancel_look_transition();
+	_constrain_target_state();
 
 	if immediate:
 		_focus = _target_focus;
+		_constrain_current_state();
 		_apply_camera_transform();
 
 
@@ -425,9 +600,11 @@ func zoom_to(distance: float, immediate := false) -> void:
 	_target_zoom = clampf(distance, min_zoom, max_zoom);
 	_zoom_anchor_active = false;
 	_cancel_look_transition();
+	_constrain_target_state();
 
 	if immediate:
 		_zoom = _target_zoom;
+		_constrain_current_state();
 		_apply_camera_transform();
 
 
@@ -453,10 +630,12 @@ func rotate_to(yaw_degrees: float, pitch_degrees: float, immediate := false) -> 
 			_look_transition_active = true;
 	else:
 		_target_pitch = clampf(deg_to_rad(pitch_degrees), deg_to_rad(min_pitch), deg_to_rad(max_pitch));
+		_constrain_target_state();
 
 		if immediate:
 			_yaw = _target_yaw;
 			_pitch = _target_pitch;
+			_constrain_current_state();
 			_apply_camera_transform();
 
 
@@ -467,11 +646,13 @@ func snap() -> void:
 		_apply_look_from_eye(_look_transition_eye);
 		_look_transition_active = false;
 	else:
+		_constrain_target_state();
 		_focus = _target_focus;
 		_zoom = _target_zoom;
 		_yaw = _target_yaw;
 		_pitch = _target_pitch;
 
+	_constrain_current_state();
 	_apply_camera_transform();
 
 
@@ -494,3 +675,7 @@ func get_yaw() -> float:
 
 func get_pitch() -> float:
 	return rad_to_deg(_pitch);
+
+
+func get_visible_ground_rect() -> Rect2:
+	return _ground_view_rect_for_state(_focus, _zoom, _yaw, _pitch);

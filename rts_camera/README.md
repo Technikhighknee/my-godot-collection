@@ -14,10 +14,11 @@ A compact RTS / city-builder camera for Godot 4.
   - `ORBIT`: the focus stays in place and the camera moves around it.
 - Multiplicative, high-precision-aware wheel zoom.
 - Cursor-anchored zoom.
+- Optional focus bounds or view-aware bounds.
 - Transient drag/rotate/zoom state is cleared when the game window loses focus.
 - Small programmatic API: `focus_on()`, `zoom_to()`, `rotate_to()`, `snap()`.
 
-The current ground resolver is intentionally a horizontal plane at `ground_height`. Terrain, bounds and edge scrolling are later capabilities rather than dependencies of the core.
+The current ground resolver is intentionally a horizontal plane at `ground_height`. Terrain and edge scrolling are later capabilities rather than dependencies of the core.
 
 ## Setup
 
@@ -45,6 +46,18 @@ Default mouse controls:
 `ORBIT` keeps the focus fixed while yaw and pitch move the camera around it.
 
 Direct mouse rotation is intentionally unsmoothed. Programmatic `rotate_to()` uses `rotation_smoothing`, and direct player input cancels an in-progress automatic LOOK rotation.
+
+## Bounds
+
+Bounds are disabled by default and use a `Rect2` in world X/Z coordinates.
+
+`FOCUS` bounds only constrain the logical focus point.
+
+`VIEW` bounds constrain the actual ground footprint visible through the perspective camera. The footprint is derived from zoom, pitch, yaw, FOV, keep-aspect mode and the current viewport aspect ratio. When the visible footprint is larger than the configured bounds on an axis, it is centered on that axis instead of oscillating between opposite edges.
+
+Bounds are the final spatial constraint: at an edge they intentionally take priority over exact cursor anchoring and LOOK eye preservation. Standard perspective Camera3D projection is supported by the view-footprint solver; unsupported projection customizations fall back to focus bounds rather than producing incorrect geometry.
+
+`get_visible_ground_rect()` exposes the current finite ground footprint when available.
 
 ## Defaults
 
