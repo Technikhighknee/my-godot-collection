@@ -71,7 +71,7 @@ The camera expects:
 - `camera_forward`
 - `camera_back`
 
-Define these actions in your project's Input Map. The camera validates them during `_ready()`; if any are missing, it emits an error naming the missing actions and disables itself instead of failing silently.
+Define these actions in your project's Input Map. The camera asserts during `_ready()` if any are missing, and the assertion message names every missing action.
 
 ## Small API
 

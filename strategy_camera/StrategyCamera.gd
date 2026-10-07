@@ -54,8 +54,7 @@ var _restore_mouse_position := Vector2.ZERO;
 
 
 func _ready() -> void:
-	if not _validate_input_actions():
-		return;
+	_assert_input_actions();
 
 	_focus = global_position;
 	_ground_height = _focus.y;
@@ -71,7 +70,7 @@ func _ready() -> void:
 	_apply_camera_transform();
 
 
-func _validate_input_actions() -> bool:
+func _assert_input_actions() -> void:
 	var missing := PackedStringArray();
 
 	if not InputMap.has_action(PAN_LEFT_ACTION):
@@ -86,17 +85,11 @@ func _validate_input_actions() -> bool:
 	if not InputMap.has_action(PAN_BACK_ACTION):
 		missing.append(String(PAN_BACK_ACTION));
 
-	if missing.is_empty():
-		return true;
-
-	push_error(
-		"StrategyCamera cannot start. Missing required Input Map actions: %s"
+	assert(
+		missing.is_empty(),
+		"StrategyCamera requires these missing Input Map actions: %s"
 		% ", ".join(missing)
 	);
-	set_process(false);
-	set_process_unhandled_input(false);
-
-	return false;
 
 
 func _process(delta: float) -> void:
