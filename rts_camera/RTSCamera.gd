@@ -349,8 +349,24 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton;
+		var rotate_event := (
+			button.button_index == rotate_button
+			and (
+				(button.pressed and rotation_enabled)
+				or _rotate_button_down
+				or _rotating
+			)
+		);
+		var drag_event := (
+			button.button_index == drag_button
+			and (
+				button.pressed
+				or _drag_button_down
+				or _dragging
+			)
+		);
 
-		if button.button_index == rotate_button and (rotation_enabled or _rotate_button_down):
+		if rotate_event:
 			_rotate_button_down = button.pressed and not button.canceled;
 
 			if _rotate_button_down:
@@ -360,7 +376,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 			_pending_pointer_events.append(event);
 			get_viewport().set_input_as_handled();
-		elif button.button_index == drag_button:
+		elif drag_event:
 			_drag_button_down = button.pressed and not button.canceled;
 			_pending_pointer_events.append(event);
 			get_viewport().set_input_as_handled();
@@ -373,7 +389,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and (_rotate_button_down or _drag_button_down):
 		_pending_pointer_events.append(event);
 		get_viewport().set_input_as_handled();
-
 
 func _consume_pointer_events() -> void:
 	if _pending_pointer_events.is_empty():
@@ -438,6 +453,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 		if _rotating:
 			_wheel_zoom_active = false;
+			_drag_button_down = false;
 			_dragging = false;
 			_drag_anchor_valid = false;
 			_target_focus = _focus;
@@ -453,7 +469,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 		if _dragging:
 			_wheel_zoom_active = false;
+			_rotate_button_down = false;
 			_rotating = false;
+			_end_rotation_pointer_capture();
 			_target_focus = _focus;
 			_target_zoom = _zoom;
 			var point := _world_at_screen(event.position);
@@ -473,7 +491,6 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 		_cancel_rotation_transition();
 		_zoom_at(event.position, false, event.factor);
-
 
 func _handle_pan_input(delta: float) -> void:
 	var input := Vector2.ZERO;
