@@ -47,6 +47,7 @@ const PAN_SAMPLE_PIXELS := 32.0;
 @export var mouse_yaw_sensitivity := 0.2;
 @export var mouse_pitch_sensitivity := 0.2;
 @export var rotation_smoothing := 18.0;
+@export var capture_mouse_while_rotating := true;
 
 @export_group("Ground")
 @export var ground_mode: GroundMode = GroundMode.PLANE;
@@ -112,6 +113,9 @@ var _zoom_anchor_world: Vector3;
 var _pending_pointer_events: Array[InputEvent] = [];
 var _rotate_button_down := false;
 var _drag_button_down := false;
+var _rotation_capture_active := false;
+var _rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
+var _rotation_restore_mouse_position: Vector2;
 
 var _ground_initialized := false;
 var _inside_ground_update := false;
@@ -202,6 +206,8 @@ func _update_camera(delta: float) -> void:
 	else:
 		if not rotation_enabled:
 			_rotating = false;
+			_rotate_button_down = false;
+			_end_rotation_pointer_capture();
 
 		_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
@@ -337,6 +343,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 		if button.button_index == rotate_button and (rotation_enabled or _rotate_button_down):
 			_rotate_button_down = button.pressed and not button.canceled;
+
+			if _rotate_button_down:
+				_begin_rotation_pointer_capture(button.position);
+			else:
+				_end_rotation_pointer_capture();
+
 			_pending_pointer_events.append(event);
 			get_viewport().set_input_as_handled();
 		elif button.button_index == drag_button:
@@ -377,11 +389,36 @@ func _reconcile_pointer_buttons() -> void:
 	if _rotate_button_down and not Input.is_mouse_button_pressed(rotate_button):
 		_rotate_button_down = false;
 		_rotating = false;
+		_end_rotation_pointer_capture();
 
 	if _drag_button_down and not Input.is_mouse_button_pressed(drag_button):
 		_drag_button_down = false;
 		_dragging = false;
 		_drag_anchor_valid = false;
+
+
+func _begin_rotation_pointer_capture(position: Vector2) -> void:
+	if not capture_mouse_while_rotating or _rotation_capture_active:
+		return;
+
+	_rotation_capture_active = true;
+	_rotation_restore_mouse_mode = Input.mouse_mode;
+	_rotation_restore_mouse_position = position;
+
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED;
+
+
+func _end_rotation_pointer_capture() -> void:
+	if not _rotation_capture_active:
+		return;
+
+	_rotation_capture_active = false;
+	var restore_mode := _rotation_restore_mouse_mode;
+	Input.mouse_mode = restore_mode;
+
+	if restore_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.warp_mouse(_rotation_restore_mouse_position);
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
@@ -1041,6 +1078,7 @@ func _cancel_look_transition() -> void:
 
 
 func _reset_transient_input() -> void:
+	_end_rotation_pointer_capture();
 	_dragging = false;
 	_drag_anchor_valid = false;
 	_rotating = false;
