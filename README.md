@@ -83,7 +83,7 @@ Such is software.
 
 Anyway, because visibility and permission are two completely different things:
 
-### Copyright and Usage Notice
+## Copyright and Usage Notice
 
 **Copyright © 2026 Jason Posch. All rights reserved.**
 
