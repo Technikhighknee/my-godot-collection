@@ -120,7 +120,7 @@ var _visible_ground_rect := Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
 
 var _active_ground_mode: GroundMode;
 var _physics_history_ready := false;
-var _physics_previous_focus: Vector3;
+var _physics_previous_eye: Vector3;
 var _physics_previous_zoom := 0.0;
 var _physics_previous_yaw := 0.0;
 var _physics_previous_pitch := 0.0;
@@ -293,14 +293,14 @@ func _begin_physics_history_step() -> void:
 		_reset_physics_history();
 		return;
 
-	_physics_previous_focus = _focus;
+	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
 	_physics_previous_zoom = _zoom;
 	_physics_previous_yaw = _yaw;
 	_physics_previous_pitch = _pitch;
 
 
 func _reset_physics_history() -> void:
-	_physics_previous_focus = _focus;
+	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
 	_physics_previous_zoom = _zoom;
 	_physics_previous_yaw = _yaw;
 	_physics_previous_pitch = _pitch;
@@ -317,10 +317,12 @@ func _apply_physics_presentation() -> void:
 		return;
 
 	var fraction := clampf(Engine.get_physics_interpolation_fraction(), 0.0, 1.0);
-	var focus := _physics_previous_focus.lerp(_focus, fraction);
+	var current_eye := _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
+	var eye := _physics_previous_eye.lerp(current_eye, fraction);
 	var zoom := lerpf(_physics_previous_zoom, _zoom, fraction);
 	var yaw := lerp_angle(_physics_previous_yaw, _yaw, fraction);
 	var pitch := lerpf(_physics_previous_pitch, _pitch, fraction);
+	var focus := eye + _view_direction(yaw, pitch) * zoom;
 
 	_apply_camera_transform_for_state(focus, zoom, yaw, pitch);
 
