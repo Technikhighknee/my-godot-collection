@@ -19,7 +19,7 @@ const MAX_TILT := 90.0;
 
 const PAN_SCREEN_SPEED := 1.5;
 const EDGE_SCROLL_MARGIN := 24.0;
-const POINTER_PAN_HOLD_DELAY := 0.12;
+const POINTER_PAN_HOLD_DELAY_MSEC := 120;
 const MOVE_SMOOTHING := 16.0;
 const HEIGHT_SMOOTHING := 18.0;
 
@@ -55,7 +55,7 @@ var _edge_scroll_block_position := Vector2.ZERO;
 
 var _panning := false;
 var _pan_hold_pending := false;
-var _pan_hold_elapsed := 0.0;
+var _pan_hold_started_msec := 0;
 var _pointer_pan_anchor := Vector2.ZERO;
 var _rotating := false;
 var _pointer_rotation_anchor := Vector2.ZERO;
@@ -115,7 +115,7 @@ func _assert_input_actions() -> void:
 
 func _process(delta: float) -> void:
 	_reconcile_pointer_buttons();
-	_update_pointer_pan_hold(delta);
+	_update_pointer_pan_hold();
 	_sync_follow_target();
 	_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
@@ -183,7 +183,7 @@ func _reconcile_pointer_buttons() -> void:
 		_end_pointer_pan();
 
 
-func _update_pointer_pan_hold(delta: float) -> void:
+func _update_pointer_pan_hold() -> void:
 	if not _pan_hold_pending:
 		return;
 
@@ -191,13 +191,11 @@ func _update_pointer_pan_hold(delta: float) -> void:
 		_cancel_pointer_pan_hold();
 		return;
 
-	_pan_hold_elapsed += delta;
-
-	if _pan_hold_elapsed < POINTER_PAN_HOLD_DELAY:
+	if not _pointer_pan_hold_ready():
 		return;
 
 	_pan_hold_pending = false;
-	_pan_hold_elapsed = 0.0;
+	_pan_hold_started_msec = 0;
 
 	if _rotating:
 		_pointer_pan_anchor = _pointer_rotation_anchor;
@@ -211,9 +209,17 @@ func _update_pointer_pan_hold(delta: float) -> void:
 	_begin_pointer_capture(_pointer_pan_anchor);
 
 
+func _pointer_pan_hold_ready() -> bool:
+	return (
+		_pan_hold_pending
+		and Time.get_ticks_msec() - _pan_hold_started_msec
+		>= POINTER_PAN_HOLD_DELAY_MSEC
+	);
+
+
 func _cancel_pointer_pan_hold() -> void:
 	_pan_hold_pending = false;
-	_pan_hold_elapsed = 0.0;
+	_pan_hold_started_msec = 0;
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
@@ -238,14 +244,18 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index == MOUSE_BUTTON_RIGHT:
 		if event.pressed and not event.canceled:
 			_pan_hold_pending = true;
-			_pan_hold_elapsed = 0.0;
+			_pan_hold_started_msec = Time.get_ticks_msec();
 			return;
 
 		if _panning:
 			_end_pointer_pan();
 			get_viewport().set_input_as_handled();
 		else:
+			var was_hold := _pointer_pan_hold_ready();
 			_cancel_pointer_pan_hold();
+
+			if was_hold:
+				get_viewport().set_input_as_handled();
 
 		return;
 
