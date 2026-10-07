@@ -70,6 +70,7 @@ const MAX_DIRECT_GROUND_DISTANCE_FACTOR := 6.0;
 
 @export_group("Physics Presentation")
 @export var physics_render_interpolation := true;
+@export var terrain_height_smoothing := 10.0;
 
 @export_group("Bounds")
 @export var bounds_enabled := false;
@@ -147,6 +148,7 @@ var _physics_previous_view_yaw := 0.0;
 var _physics_previous_view_pitch := 0.0;
 var _collapse_physics_history := false;
 var _direct_pointer_activity_this_tick := false;
+var _ground_follow_offset_y := 0.0;
 
 
 func _ready() -> void:
@@ -260,6 +262,7 @@ func _update_camera(delta: float) -> void:
 
 	var bounds_correction := _constrain_current_state();
 
+	_decay_ground_follow_offset(delta);
 	_apply_camera_transform();
 
 	if _zoom_anchor_active and not bounds_correction.is_zero_approx():
@@ -272,6 +275,7 @@ func _update_camera(delta: float) -> void:
 	_inside_ground_update = false;
 
 func _initialize_ground_state() -> void:
+	_ground_follow_offset_y = 0.0;
 	_align_current_focus_to_ground();
 	_target_focus = _focus;
 	_constrain_target_state();
@@ -308,18 +312,16 @@ func _begin_physics_history_step() -> void:
 		return;
 
 	_physics_previous_focus = _focus;
-	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	_physics_previous_eye = _camera_position_for_current_state();
 	_physics_previous_view_yaw = _current_view_yaw();
 	_physics_previous_view_pitch = _current_view_pitch();
-
 
 func _reset_physics_history() -> void:
 	_physics_previous_focus = _focus;
-	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	_physics_previous_eye = _camera_position_for_current_state();
 	_physics_previous_view_yaw = _current_view_yaw();
 	_physics_previous_view_pitch = _current_view_pitch();
 	_physics_history_ready = true;
-
 
 func _apply_physics_presentation() -> void:
 	if not _physics_history_ready or not physics_render_interpolation:
@@ -331,7 +333,7 @@ func _apply_physics_presentation() -> void:
 		return;
 
 	var fraction := clampf(Engine.get_physics_interpolation_fraction(), 0.0, 1.0);
-	var current_eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	var current_eye := _camera_position_for_current_state();
 	var current_view_yaw := _current_view_yaw();
 	var current_view_pitch := _current_view_pitch();
 
@@ -341,7 +343,6 @@ func _apply_physics_presentation() -> void:
 	var view_pitch := lerpf(_physics_previous_view_pitch, current_view_pitch, fraction);
 
 	_apply_camera_pose(focus, eye, view_yaw, view_pitch);
-
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled:
@@ -551,7 +552,7 @@ func _rig_ground_units_per_pixel(axis: Vector2) -> float:
 	var forward := _view_direction(_yaw, rig_pitch);
 	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
 	var up := right.cross(forward).normalized();
-	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	var eye := _camera_position_for_current_state();
 	var center_world := resolve_ground_ray(eye, forward);
 
 	if not center_world.is_finite():
@@ -748,10 +749,9 @@ func _ground_point_is_directly_usable(point: Vector3) -> bool:
 
 	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
 	var rig_distance := _rig_distance_for_height(_zoom, rig_pitch);
-	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	var eye := _camera_position_for_current_state();
 
 	return eye.distance_to(point) <= rig_distance * MAX_DIRECT_GROUND_DISTANCE_FACTOR;
-
 
 func _begin_zoom_anchor(screen_position: Vector2) -> void:
 	var point := _world_at_screen(screen_position);
@@ -843,11 +843,9 @@ func _view_direction(yaw: float, pitch: float) -> Vector3:
 
 
 func _apply_camera_transform() -> void:
-	_apply_camera_transform_for_state(
+	_apply_camera_pose(
 		_focus,
-		_zoom,
-		_yaw,
-		_orbit_pitch_offset,
+		_camera_position_for_current_state(),
 		_current_view_yaw(),
 		_current_view_pitch()
 	);
@@ -870,16 +868,11 @@ func _camera_position_for_state(
 
 	return target - _view_direction(rig_yaw, rig_pitch) * distance;
 
-func _apply_camera_transform_for_state(
-	focus: Vector3,
-	zoom: float,
-	rig_yaw: float,
-	orbit_pitch_offset: float,
-	view_yaw: float,
-	view_pitch: float
-) -> void:
-	var eye := _camera_position_for_state(focus, zoom, rig_yaw, orbit_pitch_offset);
-	_apply_camera_pose(focus, eye, view_yaw, view_pitch);
+func _camera_position_for_current_state() -> Vector3:
+	return (
+		_camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset)
+		+ Vector3.UP * _ground_follow_offset_y
+	)
 
 func _apply_camera_pose(focus: Vector3, eye: Vector3, view_yaw: float, view_pitch: float) -> void:
 	global_position = focus;
@@ -978,8 +971,31 @@ func _ground_at_xz(position: Vector3) -> Vector3:
 func _align_current_focus_to_ground() -> void:
 	var point := _ground_at_xz(_focus);
 
-	if point.is_finite():
-		_focus = point;
+	if not point.is_finite():
+		return;
+
+	var previous_y := _focus.y;
+	_focus = point;
+
+	if ground_mode == GroundMode.PHYSICS and _ground_initialized:
+		_ground_follow_offset_y += previous_y - point.y;
+
+func _decay_ground_follow_offset(delta: float) -> void:
+	if ground_mode != GroundMode.PHYSICS:
+		_ground_follow_offset_y = 0.0;
+		return;
+
+	if _rotating and rotation_mode == RotationMode.LOOK:
+		return;
+
+	if terrain_height_smoothing <= 0.0:
+		_ground_follow_offset_y = 0.0;
+		return;
+
+	_ground_follow_offset_y *= exp(-terrain_height_smoothing * delta);
+
+	if absf(_ground_follow_offset_y) < 0.0001:
+		_ground_follow_offset_y = 0.0;
 
 
 func _align_target_focus_to_ground() -> void:
@@ -1002,7 +1018,8 @@ func _constrain_target_state() -> void:
 		_target_orbit_pitch_offset,
 		_target_view_yaw(),
 		_target_view_pitch(),
-		not _look_detached
+		not _look_detached,
+		0.0
 	);
 
 	_target_focus.x += correction.x;
@@ -1022,7 +1039,8 @@ func _constrain_current_state() -> Vector3:
 		_orbit_pitch_offset,
 		_current_view_yaw(),
 		_current_view_pitch(),
-		not _look_detached
+		not _look_detached,
+		_ground_follow_offset_y
 	);
 	var correction := Vector3(correction_2d.x, 0.0, correction_2d.y);
 
@@ -1038,7 +1056,8 @@ func _bounds_correction(
 	orbit_pitch_offset: float,
 	view_yaw: float,
 	view_pitch: float,
-	allow_view_bounds: bool
+	allow_view_bounds: bool,
+	vertical_offset: float
 ) -> Vector2:
 	if bounds_mode == BoundsMode.FOCUS or not allow_view_bounds:
 		return _focus_bounds_correction(focus);
@@ -1049,7 +1068,8 @@ func _bounds_correction(
 		rig_yaw,
 		orbit_pitch_offset,
 		view_yaw,
-		view_pitch
+		view_pitch,
+		vertical_offset
 	);
 
 	if view_rect.size.x < 0.0 or view_rect.size.y < 0.0:
@@ -1117,7 +1137,8 @@ func _ground_view_rect_for_state(
 	rig_yaw: float,
 	orbit_pitch_offset: float,
 	view_yaw: float,
-	view_pitch: float
+	view_pitch: float,
+	vertical_offset := 0.0
 ) -> Rect2:
 	if camera.projection != Camera3D.PROJECTION_PERSPECTIVE:
 		return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
@@ -1145,7 +1166,10 @@ func _ground_view_rect_for_state(
 	var forward := _view_direction(view_yaw, view_pitch);
 	var right := Vector3(cos(view_yaw), 0.0, -sin(view_yaw));
 	var up := right.cross(forward).normalized();
-	var eye := _camera_position_for_state(focus, zoom, rig_yaw, orbit_pitch_offset);
+	var eye := (
+		_camera_position_for_state(focus, zoom, rig_yaw, orbit_pitch_offset)
+		+ Vector3.UP * vertical_offset
+	);
 
 	var top_left := _ground_view_corner(eye, forward, right, up, half_width, half_height, -1.0, 1.0);
 	var top_right := _ground_view_corner(eye, forward, right, up, half_width, half_height, 1.0, 1.0);
@@ -1204,6 +1228,7 @@ func _normalize_configuration() -> void:
 	move_smoothing = maxf(move_smoothing, 0.0);
 	zoom_smoothing = maxf(zoom_smoothing, 0.0);
 	rotation_smoothing = maxf(rotation_smoothing, 0.0);
+	terrain_height_smoothing = maxf(terrain_height_smoothing, 0.0);
 
 	edge_scroll_margin = maxf(edge_scroll_margin, 1.0);
 	edge_scroll_curve = maxf(edge_scroll_curve, 0.01);
@@ -1353,6 +1378,7 @@ func snap() -> void:
 
 func _snap_now() -> void:
 	_collapse_physics_history = true;
+	_ground_follow_offset_y = 0.0;
 
 	_constrain_target_state();
 	_focus = _target_focus;
@@ -1402,7 +1428,8 @@ func _refresh_visible_ground_rect() -> void:
 		_yaw,
 		_orbit_pitch_offset,
 		_current_view_yaw(),
-		_current_view_pitch()
+		_current_view_pitch(),
+		_ground_follow_offset_y
 	);
 
 func _can_resolve_ground_now() -> bool:
@@ -1417,7 +1444,8 @@ func get_visible_ground_rect() -> Rect2:
 			_yaw,
 			_orbit_pitch_offset,
 			_current_view_yaw(),
-			_current_view_pitch()
+			_current_view_pitch(),
+			_ground_follow_offset_y
 		);
 
 	return _visible_ground_rect;
