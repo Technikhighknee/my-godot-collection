@@ -123,6 +123,17 @@ class CopyTests(unittest.TestCase):
                 [("example", target), ("other", target)],
             )
 
+    def test_package_without_destination_has_clear_error(self) -> None:
+        with self.assertRaisesRegex(copy_tool.CopyError, "Destination missing"):
+            copy_tool.run(["strategy_camera"])
+
+    def test_directory_is_not_treated_as_manifest_file(self) -> None:
+        directory = self.root / "project"
+        directory.mkdir()
+
+        with self.assertRaisesRegex(copy_tool.CopyError, "Expected a manifest file"):
+            copy_tool.project_packages(directory)
+
     def test_no_cancels_before_any_write(self) -> None:
         target = self.root / "target"
         target.mkdir()
