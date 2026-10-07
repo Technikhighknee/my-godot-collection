@@ -82,6 +82,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_reconcile_pointer_buttons();
 	_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
 	var move_t := _smooth_factor(MOVE_SMOOTHING, delta);
@@ -115,6 +116,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_drag(motion);
 		elif _rotating:
 			_handle_rotation(motion);
+
+
+func _reconcile_pointer_buttons() -> void:
+	if _rotating and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+		_rotating = false;
+		_end_rotation_capture();
+
+	if _dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		_dragging = false;
+		_drag_anchor_valid = false;
+		_suppress_edge_scroll_until_motion(
+			get_viewport().get_mouse_position()
+		);
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
