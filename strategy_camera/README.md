@@ -11,7 +11,7 @@ The component deliberately has one camera model instead of a collection of modes
 - Right mouse: grab and drag the world.
 - Middle mouse horizontal: rotate the camera around its ground focus.
 - Middle mouse vertical: look up/down relative to the natural zoom pose.
-- Wheel: zoom, anchored to the world under the cursor when that intersection is stable.
+- Wheel: zoom, anchored to the world under the cursor when that ray is at least 5° downward and therefore geometrically stable.
 
 ## Camera model
 
