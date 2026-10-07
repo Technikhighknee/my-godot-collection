@@ -253,6 +253,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled();
 	elif event is InputEventMouseMotion and (_rotate_button_down or _drag_button_down):
 		_pending_pointer_events.append(event);
+		get_viewport().set_input_as_handled();
 
 
 func _consume_pointer_events() -> void:
@@ -611,15 +612,15 @@ func resolve_ground_ray(origin: Vector3, direction: Vector3, max_distance := -1.
 		if result.is_empty():
 			return Vector3.INF;
 
+		var hit_position: Vector3 = result["position"];
+
 		if ground_required_group == &"":
-			var position: Vector3 = result["position"];
-			return position;
+			return hit_position;
 
 		var collider: Object = result["collider"];
 
 		if collider is Node and (collider as Node).is_in_group(ground_required_group):
-			var position: Vector3 = result["position"];
-			return position;
+			return hit_position;
 
 		var rid: RID = result["rid"];
 		excluded.append(rid);
