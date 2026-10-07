@@ -8,6 +8,9 @@ Some Godot bits and bobs.
 
 ## Copy tool
 
+>You're probably thinking, “Jason... why don't you just copy them by hand?”
+>No. That primitive act of manually moving files is personally insulting to me. I need manifest files, byte-by-byte comparison, selective conflict resolution, and atomic writes.
+
 Each package declares its files in a local `manifest.json`.
 
 Copy one package to any directory:
