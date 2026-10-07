@@ -8,17 +8,17 @@ const MAX_INPUT_DELTA := 0.1;
 @export_group("Camera")
 @export_range(10.0, 80.0, 0.1) var angle := 50.0;
 @export var initial_zoom := 30.0;
-@export var min_zoom := 8.0;
-@export var max_zoom := 80.0;
+@export var min_zoom := 5.0;
+@export var max_zoom := 120.0;
 
 @export_group("Movement")
-@export var min_pan_speed := 10.0;
-@export var max_pan_speed := 60.0;
-@export var move_smoothing := 12.0;
+@export var min_pan_speed := 4.0;
+@export var max_pan_speed := 110.0;
+@export var move_smoothing := 16.0;
 
 @export_group("Zoom")
 @export_range(0.5, 0.99, 0.01) var zoom_factor := 0.85;
-@export var zoom_smoothing := 14.0;
+@export var zoom_smoothing := 18.0;
 
 @export_group("World")
 @export var ground_height := 0.0;

@@ -29,4 +29,16 @@ The included demo registers WASD for these actions at runtime.
 
 Instantiate `RTSCamera.tscn`. Its root position is the initial world focus. The Camera3D child transform does not need to be configured; the controller derives it from the focus, zoom and angle.
 
-`angle` is the camera elevation above the horizontal ground plane, so a normal RTS value is positive. The included default is 50 degrees. The scene uses a 45 degree perspective FOV.
+The defaults assume Godot's normal metric 3D scale, where one world unit is one meter:
+
+- Camera angle: 50 degrees.
+- Perspective FOV: 45 degrees.
+- Initial zoom: 30 m.
+- Minimum zoom: 5 m.
+- Maximum zoom: 120 m.
+- Pan speed: 4 m/s close to 110 m/s at maximum zoom.
+- Movement smoothing: 16.
+- Zoom factor: 0.85 per wheel unit.
+- Zoom smoothing: 18.
+
+These values are chosen so a one-meter-scale object remains meaningfully inspectable at maximum zoom-in while the default and maximum distances still provide useful strategy-scale coverage.
