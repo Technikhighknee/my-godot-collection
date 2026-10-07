@@ -533,7 +533,7 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 
 
 func _rotate_look(yaw_delta: float, pitch_delta: float) -> void:
-	var eye := camera.global_position;
+	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
 	var pitch_limits := _look_pitch_limits(eye);
 	var previous_yaw := _yaw;
 	var previous_pitch := _pitch;
@@ -656,11 +656,13 @@ func _apply_camera_transform() -> void:
 	_apply_camera_transform_for_state(_focus, _zoom, _yaw, _pitch);
 
 
-func _apply_camera_transform_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> void:
-	var offset := -_view_direction(yaw, pitch) * zoom;
+func _camera_position_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> Vector3:
+	return focus - _view_direction(yaw, pitch) * zoom;
 
+
+func _apply_camera_transform_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> void:
 	global_position = focus;
-	camera.global_position = focus + offset;
+	camera.global_position = _camera_position_for_state(focus, zoom, yaw, pitch);
 	camera.look_at(focus, Vector3.UP);
 
 
@@ -1010,7 +1012,7 @@ func rotate_to(yaw_degrees: float, pitch_degrees: float, immediate := false) -> 
 	_target_pitch = clampf(deg_to_rad(pitch_degrees), deg_to_rad(min_pitch), deg_to_rad(max_pitch));
 
 	if rotation_mode == RotationMode.LOOK:
-		_look_transition_eye = camera.global_position;
+		_look_transition_eye = _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
 		_look_transition_active = true;
 	elif _can_resolve_ground_now():
 		_constrain_target_state();
