@@ -15,12 +15,6 @@ enum BoundsMode {
 
 
 const MAX_INPUT_DELTA := 0.1;
-const VIEW_CORNERS := [
-	Vector2(-1.0, 1.0),
-	Vector2(1.0, 1.0),
-	Vector2(1.0, -1.0),
-	Vector2(-1.0, -1.0),
-];
 
 
 @export_group("Camera")
@@ -154,6 +148,12 @@ func _process(delta: float) -> void:
 
 	_apply_camera_transform();
 
+	if _zoom_anchor_active and not bounds_correction.is_zero_approx():
+		var constrained_anchor := _world_at_screen(_zoom_anchor_screen);
+
+		if constrained_anchor.is_finite():
+			_zoom_anchor_world = constrained_anchor;
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled:
@@ -250,10 +250,17 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 	_focus += offset;
 	_target_focus += offset;
 
-	_constrain_current_state();
+	var bounds_correction := _constrain_current_state();
 	_target_focus = _focus;
 
 	_apply_camera_transform();
+
+	if not bounds_correction.is_zero_approx():
+		var constrained_anchor := _world_at_screen(event.position);
+
+		if constrained_anchor.is_finite():
+			_drag_anchor = constrained_anchor;
+
 	get_viewport().set_input_as_handled();
 
 
@@ -523,27 +530,48 @@ func _ground_view_rect_for_state(focus: Vector3, zoom: float, yaw: float, pitch:
 	var right := Vector3(cos(yaw), 0.0, -sin(yaw));
 	var up := right.cross(forward).normalized();
 	var eye := focus - forward * zoom;
-	var ground_min := Vector2(INF, INF);
-	var ground_max := Vector2(-INF, -INF);
 
-	for corner in VIEW_CORNERS:
-		var ray_direction := (forward + right * corner.x * half_width + up * corner.y * half_height).normalized();
+	var top_left := _ground_view_corner(eye, forward, right, up, half_width, half_height, -1.0, 1.0);
+	var top_right := _ground_view_corner(eye, forward, right, up, half_width, half_height, 1.0, 1.0);
+	var bottom_right := _ground_view_corner(eye, forward, right, up, half_width, half_height, 1.0, -1.0);
+	var bottom_left := _ground_view_corner(eye, forward, right, up, half_width, half_height, -1.0, -1.0);
 
-		if ray_direction.y >= -0.00001:
-			return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
+	if not top_left.is_finite() or not top_right.is_finite() or not bottom_right.is_finite() or not bottom_left.is_finite():
+		return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
 
-		var distance_to_ground := (ground_height - eye.y) / ray_direction.y;
-
-		if distance_to_ground < 0.0:
-			return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
-
-		var point := eye + ray_direction * distance_to_ground;
-		ground_min.x = minf(ground_min.x, point.x);
-		ground_min.y = minf(ground_min.y, point.z);
-		ground_max.x = maxf(ground_max.x, point.x);
-		ground_max.y = maxf(ground_max.y, point.z);
+	var ground_min := Vector2(
+		minf(minf(top_left.x, top_right.x), minf(bottom_right.x, bottom_left.x)),
+		minf(minf(top_left.z, top_right.z), minf(bottom_right.z, bottom_left.z))
+	);
+	var ground_max := Vector2(
+		maxf(maxf(top_left.x, top_right.x), maxf(bottom_right.x, bottom_left.x)),
+		maxf(maxf(top_left.z, top_right.z), maxf(bottom_right.z, bottom_left.z))
+	);
 
 	return Rect2(ground_min, ground_max - ground_min);
+
+
+func _ground_view_corner(
+	eye: Vector3,
+	forward: Vector3,
+	right: Vector3,
+	up: Vector3,
+	half_width: float,
+	half_height: float,
+	corner_x: float,
+	corner_y: float
+) -> Vector3:
+	var ray_direction := (forward + right * corner_x * half_width + up * corner_y * half_height).normalized();
+
+	if ray_direction.y >= -0.00001:
+		return Vector3.INF;
+
+	var distance_to_ground := (ground_height - eye.y) / ray_direction.y;
+
+	if distance_to_ground < 0.0:
+		return Vector3.INF;
+
+	return eye + ray_direction * distance_to_ground;
 
 
 func _get_pan_speed() -> float:
