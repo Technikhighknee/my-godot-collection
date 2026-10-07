@@ -520,11 +520,11 @@ func _ground_delta_per_pixel(center: Vector2, center_world: Vector3, axis: Vecto
 
 func _fallback_pan_delta(input: Vector2, delta: float) -> Vector3:
 	var view_yaw := _view_yaw(_yaw, _look_yaw_offset);
-	var view_pitch := _view_pitch(_zoom, _orbit_pitch_offset, _look_pitch_offset);
+	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
 	var right := Vector3(cos(view_yaw), 0.0, -sin(view_yaw));
 	var backward := Vector3(sin(view_yaw), 0.0, cos(view_yaw));
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
-	var pitch_scale := maxf(absf(sin(view_pitch)), 0.1);
+	var pitch_scale := maxf(sin(rig_pitch), 0.1);
 	var visible_height := 2.0 * _zoom * half_fov_tan / pitch_scale;
 	var speed := visible_height * pan_screen_speed;
 
