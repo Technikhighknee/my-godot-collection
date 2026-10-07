@@ -50,11 +50,12 @@ var _edge_scroll_block_position := Vector2.ZERO;
 var _panning := false;
 var _pan_hold_pending := false;
 var _pan_hold_elapsed := 0.0;
+var _pointer_pan_anchor := Vector2.ZERO;
 var _rotating := false;
 
-var _pointer_capture_active := false;
-var _restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
-var _restore_mouse_position := Vector2.ZERO;
+var _rotation_capture_active := false;
+var _rotation_rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
+var _rotation_rotation_restore_mouse_position := Vector2.ZERO;
 
 
 func _ready() -> void:
@@ -158,14 +159,13 @@ func _unhandled_input(event: InputEvent) -> void:
 func _reconcile_pointer_buttons() -> void:
 	if _rotating and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
 		_rotating = false;
-		_end_pointer_capture();
+		_end_rotation_capture();
 
 	if _pan_hold_pending and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		_cancel_pointer_pan_hold();
 
 	if _panning and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		_panning = false;
-		_end_pointer_capture();
 
 
 func _update_pointer_pan_hold(delta: float) -> void:
@@ -183,10 +183,14 @@ func _update_pointer_pan_hold(delta: float) -> void:
 
 	_pan_hold_pending = false;
 	_pan_hold_elapsed = 0.0;
+
+	if _rotating:
+		_rotating = false;
+		_end_rotation_capture();
+
 	_panning = true;
-	_rotating = false;
+	_pointer_pan_anchor = get_viewport().get_mouse_position();
 	_target_focus = _focus;
-	_begin_pointer_capture(get_viewport().get_mouse_position());
 
 
 func _cancel_pointer_pan_hold() -> void:
@@ -202,9 +206,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_cancel_pointer_pan_hold();
 			_panning = false;
 			_target_focus = _focus;
-			_begin_pointer_capture(event.position);
+			_begin_rotation_capture(event.position);
 		elif not _panning:
-			_end_pointer_capture();
+			_end_rotation_capture();
 
 		get_viewport().set_input_as_handled();
 		return;
@@ -217,10 +221,6 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 		if _panning:
 			_panning = false;
-
-			if not _rotating:
-				_end_pointer_capture();
-
 			get_viewport().set_input_as_handled();
 		else:
 			_cancel_pointer_pan_hold();
@@ -256,9 +256,10 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 
 
 func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
-	var motion := event.screen_relative;
+	var motion := event.position - _pointer_pan_anchor;
 
 	if motion == Vector2.ZERO:
+		get_viewport().set_input_as_handled();
 		return;
 
 	_stop_following_internal();
@@ -271,6 +272,7 @@ func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
 	_focus += world_delta;
 	_target_focus = _focus;
 
+	get_viewport().warp_mouse(_pointer_pan_anchor);
 	_apply_camera_transform();
 	get_viewport().set_input_as_handled();
 
@@ -460,31 +462,31 @@ func _apply_camera_transform() -> void:
 	);
 
 
-func _begin_pointer_capture(position: Vector2) -> void:
-	if _pointer_capture_active:
+func _begin_rotation_capture(position: Vector2) -> void:
+	if _rotation_capture_active:
 		return;
 
-	_pointer_capture_active = true;
-	_restore_mouse_mode = Input.mouse_mode;
-	_restore_mouse_position = position;
+	_rotation_capture_active = true;
+	_rotation_restore_mouse_mode = Input.mouse_mode;
+	_rotation_restore_mouse_position = position;
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED;
 
 
-func _end_pointer_capture() -> void:
-	if not _pointer_capture_active:
+func _end_rotation_capture() -> void:
+	if not _rotation_capture_active:
 		return;
 
-	_pointer_capture_active = false;
-	Input.mouse_mode = _restore_mouse_mode;
+	_rotation_capture_active = false;
+	Input.mouse_mode = _rotation_restore_mouse_mode;
 
-	if _restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		get_viewport().warp_mouse(_restore_mouse_position);
-		_suppress_edge_scroll_until_motion(_restore_mouse_position);
+	if _rotation_restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		get_viewport().warp_mouse(_rotation_restore_mouse_position);
+		_suppress_edge_scroll_until_motion(_rotation_restore_mouse_position);
 
 
 func _reset_pointer_state() -> void:
 	_cancel_pointer_pan_hold();
-	_end_pointer_capture();
+	_end_rotation_capture();
 	_panning = false;
 	_rotating = false;
 	_suppress_edge_scroll_until_motion(

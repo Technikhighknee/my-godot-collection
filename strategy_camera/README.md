@@ -8,7 +8,7 @@ The camera deliberately has one spatial model instead of zoom modes, orbit modes
 
 - WASD: pan relative to camera yaw.
 - Screen edge: full-speed panning using the same movement model.
-- Right mouse hold: after a short hold, capture the cursor and pan in the same screen direction as WASD / edge panning. A normal right click is left untouched.
+- Right mouse hold: after a short hold, pin the visible cursor in place and pan in the same screen direction as WASD / edge panning. A normal right click is left untouched.
 - Middle mouse horizontal: rotate yaw.
 - Middle mouse vertical: change tilt.
 - Wheel: lower or raise the camera's physical height above the ground.
@@ -50,7 +50,7 @@ Calling `focus_on()` is also an explicit focus override and therefore releases f
 
 WASD, edge scrolling, and right-mouse dragging all use the same yaw-relative ground axes and the same height-derived world scale.
 
-Right mouse is click-safe: pressing and releasing it before the hold delay does nothing to the camera and is not consumed, leaving the click available to gameplay code. Holding it for 120 ms activates camera panning and captures the cursor. From there, moving the mouse right pans right and moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
+Right mouse is click-safe: pressing and releasing it before the hold delay does nothing to the camera and is not consumed, leaving the click available to gameplay code. Holding it for 120 ms activates camera panning and pins the visible cursor at its current position. Mouse motion is applied to the camera and the cursor is immediately warped back to that anchor, without switching mouse mode. Moving the mouse right pans right and moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
 
 ## Opinionated defaults
 
