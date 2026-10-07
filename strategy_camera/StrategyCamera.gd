@@ -110,10 +110,10 @@ var _target_orbit_pitch_offset := 0.0;
 
 var _look_detached := false;
 var _look_recenter_active := false;
-var _look_yaw := 0.0;
-var _target_look_yaw := 0.0;
-var _look_pitch := 0.0;
-var _target_look_pitch := 0.0;
+var _look_yaw_offset := 0.0;
+var _target_look_yaw_offset := 0.0;
+var _look_pitch_offset := 0.0;
+var _target_look_pitch_offset := 0.0;
 
 var _dragging := false;
 var _drag_anchor_valid := false;
@@ -245,11 +245,19 @@ func _update_camera(delta: float) -> void:
 
 	if _look_detached:
 		if _look_recenter_active:
-			_target_look_yaw = _yaw;
-			_target_look_pitch = _rig_pitch(_zoom, _orbit_pitch_offset);
+			_target_look_yaw_offset = 0.0;
+			_target_look_pitch_offset = 0.0;
 
-		_look_yaw = lerp_angle(_look_yaw, _target_look_yaw, rotation_t);
-		_look_pitch = lerpf(_look_pitch, _target_look_pitch, rotation_t);
+		_look_yaw_offset = lerp_angle(
+			_look_yaw_offset,
+			_target_look_yaw_offset,
+			rotation_t
+		);
+		_look_pitch_offset = lerpf(
+			_look_pitch_offset,
+			_target_look_pitch_offset,
+			rotation_t
+		);
 
 		if _look_recenter_active and _look_is_at_target():
 			_attach_look_to_rig();
@@ -589,7 +597,7 @@ func _rig_ground_units_per_pixel(axis: Vector2) -> float:
 func _fallback_pan_delta(input: Vector2, delta: float) -> Vector3:
 	var view_yaw := _current_view_yaw();
 	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
-	var rig_distance := _rig_distance_for_height(_zoom, rig_pitch);
+	var rig_distance := _rig_distance_for_zoom(_zoom);
 	var right := Vector3(cos(view_yaw), 0.0, -sin(view_yaw));
 	var backward := Vector3(sin(view_yaw), 0.0, cos(view_yaw));
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
@@ -699,15 +707,20 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 func _rotate_look(yaw_delta: float, pitch_delta: float) -> void:
 	_detach_look();
 
-	_look_yaw = wrapf(_look_yaw + yaw_delta, -PI, PI);
-	_look_pitch = clampf(
-		_look_pitch + pitch_delta,
-		deg_to_rad(min_look_pitch),
-		deg_to_rad(max_look_pitch)
+	_look_yaw_offset = wrapf(_look_yaw_offset + yaw_delta, -PI, PI);
+
+	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
+	var min_offset := deg_to_rad(min_look_pitch) - rig_pitch;
+	var max_offset := deg_to_rad(max_look_pitch) - rig_pitch;
+
+	_look_pitch_offset = clampf(
+		_look_pitch_offset + pitch_delta,
+		min_offset,
+		max_offset
 	);
 
-	_target_look_yaw = _look_yaw;
-	_target_look_pitch = _look_pitch;
+	_target_look_yaw_offset = _look_yaw_offset;
+	_target_look_pitch_offset = _look_pitch_offset;
 	_look_recenter_active = false;
 
 func _rotate_orbit(yaw_delta: float, pitch_delta: float) -> void:
@@ -749,7 +762,7 @@ func _ground_point_is_directly_usable(point: Vector3) -> bool:
 		return false;
 
 	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
-	var rig_distance := _rig_distance_for_height(_zoom, rig_pitch);
+	var rig_distance := _rig_distance_for_zoom(_zoom);
 	var eye := _camera_position_for_current_state();
 
 	return eye.distance_to(point) <= rig_distance * MAX_DIRECT_GROUND_DISTANCE_FACTOR;
@@ -821,21 +834,39 @@ func _rig_pitch(zoom: float, orbit_pitch_offset: float) -> float:
 
 
 func _current_view_yaw() -> float:
-	return _look_yaw if _look_detached else _yaw;
+	if not _look_detached:
+		return _yaw;
+
+	return wrapf(_yaw + _look_yaw_offset, -PI, PI);
 
 func _current_view_pitch() -> float:
-	return _look_pitch if _look_detached else _rig_pitch(_zoom, _orbit_pitch_offset);
+	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
 
+	if not _look_detached:
+		return rig_pitch;
+
+	return clampf(
+		rig_pitch + _look_pitch_offset,
+		deg_to_rad(min_look_pitch),
+		deg_to_rad(max_look_pitch)
+	);
 
 func _target_view_yaw() -> float:
-	return _target_look_yaw if _look_detached else _target_yaw;
+	if not _look_detached:
+		return _target_yaw;
 
+	return wrapf(_target_yaw + _target_look_yaw_offset, -PI, PI);
 
 func _target_view_pitch() -> float:
-	return (
-		_target_look_pitch
-		if _look_detached
-		else _rig_pitch(_target_zoom, _target_orbit_pitch_offset)
+	var rig_pitch := _rig_pitch(_target_zoom, _target_orbit_pitch_offset);
+
+	if not _look_detached:
+		return rig_pitch;
+
+	return clampf(
+		rig_pitch + _target_look_pitch_offset,
+		deg_to_rad(min_look_pitch),
+		deg_to_rad(max_look_pitch)
 	);
 
 func _view_direction(yaw: float, pitch: float) -> Vector3:
@@ -851,9 +882,10 @@ func _apply_camera_transform() -> void:
 		_current_view_pitch()
 	);
 
-func _rig_distance_for_height(height: float, rig_pitch: float) -> float:
-	var vertical_span := maxf(height - rig_target_height, 0.001);
-	var vertical_factor := maxf(sin(rig_pitch), 0.001);
+func _rig_distance_for_zoom(zoom: float) -> float:
+	var base_pitch := _base_pitch_for_zoom(zoom);
+	var vertical_span := maxf(zoom - rig_target_height, 0.001);
+	var vertical_factor := maxf(sin(base_pitch), 0.001);
 
 	return vertical_span / vertical_factor;
 
@@ -864,7 +896,7 @@ func _camera_position_for_state(
 	orbit_pitch_offset: float
 ) -> Vector3:
 	var rig_pitch := _rig_pitch(zoom, orbit_pitch_offset);
-	var distance := _rig_distance_for_height(zoom, rig_pitch);
+	var distance := _rig_distance_for_zoom(zoom);
 	var target := focus + Vector3.UP * rig_target_height;
 
 	return target - _view_direction(rig_yaw, rig_pitch) * distance;
@@ -1254,11 +1286,10 @@ func _smooth_factor(speed: float, delta: float) -> float:
 
 
 func _sync_look_to_rig() -> void:
-	_look_yaw = _yaw;
-	_target_look_yaw = _target_yaw;
-	_look_pitch = _rig_pitch(_zoom, _orbit_pitch_offset);
-	_target_look_pitch = _rig_pitch(_target_zoom, _target_orbit_pitch_offset);
-
+	_look_yaw_offset = 0.0;
+	_target_look_yaw_offset = 0.0;
+	_look_pitch_offset = 0.0;
+	_target_look_pitch_offset = 0.0;
 
 func _detach_look() -> void:
 	if _look_detached:
@@ -1268,19 +1299,20 @@ func _detach_look() -> void:
 	_look_detached = true;
 	_look_recenter_active = false;
 
-
 func _attach_look_to_rig() -> void:
 	_look_detached = false;
 	_look_recenter_active = false;
 	_sync_look_to_rig();
 
-
 func _look_is_at_target() -> bool:
-	var yaw_error := absf(wrapf(_target_look_yaw - _look_yaw, -PI, PI));
-	var pitch_error := absf(_target_look_pitch - _look_pitch);
+	var yaw_error := absf(wrapf(
+		_target_look_yaw_offset - _look_yaw_offset,
+		-PI,
+		PI
+	));
+	var pitch_error := absf(_target_look_pitch_offset - _look_pitch_offset);
 
 	return yaw_error < 0.0001 and pitch_error < 0.0001;
-
 
 func _cancel_rotation_transition() -> void:
 	_target_yaw = _yaw;
@@ -1288,8 +1320,8 @@ func _cancel_rotation_transition() -> void:
 	_look_recenter_active = false;
 
 	if _look_detached:
-		_target_look_yaw = _look_yaw;
-		_target_look_pitch = _look_pitch;
+		_target_look_yaw_offset = _look_yaw_offset;
+		_target_look_pitch_offset = _look_pitch_offset;
 	else:
 		_sync_look_to_rig();
 
@@ -1344,12 +1376,31 @@ func rotate_to(yaw_degrees: float, pitch_degrees: float, immediate := false) -> 
 
 	if rotation_mode == RotationMode.LOOK:
 		_detach_look();
-		_target_look_yaw = requested_yaw;
-		_target_look_pitch = deg_to_rad(clampf(pitch_degrees, min_look_pitch, max_look_pitch));
+
+		var requested_pitch := deg_to_rad(clampf(
+			pitch_degrees,
+			min_look_pitch,
+			max_look_pitch
+		));
+		var target_rig_pitch := _rig_pitch(
+			_target_zoom,
+			_target_orbit_pitch_offset
+		);
+
+		_target_look_yaw_offset = wrapf(
+			requested_yaw - _target_yaw,
+			-PI,
+			PI
+		);
+		_target_look_pitch_offset = requested_pitch - target_rig_pitch;
 	else:
 		_attach_look_to_rig();
 
-		var requested_pitch := deg_to_rad(clampf(pitch_degrees, min_orbit_pitch, max_orbit_pitch));
+		var requested_pitch := deg_to_rad(clampf(
+			pitch_degrees,
+			min_orbit_pitch,
+			max_orbit_pitch
+		));
 		var target_base_pitch := _base_pitch_for_zoom(_target_zoom);
 
 		_target_yaw = requested_yaw;
@@ -1378,8 +1429,8 @@ func reset_look(immediate := false) -> void:
 		return;
 
 	_look_recenter_active = true;
-	_target_look_yaw = _yaw;
-	_target_look_pitch = _rig_pitch(_zoom, _orbit_pitch_offset);
+	_target_look_yaw_offset = 0.0;
+	_target_look_pitch_offset = 0.0;
 
 func snap() -> void:
 	if _can_resolve_ground_now():
@@ -1399,8 +1450,8 @@ func _snap_now() -> void:
 	_orbit_pitch_offset = _target_orbit_pitch_offset;
 
 	if _look_detached:
-		_look_yaw = _target_look_yaw;
-		_look_pitch = _target_look_pitch;
+		_look_yaw_offset = _target_look_yaw_offset;
+		_look_pitch_offset = _target_look_pitch_offset;
 
 		if _look_recenter_active:
 			_attach_look_to_rig();
