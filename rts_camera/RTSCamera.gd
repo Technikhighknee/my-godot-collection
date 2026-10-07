@@ -94,6 +94,8 @@ var _zoom_anchor_world: Vector3;
 
 
 func _ready() -> void:
+	_normalize_configuration();
+
 	_focus = global_position;
 	_focus.y = ground_height;
 	_target_focus = _focus;
@@ -119,6 +121,9 @@ func _process(delta: float) -> void:
 	if not input_enabled:
 		_reset_transient_input();
 	else:
+		if not rotation_enabled:
+			_rotating = false;
+
 		_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
 	_constrain_target_state();
@@ -178,8 +183,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
-	if rotation_enabled and event.button_index == rotate_button:
-		_rotating = event.pressed and not event.canceled;
+	if event.button_index == rotate_button and (rotation_enabled or _rotating):
+		_rotating = rotation_enabled and event.pressed and not event.canceled;
 		_zoom_anchor_active = false;
 		_cancel_look_transition();
 
@@ -640,6 +645,26 @@ func _get_pan_speed() -> float:
 	return lerpf(min_pan_speed, max_pan_speed, get_zoom_ratio());
 
 
+func _normalize_configuration() -> void:
+	min_zoom = maxf(min_zoom, 0.001);
+	max_zoom = maxf(max_zoom, min_zoom);
+	initial_zoom = clampf(initial_zoom, min_zoom, max_zoom);
+
+	min_pitch = clampf(min_pitch, 0.1, 89.0);
+	max_pitch = clampf(max_pitch, min_pitch, 89.0);
+	initial_pitch = clampf(initial_pitch, min_pitch, max_pitch);
+
+	min_pan_speed = maxf(min_pan_speed, 0.0);
+	max_pan_speed = maxf(max_pan_speed, min_pan_speed);
+	move_smoothing = maxf(move_smoothing, 0.0);
+	zoom_smoothing = maxf(zoom_smoothing, 0.0);
+	rotation_smoothing = maxf(rotation_smoothing, 0.0);
+
+	edge_scroll_margin = maxf(edge_scroll_margin, 1.0);
+	edge_scroll_curve = maxf(edge_scroll_curve, 0.01);
+	edge_scroll_speed_multiplier = maxf(edge_scroll_speed_multiplier, 0.0);
+
+
 func _smooth_factor(speed: float, delta: float) -> float:
 	if speed <= 0.0:
 		return 1.0;
@@ -714,6 +739,9 @@ func rotate_to(yaw_degrees: float, pitch_degrees: float, immediate := false) -> 
 			_yaw = _target_yaw;
 			_pitch = _target_pitch;
 			_apply_look_from_eye(eye);
+			_constrain_current_state();
+			_target_focus = _focus;
+			_target_zoom = _zoom;
 			_apply_camera_transform();
 		else:
 			_look_transition_eye = eye;
@@ -769,3 +797,8 @@ func get_pitch() -> float:
 
 func get_visible_ground_rect() -> Rect2:
 	return _ground_view_rect_for_state(_focus, _zoom, _yaw, _pitch);
+
+
+func has_finite_ground_footprint() -> bool:
+	var rect := get_visible_ground_rect();
+	return rect.size.x >= 0.0 and rect.size.y >= 0.0;
