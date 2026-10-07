@@ -621,8 +621,8 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 func _handle_rotation(event: InputEventMouseMotion) -> void:
 	_direct_pointer_activity_this_tick = true;
 
-	var yaw_delta := deg_to_rad(-event.relative.x * mouse_yaw_sensitivity);
-	var pitch_delta := deg_to_rad(event.relative.y * mouse_pitch_sensitivity);
+	var yaw_delta := deg_to_rad(-event.screen_relative.x * mouse_yaw_sensitivity);
+	var pitch_delta := deg_to_rad(event.screen_relative.y * mouse_pitch_sensitivity);
 
 	if rotation_mode == RotationMode.LOOK:
 		_rotate_look(yaw_delta, pitch_delta);
