@@ -629,13 +629,15 @@ func _edge_scroll_axis(position: float, extent: float) -> float:
 func _handle_drag(event: InputEventMouseMotion) -> void:
 	_direct_pointer_activity_this_tick = true;
 
-	if not _drag_anchor_valid:
-		return;
-
 	var current := _world_at_screen(event.position);
 
 	if not _ground_point_is_directly_usable(current):
 		_drag_anchor_valid = false;
+		return;
+
+	if not _drag_anchor_valid:
+		_drag_anchor = current;
+		_drag_anchor_valid = true;
 		return;
 
 	var offset := _drag_anchor - current;
@@ -654,6 +656,8 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 
 		if _ground_point_is_directly_usable(constrained_anchor):
 			_drag_anchor = constrained_anchor;
+		else:
+			_drag_anchor_valid = false;
 
 func _handle_rotation(event: InputEventMouseMotion) -> void:
 	_direct_pointer_activity_this_tick = true;
