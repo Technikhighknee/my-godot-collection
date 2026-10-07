@@ -130,6 +130,9 @@ var _zoom_anchor_world: Vector3;
 
 var _pending_pointer_events: Array[InputEvent] = [];
 
+var _pan_input_active := false;
+var _wheel_zoom_active := false;
+
 var _ground_initialized := false;
 var _inside_ground_update := false;
 var _snap_requested := false;
@@ -252,6 +255,7 @@ func _update_camera(delta: float) -> void:
 
 	_apply_camera_transform();
 	_update_zoom_anchor();
+	_finish_wheel_zoom_if_settled();
 	_constrain_target_state();
 
 	var bounds_correction := _constrain_current_state();
@@ -433,6 +437,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_cancel_rotation_transition();
 
 		if _rotating:
+			_wheel_zoom_active = false;
 			_dragging = false;
 			_drag_anchor_valid = false;
 			_target_focus = _focus;
@@ -447,6 +452,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_cancel_rotation_transition();
 
 		if _dragging:
+			_wheel_zoom_active = false;
 			_rotating = false;
 			_target_focus = _focus;
 			_target_zoom = _zoom;
@@ -483,14 +489,18 @@ func _handle_pan_input(delta: float) -> void:
 	input = input.limit_length(max_input_magnitude);
 
 	if input == Vector2.ZERO:
+		_pan_input_active = false;
 		return;
+
+	if not _pan_input_active:
+		_target_focus = _focus;
+		_pan_input_active = true;
 
 	_zoom_anchor_active = false;
 	_cancel_rotation_transition();
 
 	var movement := _screen_space_pan_delta(input, delta);
 	_target_focus += movement;
-
 
 func _screen_space_pan_delta(input: Vector2, delta: float) -> Vector3:
 	var viewport_size := get_viewport().get_visible_rect().size;
@@ -525,10 +535,7 @@ func _rig_ground_units_per_pixel(axis: Vector2) -> float:
 	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
 	var up := right.cross(forward).normalized();
 	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
-	var center_world := resolve_ground_ray(eye, forward);
-
-	if not center_world.is_finite():
-		return INF;
+	var center_world := _focus;
 
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
 	var half_width: float;
@@ -694,6 +701,11 @@ func _rotate_orbit(yaw_delta: float, pitch_delta: float) -> void:
 	_sync_look_to_rig();
 
 func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> void:
+	if not _wheel_zoom_active:
+		_target_zoom = _zoom;
+		_target_focus = _focus;
+		_wheel_zoom_active = true;
+
 	_begin_zoom_anchor(screen_position);
 
 	var amount := event_factor if event_factor > 0.0 else 1.0;
@@ -705,7 +717,6 @@ func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> v
 		_target_zoom /= multiplier;
 
 	_target_zoom = clampf(_target_zoom, min_zoom, max_zoom);
-
 
 func _begin_zoom_anchor(screen_position: Vector2) -> void:
 	if _look_detached:
@@ -747,17 +758,28 @@ func _update_zoom_anchor() -> void:
 	_focus += offset;
 	_target_focus += offset;
 
-	if absf(_zoom - _target_zoom) < 0.001:
-		_zoom = _target_zoom;
-		_zoom_anchor_active = false;
+func _finish_wheel_zoom_if_settled() -> void:
+	if not _wheel_zoom_active:
+		return;
+
+	if absf(_zoom - _target_zoom) >= 0.001:
+		return;
+
+	_zoom = _target_zoom;
+	_wheel_zoom_active = false;
+	_zoom_anchor_active = false;
 
 
-func _zoom_arc_ratio(zoom: float) -> float:
+func _normalized_zoom(zoom: float) -> float:
 	if is_equal_approx(min_zoom, max_zoom):
 		return 0.0;
 
 	var safe_zoom := clampf(zoom, min_zoom, max_zoom);
-	var ratio := log(safe_zoom / min_zoom) / log(max_zoom / min_zoom);
+	return clampf(log(safe_zoom / min_zoom) / log(max_zoom / min_zoom), 0.0, 1.0);
+
+
+func _zoom_arc_ratio(zoom: float) -> float:
+	var ratio := _normalized_zoom(zoom);
 	var smooth_ratio := ratio * ratio * (3.0 - 2.0 * ratio);
 
 	return pow(smooth_ratio, zoom_arc_curve);
@@ -1215,13 +1237,15 @@ func _reset_transient_input() -> void:
 	_rotating = false;
 	_rotate_button_down = false;
 	_drag_button_down = false;
+	_pan_input_active = false;
+	_wheel_zoom_active = false;
 	_zoom_anchor_active = false;
 	_pending_pointer_events.clear();
 	_cancel_rotation_transition();
 
-
 func focus_on(position: Vector3, immediate := false) -> void:
 	_target_focus = position;
+	_pan_input_active = false;
 	_zoom_anchor_active = false;
 	_cancel_rotation_transition();
 
@@ -1233,10 +1257,10 @@ func focus_on(position: Vector3, immediate := false) -> void:
 			_snap_now();
 		else:
 			_snap_requested = true;
-
 
 func zoom_to(distance: float, immediate := false) -> void:
 	_target_zoom = clampf(distance, min_zoom, max_zoom);
+	_wheel_zoom_active = false;
 	_zoom_anchor_active = false;
 	_cancel_rotation_transition();
 
@@ -1248,7 +1272,6 @@ func zoom_to(distance: float, immediate := false) -> void:
 			_snap_now();
 		else:
 			_snap_requested = true;
-
 
 func rotate_to(yaw_degrees: float, pitch_degrees: float, immediate := false) -> void:
 	_zoom_anchor_active = false;
@@ -1334,9 +1357,7 @@ func get_zoom() -> float:
 
 
 func get_zoom_ratio() -> float:
-	var ratio := inverse_lerp(min_zoom, max_zoom, _target_zoom);
-	return clampf(ratio, 0.0, 1.0);
-
+	return _normalized_zoom(_target_zoom);
 
 func get_yaw() -> float:
 	return rad_to_deg(_current_view_yaw());
