@@ -50,6 +50,13 @@ const MAX_INPUT_DELTA := 0.1;
 @export_enum("Focus", "View") var bounds_mode := BoundsMode.VIEW;
 @export var world_bounds := Rect2(Vector2(-100.0, -100.0), Vector2(200.0, 200.0));
 
+@export_group("Edge Scroll")
+@export var edge_scroll_enabled := false;
+@export_range(1.0, 128.0, 1.0) var edge_scroll_margin := 24.0;
+@export_range(0.5, 4.0, 0.1) var edge_scroll_curve := 2.0;
+@export var edge_scroll_speed_multiplier := 1.0;
+@export var edge_scroll_over_gui := false;
+
 @export_group("Input")
 @export var input_enabled := true;
 @export var pan_left_action: StringName = &"camera_left";
@@ -112,7 +119,7 @@ func _process(delta: float) -> void:
 	if not input_enabled:
 		_reset_transient_input();
 	else:
-		_handle_keyboard(minf(delta, MAX_INPUT_DELTA));
+		_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
 	_constrain_target_state();
 
@@ -219,8 +226,16 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		get_viewport().set_input_as_handled();
 
 
-func _handle_keyboard(delta: float) -> void:
-	var input := Input.get_vector(pan_left_action, pan_right_action, pan_forward_action, pan_back_action);
+func _handle_pan_input(delta: float) -> void:
+	var input := Vector2.ZERO;
+
+	if not _keyboard_pan_blocked_by_gui():
+		input = Input.get_vector(pan_left_action, pan_right_action, pan_forward_action, pan_back_action);
+
+	if edge_scroll_enabled:
+		input += _get_edge_scroll_input() * edge_scroll_speed_multiplier;
+
+	input = input.limit_length(1.0);
 
 	if input == Vector2.ZERO:
 		return;
@@ -233,6 +248,53 @@ func _handle_keyboard(delta: float) -> void:
 	var movement := right * input.x + backward * input.y;
 
 	_target_focus += movement * _get_pan_speed() * delta;
+
+
+func _keyboard_pan_blocked_by_gui() -> bool:
+	var focus_owner := get_viewport().gui_get_focus_owner();
+	return focus_owner is LineEdit or focus_owner is TextEdit;
+
+
+func _get_edge_scroll_input() -> Vector2:
+	if not get_window().has_focus() or _dragging or _rotating:
+		return Vector2.ZERO;
+
+	var viewport := get_viewport();
+
+	if viewport.gui_is_dragging():
+		return Vector2.ZERO;
+
+	if not edge_scroll_over_gui and viewport.gui_get_hovered_control() != null:
+		return Vector2.ZERO;
+
+	var size := viewport.get_visible_rect().size;
+	var mouse := viewport.get_mouse_position();
+
+	if size.x <= 0.0 or size.y <= 0.0:
+		return Vector2.ZERO;
+
+	if mouse.x < 0.0 or mouse.y < 0.0 or mouse.x > size.x or mouse.y > size.y:
+		return Vector2.ZERO;
+
+	return Vector2(
+		_edge_scroll_axis(mouse.x, size.x),
+		_edge_scroll_axis(mouse.y, size.y)
+	);
+
+
+func _edge_scroll_axis(position: float, extent: float) -> float:
+	var margin := minf(edge_scroll_margin, extent * 0.5);
+
+	if margin <= 0.0:
+		return 0.0;
+
+	if position < margin:
+		return -pow(1.0 - clampf(position / margin, 0.0, 1.0), edge_scroll_curve);
+
+	if position > extent - margin:
+		return pow(1.0 - clampf((extent - position) / margin, 0.0, 1.0), edge_scroll_curve);
+
+	return 0.0;
 
 
 func _handle_drag(event: InputEventMouseMotion) -> void:
