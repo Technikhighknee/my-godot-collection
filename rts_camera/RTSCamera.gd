@@ -431,14 +431,16 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 func _handle_pan_input(delta: float) -> void:
 	var input := Vector2.ZERO;
+	var max_input_magnitude := 1.0;
 
 	if not _keyboard_pan_blocked_by_gui():
 		input = Input.get_vector(pan_left_action, pan_right_action, pan_forward_action, pan_back_action);
 
 	if edge_scroll_enabled:
 		input += _get_edge_scroll_input() * edge_scroll_speed_multiplier;
+		max_input_magnitude = maxf(max_input_magnitude, edge_scroll_speed_multiplier);
 
-	input = input.limit_length(1.0);
+	input = input.limit_length(max_input_magnitude);
 
 	if input == Vector2.ZERO:
 		return;
