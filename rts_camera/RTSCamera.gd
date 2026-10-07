@@ -26,12 +26,16 @@ const PAN_SAMPLE_PIXELS := 32.0;
 
 @export_group("Camera")
 @export var initial_yaw := 0.0;
-@export_range(10.0, 85.0, 0.1) var initial_pitch := 50.0;
-@export_range(5.0, 80.0, 0.1) var min_pitch := 25.0;
-@export_range(10.0, 89.0, 0.1) var max_pitch := 75.0;
 @export var initial_zoom := 30.0;
 @export var min_zoom := 5.0;
 @export var max_zoom := 120.0;
+
+@export_group("Zoom Arc")
+@export_range(1.0, 85.0, 0.1) var near_pitch := 20.0;
+@export_range(5.0, 89.0, 0.1) var far_pitch := 60.0;
+@export_range(0.1, 4.0, 0.05) var zoom_arc_curve := 0.75;
+@export_range(0.1, 85.0, 0.1) var min_orbit_pitch := 5.0;
+@export_range(5.0, 89.0, 0.1) var max_orbit_pitch := 85.0;
 
 @export_group("Movement")
 @export_range(0.05, 3.0, 0.05) var pan_screen_speed := 0.75;
@@ -47,6 +51,8 @@ const PAN_SAMPLE_PIXELS := 32.0;
 @export var mouse_yaw_sensitivity := 0.2;
 @export var mouse_pitch_sensitivity := 0.2;
 @export var rotation_smoothing := 18.0;
+@export_range(-89.0, 0.0, 0.1) var min_look_pitch := -85.0;
+@export_range(0.0, 89.0, 0.1) var max_look_pitch := 85.0;
 @export var capture_mouse_while_rotating := true;
 
 @export_group("Ground")
@@ -92,30 +98,33 @@ var _focus: Vector3;
 var _target_focus: Vector3;
 var _zoom: float;
 var _target_zoom: float;
+
 var _yaw: float;
 var _target_yaw: float;
-var _pitch: float;
-var _target_pitch: float;
+var _orbit_pitch_offset := 0.0;
+var _target_orbit_pitch_offset := 0.0;
+var _look_yaw_offset := 0.0;
+var _target_look_yaw_offset := 0.0;
+var _look_pitch_offset := 0.0;
+var _target_look_pitch_offset := 0.0;
 
 var _dragging := false;
 var _drag_anchor_valid := false;
 var _drag_anchor: Vector3;
 
 var _rotating := false;
+var _rotate_button_down := false;
+var _drag_button_down := false;
 
-var _look_transition_active := false;
-var _look_transition_eye: Vector3;
+var _rotation_capture_active := false;
+var _rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
+var _rotation_restore_mouse_position: Vector2;
 
 var _zoom_anchor_active := false;
 var _zoom_anchor_screen: Vector2;
 var _zoom_anchor_world: Vector3;
 
 var _pending_pointer_events: Array[InputEvent] = [];
-var _rotate_button_down := false;
-var _drag_button_down := false;
-var _rotation_capture_active := false;
-var _rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
-var _rotation_restore_mouse_position: Vector2;
 
 var _ground_initialized := false;
 var _inside_ground_update := false;
@@ -124,10 +133,10 @@ var _visible_ground_rect := Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
 
 var _active_ground_mode: GroundMode;
 var _physics_history_ready := false;
+var _physics_previous_focus: Vector3;
 var _physics_previous_eye: Vector3;
-var _physics_previous_zoom := 0.0;
-var _physics_previous_yaw := 0.0;
-var _physics_previous_pitch := 0.0;
+var _physics_previous_view_yaw := 0.0;
+var _physics_previous_view_pitch := 0.0;
 var _collapse_physics_history := false;
 var _direct_pointer_activity_this_tick := false;
 
@@ -143,9 +152,6 @@ func _ready() -> void:
 
 	_yaw = deg_to_rad(initial_yaw);
 	_target_yaw = _yaw;
-
-	_pitch = deg_to_rad(clampf(initial_pitch, min_pitch, max_pitch));
-	_target_pitch = _pitch;
 
 	camera.make_current();
 	set_physics_interpolation_mode(Node.PHYSICS_INTERPOLATION_MODE_OFF);
@@ -217,40 +223,22 @@ func _update_camera(delta: float) -> void:
 	var zoom_t := _smooth_factor(zoom_smoothing, delta);
 	var rotation_t := _smooth_factor(rotation_smoothing, delta);
 
-	if _look_transition_active:
-		var previous_yaw := _yaw;
-		var previous_pitch := _pitch;
+	var smoothed_focus := _focus.lerp(_target_focus, move_t);
+	_focus.x = smoothed_focus.x;
+	_focus.z = smoothed_focus.z;
+	_align_current_focus_to_ground();
 
-		_yaw = lerp_angle(_yaw, _target_yaw, rotation_t);
-		_pitch = lerpf(_pitch, _target_pitch, rotation_t);
-
-		if not _apply_look_from_eye(_look_transition_eye):
-			_yaw = previous_yaw;
-			_pitch = previous_pitch;
-			_cancel_look_transition();
-		elif _rotation_at_target():
-			_yaw = _target_yaw;
-			_pitch = _target_pitch;
-			_apply_look_from_eye(_look_transition_eye);
-			_look_transition_active = false;
-	else:
-		var smoothed_focus := _focus.lerp(_target_focus, move_t);
-		_focus.x = smoothed_focus.x;
-		_focus.z = smoothed_focus.z;
-		_align_current_focus_to_ground();
-
-		_zoom = lerpf(_zoom, _target_zoom, zoom_t);
-		_yaw = lerp_angle(_yaw, _target_yaw, rotation_t);
-		_pitch = lerpf(_pitch, _target_pitch, rotation_t);
+	_zoom = lerpf(_zoom, _target_zoom, zoom_t);
+	_yaw = lerp_angle(_yaw, _target_yaw, rotation_t);
+	_orbit_pitch_offset = lerpf(_orbit_pitch_offset, _target_orbit_pitch_offset, rotation_t);
+	_look_yaw_offset = lerp_angle(_look_yaw_offset, _target_look_yaw_offset, rotation_t);
+	_look_pitch_offset = lerpf(_look_pitch_offset, _target_look_pitch_offset, rotation_t);
 
 	_apply_camera_transform();
 	_update_zoom_anchor();
 	_constrain_target_state();
 
 	var bounds_correction := _constrain_current_state();
-
-	if _look_transition_active:
-		_look_transition_eye += bounds_correction;
 
 	_apply_camera_transform();
 
@@ -300,17 +288,17 @@ func _begin_physics_history_step() -> void:
 		_reset_physics_history();
 		return;
 
-	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
-	_physics_previous_zoom = _zoom;
-	_physics_previous_yaw = _yaw;
-	_physics_previous_pitch = _pitch;
+	_physics_previous_focus = _focus;
+	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	_physics_previous_view_yaw = _view_yaw(_yaw, _look_yaw_offset);
+	_physics_previous_view_pitch = _view_pitch(_zoom, _orbit_pitch_offset, _look_pitch_offset);
 
 
 func _reset_physics_history() -> void:
-	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
-	_physics_previous_zoom = _zoom;
-	_physics_previous_yaw = _yaw;
-	_physics_previous_pitch = _pitch;
+	_physics_previous_focus = _focus;
+	_physics_previous_eye = _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	_physics_previous_view_yaw = _view_yaw(_yaw, _look_yaw_offset);
+	_physics_previous_view_pitch = _view_pitch(_zoom, _orbit_pitch_offset, _look_pitch_offset);
 	_physics_history_ready = true;
 
 
@@ -324,14 +312,16 @@ func _apply_physics_presentation() -> void:
 		return;
 
 	var fraction := clampf(Engine.get_physics_interpolation_fraction(), 0.0, 1.0);
-	var current_eye := _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
-	var eye := _physics_previous_eye.lerp(current_eye, fraction);
-	var zoom := lerpf(_physics_previous_zoom, _zoom, fraction);
-	var yaw := lerp_angle(_physics_previous_yaw, _yaw, fraction);
-	var pitch := lerpf(_physics_previous_pitch, _pitch, fraction);
-	var focus := eye + _view_direction(yaw, pitch) * zoom;
+	var current_eye := _camera_position_for_state(_focus, _zoom, _yaw, _orbit_pitch_offset);
+	var current_view_yaw := _view_yaw(_yaw, _look_yaw_offset);
+	var current_view_pitch := _view_pitch(_zoom, _orbit_pitch_offset, _look_pitch_offset);
 
-	_apply_camera_transform_for_state(focus, zoom, yaw, pitch);
+	var focus := _physics_previous_focus.lerp(_focus, fraction);
+	var eye := _physics_previous_eye.lerp(current_eye, fraction);
+	var view_yaw := lerp_angle(_physics_previous_view_yaw, current_view_yaw, fraction);
+	var view_pitch := lerpf(_physics_previous_view_pitch, current_view_pitch, fraction);
+
+	_apply_camera_pose(focus, eye, view_yaw, view_pitch);
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -425,15 +415,13 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index == rotate_button and (rotation_enabled or _rotating):
 		_rotating = rotation_enabled and event.pressed and not event.canceled;
 		_zoom_anchor_active = false;
-		_cancel_look_transition();
+		_cancel_rotation_transition();
 
 		if _rotating:
 			_dragging = false;
 			_drag_anchor_valid = false;
 			_target_focus = _focus;
 			_target_zoom = _zoom;
-			_target_yaw = _yaw;
-			_target_pitch = _pitch;
 
 		return;
 
@@ -441,7 +429,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_dragging = event.pressed and not event.canceled;
 		_drag_anchor_valid = false;
 		_zoom_anchor_active = false;
-		_cancel_look_transition();
+		_cancel_rotation_transition();
 
 		if _dragging:
 			_rotating = false;
@@ -459,10 +447,10 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		return;
 
 	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-		_cancel_look_transition();
+		_cancel_rotation_transition();
 		_zoom_at(event.position, true, event.factor);
 	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		_cancel_look_transition();
+		_cancel_rotation_transition();
 		_zoom_at(event.position, false, event.factor);
 
 
@@ -483,7 +471,7 @@ func _handle_pan_input(delta: float) -> void:
 		return;
 
 	_zoom_anchor_active = false;
-	_cancel_look_transition();
+	_cancel_rotation_transition();
 
 	var movement := _screen_space_pan_delta(input, delta);
 	_target_focus += movement;
@@ -531,10 +519,12 @@ func _ground_delta_per_pixel(center: Vector2, center_world: Vector3, axis: Vecto
 
 
 func _fallback_pan_delta(input: Vector2, delta: float) -> Vector3:
-	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
-	var backward := Vector3(sin(_yaw), 0.0, cos(_yaw));
+	var view_yaw := _view_yaw(_yaw, _look_yaw_offset);
+	var view_pitch := _view_pitch(_zoom, _orbit_pitch_offset, _look_pitch_offset);
+	var right := Vector3(cos(view_yaw), 0.0, -sin(view_yaw));
+	var backward := Vector3(sin(view_yaw), 0.0, cos(view_yaw));
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
-	var pitch_scale := maxf(sin(_pitch), 0.1);
+	var pitch_scale := maxf(absf(sin(view_pitch)), 0.1);
 	var visible_height := 2.0 * _zoom * half_fov_tan / pitch_scale;
 	var speed := visible_height * pan_screen_speed;
 
@@ -617,7 +607,6 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 			_drag_anchor = constrained_anchor;
 
 
-
 func _handle_rotation(event: InputEventMouseMotion) -> void:
 	_direct_pointer_activity_this_tick = true;
 
@@ -637,29 +626,30 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 
 
 func _rotate_look(yaw_delta: float, pitch_delta: float) -> void:
-	var eye := _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
-	var pitch_limits := _look_pitch_limits(eye);
-	var previous_yaw := _yaw;
-	var previous_pitch := _pitch;
+	_look_yaw_offset = wrapf(_look_yaw_offset + yaw_delta, -PI, PI);
 
-	_yaw = wrapf(_yaw + yaw_delta, -PI, PI);
-	_pitch = clampf(_pitch + pitch_delta, pitch_limits.x, pitch_limits.y);
+	var rig_pitch := _rig_pitch(_zoom, _orbit_pitch_offset);
+	var min_offset := deg_to_rad(min_look_pitch) - rig_pitch;
+	var max_offset := deg_to_rad(max_look_pitch) - rig_pitch;
 
-	if not _apply_look_from_eye(eye):
-		_yaw = previous_yaw;
-		_pitch = previous_pitch;
-		return;
-
-	_target_yaw = _yaw;
-	_target_pitch = _pitch;
+	_look_pitch_offset = clampf(_look_pitch_offset + pitch_delta, min_offset, max_offset);
+	_target_look_yaw_offset = _look_yaw_offset;
+	_target_look_pitch_offset = _look_pitch_offset;
 
 
 func _rotate_orbit(yaw_delta: float, pitch_delta: float) -> void:
 	_yaw = wrapf(_yaw + yaw_delta, -PI, PI);
-	_pitch = clampf(_pitch + pitch_delta, deg_to_rad(min_pitch), deg_to_rad(max_pitch));
 
+	var base_pitch := _base_pitch_for_zoom(_zoom);
+	var rig_pitch := clampf(
+		base_pitch + _orbit_pitch_offset + pitch_delta,
+		deg_to_rad(min_orbit_pitch),
+		deg_to_rad(max_orbit_pitch)
+	);
+
+	_orbit_pitch_offset = rig_pitch - base_pitch;
 	_target_yaw = _yaw;
-	_target_pitch = _pitch;
+	_target_orbit_pitch_offset = _orbit_pitch_offset;
 
 
 func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> void:
@@ -710,45 +700,34 @@ func _update_zoom_anchor() -> void:
 		_zoom_anchor_active = false;
 
 
-func _apply_look_from_eye(eye: Vector3) -> bool:
-	var direction := _view_direction(_yaw, _pitch);
-	var point := resolve_ground_ray(eye, direction);
-
-	if not point.is_finite():
-		return false;
-
-	var distance_to_ground := eye.distance_to(point);
-
-	if distance_to_ground < min_zoom or distance_to_ground > max_zoom:
-		return false;
-
-	_focus = point;
-	_zoom = distance_to_ground;
-
-	_target_focus = _focus;
-	_target_zoom = _zoom;
-
-	return true;
+func _zoom_arc_ratio(zoom: float) -> float:
+	var ratio := clampf(inverse_lerp(min_zoom, max_zoom, zoom), 0.0, 1.0);
+	var smooth_ratio := ratio * ratio * (3.0 - 2.0 * ratio);
+	return pow(smooth_ratio, zoom_arc_curve);
 
 
-func _look_pitch_limits(eye: Vector3) -> Vector2:
-	if ground_mode != GroundMode.PLANE:
-		return Vector2(deg_to_rad(min_pitch), deg_to_rad(max_pitch));
+func _base_pitch_for_zoom(zoom: float) -> float:
+	return deg_to_rad(lerpf(near_pitch, far_pitch, _zoom_arc_ratio(zoom)));
 
-	var height := maxf(eye.y - ground_height, 0.0);
-	var lower := deg_to_rad(min_pitch);
-	var upper := deg_to_rad(max_pitch);
 
-	if max_zoom > 0.0:
-		lower = maxf(lower, asin(clampf(height / max_zoom, 0.0, 1.0)));
+func _rig_pitch(zoom: float, orbit_pitch_offset: float) -> float:
+	return clampf(
+		_base_pitch_for_zoom(zoom) + orbit_pitch_offset,
+		deg_to_rad(min_orbit_pitch),
+		deg_to_rad(max_orbit_pitch)
+	);
 
-	if min_zoom > 0.0:
-		upper = minf(upper, asin(clampf(height / min_zoom, 0.0, 1.0)));
 
-	if lower > upper:
-		lower = upper;
+func _view_yaw(rig_yaw: float, look_yaw_offset: float) -> float:
+	return wrapf(rig_yaw + look_yaw_offset, -PI, PI);
 
-	return Vector2(lower, upper);
+
+func _view_pitch(zoom: float, orbit_pitch_offset: float, look_pitch_offset: float) -> float:
+	return clampf(
+		_rig_pitch(zoom, orbit_pitch_offset) + look_pitch_offset,
+		deg_to_rad(min_look_pitch),
+		deg_to_rad(max_look_pitch)
+	);
 
 
 func _view_direction(yaw: float, pitch: float) -> Vector3:
@@ -757,17 +736,45 @@ func _view_direction(yaw: float, pitch: float) -> Vector3:
 
 
 func _apply_camera_transform() -> void:
-	_apply_camera_transform_for_state(_focus, _zoom, _yaw, _pitch);
+	_apply_camera_transform_for_state(
+		_focus,
+		_zoom,
+		_yaw,
+		_orbit_pitch_offset,
+		_look_yaw_offset,
+		_look_pitch_offset
+	);
 
 
-func _camera_position_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> Vector3:
-	return focus - _view_direction(yaw, pitch) * zoom;
+func _camera_position_for_state(
+	focus: Vector3,
+	zoom: float,
+	rig_yaw: float,
+	orbit_pitch_offset: float
+) -> Vector3:
+	var rig_pitch := _rig_pitch(zoom, orbit_pitch_offset);
+	return focus - _view_direction(rig_yaw, rig_pitch) * zoom;
 
 
-func _apply_camera_transform_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> void:
+func _apply_camera_transform_for_state(
+	focus: Vector3,
+	zoom: float,
+	rig_yaw: float,
+	orbit_pitch_offset: float,
+	look_yaw_offset: float,
+	look_pitch_offset: float
+) -> void:
+	var eye := _camera_position_for_state(focus, zoom, rig_yaw, orbit_pitch_offset);
+	var view_yaw := _view_yaw(rig_yaw, look_yaw_offset);
+	var view_pitch := _view_pitch(zoom, orbit_pitch_offset, look_pitch_offset);
+
+	_apply_camera_pose(focus, eye, view_yaw, view_pitch);
+
+
+func _apply_camera_pose(focus: Vector3, eye: Vector3, view_yaw: float, view_pitch: float) -> void:
 	global_position = focus;
-	camera.global_position = _camera_position_for_state(focus, zoom, yaw, pitch);
-	camera.look_at(focus, Vector3.UP);
+	camera.global_position = eye;
+	camera.look_at(eye + _view_direction(view_yaw, view_pitch), Vector3.UP);
 
 
 func _world_at_screen(screen_position: Vector2) -> Vector3:
@@ -875,10 +882,18 @@ func _align_target_focus_to_ground() -> void:
 func _constrain_target_state() -> void:
 	_align_target_focus_to_ground();
 
-	if not bounds_enabled or _look_transition_active:
+	if not bounds_enabled:
 		return;
 
-	var correction := _bounds_correction(_target_focus, _target_zoom, _target_yaw, _target_pitch);
+	var correction := _bounds_correction(
+		_target_focus,
+		_target_zoom,
+		_target_yaw,
+		_target_orbit_pitch_offset,
+		_target_look_yaw_offset,
+		_target_look_pitch_offset
+	);
+
 	_target_focus.x += correction.x;
 	_target_focus.z += correction.y;
 	_align_target_focus_to_ground();
@@ -890,7 +905,14 @@ func _constrain_current_state() -> Vector3:
 	if not bounds_enabled:
 		return Vector3.ZERO;
 
-	var correction_2d := _bounds_correction(_focus, _zoom, _yaw, _pitch);
+	var correction_2d := _bounds_correction(
+		_focus,
+		_zoom,
+		_yaw,
+		_orbit_pitch_offset,
+		_look_yaw_offset,
+		_look_pitch_offset
+	);
 	var correction := Vector3(correction_2d.x, 0.0, correction_2d.y);
 
 	_focus += correction;
@@ -899,11 +921,25 @@ func _constrain_current_state() -> Vector3:
 	return correction;
 
 
-func _bounds_correction(focus: Vector3, zoom: float, yaw: float, pitch: float) -> Vector2:
+func _bounds_correction(
+	focus: Vector3,
+	zoom: float,
+	rig_yaw: float,
+	orbit_pitch_offset: float,
+	look_yaw_offset: float,
+	look_pitch_offset: float
+) -> Vector2:
 	if bounds_mode == BoundsMode.FOCUS:
 		return _focus_bounds_correction(focus);
 
-	var view_rect := _ground_view_rect_for_state(focus, zoom, yaw, pitch);
+	var view_rect := _ground_view_rect_for_state(
+		focus,
+		zoom,
+		rig_yaw,
+		orbit_pitch_offset,
+		look_yaw_offset,
+		look_pitch_offset
+	);
 
 	if view_rect.size.x < 0.0 or view_rect.size.y < 0.0:
 		return _focus_bounds_correction(focus);
@@ -965,7 +1001,14 @@ func _rect_fit_correction(view_rect: Rect2) -> Vector2:
 	return correction;
 
 
-func _ground_view_rect_for_state(focus: Vector3, zoom: float, yaw: float, pitch: float) -> Rect2:
+func _ground_view_rect_for_state(
+	focus: Vector3,
+	zoom: float,
+	rig_yaw: float,
+	orbit_pitch_offset: float,
+	look_yaw_offset: float,
+	look_pitch_offset: float
+) -> Rect2:
 	if camera.projection != Camera3D.PROJECTION_PERSPECTIVE:
 		return Rect2(Vector2.ZERO, Vector2(-1.0, -1.0));
 
@@ -989,10 +1032,12 @@ func _ground_view_rect_for_state(focus: Vector3, zoom: float, yaw: float, pitch:
 		half_width = half_fov_tan;
 		half_height = half_width / aspect;
 
-	var forward := _view_direction(yaw, pitch);
-	var right := Vector3(cos(yaw), 0.0, -sin(yaw));
+	var view_yaw := _view_yaw(rig_yaw, look_yaw_offset);
+	var view_pitch := _view_pitch(zoom, orbit_pitch_offset, look_pitch_offset);
+	var forward := _view_direction(view_yaw, view_pitch);
+	var right := Vector3(cos(view_yaw), 0.0, -sin(view_yaw));
 	var up := right.cross(forward).normalized();
-	var eye := focus - forward * zoom;
+	var eye := _camera_position_for_state(focus, zoom, rig_yaw, orbit_pitch_offset);
 
 	var top_left := _ground_view_corner(eye, forward, right, up, half_width, half_height, -1.0, 1.0);
 	var top_right := _ground_view_corner(eye, forward, right, up, half_width, half_height, 1.0, 1.0);
@@ -1038,9 +1083,13 @@ func _normalize_configuration() -> void:
 	max_zoom = maxf(max_zoom, min_zoom);
 	initial_zoom = clampf(initial_zoom, min_zoom, max_zoom);
 
-	min_pitch = clampf(min_pitch, 0.1, 89.0);
-	max_pitch = clampf(max_pitch, min_pitch, 89.0);
-	initial_pitch = clampf(initial_pitch, min_pitch, max_pitch);
+	near_pitch = clampf(near_pitch, 1.0, 85.0);
+	far_pitch = clampf(far_pitch, near_pitch, 89.0);
+	zoom_arc_curve = maxf(zoom_arc_curve, 0.1);
+	min_orbit_pitch = clampf(min_orbit_pitch, 0.1, 85.0);
+	max_orbit_pitch = clampf(max_orbit_pitch, min_orbit_pitch, 89.0);
+	min_look_pitch = clampf(min_look_pitch, -89.0, 0.0);
+	max_look_pitch = clampf(max_look_pitch, 0.0, 89.0);
 
 	pan_screen_speed = maxf(pan_screen_speed, 0.01);
 	move_smoothing = maxf(move_smoothing, 0.0);
@@ -1059,22 +1108,11 @@ func _smooth_factor(speed: float, delta: float) -> float:
 	return 1.0 - exp(-speed * delta);
 
 
-func _rotation_at_target() -> bool:
-	var yaw_error := absf(wrapf(_target_yaw - _yaw, -PI, PI));
-	var pitch_error := absf(_target_pitch - _pitch);
-
-	return yaw_error < 0.0001 and pitch_error < 0.0001;
-
-
-func _cancel_look_transition() -> void:
-	if not _look_transition_active:
-		return;
-
-	_look_transition_active = false;
-	_target_focus = _focus;
-	_target_zoom = _zoom;
+func _cancel_rotation_transition() -> void:
 	_target_yaw = _yaw;
-	_target_pitch = _pitch;
+	_target_orbit_pitch_offset = _orbit_pitch_offset;
+	_target_look_yaw_offset = _look_yaw_offset;
+	_target_look_pitch_offset = _look_pitch_offset;
 
 
 func _reset_transient_input() -> void:
@@ -1086,13 +1124,13 @@ func _reset_transient_input() -> void:
 	_drag_button_down = false;
 	_zoom_anchor_active = false;
 	_pending_pointer_events.clear();
-	_cancel_look_transition();
+	_cancel_rotation_transition();
 
 
 func focus_on(position: Vector3, immediate := false) -> void:
 	_target_focus = position;
 	_zoom_anchor_active = false;
-	_cancel_look_transition();
+	_cancel_rotation_transition();
 
 	if _can_resolve_ground_now():
 		_constrain_target_state();
@@ -1107,7 +1145,7 @@ func focus_on(position: Vector3, immediate := false) -> void:
 func zoom_to(distance: float, immediate := false) -> void:
 	_target_zoom = clampf(distance, min_zoom, max_zoom);
 	_zoom_anchor_active = false;
-	_cancel_look_transition();
+	_cancel_rotation_transition();
 
 	if _can_resolve_ground_now():
 		_constrain_target_state();
@@ -1121,15 +1159,24 @@ func zoom_to(distance: float, immediate := false) -> void:
 
 func rotate_to(yaw_degrees: float, pitch_degrees: float, immediate := false) -> void:
 	_zoom_anchor_active = false;
-	_cancel_look_transition();
+	_cancel_rotation_transition();
 
-	_target_yaw = wrapf(deg_to_rad(yaw_degrees), -PI, PI);
-	_target_pitch = clampf(deg_to_rad(pitch_degrees), deg_to_rad(min_pitch), deg_to_rad(max_pitch));
+	var requested_yaw := wrapf(deg_to_rad(yaw_degrees), -PI, PI);
 
 	if rotation_mode == RotationMode.LOOK:
-		_look_transition_eye = _camera_position_for_state(_focus, _zoom, _yaw, _pitch);
-		_look_transition_active = true;
-	elif _can_resolve_ground_now():
+		var requested_pitch := deg_to_rad(clampf(pitch_degrees, min_look_pitch, max_look_pitch));
+		var target_rig_pitch := _rig_pitch(_target_zoom, _target_orbit_pitch_offset);
+
+		_target_look_yaw_offset = wrapf(requested_yaw - _target_yaw, -PI, PI);
+		_target_look_pitch_offset = requested_pitch - target_rig_pitch;
+	else:
+		var requested_pitch := deg_to_rad(clampf(pitch_degrees, min_orbit_pitch, max_orbit_pitch));
+		var target_base_pitch := _base_pitch_for_zoom(_target_zoom);
+
+		_target_yaw = requested_yaw;
+		_target_orbit_pitch_offset = requested_pitch - target_base_pitch;
+
+	if _can_resolve_ground_now():
 		_constrain_target_state();
 
 	if immediate:
@@ -1137,6 +1184,17 @@ func rotate_to(yaw_degrees: float, pitch_degrees: float, immediate := false) -> 
 			_snap_now();
 		else:
 			_snap_requested = true;
+
+
+func reset_look(immediate := false) -> void:
+	_target_look_yaw_offset = 0.0;
+	_target_look_pitch_offset = 0.0;
+	_zoom_anchor_active = false;
+
+	if immediate:
+		_look_yaw_offset = 0.0;
+		_look_pitch_offset = 0.0;
+		_apply_camera_transform();
 
 
 func snap() -> void:
@@ -1149,20 +1207,13 @@ func snap() -> void:
 func _snap_now() -> void:
 	_collapse_physics_history = true;
 
-	if _look_transition_active:
-		_yaw = _target_yaw;
-		_pitch = _target_pitch;
-
-		if not _apply_look_from_eye(_look_transition_eye):
-			_cancel_look_transition();
-
-		_look_transition_active = false;
-	else:
-		_constrain_target_state();
-		_focus = _target_focus;
-		_zoom = _target_zoom;
-		_yaw = _target_yaw;
-		_pitch = _target_pitch;
+	_constrain_target_state();
+	_focus = _target_focus;
+	_zoom = _target_zoom;
+	_yaw = _target_yaw;
+	_orbit_pitch_offset = _target_orbit_pitch_offset;
+	_look_yaw_offset = _target_look_yaw_offset;
+	_look_pitch_offset = _target_look_pitch_offset;
 
 	_constrain_current_state();
 	_target_focus = _focus;
@@ -1179,20 +1230,31 @@ func get_zoom() -> float:
 
 
 func get_zoom_ratio() -> float:
-	var ratio: float = inverse_lerp(min_zoom, max_zoom, _target_zoom);
+	var ratio := inverse_lerp(min_zoom, max_zoom, _target_zoom);
 	return clampf(ratio, 0.0, 1.0);
 
 
 func get_yaw() -> float:
-	return rad_to_deg(_yaw);
+	return rad_to_deg(_view_yaw(_yaw, _look_yaw_offset));
 
 
 func get_pitch() -> float:
-	return rad_to_deg(_pitch);
+	return rad_to_deg(_view_pitch(_zoom, _orbit_pitch_offset, _look_pitch_offset));
+
+
+func get_rig_pitch() -> float:
+	return rad_to_deg(_rig_pitch(_zoom, _orbit_pitch_offset));
 
 
 func _refresh_visible_ground_rect() -> void:
-	_visible_ground_rect = _ground_view_rect_for_state(_focus, _zoom, _yaw, _pitch);
+	_visible_ground_rect = _ground_view_rect_for_state(
+		_focus,
+		_zoom,
+		_yaw,
+		_orbit_pitch_offset,
+		_look_yaw_offset,
+		_look_pitch_offset
+	);
 
 
 func _can_resolve_ground_now() -> bool:
@@ -1201,7 +1263,14 @@ func _can_resolve_ground_now() -> bool:
 
 func get_visible_ground_rect() -> Rect2:
 	if ground_mode == GroundMode.PLANE:
-		return _ground_view_rect_for_state(_focus, _zoom, _yaw, _pitch);
+		return _ground_view_rect_for_state(
+			_focus,
+			_zoom,
+			_yaw,
+			_orbit_pitch_offset,
+			_look_yaw_offset,
+			_look_pitch_offset
+		);
 
 	return _visible_ground_rect;
 
