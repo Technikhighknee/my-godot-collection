@@ -46,17 +46,21 @@ The controller separates three concepts:
 
 This prevents free look, zoom geometry and terrain navigation from corrupting each other's state.
 
-### Zoom height
+### Zoom path
 
-`zoom` is the camera rig height above the ground-navigation focus, not radial distance to the focus.
+`zoom` is the height parameter of the camera's natural zoom arc.
+
+With no manual ORBIT pitch offset, this is the physical camera height above the ground-navigation focus. The natural pitch converts that height into a rig radius around the raised target.
 
 The defaults are:
 
-- Initial height: 30 m.
-- Minimum height: 5 m.
-- Maximum height: 120 m.
+- Initial natural height: 30 m.
+- Minimum natural height: 5 m.
+- Maximum natural height: 120 m.
 
-Wheel zoom is multiplicative. The normalized zoom ratio is therefore logarithmic as well, so equal multiplicative wheel steps move through the camera curve consistently.
+Manual ORBIT pitch does not change that radius. It moves the eye around the same sphere for the current zoom value, so rotating vertically cannot masquerade as a zoom operation. The actual eye height is therefore allowed to differ from the natural zoom height while ORBIT is offset.
+
+Wheel zoom is multiplicative. The normalized zoom ratio is logarithmic as well, so equal multiplicative wheel steps move through the camera curve consistently.
 
 ### Zoom arc
 
@@ -76,7 +80,7 @@ Default:
 
 - `rig_target_height = 1.5` m.
 
-This prevents close camera poses from staring directly at the ground. The physical camera eye still remains exactly `zoom` units above the ground focus.
+This prevents close camera poses from staring directly at the ground. In the natural, un-offset rig pose, the physical camera eye is exactly `zoom` units above the ground focus.
 
 ## Rotation modes
 
@@ -84,22 +88,26 @@ This prevents close camera poses from staring directly at the ground. The physic
 
 LOOK rotates only the viewing direction.
 
-When LOOK begins, the current rig-facing direction is captured as an absolute view orientation. Mouse movement then changes that orientation without moving the camera eye or ground focus.
+LOOK changes the viewing direction without moving the camera eye or ground focus.
 
-Free look can point toward the horizon or sky:
+The user input is stored as a yaw/pitch offset relative to the natural rig direction. That distinction is important: the offset survives, but the zoom arc continues underneath it. If zoom changes the natural rig pitch by 20 degrees, the viewed pitch also changes by 20 degrees unless it reaches the configured free-look limit.
+
+Free look can still point toward the horizon or sky:
 
 - `min_look_pitch = -85` degrees.
 - `max_look_pitch = 85` degrees.
 
-While LOOK remains detached, later zooming moves the physical rig but does not silently rewrite the chosen viewing direction.
+This keeps manual looking and the zoom arc composable instead of making the first LOOK input permanently disable the arc.
 
-`reset_look()` returns the view to the natural rig direction. A non-immediate reset is smoothed.
+`reset_look()` smoothly returns the offsets to zero and reattaches the view to the natural rig direction.
 
 ### ORBIT
 
 ORBIT keeps the view attached to the rig and rotates the rig around its raised target above the ground focus.
 
-Vertical ORBIT input is stored as an offset from the natural zoom-arc pitch, so zoom can still retain its characteristic camera curve.
+For a fixed zoom value, ORBIT rotates on a constant radius. Vertical rotation therefore changes elevation and horizontal position but not camera distance to the rig target.
+
+Vertical ORBIT input is stored as an offset from the natural zoom-arc pitch, so later zooming still retains the characteristic camera curve.
 
 Defaults:
 
@@ -247,7 +255,7 @@ Queries:
 - `get_visible_ground_rect()`
 - `has_finite_ground_footprint()`
 
-`get_zoom()` returns rig height. `get_zoom_ratio()` returns the logarithmically normalized target zoom ratio.
+`get_zoom()` returns the natural zoom-height parameter. With a manual ORBIT pitch offset, the actual eye height can differ while the rig radius for that zoom value stays unchanged. `get_zoom_ratio()` returns the logarithmically normalized target zoom ratio.
 
 `rotate_to()` follows the selected rotation mode:
 
