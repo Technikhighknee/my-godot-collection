@@ -724,13 +724,28 @@ func resolve_ground_ray(origin: Vector3, direction: Vector3, max_distance := -1.
 
 		var collider: Object = result["collider"];
 
-		if collider is Node and (collider as Node).is_in_group(ground_required_group):
+		if _collider_matches_ground_group(collider):
 			return hit_position;
 
 		var rid: RID = result["rid"];
 		excluded.append(rid);
 
 	return Vector3.INF;
+
+
+func _collider_matches_ground_group(collider: Object) -> bool:
+	if not collider is Node:
+		return false;
+
+	var node := collider as Node;
+
+	while node != null:
+		if node.is_in_group(ground_required_group):
+			return true;
+
+		node = node.get_parent();
+
+	return false;
 
 
 func _ground_at_xz(position: Vector3) -> Vector3:
