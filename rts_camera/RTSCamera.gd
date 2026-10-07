@@ -30,7 +30,7 @@ const MAX_INPUT_DELTA := 0.1;
 @export var zoom_smoothing := 18.0;
 
 @export_group("Rotation")
-@export var rotation_mode: RotationMode = RotationMode.LOOK;
+@export_enum("Look", "Orbit") var rotation_mode := RotationMode.LOOK;
 @export var rotation_enabled := true;
 @export var mouse_yaw_sensitivity := 0.2;
 @export var mouse_pitch_sensitivity := 0.2;
@@ -392,7 +392,14 @@ func _rotation_at_target() -> bool:
 
 
 func _cancel_look_transition() -> void:
+	if not _look_transition_active:
+		return;
+
 	_look_transition_active = false;
+	_target_focus = _focus;
+	_target_zoom = _zoom;
+	_target_yaw = _yaw;
+	_target_pitch = _pitch;
 
 
 func _reset_transient_input() -> void:
