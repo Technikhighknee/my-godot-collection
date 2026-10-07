@@ -104,9 +104,7 @@ func _reconcile_pointer_buttons() -> void:
 
 	if _panning and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		_panning = false;
-		_suppress_edge_scroll_until_motion(
-			get_viewport().get_mouse_position()
-		);
+		_end_pointer_capture();
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
@@ -117,7 +115,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_panning = false;
 			_target_focus = _focus;
 			_begin_pointer_capture(event.position);
-		else:
+		elif not _panning:
 			_end_pointer_capture();
 
 		get_viewport().set_input_as_handled();
@@ -130,7 +128,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_rotating = false;
 			_target_focus = _focus;
 			_begin_pointer_capture(event.position);
-		else:
+		elif not _rotating:
 			_end_pointer_capture();
 
 		get_viewport().set_input_as_handled();
