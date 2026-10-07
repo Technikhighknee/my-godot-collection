@@ -20,7 +20,7 @@ A compact RTS / city-builder camera for Godot 4.
 - Transient drag/rotate/zoom state is cleared when the game window loses focus.
 - Small programmatic API: `focus_on()`, `zoom_to()`, `rotate_to()`, `snap()`.
 
-The current ground resolver is intentionally a horizontal plane at `ground_height`. Terrain and edge scrolling are later capabilities rather than dependencies of the core.
+Ground resolution is centralized. The default is a zero-cost horizontal plane, while Physics Ground can follow real terrain without changing drag, LOOK, zoom anchoring or bounds logic.
 
 ## Setup
 
@@ -48,6 +48,23 @@ Default mouse controls:
 `ORBIT` keeps the focus fixed while yaw and pitch move the camera around it.
 
 Direct mouse rotation is intentionally unsmoothed. Programmatic `rotate_to()` uses `rotation_smoothing`, and direct player input cancels an in-progress automatic LOOK rotation.
+
+## Ground modes
+
+`PLANE` is the default and resolves all camera/world interaction against the horizontal `ground_height` plane. It stays render-frame driven and requires no physics world.
+
+`PHYSICS` resolves camera/world interaction through 3D ray queries. Because Godot only guarantees direct physics-space queries to be safe during `_physics_process()` when threaded physics is in use, the camera automatically performs its update on the physics path in this mode. Input events are buffered in order and consumed there, so RMB dragging, MMB LOOK/ORBIT and cursor zoom never query a potentially locked physics space.
+
+For Physics Ground:
+
+- Put valid camera surfaces on the layers selected by `ground_collision_mask`.
+- Prefer a dedicated collision layer for terrain/walkable camera surfaces.
+- `ground_required_group` can optionally add semantic filtering. If set, hits whose collider is not in that group are skipped and the ray continues behind them, up to `ground_max_skips`.
+- `ground_probe_up` and `ground_probe_down` define the vertical probe used to keep the logical focus attached to terrain while panning.
+- `ground_query_distance` limits arbitrary view rays.
+- `ground_collide_with_areas` is off by default so trigger volumes do not become camera ground accidentally.
+
+The public `resolve_ground_ray()` method is the single ground-contact path used internally by screen picking, LOOK rotation and view-footprint bounds. This keeps the interaction semantics consistent instead of having separate terrain logic in each feature.
 
 ## Bounds
 
