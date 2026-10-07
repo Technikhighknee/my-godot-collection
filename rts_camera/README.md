@@ -59,12 +59,14 @@ For Physics Ground:
 
 - Put valid camera surfaces on the layers selected by `ground_collision_mask`.
 - Prefer a dedicated collision layer for terrain/walkable camera surfaces.
-- `ground_required_group` can optionally add semantic filtering. If set, hits whose collider is not in that group are skipped and the ray continues behind them, up to `ground_max_skips`.
+- `ground_required_group` can optionally add semantic filtering. A collider matches when it or one of its Node ancestors belongs to the group. Non-matching hits are skipped and the ray continues behind them, up to `ground_max_skips`.
 - `ground_probe_up` and `ground_probe_down` define the vertical probe used to keep the logical focus attached to terrain while panning.
 - `ground_query_distance` limits arbitrary view rays.
 - `ground_collide_with_areas` is off by default so trigger volumes do not become camera ground accidentally.
 
 The public `resolve_ground_ray()` method is the single ground-contact path used internally by screen picking, LOOK rotation and view-footprint bounds. This keeps the interaction semantics consistent instead of having separate terrain logic in each feature.
+
+Physics Ground uses manual render interpolation by default. Logical camera state remains fixed-timestep and physics-safe, while the rendered pose interpolates between the last two physics states using Godot's physics interpolation fraction. RMB drag and MMB rotation deliberately bypass that interpolation while held so direct manipulation does not gain an extra tick of input latency. The controller disables Godot's automatic interpolation on its own node branch to avoid double interpolation. Set `physics_render_interpolation` to `false` to render the latest physics pose directly instead.
 
 ## Bounds
 
