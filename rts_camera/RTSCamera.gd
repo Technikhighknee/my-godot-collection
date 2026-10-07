@@ -71,6 +71,7 @@ const MAX_DIRECT_GROUND_DISTANCE_FACTOR := 6.0;
 @export_group("Physics Presentation")
 @export var physics_render_interpolation := true;
 @export var terrain_height_smoothing := 10.0;
+@export_range(0.0, 1.0, 0.05) var terrain_height_max_lag_ratio := 0.5;
 
 @export_group("Bounds")
 @export var bounds_enabled := false;
@@ -977,8 +978,18 @@ func _align_current_focus_to_ground() -> void:
 	var previous_y := _focus.y;
 	_focus = point;
 
-	if ground_mode == GroundMode.PHYSICS and _ground_initialized:
+	if (
+		ground_mode == GroundMode.PHYSICS
+		and _ground_initialized
+		and terrain_height_smoothing > 0.0
+		and terrain_height_max_lag_ratio > 0.0
+	):
 		_ground_follow_offset_y += previous_y - point.y;
+
+		var max_lag := _zoom * terrain_height_max_lag_ratio;
+		_ground_follow_offset_y = clampf(_ground_follow_offset_y, -max_lag, max_lag);
+	else:
+		_ground_follow_offset_y = 0.0;
 
 func _decay_ground_follow_offset(delta: float) -> void:
 	if ground_mode != GroundMode.PHYSICS:
@@ -1229,6 +1240,7 @@ func _normalize_configuration() -> void:
 	zoom_smoothing = maxf(zoom_smoothing, 0.0);
 	rotation_smoothing = maxf(rotation_smoothing, 0.0);
 	terrain_height_smoothing = maxf(terrain_height_smoothing, 0.0);
+	terrain_height_max_lag_ratio = clampf(terrain_height_max_lag_ratio, 0.0, 1.0);
 
 	edge_scroll_margin = maxf(edge_scroll_margin, 1.0);
 	edge_scroll_curve = maxf(edge_scroll_curve, 0.01);
