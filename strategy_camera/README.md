@@ -30,6 +30,22 @@ There is no explicit zoom arc. Instead, vertical mouse input is stored as a norm
 
 Height itself is logarithmic for input purposes. Each wheel step moves 5% through the 5–120 m height range, so every step has the same perceptual weight and the endpoints do not get a special partial transition.
 
+## Following
+
+`follow(target)` binds the camera's ground focus to a `Node3D`. The target's world position becomes the moving ground point, including Y, while height and rotation remain camera-owned.
+
+Starting follow points the camera toward the target as far as the current tilt contract allows. After that, middle-mouse rotation and wheel height changes do not break follow.
+
+Manual translation does:
+
+- WASD breaks follow before moving.
+- Edge scrolling breaks follow before moving.
+- Right-mouse panning breaks follow on the first actual mouse movement.
+- `stop_following()` releases the target without moving the camera.
+- If the target leaves the scene tree, follow releases automatically.
+
+Calling `focus_on()` is also an explicit focus override and therefore releases follow.
+
 ## Panning
 
 WASD, edge scrolling, and right-mouse dragging all use the same yaw-relative ground axes and the same height-derived world scale.
@@ -75,6 +91,9 @@ Define these actions in your project's Input Map. The camera asserts during `_re
 
 ## Small API
 
+- `follow(target)`
+- `stop_following()`
+- `is_following()`
 - `focus_on(position, immediate)`
 - `set_height(height, immediate)`
 - `get_focus_position()`

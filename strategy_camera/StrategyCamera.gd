@@ -34,6 +34,7 @@ var _ground_height := 0.0;
 
 var _focus: Vector3;
 var _target_focus: Vector3;
+var _follow_target: Node3D = null;
 
 var _height := INITIAL_HEIGHT;
 var _target_height := INITIAL_HEIGHT;
@@ -94,19 +95,48 @@ func _assert_input_actions() -> void:
 
 func _process(delta: float) -> void:
 	_reconcile_pointer_buttons();
+	_sync_follow_target();
 	_handle_pan_input(minf(delta, MAX_INPUT_DELTA));
 
 	var move_t := _smooth_factor(MOVE_SMOOTHING, delta);
 	var height_t := _smooth_factor(HEIGHT_SMOOTHING, delta);
 
-	_focus = _focus.lerp(_target_focus, move_t);
-	_focus.y = _ground_height;
+	if _follow_target == null:
+		_focus = _focus.lerp(_target_focus, move_t);
+		_focus.y = _ground_height;
+
 	_height = lerpf(_height, _target_height, height_t);
 
 	if absf(_height - _target_height) < 0.001:
 		_height = _target_height;
 
 	_apply_camera_transform();
+
+
+func _sync_follow_target() -> void:
+	if _follow_target == null:
+		return;
+
+	if (
+		not is_instance_valid(_follow_target)
+		or not _follow_target.is_inside_tree()
+	):
+		_stop_following_internal();
+		return;
+
+	var position := _follow_target.global_position;
+	_focus = position;
+	_target_focus = position;
+	_ground_height = position.y;
+
+
+func _stop_following_internal() -> void:
+	if _follow_target == null:
+		return;
+
+	_follow_target = null;
+	_ground_height = _focus.y;
+	_target_focus = _focus;
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -188,6 +218,12 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 
 func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
 	var motion := event.screen_relative;
+
+	if motion == Vector2.ZERO:
+		return;
+
+	_stop_following_internal();
+
 	var world_delta := _pan_world_delta(
 		motion,
 		_world_units_per_pixel()
@@ -216,6 +252,8 @@ func _handle_pan_input(delta: float) -> void:
 	if input_vector == Vector2.ZERO:
 		_pan_input_active = false;
 		return;
+
+	_stop_following_internal();
 
 	if not _pan_input_active:
 		_target_focus = _focus;
@@ -413,7 +451,47 @@ func _smooth_factor(speed: float, delta: float) -> float:
 	return 1.0 - exp(-speed * delta);
 
 
+func follow(target: Node3D) -> void:
+	assert(target != null, "StrategyCamera cannot follow a null target.");
+	assert(target != self, "StrategyCamera cannot follow itself.");
+	assert(
+		not self.is_ancestor_of(target),
+		"StrategyCamera cannot follow one of its own descendants."
+	);
+	assert(
+		target.is_inside_tree(),
+		"StrategyCamera can only follow a target that is inside the scene tree."
+	);
+
+	var delta := target.global_position - _focus;
+
+	if Vector2(delta.x, delta.z).length_squared() > 0.000001:
+		_yaw = atan2(-delta.x, -delta.z);
+
+	_follow_target = target;
+	_tilt_ratio = 0.0;
+	_pan_input_active = false;
+	_suppress_edge_scroll_until_motion(
+		get_viewport().get_mouse_position()
+	);
+	_sync_follow_target();
+	_apply_camera_transform();
+
+
+func stop_following() -> void:
+	_stop_following_internal();
+
+
+func is_following() -> bool:
+	return (
+		_follow_target != null
+		and is_instance_valid(_follow_target)
+		and _follow_target.is_inside_tree()
+	);
+
+
 func focus_on(position: Vector3, immediate := false) -> void:
+	_stop_following_internal();
 	position.y = _ground_height;
 	_target_focus = position;
 	_pan_input_active = false;
