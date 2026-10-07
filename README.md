@@ -55,13 +55,21 @@ This repository is mainly for me.
 
 I put stuff here because GitHub is convenient, version control is useful, and apparently saving random code in folders called `final_final_v2_really_final` is considered bad practice.
 
+Why is the repo public?
+
+Free CI, baby!
+
 **Yes, the repository is public.**
 
 **Yes, you can see the code.**
 
 **No, that does not magically make it open source.**
 
-A fair amount of the code in here was written with AI assistance, and there are parts I have not even properly read myself. So before you consider using any of this in something important, please remember that I am apparently comfortable publishing code that I have occasionally inspected with the rigorous engineering methodology known as "looks fine to me."
+A fair amount of the code in here was written with AI assistance, and there are parts I have not even properly read myself. So before you consider using any of this in something important (which, licensing-wise, you don't have permission to do in the first place), please remember that I am apparently comfortable publishing code that I have occasionally inspected with the rigorous engineering methodology known as "looks fine to me."
+
+[MSG from several-hours-older-Jason: I did eventually read it. Calm down.]
+
+[MSG from that same Jason: Also, my job here is not to manually type every implementation detail. I design the systems, make the decisions, review the results, reject the stupid versions, and decide what actually ships. AI does a lot of the implementation work. That's the arrangement. Somehow, it works out.]
 
 You are welcome to look around.
 
