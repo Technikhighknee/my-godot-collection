@@ -41,6 +41,8 @@ Default mouse controls:
 - Right mouse: grab and drag the world.
 - Wheel: cursor-anchored zoom.
 
+Middle-mouse rotation captures the pointer by default so yaw is not limited by the window edge. The previous mouse mode and cursor position are restored on release. Rotation uses Godot's screen-relative mouse delta for resolution-independent sensitivity.
+
 ## Rotation modes
 
 `LOOK` keeps the camera's world position fixed while rotating. The new focus is the intersection of the view direction with the ground plane. Because zoom remains a hard distance constraint, the usable pitch range becomes narrower automatically at extreme zoom distances rather than silently moving the camera.
@@ -79,6 +81,10 @@ Bounds are disabled by default and use a `Rect2` in world X/Z coordinates.
 Bounds are the final spatial constraint: at an edge they intentionally take priority over exact cursor anchoring and LOOK eye preservation. Standard perspective Camera3D projection is supported by the view-footprint solver; unsupported projection customizations fall back to focus bounds rather than producing incorrect geometry.
 
 `get_visible_ground_rect()` exposes the current finite ground footprint when available; `has_finite_ground_footprint()` reports whether that footprint is valid.
+
+## Movement feel
+
+Keyboard and edge panning are expressed in screen space rather than guessed world-units-per-second. The controller samples the ground around the viewport center to derive local world distance per screen pixel, then applies `pan_screen_speed` in viewport-heights per second. This naturally adapts to zoom, pitch, FOV, aspect ratio and sloped Physics Ground. If a local screen sample cannot resolve ground, an analytic perspective fallback keeps movement available.
 
 ## Edge scrolling
 
