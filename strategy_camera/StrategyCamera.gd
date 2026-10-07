@@ -82,6 +82,15 @@ func _ready() -> void:
 	_apply_camera_transform();
 
 
+func _exit_tree() -> void:
+	_reset_pointer_state();
+
+	var window := get_window();
+
+	if window.focus_exited.is_connected(_reset_pointer_state):
+		window.focus_exited.disconnect(_reset_pointer_state);
+
+
 func _assert_input_actions() -> void:
 	var missing := PackedStringArray();
 
