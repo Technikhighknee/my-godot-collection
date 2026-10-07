@@ -26,7 +26,7 @@ const MOUSE_YAW_SENSITIVITY := 0.2;
 const MOUSE_PITCH_SENSITIVITY := 0.2;
 
 const MAX_INPUT_DELTA := 0.1;
-const MAX_DIRECT_GROUND_DISTANCE_FACTOR := 6.0;
+const MIN_GROUND_RAY_ANGLE := 5.0;
 
 const PAN_LEFT_ACTION: StringName = &"camera_left";
 const PAN_RIGHT_ACTION: StringName = &"camera_right";
@@ -369,20 +369,15 @@ func _update_zoom_anchor() -> void:
 
 
 func _ground_point_is_usable(point: Vector3) -> bool:
-	if not point.is_finite():
-		return false;
-
-	var eye := _camera_position();
-	var max_distance := _rig_distance_for_zoom(_zoom) * MAX_DIRECT_GROUND_DISTANCE_FACTOR;
-
-	return eye.distance_to(point) <= max_distance;
+	return point.is_finite();
 
 
 func _world_at_screen(screen_position: Vector2) -> Vector3:
 	var origin := camera.project_ray_origin(screen_position);
 	var direction := camera.project_ray_normal(screen_position);
+	var min_downward := sin(deg_to_rad(MIN_GROUND_RAY_ANGLE));
 
-	if absf(direction.y) < 0.00001:
+	if direction.y > -min_downward:
 		return Vector3.INF;
 
 	var distance := (_ground_height - origin.y) / direction.y;
