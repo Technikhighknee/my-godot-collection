@@ -172,7 +172,15 @@ Physics Ground can use manual render interpolation through `physics_render_inter
 
 Logical camera state remains fixed-timestep and physics-safe. Render frames interpolate the actual eye position and viewing angles between physics states.
 
-Direct RMB/MMB manipulation bypasses this interpolation while active to avoid adding an extra tick of perceived input latency.
+Terrain elevation changes have an additional vertical follow layer:
+
+- `terrain_height_smoothing` controls how quickly the visual rig catches up to changed ground elevation.
+- `terrain_height_max_lag_ratio` caps the temporary vertical lag relative to the current zoom height, so large cliffs cannot leave the camera dangerously far behind the terrain.
+- Active LOOK rotation freezes this vertical follow offset so the eye does not drift during free look.
+
+The logical navigation focus remains on resolved ground; only the rendered rig carries the temporary vertical offset.
+
+Direct RMB/MMB manipulation bypasses physics render interpolation while active to avoid adding an extra tick of perceived input latency.
 
 Godot's automatic physics interpolation is disabled on the camera node branch to avoid double interpolation.
 
