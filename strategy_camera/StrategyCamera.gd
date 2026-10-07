@@ -48,9 +48,9 @@ var _edge_scroll_block_position := Vector2.ZERO;
 var _panning := false;
 var _rotating := false;
 
-var _rotation_capture_active := false;
-var _rotation_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
-var _rotation_restore_mouse_position := Vector2.ZERO;
+var _pointer_capture_active := false;
+var _restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE;
+var _restore_mouse_position := Vector2.ZERO;
 
 
 func _ready() -> void:
@@ -100,7 +100,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _reconcile_pointer_buttons() -> void:
 	if _rotating and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
 		_rotating = false;
-		_end_rotation_capture();
+		_end_pointer_capture();
 
 	if _panning and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		_panning = false;
@@ -116,9 +116,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		if _rotating:
 			_panning = false;
 			_target_focus = _focus;
-			_begin_rotation_capture(event.position);
+			_begin_pointer_capture(event.position);
 		else:
-			_end_rotation_capture();
+			_end_pointer_capture();
 
 		get_viewport().set_input_as_handled();
 		return;
@@ -128,10 +128,10 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 		if _panning:
 			_rotating = false;
-			_end_rotation_capture();
 			_target_focus = _focus;
+			_begin_pointer_capture(event.position);
 		else:
-			_suppress_edge_scroll_until_motion(event.position);
+			_end_pointer_capture();
 
 		get_viewport().set_input_as_handled();
 		return;
@@ -165,7 +165,7 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 
 
 func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
-	var motion := event.relative;
+	var motion := event.screen_relative;
 	var world_delta := _pan_world_delta(
 		motion,
 		_world_units_per_pixel()
@@ -356,30 +356,30 @@ func _apply_camera_transform() -> void:
 	);
 
 
-func _begin_rotation_capture(position: Vector2) -> void:
-	if _rotation_capture_active:
+func _begin_pointer_capture(position: Vector2) -> void:
+	if _pointer_capture_active:
 		return;
 
-	_rotation_capture_active = true;
-	_rotation_restore_mouse_mode = Input.mouse_mode;
-	_rotation_restore_mouse_position = position;
+	_pointer_capture_active = true;
+	_restore_mouse_mode = Input.mouse_mode;
+	_restore_mouse_position = position;
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED;
 
 
-func _end_rotation_capture() -> void:
-	if not _rotation_capture_active:
+func _end_pointer_capture() -> void:
+	if not _pointer_capture_active:
 		return;
 
-	_rotation_capture_active = false;
-	Input.mouse_mode = _rotation_restore_mouse_mode;
+	_pointer_capture_active = false;
+	Input.mouse_mode = _restore_mouse_mode;
 
-	if _rotation_restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		Input.warp_mouse(_rotation_restore_mouse_position);
-		_suppress_edge_scroll_until_motion(_rotation_restore_mouse_position);
+	if _restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.warp_mouse(_restore_mouse_position);
+		_suppress_edge_scroll_until_motion(_restore_mouse_position);
 
 
 func _reset_pointer_state() -> void:
-	_end_rotation_capture();
+	_end_pointer_capture();
 	_panning = false;
 	_rotating = false;
 	_suppress_edge_scroll_until_motion(
