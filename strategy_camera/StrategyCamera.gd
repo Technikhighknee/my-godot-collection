@@ -11,10 +11,10 @@ const FAR_PITCH := 65.0;
 const ZOOM_ARC_CURVE := 0.75;
 const RIG_TARGET_HEIGHT := 1.5;
 
-const MIN_VIEW_PITCH := -85.0;
-const MAX_VIEW_PITCH := 85.0;
+const MIN_VIEW_PITCH := -30.0;
+const MAX_VIEW_PITCH := 75.0;
 
-const PAN_SCREEN_SPEED := 0.75;
+const PAN_SCREEN_SPEED := 1.5;
 const EDGE_SCROLL_MARGIN := 24.0;
 const MOVE_SMOOTHING := 16.0;
 const ZOOM_SMOOTHING := 18.0;
