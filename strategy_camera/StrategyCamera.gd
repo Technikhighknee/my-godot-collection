@@ -4,11 +4,11 @@ extends Node3D;
 
 const MIN_ZOOM := 5.0;
 const MAX_ZOOM := 120.0;
-const INITIAL_ZOOM := 30.0;
+const INITIAL_ZOOM := 28.7135;
+const ZOOM_STEP := 0.05;
 
 const NEAR_PITCH := 25.0;
 const FAR_PITCH := 65.0;
-const ZOOM_ARC_CURVE := 0.75;
 const RIG_TARGET_HEIGHT := 1.5;
 
 const NEAR_MIN_VIEW_PITCH := -30.0;
@@ -20,7 +20,6 @@ const PAN_SCREEN_SPEED := 1.5;
 const EDGE_SCROLL_MARGIN := 24.0;
 const MOVE_SMOOTHING := 16.0;
 const ZOOM_SMOOTHING := 18.0;
-const ZOOM_FACTOR := 0.85;
 
 const MOUSE_YAW_SENSITIVITY := 0.2;
 const MOUSE_PITCH_SENSITIVITY := 0.2;
@@ -54,8 +53,6 @@ var _edge_scroll_waiting_for_motion := false;
 var _edge_scroll_block_position := Vector2.ZERO;
 
 var _dragging := false;
-var _drag_anchor_valid := false;
-var _drag_anchor: Vector3;
 
 var _rotating := false;
 var _rotation_capture_active := false;
@@ -139,7 +136,6 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 		if _rotating:
 			_dragging = false;
-			_drag_anchor_valid = false;
 			_target_focus = _focus;
 			_target_zoom = _zoom;
 			_wheel_zoom_active = false;
@@ -152,7 +148,6 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 	if event.button_index == MOUSE_BUTTON_RIGHT:
 		_dragging = event.pressed and not event.canceled;
-		_drag_anchor_valid = false;
 		_zoom_anchor_active = false;
 
 		if _dragging:
@@ -161,12 +156,6 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			_target_focus = _focus;
 			_target_zoom = _zoom;
 			_wheel_zoom_active = false;
-
-			var point := _world_at_screen(event.position);
-
-			if _ground_point_is_usable(point):
-				_drag_anchor = point;
-				_drag_anchor_valid = true;
 		else:
 			_suppress_edge_scroll_until_motion(event.position);
 
@@ -201,21 +190,15 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 
 
 func _handle_drag(event: InputEventMouseMotion) -> void:
-	var current := _world_at_screen(event.position);
+	var units_per_pixel := _world_units_per_pixel();
+	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
+	var backward := Vector3(sin(_yaw), 0.0, cos(_yaw));
+	var motion := event.relative;
 
-	if not _ground_point_is_usable(current):
-		_drag_anchor_valid = false;
-		return;
-
-	if not _drag_anchor_valid:
-		_drag_anchor = current;
-		_drag_anchor_valid = true;
-		return;
-
-	var offset := _drag_anchor - current;
-	offset.y = 0.0;
-
-	_focus += offset;
+	_focus += (
+		-right * motion.x
+		-backward * motion.y
+	) * units_per_pixel;
 	_target_focus = _focus;
 
 	_apply_camera_transform();
@@ -313,11 +296,23 @@ func _keyboard_pan_blocked_by_gui() -> bool:
 
 
 func _pan_speed() -> float:
+	return _visible_world_height() * PAN_SCREEN_SPEED;
+
+
+func _world_units_per_pixel() -> float:
+	var viewport_height := get_viewport().get_visible_rect().size.y;
+
+	if viewport_height <= 0.0:
+		return 0.0;
+
+	return _visible_world_height() / viewport_height;
+
+
+func _visible_world_height() -> float:
 	var distance := _rig_distance_for_zoom(_zoom);
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
-	var visible_height := 2.0 * distance * half_fov_tan;
 
-	return visible_height * PAN_SCREEN_SPEED;
+	return 2.0 * distance * half_fov_tan;
 
 
 func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> void:
@@ -328,14 +323,15 @@ func _zoom_at(screen_position: Vector2, zoom_in: bool, event_factor: float) -> v
 	_begin_zoom_anchor(screen_position);
 
 	var amount := event_factor if event_factor > 0.0 else 1.0;
-	var multiplier: float = pow(ZOOM_FACTOR, amount);
+	var direction := -1.0 if zoom_in else 1.0;
+	var target_ratio := _normalized_zoom(_target_zoom);
 
-	if zoom_in:
-		_target_zoom *= multiplier;
-	else:
-		_target_zoom /= multiplier;
-
-	_target_zoom = clampf(_target_zoom, MIN_ZOOM, MAX_ZOOM);
+	target_ratio = clampf(
+		target_ratio + direction * ZOOM_STEP * amount,
+		0.0,
+		1.0
+	);
+	_target_zoom = _zoom_for_ratio(target_ratio);
 
 
 func _begin_zoom_anchor(screen_position: Vector2) -> void:
@@ -426,7 +422,7 @@ func _min_view_pitch_for_zoom(zoom: float) -> float:
 		lerpf(
 			NEAR_MIN_VIEW_PITCH,
 			FAR_MIN_VIEW_PITCH,
-			_zoom_arc_ratio(zoom)
+			_normalized_zoom(zoom)
 		)
 	);
 
@@ -436,7 +432,7 @@ func _max_view_pitch_for_zoom(zoom: float) -> float:
 		lerpf(
 			NEAR_MAX_VIEW_PITCH,
 			FAR_MAX_VIEW_PITCH,
-			_zoom_arc_ratio(zoom)
+			_normalized_zoom(zoom)
 		)
 	);
 
@@ -453,16 +449,9 @@ func _base_pitch_for_zoom(zoom: float) -> float:
 		lerpf(
 			NEAR_PITCH,
 			FAR_PITCH,
-			_zoom_arc_ratio(zoom)
+			_normalized_zoom(zoom)
 		)
 	);
-
-
-func _zoom_arc_ratio(zoom: float) -> float:
-	var ratio := _normalized_zoom(zoom);
-	var smooth_ratio := ratio * ratio * (3.0 - 2.0 * ratio);
-
-	return pow(smooth_ratio, ZOOM_ARC_CURVE);
 
 
 func _normalized_zoom(zoom: float) -> float:
@@ -473,6 +462,12 @@ func _normalized_zoom(zoom: float) -> float:
 		0.0,
 		1.0
 	);
+
+
+func _zoom_for_ratio(ratio: float) -> float:
+	var safe_ratio := clampf(ratio, 0.0, 1.0);
+
+	return MIN_ZOOM * pow(MAX_ZOOM / MIN_ZOOM, safe_ratio);
 
 
 func _view_direction(yaw: float, pitch: float) -> Vector3:
