@@ -6,7 +6,7 @@ config_version=5
 [application]
 
 config/name="My Godot Collection"
-run/main_scene="res://demos/rts_camera/RTSCameraDemo.tscn"
+run/main_scene="res://demos/strategy_camera/StrategyCameraDemo.tscn"
 
 [display]
 

@@ -1,4 +1,4 @@
-class_name RTSCamera
+class_name StrategyCamera
 extends Node3D;
 
 

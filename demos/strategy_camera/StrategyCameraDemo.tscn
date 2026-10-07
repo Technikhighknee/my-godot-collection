@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3]
 
-[ext_resource type="PackedScene" path="res://rts_camera/RTSCamera.tscn" id="1_camera"]
-[ext_resource type="Script" path="res://demos/rts_camera/RTSCameraDemo.gd" id="2_demo"]
+[ext_resource type="PackedScene" path="res://strategy_camera/StrategyCamera.tscn" id="1_camera"]
+[ext_resource type="Script" path="res://demos/strategy_camera/StrategyCameraDemo.gd" id="2_demo"]
 
 [sub_resource type="StandardMaterial3D" id="GroundMaterial"]
 albedo_color = Color(0.18, 0.2, 0.22, 1)
@@ -26,7 +26,7 @@ ambient_light_source = 3
 ambient_light_color = Color(0.7, 0.72, 0.78, 1)
 ambient_light_energy = 0.65
 
-[node name="RTSCameraDemo" type="Node3D"]
+[node name="StrategyCameraDemo" type="Node3D"]
 script = ExtResource("2_demo")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -67,4 +67,4 @@ position = Vector3(4, 4, 16)
 scale = Vector3(2, 1.1, 1)
 mesh = SubResource("BuildingMesh")
 
-[node name="RTSCamera" parent="." instance=ExtResource("1_camera")]
+[node name="StrategyCamera" parent="." instance=ExtResource("1_camera")]

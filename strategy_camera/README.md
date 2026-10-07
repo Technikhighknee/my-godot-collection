@@ -1,6 +1,6 @@
-# RTS Camera
+# Strategy Camera
 
-A compact RTS / city-builder camera for Godot 4.
+A flexible 3D strategy / city-builder camera rig for Godot 4.
 
 ## Core behavior
 
@@ -26,7 +26,7 @@ Add these Input Map actions:
 
 The included demo registers WASD for these actions at runtime.
 
-Instantiate `RTSCamera.tscn`. Its root position is the logical ground-navigation focus. The Camera3D child transform does not need to be configured manually.
+Instantiate `StrategyCamera.tscn`. Its root position is the logical ground-navigation focus. The Camera3D child transform does not need to be configured manually.
 
 Default mouse controls:
 

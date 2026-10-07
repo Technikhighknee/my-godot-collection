@@ -4,4 +4,4 @@ Some Godot bits and bobs.
 
 ## Collection
 
-- [RTS Camera](rts_camera/README.md) — compact RTS / city-builder camera with smooth panning, exact world dragging and cursor-anchored zoom.
+- [Strategy Camera](strategy_camera/README.md) — flexible 3D strategy / city-builder camera rig with smooth panning, exact world dragging and cursor-anchored zoom.
