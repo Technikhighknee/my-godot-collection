@@ -8,7 +8,7 @@ The camera deliberately has one spatial model instead of zoom modes, orbit modes
 
 - WASD: pan relative to camera yaw.
 - Screen edge: full-speed panning using the same movement model.
-- Right mouse drag: pan in the same screen direction as WASD / edge panning.
+- Right mouse drag: capture the cursor and pan in the same screen direction as WASD / edge panning.
 - Middle mouse horizontal: rotate yaw.
 - Middle mouse vertical: change tilt.
 - Wheel: lower or raise the camera's physical height above the ground.
