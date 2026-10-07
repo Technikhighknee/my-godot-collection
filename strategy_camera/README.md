@@ -2,113 +2,160 @@
 
 An opinionated 3D strategy / city-builder camera for Godot 4.
 
-The camera deliberately has one spatial model instead of zoom modes, orbit modes, or cursor-anchored special cases.
+## Setup
 
-## Controls
+Attach `StrategyCamera.gd` to a `Node3D` with a direct `Camera3D` child named `Camera3D`:
 
-- WASD: pan relative to camera yaw.
-- Screen edge: full-speed panning using the same movement model.
-- Right mouse hold: after a short hold, capture the pointer and pan in the same screen direction as WASD / edge panning. A normal right click is left untouched.
-- Middle mouse horizontal: rotate yaw.
-- Middle mouse vertical: change tilt.
-- Wheel: lower or raise the camera's physical height above the ground.
+```text
+StrategyCamera
+└── Camera3D
+```
 
-## Camera model
+The script makes that camera current during `_ready()`.
 
-The root position is the camera's ground position. Its Y coordinate defines the horizontal ground plane.
-
-Wheel input changes only one thing: camera height. It does not move the ground focus, does not zoom toward the cursor, and does not perform a radial dolly.
-
-Tilt uses a deliberately simple convention:
-
-- 0° = straight down.
-- 90° = straight ahead at the horizon.
-- The maximum is always 90°.
-- Only the minimum depends on height: 65° at minimum height, opening to 25° at maximum height.
-
-There is no explicit zoom arc. Instead, vertical mouse input is stored as a normalized position inside the currently allowed tilt range. When height changes, the moving minimum changes the actual tilt naturally while the fixed 90° maximum stays put. At the minimum tilt this reproduces the classic close/forward to far/top-down camera motion without maintaining a second arc state.
-
-Height itself is logarithmic for input purposes. Each wheel step moves 5% through the 5–120 m height range, so every step has the same perceptual weight and the endpoints do not get a special partial transition.
-
-## Following
-
-`follow(target)` binds the camera's ground focus to a `Node3D`. The target's world position becomes the moving ground point, including Y, while height and rotation remain camera-owned.
-
-Starting follow points the camera toward the target as far as the current tilt contract allows. After that, middle-mouse rotation and wheel height changes do not break follow.
-
-Manual translation does:
-
-- WASD breaks follow before moving.
-- Edge scrolling breaks follow before moving.
-- Right-mouse panning breaks follow on the first actual mouse movement after the hold has activated. A normal right click does not affect follow.
-- `stop_following()` releases the target without moving the camera.
-- If the target leaves the scene tree, follow releases automatically.
-
-Calling `focus_on()` is also an explicit focus override and therefore releases follow.
-
-## Panning
-
-WASD, edge scrolling, and right-mouse dragging all use the same yaw-relative ground axes and the same height-derived world scale.
-
-Right mouse is click-safe: pressing and releasing it before the hold delay does nothing to the camera and is not consumed, leaving the click available to gameplay code. Holding it for 120 ms activates camera panning and switches to captured pointer input. The system cursor therefore disappears while panning, and the original cursor position is restored when panning ends. Moving the mouse right pans right and moving it toward the top pans forward. Because this mapping does not intersect a mouse ray with the ground, it stays stable at every camera tilt.
-
-### Custom cursor integration
-
-The camera does not own or render cursors. Games that already provide their own software cursor can keep it visually pinned during both right-mouse panning and middle-mouse rotation by listening to:
-
-- `pointer_pan_started(anchor)`
-- `pointer_pan_ended(anchor)`
-- `pointer_rotation_started(anchor)`
-- `pointer_rotation_ended(anchor)`
-
-Each start signal provides the cursor position at the moment that interaction takes over. A custom cursor system can freeze its visual at that anchor while Godot keeps the real pointer captured, then resume normal cursor tracking when the matching end signal fires. Without a custom cursor system, no integration is required; the captured system cursor simply stays hidden during pan or rotation.
-
-## Opinionated defaults
-
-The feel constants live in the script rather than the Inspector:
-
-- Height: 5–120 m, initially 28.7 m.
-- Height step: 5% of the logarithmic range.
-- Minimum tilt: 65° close to 25° far away.
-- Maximum tilt: 90°.
-- FOV: 45° from the scene.
-- Pan speed: 1.5 screen-heights per second.
-- Edge scroll margin: 24 px.
-- Right-mouse pan hold delay: 120 ms.
-- Mouse sensitivity: 0.2°/pixel.
-
-## What is intentionally not in the core
-
-- Zoom-to-cursor.
-- Ground-ray dragging.
-- A separate camera arc.
-- Multiple rotation modes.
-- Physics-terrain following.
-- Terrain presentation smoothing.
-- View-aware bounds.
-- Runtime ground-mode switching.
-- Configurable mouse buttons or input action names.
-- A large transition API.
-
-## Input Map
-
-The camera expects:
+Add these Input Map actions:
 
 - `camera_left`
 - `camera_right`
 - `camera_forward`
 - `camera_back`
 
-Define these actions in your project's Input Map. The camera asserts during `_ready()` if any are missing, and the assertion message names every missing action.
+The script asserts during `_ready()` if any required action is missing. As with Godot assertions generally, that check only exists in builds where assertions are enabled.
 
-## Small API
+## Controls
 
-- `follow(target)`
-- `stop_following()`
-- `is_following()`
-- `focus_on(position, immediate)`
-- `set_height(height, immediate)`
-- `get_focus_position()`
-- `get_height()`
-- `get_yaw()`
-- `get_tilt()`
+- **WASD** — pan relative to camera yaw.
+- **Screen edges** — pan using the same movement model at full speed.
+- **Mouse wheel** — lower or raise camera height.
+- **MMB horizontal** — rotate yaw.
+- **MMB vertical** — change tilt.
+- **RMB click** — ignored by the camera and left available to gameplay.
+- **RMB hold** — after 120 ms, capture the pointer and pan.
+
+RMB panning, MMB rotation, WASD and edge scrolling are mutually exclusive where necessary; pointer capture is restored cleanly when the interaction ends, the window loses focus, or the camera leaves the scene tree.
+
+## Camera model
+
+The `StrategyCamera` node represents the current ground focus. The `Camera3D` sits vertically above that focus at the current height.
+
+Wheel input changes height only. It does not move the focus toward the cursor and does not perform a radial dolly.
+
+Tilt uses this convention:
+
+- `0°` — straight down.
+- `90°` — straight ahead at the horizon.
+- Minimum tilt — `65°` at minimum height, opening to `25°` at maximum height.
+- Maximum tilt — always `90°`.
+
+Vertical rotation is stored as a normalized position inside the currently valid tilt range. Because only the minimum changes with height, zooming naturally shifts the available view from close/forward toward far/top-down without a separate camera-arc state.
+
+Height input is logarithmic. Each wheel step moves 5% through the `5–120` height range, so the steps retain similar perceptual weight across the range.
+
+## Panning
+
+WASD, edge scrolling and RMB panning all use the same yaw-relative ground axes.
+
+Pan scale is derived from camera height and FOV, so movement stays consistent in screen-space terms rather than using a fixed world-units-per-second value.
+
+RMB is intentionally click-safe. Pressing and releasing before the 120 ms hold delay does nothing to the camera and is not consumed. Once the hold activates, the pointer is captured and relative mouse motion drives the pan.
+
+Actual RMB pan movement breaks target following. Merely pressing or holding RMB does not.
+
+## Following
+
+`follow(target)` binds the camera focus directly to a `Node3D`'s world position. The target owns translation while camera height and rotation remain independently controllable.
+
+Starting follow:
+
+- requires a valid target that is already inside the scene tree;
+- rejects the camera itself and its descendants;
+- immediately moves the focus to the target;
+- points yaw toward the target from the previous focus when there is a horizontal direction to use;
+- resets tilt to the current minimum.
+
+While following, MMB rotation and wheel height changes remain available.
+
+Follow ends when:
+
+- WASD moves the camera;
+- edge scrolling moves the camera;
+- RMB panning actually moves the camera;
+- `focus_on(...)` is called;
+- `stop_following()` is called;
+- the target leaves the scene tree.
+
+Ending follow keeps the camera at its current world focus; there is no return position or stored follow offset.
+
+## Custom cursor integration
+
+The camera does not own or render cursors.
+
+By default, Godot's captured pointer mode hides the system cursor during RMB panning and MMB rotation. Games with their own software cursor can keep that cursor visually pinned by listening to:
+
+```gdscript
+pointer_pan_started(anchor: Vector2)
+pointer_pan_ended(anchor: Vector2)
+
+pointer_rotation_started(anchor: Vector2)
+pointer_rotation_ended(anchor: Vector2)
+```
+
+Each start signal provides the cursor position at the moment that interaction takes over. An external cursor system can freeze its visual at that anchor and resume normal tracking on the matching end signal.
+
+## API
+
+### `follow(target: Node3D) -> void`
+
+Bind the ground focus to a moving target.
+
+### `stop_following() -> void`
+
+Stop following without moving the current focus.
+
+### `is_following() -> bool`
+
+Return whether a valid target is currently being followed.
+
+### `focus_on(position: Vector3, immediate := false) -> void`
+
+Move the ground focus to a world position. Calling it also ends target following.
+
+With `immediate = false`, the camera moves toward the new focus using the normal movement smoothing.
+
+### `set_height(height: float, immediate := false) -> void`
+
+Set the target camera height, clamped to the supported range.
+
+With `immediate = false`, the height change uses the normal height smoothing.
+
+### `get_focus_position() -> Vector3`
+
+Return the current, already-smoothed focus position.
+
+### `get_height() -> float`
+
+Return the current, already-smoothed camera height.
+
+### `get_yaw() -> float`
+
+Return yaw in degrees.
+
+### `get_tilt() -> float`
+
+Return the current tilt in degrees.
+
+## Defaults
+
+| Setting | Value |
+| --- | ---: |
+| Height range | `5–120` |
+| Initial height | `28.7135` |
+| Wheel step | `5%` of logarithmic height range |
+| Near minimum tilt | `65°` |
+| Far minimum tilt | `25°` |
+| Maximum tilt | `90°` |
+| Pan speed | `1.5` screen-heights / second |
+| Edge scroll margin | `24 px` |
+| RMB hold delay | `120 ms` |
+| Mouse yaw sensitivity | `0.2° / px` |
+| Mouse tilt sensitivity | `0.2° / px` |

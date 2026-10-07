@@ -4,7 +4,7 @@ Some Godot bits and bobs.
 
 ## Collection
 
-- [Strategy Camera](strategy_camera/README.md) — opinionated 3D strategy / city-builder camera with height-based zoom, unified panning, captured mouse controls, and zoom-aware tilt limits.
+- [Strategy Camera](strategy_camera/README.md) — 3D strategy / city-builder camera.
 
 ---
 
