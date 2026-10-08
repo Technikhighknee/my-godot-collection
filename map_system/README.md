@@ -101,7 +101,7 @@ if game_map == null:
     return;
 ```
 
-The loader returns a `GameMap`, which keeps the validated portable JSON together with its source path and loaded `TerrainHeightField`. That runtime context lets multiple consumers resolve map-relative assets without putting runtime paths into the JSON.
+The loader returns a `GameMap`, which keeps the validated portable JSON together with its source path and loaded `TerrainHeightField`. That runtime context lets multiple consumers resolve map-relative assets without putting runtime paths into the JSON. `res://` heightmaps are loaded through Godot's resource pipeline so they continue to work after export; external/runtime map files use direct image loading.
 
 `TerrainHeightField` is the shared terrain truth and exposes interpolated height, normal, and slope queries:
 
