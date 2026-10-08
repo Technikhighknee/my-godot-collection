@@ -34,6 +34,10 @@ def read_manifest(path: Path, key: str) -> object:
             f"Invalid JSON in {path} at line {exc.lineno}, column {exc.colno}: {exc.msg}"
         ) from exc
 
+    if key in {"files", "remove"}:
+        if not isinstance(data, dict) or "files" not in data or set(data) - {"files", "remove"}:
+            raise CopyError(f"{path}: expected 'files' and optional 'remove' only.")
+        return data.get(key, [])
     if not isinstance(data, dict) or set(data) != {key}:
         raise CopyError(f"{path}: expected exactly one key: {key!r}.")
 
@@ -125,6 +129,61 @@ def collect_files(repo: Path, packages: list[tuple[str, Path]]) -> list[FileCopy
             result.append(item)
 
     return result
+
+
+def collect_obsolete_files(
+    repo: Path, packages: list[tuple[str, Path]], planned: list[FileCopy]
+) -> list[Path]:
+    deployed = {item.destination.resolve(strict=False) for item in planned}
+    obsolete: list[Path] = []
+    seen: set[Path] = set()
+    for name, target in packages:
+        manifest = (repo / name / "manifest.json").resolve()
+        entries = read_manifest(manifest, "remove")
+        if not isinstance(entries, list):
+            raise CopyError(f"{manifest}: 'remove' must be an array.")
+        for entry in entries:
+            if (
+                not isinstance(entry, str)
+                or not entry.strip()
+                or "\\" in entry
+                or ":" in entry
+                or Path(entry).is_absolute()
+                or any(p in {"", ".", ".."} for p in entry.split("/"))
+            ):
+                raise CopyError(f"{manifest}: invalid obsolete path: {entry!r}")
+            candidate = target / entry
+            if candidate.is_symlink():
+                raise CopyError(f"Obsolete path is a symlink: {candidate}")
+            resolved = candidate.resolve(strict=False)
+            try:
+                resolved.relative_to(target.resolve())
+            except ValueError as exc:
+                raise CopyError(f"Obsolete path escapes target: {entry}") from exc
+            if resolved in deployed:
+                raise CopyError(f"Cannot remove a newly deployed file: {candidate}")
+            if resolved in seen:
+                raise CopyError(f"Duplicate obsolete path: {candidate}")
+            seen.add(resolved)
+            if candidate.exists():
+                if not candidate.is_file():
+                    raise CopyError(f"Obsolete path is not a file: {candidate}")
+                obsolete.append(candidate)
+    return obsolete
+
+
+def choose_removals(files: list[Path], yes: bool, display_base: Path) -> bool:
+    if not files or yes:
+        return True
+    print("Obsolete files from an older package layout:")
+    for item in files:
+        print(f"  {display_path(item, display_base)}")
+    try:
+        answer = input("Remove these files? [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer in {"y", "yes"}
 
 
 def classify(files: list[FileCopy]) -> tuple[list[FileCopy], list[FileCopy], list[FileCopy]]:
@@ -296,10 +355,12 @@ def run(argv: list[str] | None = None) -> int:
         packages = project_packages(manifest)
         display_base = manifest.parent
 
-    new, identical, changed = classify(collect_files(repo, packages))
+    planned = collect_files(repo, packages)
+    obsolete = collect_obsolete_files(repo, packages, planned)
+    new, identical, changed = classify(planned)
     overwrite = choose_overwrites(changed, args.yes, display_base)
 
-    if overwrite is None:
+    if overwrite is None or not choose_removals(obsolete, args.yes, display_base):
         print("Cancelled. No files were changed.")
         return 0
 

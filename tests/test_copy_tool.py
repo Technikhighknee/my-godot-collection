@@ -107,6 +107,48 @@ class CopyTests(unittest.TestCase):
         with self.assertRaises(copy_tool.CopyError):
             copy_tool.package_files(self.repo, "example", self.root / "target")
 
+    def test_nested_files_and_obsolete_cleanup(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        (target / "GameMap.gd").write_text("old", encoding="utf-8")
+        (self.package / "manifest.json").write_text(
+            json.dumps({"files": ["one.txt", "nested/two.bin"], "remove": ["GameMap.gd"]}),
+            encoding="utf-8",
+        )
+        planned = copy_tool.collect_files(self.repo, [("example", target)])
+        self.assertEqual(
+            copy_tool.collect_obsolete_files(self.repo, [("example", target)], planned),
+            [target / "GameMap.gd"],
+        )
+        with patch.object(copy_tool, "__file__", str(self.repo / "tools" / "deploy.py")):
+            self.assertEqual(copy_tool.run(["-y", "example", str(target)]), 0)
+        self.assertFalse((target / "GameMap.gd").exists())
+        self.assertEqual((target / "nested" / "two.bin").read_bytes(), bytes([0, 1, 2]))
+
+    def test_obsolete_cleanup_rejects_traversal(self) -> None:
+        (self.package / "manifest.json").write_text(
+            json.dumps({"files": ["one.txt"], "remove": ["../outside.txt"]}),
+            encoding="utf-8",
+        )
+        target = self.root / "target"
+        planned = copy_tool.collect_files(self.repo, [("example", target)])
+        with self.assertRaises(copy_tool.CopyError):
+            copy_tool.collect_obsolete_files(self.repo, [("example", target)], planned)
+
+    def test_obsolete_cleanup_can_be_cancelled(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        (target / "old.gd").write_text("keep", encoding="utf-8")
+        (self.package / "manifest.json").write_text(
+            json.dumps({"files": ["one.txt"], "remove": ["old.gd"]}),
+            encoding="utf-8",
+        )
+        with patch.object(copy_tool, "__file__", str(self.repo / "tools" / "deploy.py")):
+            with patch("builtins.input", return_value=""):
+                self.assertEqual(copy_tool.run(["example", str(target)]), 0)
+        self.assertTrue((target / "old.gd").exists())
+        self.assertFalse((target / "one.txt").exists())
+
     def test_duplicate_destinations_are_rejected(self) -> None:
         other = self.repo / "other"
         other.mkdir()
