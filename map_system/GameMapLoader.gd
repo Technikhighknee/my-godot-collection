@@ -3,21 +3,21 @@ extends RefCounted;
 
 
 const ROOT_KEYS := ["name", "terrain", "roads", "settlements", "buildings", "objects"];
-const TERRAIN_KEYS := ["size", "height"];
+const TERRAIN_KEYS := ["size", "heightmap", "min_height", "max_height"];
 const ROAD_KEYS := ["id", "width", "points"];
 const SETTLEMENT_KEYS := ["id", "name", "build_areas"];
 const ENTITY_KEYS := ["id", "definition", "position", "rotation"];
 
 
-static func load_file(path: String) -> Dictionary:
+static func load_file(path: String) -> GameMap:
 	if not FileAccess.file_exists(path):
 		push_error("Map file does not exist: %s" % path);
-		return {};
+		return null;
 
 	var file := FileAccess.open(path, FileAccess.READ);
 	if file == null:
 		push_error("Could not open map file: %s" % path);
-		return {};
+		return null;
 
 	var json := JSON.new();
 	var parse_error := json.parse(file.get_as_text());
@@ -27,20 +27,32 @@ static func load_file(path: String) -> Dictionary:
 			"Invalid JSON in %s at line %d: %s"
 			% [path, json.get_error_line(), json.get_error_message()]
 		);
-		return {};
+		return null;
 
 	if typeof(json.data) != TYPE_DICTIONARY:
 		push_error("Map root must be an object: %s" % path);
-		return {};
+		return null;
 
 	var map_data: Dictionary = json.data;
 	var errors := validate(map_data);
 
 	if not errors.is_empty():
 		push_error("Invalid map %s:\n- %s" % [path, "\n- ".join(errors)]);
-		return {};
+		return null;
 
-	return map_data.duplicate(true);
+	var terrain: Dictionary = map_data["terrain"];
+	var heightmap_path := path.get_base_dir().path_join(String(terrain["heightmap"]));
+	var height_field := TerrainHeightField.load_file(
+		heightmap_path,
+		_vec2(terrain["size"]),
+		float(terrain["min_height"]),
+		float(terrain["max_height"])
+	);
+	if height_field == null:
+		push_error("Could not load terrain heightmap for map: %s" % path);
+		return null;
+
+	return GameMap.new(map_data.duplicate(true), path, height_field);
 
 
 static func validate(map_data: Dictionary) -> PackedStringArray:
@@ -56,7 +68,7 @@ static func validate(map_data: Dictionary) -> PackedStringArray:
 		return errors;
 
 	var terrain: Dictionary = terrain_value;
-	_check_keys(terrain, ["size"], TERRAIN_KEYS, "map.terrain", errors);
+	_check_keys(terrain, TERRAIN_KEYS, TERRAIN_KEYS, "map.terrain", errors);
 
 	if not _is_vec2(terrain.get("size")):
 		errors.append("map.terrain.size must be [width, depth].");
@@ -66,8 +78,21 @@ static func validate(map_data: Dictionary) -> PackedStringArray:
 	if size.x <= 0.0 or size.y <= 0.0:
 		errors.append("map.terrain.size values must be greater than zero.");
 
-	if terrain.has("height") and not _is_number(terrain["height"]):
-		errors.append("map.terrain.height must be a number.");
+	if not _is_relative_png_path(terrain.get("heightmap")):
+		errors.append("map.terrain.heightmap must be a relative .png path without '.' or '..' segments.");
+
+	if not _is_number(terrain.get("min_height")):
+		errors.append("map.terrain.min_height must be a number.");
+
+	if not _is_number(terrain.get("max_height")):
+		errors.append("map.terrain.max_height must be a number.");
+
+	if (
+		_is_number(terrain.get("min_height"))
+		and _is_number(terrain.get("max_height"))
+		and float(terrain["max_height"]) <= float(terrain["min_height"])
+	):
+		errors.append("map.terrain.max_height must be greater than min_height.");
 
 	var ids := {};
 	_validate_roads(map_data.get("roads"), size, ids, errors);
@@ -276,6 +301,23 @@ static func _check_keys(
 	for key in value.keys():
 		if key not in allowed:
 			errors.append("%s contains unknown key: %s" % [path, key]);
+
+
+static func _is_relative_png_path(value: Variant) -> bool:
+	if not _is_non_empty_string(value):
+		return false;
+
+	var path := String(value);
+	if path.contains("\\") or path.begins_with("/") or path.contains(":"):
+		return false;
+	if not path.to_lower().ends_with(".png"):
+		return false;
+
+	for segment in path.split("/"):
+		if segment.is_empty() or segment == "." or segment == "..":
+			return false;
+
+	return true;
 
 
 static func _is_non_empty_string(value: Variant) -> bool:
