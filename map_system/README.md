@@ -72,7 +72,7 @@ There is deliberately no editor code in this package.
 }
 ```
 
-All road, settlement, building, and object IDs share one namespace and must be unique inside the map. A road `definition` describes its game-facing type (for example paving, movement rules, or later material lookup); `width` remains per-road map geometry.
+All road, settlement, water, building, and object IDs share one namespace and must be unique inside the map. A road `definition` describes its game-facing type (for example paving, movement rules, or later material lookup); `width` remains per-road map geometry.
 
 `size` defines the X/Z world extent. `heightmap` is a PNG path relative to the map JSON; map files therefore remain portable and contain no Godot resource paths. Pixel values are normalized from `min_height` to `max_height`.
 
@@ -92,6 +92,7 @@ Validation currently rejects:
 - zero/negative road widths;
 - degenerate roads;
 - invalid build-area polygons;
+- malformed water polygons;
 - malformed building/object placements.
 
 ```gdscript
@@ -193,7 +194,7 @@ Placement currently checks:
 - when road access is required, the transformed entrance is close enough to the nearest road edge;
 - when `max_slope` is present, the terrain under the footprint stays within that slope.
 
-Successful checks also return `ground_height` at the building origin and the maximum sampled `terrain_slope` under its footprint.
+Successful checks also return `ground_height` at the building origin and the maximum sampled `terrain_slope` under its footprint. Placement results keep stable `water_id` and `road_id` fields; overlap failures populate the relevant one.
 
 Road rendering and road exclusion both derive their area from the same centerline + width data using Godot's `Geometry2D`, so they do not have competing interpretations of road width. For rendering, that exact road polygon is clipped against the terrain triangle grid before being lifted onto the height field. Long road segments therefore conform to the terrain instead of spanning hills or valleys as a few large triangles.
 
