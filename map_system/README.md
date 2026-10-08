@@ -1,0 +1,181 @@
+# Map System
+
+An opinionated map foundation for a Guild-like 3D game in Godot 4.
+
+The map describes the physical world at the start of a new game. After that, runtime/save state owns what happens to it.
+
+The core rules are intentionally small:
+
+- Maps are portable JSON, not Godot scenes or resources.
+- Map coordinates are `[x, z]` world coordinates.
+- Rotation is stored in degrees and applied as Y rotation in Godot.
+- Roads are center-line polylines with a width.
+- Settlements own one or more build-area polygons.
+- Preplaced buildings are normal game buildings. The map only says which definition exists where at game start.
+- The same `BuildingPlacement` logic is intended for player and AI construction.
+- Definition IDs are semantic IDs. A map never contains `res://` paths.
+
+There is deliberately no editor code in this package.
+
+## Map format
+
+```json
+{
+  "name": "Lübeck",
+  "terrain": {
+    "size": [1200, 900],
+    "height": 0
+  },
+  "roads": [
+    {
+      "id": "road_market_north",
+      "width": 5,
+      "points": [[400, 300], [430, 340], [470, 355]]
+    }
+  ],
+  "settlements": [
+    {
+      "id": "luebeck",
+      "name": "Lübeck",
+      "build_areas": [
+        [[320, 290], [690, 300], [720, 610], [300, 590]]
+      ]
+    }
+  ],
+  "buildings": [
+    {
+      "id": "blacksmith_01",
+      "definition": "building.blacksmith",
+      "position": [430, 395],
+      "rotation": 12
+    }
+  ],
+  "objects": [
+    {
+      "id": "market_well",
+      "definition": "object.well",
+      "position": [500, 440],
+      "rotation": 0
+    }
+  ]
+}
+```
+
+All road, settlement, building, and object IDs share one namespace and must be unique inside the map.
+
+The current terrain is intentionally flat: `size` defines the X/Z extent and `height` its Y position. Heightmap terrain should be added when the game actually needs it, rather than baking a speculative terrain pipeline into the format now.
+
+## Loading
+
+`GameMapLoader.load_file(path)` parses and structurally validates the map. Invalid maps return an empty dictionary and report the concrete validation errors.
+
+Validation currently rejects:
+
+- missing or unknown fields;
+- duplicate IDs;
+- points outside terrain bounds;
+- zero/negative road widths;
+- degenerate roads;
+- invalid build-area polygons;
+- malformed building/object placements.
+
+```gdscript
+var map := GameMapLoader.load_file("res://maps/luebeck.map.json");
+if map.is_empty():
+    return;
+```
+
+## Building the initial world
+
+`GameMapBuilder` owns map geometry: flat terrain, terrain collision, and road meshes.
+
+It does **not** own a building registry. Instead, the game supplies two tiny spawner callbacks. That keeps definition lookup and the actual gameplay entities outside the map package.
+
+```gdscript
+func spawn_building(definition_id: String, _entry: Dictionary) -> Node3D:
+    return building_catalog.instantiate(definition_id);
+
+func spawn_object(definition_id: String, _entry: Dictionary) -> Node3D:
+    return object_catalog.instantiate(definition_id);
+
+var root := GameMapBuilder.build(
+    map,
+    self,
+    spawn_building,
+    spawn_object
+);
+```
+
+The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root.
+
+This means a preplaced `building.blacksmith` can be instantiated through the same catalog/factory that player or AI construction uses. There is no special "map building" type.
+
+The builder constructs the complete map subtree before attaching it to `parent`. A failed road build or entity spawn therefore does not leave a half-built map in the scene tree.
+
+## Runtime building placement
+
+`BuildingPlacement.check(...)` contains the geometry rules needed to decide whether a normal building can be placed.
+
+A minimal building definition for placement looks like this:
+
+```gdscript
+{
+    "footprint": [8.0, 12.0],
+    "requires_build_area": true,
+    "entrance": [0.0, 6.0],
+    "max_road_distance": 10.0,
+}
+```
+
+Only `footprint` is mandatory. If `max_road_distance` is present, `entrance` is mandatory too. Buildings without `max_road_distance` do not require road access. `requires_build_area` defaults to `true`, so rural/special buildings can explicitly opt out.
+
+```gdscript
+var result := BuildingPlacement.check(
+    map,
+    definition,
+    Vector2(430, 395),
+    12.0,
+    occupied_buildings
+);
+
+if result.valid:
+    print("Can build in: ", result.settlement_id);
+else:
+    print("Cannot build: ", result.reason);
+```
+
+`occupied_buildings` contains only the geometry needed for collision checks:
+
+```gdscript
+[
+    {
+        "id": "blacksmith_01",
+        "position": [430, 395],
+        "rotation": 12,
+        "footprint": [8, 12]
+    }
+]
+```
+
+Placement currently checks:
+
+- the entire rotated footprint stays inside the map;
+- the entire footprint fits inside a settlement build area unless the definition opts out;
+- the footprint does not overlap a road;
+- the footprint does not overlap an occupied building;
+- when road access is required, the transformed entrance is close enough to the nearest road edge.
+
+Road rendering and road exclusion both derive their area from the same centerline + width data using Godot's `Geometry2D`, so they do not have competing interpretations of road width.
+
+## What is intentionally not here
+
+- No map editor.
+- No Godot editor plugin.
+- No second representation of preplaced buildings.
+- No save-game state in map files.
+- No `res://` paths in map files.
+- No map-version migration machinery while there are no released consumers to migrate.
+- No generic feature/component/factory hierarchy.
+- No speculative heightmap, chunking, biome, or terrain-layer architecture.
+
+The format can grow when the game proves it needs another concept.
