@@ -113,29 +113,39 @@ static func check(
 static func _max_terrain_slope(
 	height_field: TerrainHeightField,
 	footprint: PackedVector2Array,
-	center: Vector2
+	_center: Vector2
 ) -> float:
-	var max_slope := height_field.slope_at(center);
-	for point in footprint:
-		max_slope = maxf(max_slope, height_field.slope_at(point));
-
 	var bounds := _polygon_bounds(footprint);
 	var samples := height_field.get_sample_count();
-	var world_size := height_field.get_world_size();
-	var step := Vector2(
-		world_size.x / float(samples.x - 1),
-		world_size.y / float(samples.y - 1)
-	);
-	var min_x := maxi(0, int(ceil(bounds.position.x / step.x)));
-	var max_x := mini(samples.x - 1, int(floor(bounds.end.x / step.x)));
-	var min_z := maxi(0, int(ceil(bounds.position.y / step.y)));
-	var max_z := mini(samples.y - 1, int(floor(bounds.end.y / step.y)));
+	var spacing := height_field.get_sample_spacing();
+	var min_x := clampi(int(floor(bounds.position.x / spacing.x)), 0, samples.x - 2);
+	var max_x := clampi(int(floor(bounds.end.x / spacing.x)), 0, samples.x - 2);
+	var min_z := clampi(int(floor(bounds.position.y / spacing.y)), 0, samples.y - 2);
+	var max_z := clampi(int(floor(bounds.end.y / spacing.y)), 0, samples.y - 2);
+	var max_slope := 0.0;
 
 	for z in range(min_z, max_z + 1):
+		var z0 := float(z) * spacing.y;
+		var z1 := float(z + 1) * spacing.y;
+
 		for x in range(min_x, max_x + 1):
-			var point := Vector2(float(x) * step.x, float(z) * step.y);
-			if Geometry2D.is_point_in_polygon(point, footprint):
-				max_slope = maxf(max_slope, height_field.slope_at(point));
+			var x0 := float(x) * spacing.x;
+			var x1 := float(x + 1) * spacing.x;
+			var top_left := Vector2(x0, z0);
+			var top_right := Vector2(x1, z0);
+			var bottom_left := Vector2(x0, z1);
+			var bottom_right := Vector2(x1, z1);
+			var terrain_triangles := [
+				PackedVector2Array([top_left, bottom_left, top_right]),
+				PackedVector2Array([top_right, bottom_left, bottom_right]),
+			];
+
+			for triangle in terrain_triangles:
+				if Geometry2D.intersect_polygons(footprint, triangle).is_empty():
+					continue;
+
+				var centroid := (triangle[0] + triangle[1] + triangle[2]) / 3.0;
+				max_slope = maxf(max_slope, height_field.slope_at(centroid));
 
 	return max_slope;
 
