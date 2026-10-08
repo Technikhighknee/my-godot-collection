@@ -55,7 +55,7 @@ static func check(
 	if not blocking_building.is_empty():
 		return _invalid(&"overlaps_building", {"building_id": blocking_building});
 
-	var terrain_slope := _max_terrain_slope(game_map.terrain, footprint, position);
+	var terrain_slope := _max_terrain_slope(game_map.terrain, footprint);
 	if definition.has("max_slope"):
 		var max_slope_value: Variant = definition["max_slope"];
 		if (
@@ -117,8 +117,7 @@ static func check(
 
 static func _max_terrain_slope(
 	height_field: TerrainHeightField,
-	footprint: PackedVector2Array,
-	_center: Vector2
+	footprint: PackedVector2Array
 ) -> float:
 	var max_slope := 0.0;
 
