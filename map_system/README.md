@@ -69,7 +69,7 @@ All road, settlement, building, and object IDs share one namespace and must be u
 
 Use 16-bit grayscale PNG heightmaps for production maps. Lower-bit-depth PNGs can be loaded by Godot but reduce terrain precision. The heightmap resolution controls sample density independently of world size: a 601×451 image can describe a 1200×900 world without implying one pixel per meter.
 
-The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to `[size.x, size.z]`. Runtime height queries are bilinearly interpolated.
+The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to `[size.x, size.z]`. Runtime height queries use the same two-triangle split as the rendered terrain mesh, so queried heights, terrain collision geometry, road surfaces, and placed entities agree on the actual ground surface.
 
 ## Loading
 
@@ -185,7 +185,7 @@ Placement currently checks:
 
 Successful checks also return `ground_height` at the building origin and the maximum sampled `terrain_slope` under its footprint.
 
-Road rendering and road exclusion both derive their area from the same centerline + width data using Godot's `Geometry2D`, so they do not have competing interpretations of road width.
+Road rendering and road exclusion both derive their area from the same centerline + width data using Godot's `Geometry2D`, so they do not have competing interpretations of road width. For rendering, that exact road polygon is clipped against the terrain triangle grid before being lifted onto the height field. Long road segments therefore conform to the terrain instead of spanning hills or valleys as a few large triangles.
 
 ## What is intentionally not here
 
