@@ -3,19 +3,23 @@ extends RefCounted;
 
 
 const ROAD_Y_OFFSET := 0.02;
-const TERRAIN_COLLISION_DEPTH := 0.2;
 
 
 static func build(
-	map_data: Dictionary,
+	game_map: GameMap,
 	parent: Node3D,
 	building_spawner: Callable = Callable(),
 	object_spawner: Callable = Callable()
 ) -> Node3D:
+	if game_map == null:
+		push_error("GameMapBuilder requires a loaded GameMap.");
+		return null;
+
 	if parent == null:
 		push_error("GameMapBuilder requires a parent Node3D.");
 		return null;
 
+	var map_data := game_map.data;
 	var errors := GameMapLoader.validate(map_data);
 	if not errors.is_empty():
 		push_error("Cannot build invalid map:\n- %s" % "\n- ".join(errors));
@@ -29,16 +33,16 @@ static func build(
 		push_error("Map contains objects, but no object spawner was provided.");
 		return null;
 
-	var terrain: Dictionary = map_data["terrain"];
-	var map_size := _vec2(terrain["size"]);
-	var height := float(terrain.get("height", 0.0));
-
 	var root := Node3D.new();
 	root.name = "Map";
 
-	root.add_child(_build_terrain(map_size, height));
+	var terrain := _build_terrain(game_map.terrain);
+	if terrain == null:
+		root.free();
+		return null;
+	root.add_child(terrain);
 
-	var roads := _build_roads(map_data["roads"], height);
+	var roads := _build_roads(map_data["roads"], game_map.terrain);
 	if roads == null:
 		root.free();
 		return null;
@@ -47,14 +51,26 @@ static func build(
 	var buildings := Node3D.new();
 	buildings.name = "Buildings";
 	root.add_child(buildings);
-	if not _spawn_entries(map_data["buildings"], buildings, building_spawner, height, "building"):
+	if not _spawn_entries(
+		map_data["buildings"],
+		buildings,
+		building_spawner,
+		game_map.terrain,
+		"building"
+	):
 		root.free();
 		return null;
 
 	var objects := Node3D.new();
 	objects.name = "Objects";
 	root.add_child(objects);
-	if not _spawn_entries(map_data["objects"], objects, object_spawner, height, "object"):
+	if not _spawn_entries(
+		map_data["objects"],
+		objects,
+		object_spawner,
+		game_map.terrain,
+		"object"
+	):
 		root.free();
 		return null;
 
@@ -62,40 +78,67 @@ static func build(
 	return root;
 
 
-static func _build_terrain(size: Vector2, height: float) -> Node3D:
+static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
+	var size := height_field.get_world_size();
+	var samples := height_field.get_sample_count();
+	var surface := SurfaceTool.new();
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES);
+
+	for z in range(samples.y):
+		var z_ratio := float(z) / float(samples.y - 1);
+		var world_z := z_ratio * size.y;
+		for x in range(samples.x):
+			var x_ratio := float(x) / float(samples.x - 1);
+			var world_x := x_ratio * size.x;
+			var position_2d := Vector2(world_x, world_z);
+			surface.set_uv(Vector2(x_ratio, z_ratio));
+			surface.set_normal(height_field.normal_at(position_2d));
+			surface.add_vertex(Vector3(
+				world_x,
+				height_field.height_at_sample(x, z),
+				world_z
+			));
+
+	for z in range(samples.y - 1):
+		for x in range(samples.x - 1):
+			var top_left := z * samples.x + x;
+			var top_right := top_left + 1;
+			var bottom_left := top_left + samples.x;
+			var bottom_right := bottom_left + 1;
+
+			surface.add_index(top_left);
+			surface.add_index(bottom_left);
+			surface.add_index(top_right);
+
+			surface.add_index(top_right);
+			surface.add_index(bottom_left);
+			surface.add_index(bottom_right);
+
+	var mesh := surface.commit();
+	if mesh == null:
+		push_error("Could not build terrain mesh.");
+		return null;
+
 	var root := Node3D.new();
 	root.name = "Terrain";
-
-	var mesh := PlaneMesh.new();
-	mesh.size = size;
 
 	var visual := MeshInstance3D.new();
 	visual.name = "Surface";
 	visual.mesh = mesh;
-	visual.position = Vector3(size.x * 0.5, height, size.y * 0.5);
 	visual.material_override = _material(Color(0.32, 0.36, 0.28));
 	root.add_child(visual);
 
 	var body := StaticBody3D.new();
 	body.name = "Collision";
-	body.position = Vector3(
-		size.x * 0.5,
-		height - TERRAIN_COLLISION_DEPTH * 0.5,
-		size.y * 0.5
-	);
-
-	var shape := BoxShape3D.new();
-	shape.size = Vector3(size.x, TERRAIN_COLLISION_DEPTH, size.y);
-
 	var collision := CollisionShape3D.new();
-	collision.shape = shape;
+	collision.shape = mesh.create_trimesh_shape();
 	body.add_child(collision);
 	root.add_child(body);
 
 	return root;
 
 
-static func _build_roads(entries: Array, height: float) -> Node3D:
+static func _build_roads(entries: Array, height_field: TerrainHeightField) -> Node3D:
 	var root := Node3D.new();
 	root.name = "Roads";
 
@@ -130,8 +173,12 @@ static func _build_roads(entries: Array, height: float) -> Node3D:
 				for offset in [0, 2, 1]:
 					var vertex_index := triangles[triangle_index + offset];
 					var point: Vector2 = polygon[vertex_index];
-					surface.set_normal(Vector3.UP);
-					surface.add_vertex(Vector3(point.x, height + ROAD_Y_OFFSET, point.y));
+					surface.set_normal(height_field.normal_at(point));
+					surface.add_vertex(Vector3(
+						point.x,
+						height_field.height_at(point) + ROAD_Y_OFFSET,
+						point.y
+					));
 
 		var mesh_instance := MeshInstance3D.new();
 		mesh_instance.name = String(road["id"]);
@@ -146,7 +193,7 @@ static func _spawn_entries(
 	entries: Array,
 	container: Node3D,
 	spawner: Callable,
-	height: float,
+	height_field: TerrainHeightField,
 	kind: String
 ) -> bool:
 	for value in entries:
@@ -170,7 +217,11 @@ static func _spawn_entries(
 
 		var position := _vec2(entry["position"]);
 		node.name = String(entry["id"]);
-		node.position = Vector3(position.x, height, position.y);
+		node.position = Vector3(
+			position.x,
+			height_field.height_at(position),
+			position.y
+		);
 		node.rotation.y = deg_to_rad(float(entry["rotation"]));
 		container.add_child(node);
 

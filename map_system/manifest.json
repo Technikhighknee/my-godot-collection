@@ -6,6 +6,7 @@
     "GameMapBuilder.gd",
     "BuildingPlacement.gd",
     "README.md",
-    "example.map.json"
+    "example.map.json",
+    "example.height.png"
   ]
 }

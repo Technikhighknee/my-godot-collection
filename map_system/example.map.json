@@ -5,7 +5,9 @@
       240,
       180
     ],
-    "height": 0
+    "heightmap": "example.height.png",
+    "min_height": -4,
+    "max_height": 28
   },
   "roads": [
     {
