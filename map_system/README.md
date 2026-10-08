@@ -11,6 +11,7 @@ The core rules are intentionally small:
 - Rotation is stored in degrees and applied as Y rotation in Godot.
 - Roads are center-line polylines with a width and a semantic definition ID.
 - Settlements own one or more build-area polygons.
+- Water is represented explicitly as flat polygons with a world-space height.
 - Preplaced buildings are normal game buildings. The map only says which definition exists where at game start.
 - The same `BuildingPlacement` logic is intended for player and AI construction.
 - Definition IDs are semantic IDs for game content such as buildings, objects, and road types. A map never contains `res://` paths.
@@ -179,6 +180,7 @@ Placement currently checks:
 
 - the entire rotated footprint stays inside the map;
 - the entire footprint fits inside a settlement build area unless the definition opts out;
+- the footprint does not overlap water;
 - the footprint does not overlap a road;
 - the footprint does not overlap an occupied building;
 - when road access is required, the transformed entrance is close enough to the nearest road edge;
@@ -193,6 +195,7 @@ Road rendering and road exclusion both derive their area from the same centerlin
 - No map editor.
 - No Godot editor plugin.
 - No second representation of preplaced buildings.
+- No attempt to infer water from terrain height.
 - No save-game state in map files.
 - No `res://` paths in map files.
 - No map-version migration machinery while there are no released consumers to migrate.

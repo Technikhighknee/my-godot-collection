@@ -2,10 +2,11 @@ class_name GameMapLoader
 extends RefCounted;
 
 
-const ROOT_KEYS := ["name", "terrain", "roads", "settlements", "buildings", "objects"];
+const ROOT_KEYS := ["name", "terrain", "roads", "settlements", "water", "buildings", "objects"];
 const TERRAIN_KEYS := ["size", "heightmap", "min_height", "max_height"];
 const ROAD_KEYS := ["id", "definition", "width", "points"];
 const SETTLEMENT_KEYS := ["id", "name", "build_areas"];
+const WATER_KEYS := ["id", "height", "polygon"];
 const ENTITY_KEYS := ["id", "definition", "position", "rotation"];
 
 
@@ -97,6 +98,7 @@ static func validate(map_data: Dictionary) -> PackedStringArray:
 	var ids := {};
 	_validate_roads(map_data.get("roads"), size, ids, errors);
 	_validate_settlements(map_data.get("settlements"), size, ids, errors);
+	_validate_water(map_data.get("water"), size, ids, errors);
 	_validate_entities(map_data.get("buildings"), "buildings", size, ids, errors);
 	_validate_entities(map_data.get("objects"), "objects", size, ids, errors);
 
@@ -219,6 +221,55 @@ static func _validate_settlements(
 
 			if valid_points and Geometry2D.triangulate_polygon(polygon).is_empty():
 				errors.append("%s must be a valid, non-self-intersecting polygon." % area_path);
+
+
+static func _validate_water(
+	value: Variant,
+	map_size: Vector2,
+	ids: Dictionary,
+	errors: PackedStringArray
+) -> void:
+	if typeof(value) != TYPE_ARRAY:
+		errors.append("map.water must be an array.");
+		return;
+
+	var entries: Array = value;
+	for index in range(entries.size()):
+		var path := "map.water[%d]" % index;
+		var entry_value: Variant = entries[index];
+
+		if typeof(entry_value) != TYPE_DICTIONARY:
+			errors.append("%s must be an object." % path);
+			continue;
+
+		var entry: Dictionary = entry_value;
+		_check_keys(entry, WATER_KEYS, WATER_KEYS, path, errors);
+		_register_id(entry.get("id"), path, ids, errors);
+
+		if not _is_number(entry.get("height")):
+			errors.append("%s.height must be a number." % path);
+
+		var polygon_value: Variant = entry.get("polygon");
+		if typeof(polygon_value) != TYPE_ARRAY:
+			errors.append("%s.polygon must be an array of points." % path);
+			continue;
+
+		var polygon_points: Array = polygon_value;
+		if polygon_points.size() < 3:
+			errors.append("%s.polygon must contain at least three points." % path);
+			continue;
+
+		var polygon := PackedVector2Array();
+		var valid_points := true;
+		for point_index in range(polygon_points.size()):
+			var point_path := "%s.polygon[%d]" % [path, point_index];
+			if not _validate_map_point(polygon_points[point_index], map_size, point_path, errors):
+				valid_points = false;
+				continue;
+			polygon.append(_vec2(polygon_points[point_index]));
+
+		if valid_points and Geometry2D.triangulate_polygon(polygon).is_empty():
+			errors.append("%s.polygon must be a valid, non-self-intersecting polygon." % path);
 
 
 static func _validate_entities(

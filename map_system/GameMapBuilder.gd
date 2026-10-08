@@ -48,6 +48,12 @@ static func build(
 		return null;
 	root.add_child(roads);
 
+	var water := _build_water(map_data["water"]);
+	if water == null:
+		root.free();
+		return null;
+	root.add_child(water);
+
 	var buildings := Node3D.new();
 	buildings.name = "Buildings";
 	root.add_child(buildings);
@@ -275,6 +281,53 @@ static func _polygon_bounds(polygon: PackedVector2Array) -> Rect2:
 		max_point.y = maxf(max_point.y, point.y);
 
 	return Rect2(min_point, max_point - min_point);
+
+
+static func _build_water(entries: Array) -> Node3D:
+	var root := Node3D.new();
+	root.name = "Water";
+
+	for value in entries:
+		var entry: Dictionary = value;
+		var polygon := _polygon(entry["polygon"]);
+		var indices := Geometry2D.triangulate_polygon(polygon);
+		if indices.is_empty():
+			push_error("Could not triangulate water geometry: %s" % entry["id"]);
+			root.free();
+			return null;
+
+		var surface := SurfaceTool.new();
+		surface.begin(Mesh.PRIMITIVE_TRIANGLES);
+		var height := float(entry["height"]);
+
+		for index in range(0, indices.size(), 3):
+			var points := [
+				polygon[indices[index]],
+				polygon[indices[index + 1]],
+				polygon[indices[index + 2]],
+			];
+			var vertices := [
+				Vector3(points[0].x, height, points[0].y),
+				Vector3(points[1].x, height, points[1].y),
+				Vector3(points[2].x, height, points[2].y),
+			];
+			var normal: Vector3 = (vertices[1] - vertices[0]).cross(vertices[2] - vertices[0]);
+			if normal.y < 0.0:
+				var swap: Vector3 = vertices[1];
+				vertices[1] = vertices[2];
+				vertices[2] = swap;
+
+			for vertex in vertices:
+				surface.set_normal(Vector3.UP);
+				surface.add_vertex(vertex);
+
+		var mesh_instance := MeshInstance3D.new();
+		mesh_instance.name = String(entry["id"]);
+		mesh_instance.mesh = surface.commit();
+		mesh_instance.material_override = _material(Color(0.16, 0.35, 0.48));
+		root.add_child(mesh_instance);
+
+	return root;
 
 
 static func _spawn_entries(

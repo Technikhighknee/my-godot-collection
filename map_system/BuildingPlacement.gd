@@ -39,6 +39,10 @@ static func check(
 		if settlement_id.is_empty():
 			return _invalid(&"outside_build_area");
 
+	var blocking_water := _overlapping_water(map_data, footprint);
+	if not blocking_water.is_empty():
+		return _invalid(&"overlaps_water", {"water_id": blocking_water});
+
 	var blocking_road := _overlapping_road(map_data, footprint);
 	if not blocking_road.is_empty():
 		return _invalid(&"overlaps_road", {"road_id": blocking_road});
@@ -168,6 +172,16 @@ static func _find_settlement(map_data: Dictionary, footprint: PackedVector2Array
 			var area := _polygon(area_value);
 			if _contains_polygon(area, footprint):
 				return String(settlement["id"]);
+
+	return "";
+
+
+static func _overlapping_water(map_data: Dictionary, footprint: PackedVector2Array) -> String:
+	for value in map_data.get("water", []):
+		var water: Dictionary = value;
+		var polygon := _polygon(water["polygon"]);
+		if not Geometry2D.intersect_polygons(footprint, polygon).is_empty():
+			return String(water["id"]);
 
 	return "";
 
