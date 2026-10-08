@@ -149,6 +149,33 @@ class CopyTests(unittest.TestCase):
         self.assertTrue((target / "old.gd").exists())
         self.assertFalse((target / "one.txt").exists())
 
+    def test_current_map_package_has_valid_nested_deployment_paths(self) -> None:
+        repo = SCRIPT.parent.parent
+        target = self.root / "map-target"
+        planned = copy_tool.collect_files(repo, [("map_system", target)])
+        obsolete = copy_tool.collect_obsolete_files(
+            repo, [("map_system", target)], planned
+        )
+
+        self.assertFalse(obsolete)
+        destinations = {item.destination.relative_to(target).as_posix() for item in planned}
+        self.assertIn("core/GameMapLoader.gd", destinations)
+        self.assertIn("rendering/GameMapBuilder.gd", destinations)
+        self.assertIn("assets/example.height.exr", destinations)
+        self.assertIn("assets/example.surface.png", destinations)
+        self.assertIn("example.map.json", destinations)
+        self.assertNotIn("GameMapLoader.gd", destinations)
+
+    def test_removal_cannot_target_a_deployed_file(self) -> None:
+        (self.package / "manifest.json").write_text(
+            json.dumps({"files": ["one.txt"], "remove": ["one.txt"]}),
+            encoding="utf-8",
+        )
+        target = self.root / "target"
+        planned = copy_tool.collect_files(self.repo, [("example", target)])
+        with self.assertRaises(copy_tool.CopyError):
+            copy_tool.collect_obsolete_files(self.repo, [("example", target)], planned)
+
     def test_duplicate_destinations_are_rejected(self) -> None:
         other = self.repo / "other"
         other.mkdir()
