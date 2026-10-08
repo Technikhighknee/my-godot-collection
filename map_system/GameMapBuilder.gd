@@ -3,7 +3,6 @@ extends RefCounted;
 
 
 const ROAD_Y_OFFSET := 0.02;
-const ROAD_DEBUG_EDGE_FADE := 0.75;
 
 
 static func build(
@@ -348,7 +347,7 @@ static func _resolve_material(
 	if kind == "terrain":
 		return _material(_debug_terrain_color(debug_index));
 	if kind == "road":
-		return _debug_road_material();
+		return _material(Color(0.26, 0.23, 0.20));
 	return _material(Color(0.16, 0.35, 0.48));
 
 
@@ -364,10 +363,9 @@ static func _build_roads(
 		var road: Dictionary = value;
 		var centerline := _polygon(road["points"]);
 		var half_width := float(road["width"]) * 0.5;
-		var edge_fade := ROAD_DEBUG_EDGE_FADE if not material_provider.is_valid() else 0.0;
 		var polygons := Geometry2D.offset_polyline(
 			centerline,
-			half_width + edge_fade,
+			half_width,
 			Geometry2D.JOIN_MITER,
 			Geometry2D.END_SQUARE
 		);
@@ -385,10 +383,7 @@ static func _build_roads(
 			triangle_count += _emit_terrain_conforming_road(
 				surface,
 				polygon,
-				height_field,
-				centerline,
-				half_width,
-				edge_fade
+				height_field
 			);
 
 		if triangle_count == 0:
@@ -417,10 +412,7 @@ static func _build_roads(
 static func _emit_terrain_conforming_road(
 	surface: SurfaceTool,
 	road_polygon: PackedVector2Array,
-	height_field: TerrainHeightField,
-	centerline: PackedVector2Array,
-	half_width: float,
-	edge_fade: float
+	height_field: TerrainHeightField
 ) -> int:
 	var triangle_count := 0;
 
@@ -432,10 +424,7 @@ static func _emit_terrain_conforming_road(
 				clipped[indices[index]],
 				clipped[indices[index + 1]],
 				clipped[indices[index + 2]],
-				height_field,
-				centerline,
-				half_width,
-				edge_fade
+				height_field
 			):
 				triangle_count += 1;
 
@@ -447,10 +436,7 @@ static func _emit_road_triangle(
 	a: Vector2,
 	b: Vector2,
 	c: Vector2,
-	height_field: TerrainHeightField,
-	centerline: PackedVector2Array,
-	half_width: float,
-	edge_fade: float
+	height_field: TerrainHeightField
 ) -> bool:
 	var a3 := Vector3(a.x, height_field.height_at(a) + ROAD_Y_OFFSET, a.y);
 	var b3 := Vector3(b.x, height_field.height_at(b) + ROAD_Y_OFFSET, b.y);
@@ -470,36 +456,11 @@ static func _emit_road_triangle(
 
 	var shading_normal := -normal.normalized();
 	for vertex in [a3, b3, c3]:
-		if edge_fade > 0.0:
-			var point := Vector2(vertex.x, vertex.z);
-			var distance := _distance_to_polyline(point, centerline);
-			var alpha := 1.0 - smoothstep(half_width, half_width + edge_fade, distance);
-			surface.set_color(Color(0.26, 0.23, 0.20, alpha));
 		surface.set_uv(Vector2(vertex.x, vertex.z));
 		surface.set_normal(shading_normal);
 		surface.add_vertex(vertex);
 
 	return true;
-
-
-static func _distance_to_polyline(point: Vector2, centerline: PackedVector2Array) -> float:
-	var nearest := INF;
-	for index in range(centerline.size() - 1):
-		var closest := Geometry2D.get_closest_point_to_segment(
-			point,
-			centerline[index],
-			centerline[index + 1]
-		);
-		nearest = minf(nearest, point.distance_to(closest));
-	return nearest;
-
-
-static func _debug_road_material() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new();
-	material.vertex_color_use_as_albedo = true;
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA;
-	material.roughness = 1.0;
-	return material;
 
 
 static func _build_water(entries: Array, material_provider: Callable) -> Node3D:
