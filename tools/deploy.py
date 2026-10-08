@@ -166,12 +166,12 @@ def _plans(repo: Path, specs: list[tuple[str, Path, Path | None]]) -> list[tuple
     return result
 
 
-def _stage(files: list[FileCopy], parent: Path) -> Path:
-    parent.mkdir(parents=True, exist_ok=True)
-    stage = Path(tempfile.mkdtemp(prefix=".deploy-stage-", dir=parent))
+def _stage(files: list[FileCopy], target: Path) -> Path:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    stage = Path(tempfile.mkdtemp(prefix=".deploy-stage-", dir=target.parent))
     try:
         for item in files:
-            relative = item.destination.relative_to(parent / item.destination.relative_to(parent).parts[0])
+            relative = item.destination.relative_to(target)
             output = stage / relative
             output.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(item.source, output)
@@ -201,7 +201,7 @@ def _install(plans: list[tuple[str, Path, Path | None, list[FileCopy]]], yes: bo
     installed: list[Path] = []
     try:
         for _, target, _, files in plans:
-            stages[target] = _stage(files, target.parent)
+            stages[target] = _stage(files, target)
         # Every existing folder gets a complete off-project backup BEFORE the first swap.
         for _, target, old, _ in plans:
             for folder in [target, old]:
