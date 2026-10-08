@@ -7,6 +7,6 @@
     "BuildingPlacement.gd",
     "README.md",
     "example.map.json",
-    "example.height.png"
+    "example.height.exr"
   ]
 }

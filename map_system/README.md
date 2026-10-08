@@ -25,7 +25,7 @@ There is deliberately no editor code in this package.
   "name": "Lübeck",
   "terrain": {
     "size": [1200, 900],
-    "heightmap": "terrain.height.png",
+    "heightmap": "terrain.height.exr",
     "min_height": -5,
     "max_height": 85
   },
@@ -74,9 +74,9 @@ There is deliberately no editor code in this package.
 
 All road, settlement, water, building, and object IDs share one namespace and must be unique inside the map. A road `definition` describes its game-facing type (for example paving, movement rules, or later material lookup); `width` remains per-road map geometry.
 
-`size` defines the X/Z world extent. `heightmap` is a PNG path relative to the map JSON; map files therefore remain portable and contain no Godot resource paths. Pixel values are normalized from `min_height` to `max_height`.
+`size` defines the X/Z world extent. `heightmap` is an EXR path relative to the map JSON; map files therefore remain portable and contain no Godot resource paths. Pixel values are normalized from `min_height` to `max_height`.
 
-Use 16-bit grayscale PNG heightmaps for production maps. Lower-bit-depth PNGs can be loaded by Godot but reduce terrain precision. The heightmap resolution controls sample density independently of world size: a 601×451 image can describe a 1200×900 world without implying one pixel per meter.
+Use single-channel floating-point EXR heightmaps. Height data stays high precision instead of being quantized through an 8-bit image import path. The heightmap resolution controls sample density independently of world size: a 601×451 image can describe a 1200×900 world without implying one pixel per meter.
 
 The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to `[size.x, size.z]`. Runtime height queries use the same two-triangle split as the rendered terrain mesh, so queried heights, terrain collision geometry, road surfaces, and placed entities agree on the actual ground surface.
 

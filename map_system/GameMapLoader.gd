@@ -79,8 +79,8 @@ static func validate(map_data: Dictionary) -> PackedStringArray:
 	if size.x <= 0.0 or size.y <= 0.0:
 		errors.append("map.terrain.size values must be greater than zero.");
 
-	if not _is_relative_png_path(terrain.get("heightmap")):
-		errors.append("map.terrain.heightmap must be a relative .png path without '.' or '..' segments.");
+	if not _is_relative_heightmap_path(terrain.get("heightmap")):
+		errors.append("map.terrain.heightmap must be a relative .exr path without '.' or '..' segments.");
 
 	if not _is_number(terrain.get("min_height")):
 		errors.append("map.terrain.min_height must be a number.");
@@ -357,14 +357,14 @@ static func _check_keys(
 			errors.append("%s contains unknown key: %s" % [path, key]);
 
 
-static func _is_relative_png_path(value: Variant) -> bool:
+static func _is_relative_heightmap_path(value: Variant) -> bool:
 	if not _is_non_empty_string(value):
 		return false;
 
 	var path := String(value);
 	if path.contains("\\") or path.begins_with("/") or path.contains(":"):
 		return false;
-	if not path.to_lower().ends_with(".png"):
+	if not path.to_lower().ends_with(".exr"):
 		return false;
 
 	for segment in path.split("/"):

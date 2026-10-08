@@ -5,7 +5,7 @@
       240,
       180
     ],
-    "heightmap": "example.height.png",
+    "heightmap": "example.height.exr",
     "min_height": -4,
     "max_height": 28
   },
