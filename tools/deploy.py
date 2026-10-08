@@ -47,9 +47,15 @@ def package_files(repo: Path, name: str, target: Path) -> list[FileCopy]:
     if not name or name in {".", ".."} or Path(name).name != name:
         raise CopyError(f"Invalid package name: {name!r}")
 
-    package = repo / name
-    if package.is_symlink():
+    package_root = repo / name
+    if package_root.is_symlink():
         raise CopyError(f"Package directory may not be a symlink: {name}")
+
+    # A map_system repository contains both an editor and a Godot package.
+    # Only godot/ is deployable; keep the installed package layout unchanged.
+    package = package_root / "godot" if name == "map_system" else package_root
+    if package.is_symlink():
+        raise CopyError(f"Package directory may not be a symlink: {package}")
 
     package = package.resolve()
     if not package.is_dir():
@@ -249,7 +255,7 @@ def run(argv: list[str] | None = None) -> int:
     if args.destination:
         specs = [(args.source, Path(args.destination).expanduser().resolve(), None)]
     else:
-        if (repo / args.source / "manifest.json").is_file():
+        if (repo / args.source / "manifest.json").is_file() or (repo / args.source / "godot" / "manifest.json").is_file():
             raise CopyError(f"Destination missing for package {args.source!r}.")
         specs = project_packages(Path(args.source).expanduser())
     plans = _plans(repo, specs)

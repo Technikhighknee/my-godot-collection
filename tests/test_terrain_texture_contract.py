@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "map_system"
+PACKAGE = ROOT / "map_system" / "godot"
 
 
 def shader_style_weights(cells: list[list[int]], world_size: tuple[float, float], x: float, z: float) -> dict[int, float]:

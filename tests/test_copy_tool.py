@@ -32,13 +32,17 @@ class DeployTests(unittest.TestCase):
             "strategy_camera": {"StrategyCamera.gd": b"camera"},
             "map_system": {"core/GameMap.gd": b"map", "assets/example.surface.png": b"\x89PNG"},
         }.items():
-            folder = self.repo / name
-            folder.mkdir()
+            folder = self.repo / name / "godot" if name == "map_system" else self.repo / name
+            folder.mkdir(parents=True)
             for path, data in files.items():
                 f = folder / path
                 f.parent.mkdir(parents=True, exist_ok=True)
                 f.write_bytes(data)
             (folder / "manifest.json").write_text(json.dumps({"files": list(files)}))
+        # Editor tooling must never be copied into the Godot project.
+        editor = self.repo / "map_system" / "editor"
+        editor.mkdir()
+        (editor / "package.json").write_text('{"private":true,"license":"UNLICENSED"}')
         self.manifest = self.project / "manifest.json"
         self.write_manifest({"strategy_camera": "StrategyCamera", "map_system": "MapSystem"})
         self.backup_patch = patch.object(deploy, "BACKUP_ROOT", self.root / "backups")
@@ -61,6 +65,8 @@ class DeployTests(unittest.TestCase):
         self.assertEqual((self.project / "packages" / "MapSystem" / "core" / "GameMap.gd").read_bytes(), b"map")
         self.assertEqual((self.project / "packages" / "MapSystem" / "assets" / "example.surface.png").read_bytes(), b"\x89PNG")
         self.assertFalse((self.project / "packages" / "map_system").exists())
+        self.assertFalse((self.project / "packages" / "MapSystem" / "editor").exists())
+        self.assertFalse((self.project / "packages" / "MapSystem" / "package.json").exists())
 
     def test_modified_local_files_and_legacy_folder_are_backed_up(self) -> None:
         old = self.project / "MapSystem"
@@ -105,7 +111,7 @@ class DeployTests(unittest.TestCase):
         self.assertFalse((self.project / "packages").exists())
 
     def test_package_manifest_cannot_escape_or_request_remove(self) -> None:
-        path = self.repo / "map_system" / "manifest.json"
+        path = self.repo / "map_system" / "godot" / "manifest.json"
         path.write_text(json.dumps({"files": ["../tools/deploy.py"]}))
         with self.assertRaises(deploy.CopyError):
             self.execute("-y", str(self.manifest))
