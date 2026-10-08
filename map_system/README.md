@@ -22,7 +22,7 @@ The package layout separates data, geometry, and rendering:
 map_system/
   core/           Map loading, map state, building placement
   terrain/        Height, surface types, geometric clipping
-  rendering/      Godot world builder
+  rendering/      Godot world builder, shader-driven terrain material
   io/             Image loading
   assets/         Example heightmap and surface map
   example.map.json
@@ -101,7 +101,7 @@ Use single-channel floating-point EXR heightmaps. Height data stays high precisi
 
 The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to `[size.x, size.z]`. Runtime height queries use the same two-triangle split as the rendered terrain mesh, so queried heights, terrain collision geometry, road surfaces, and placed entities agree on the actual ground surface.
 
-`surface_map` is an indexed grayscale PNG with exactly one pixel per terrain grid cell, so a heightmap with 33×25 samples uses a 32×24 surface map. Pixel value `0` maps to `surface_palette[0]`, `1` to `surface_palette[1]`, and so on. The palette contains semantic game IDs rather than Godot materials, keeping the map portable while still describing whether a cell is grass, dirt, rock, or another game-defined surface. Surface assignment stays categorical for gameplay: one terrain cell has one surface definition. The built-in debug renderer blends the colors of adjacent semantic cells across shared terrain vertices, so visual transitions are soft without changing what `definition_at(...)` reports.
+`surface_map` is an indexed grayscale PNG with exactly one pixel per terrain grid cell, so a heightmap with 33×25 samples uses a 32×24 surface map. Pixel value `0` maps to `surface_palette[0]`, `1` to `surface_palette[1]`, and so on. The palette contains semantic game IDs rather than Godot materials, keeping the map portable while still describing whether a cell is grass, dirt, rock, or another game-defined surface. Surface assignment stays categorical for gameplay: one terrain cell has one surface definition. The default renderer reads these indices in a terrain shader and blends repeating albedo textures between adjacent **cell centers**, independently of terrain mesh density. It never changes what `definition_at(...)` reports.
 
 ## Loading
 
@@ -162,7 +162,19 @@ var root := GameMapBuilder.build(
 );
 ```
 
-The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root. The optional material provider resolves semantic terrain, road, and water definition IDs to normal Godot `Material` resources. Its signature is `(kind: String, definition_id: String) -> Material`, where `kind` is `terrain`, `road`, or `water`. If no provider is supplied, terrain debug colors are blended across semantic boundaries while roads and water use simple debug materials, so a map remains directly inspectable without game-specific assets. A supplied terrain material provider still receives one material request per categorical terrain definition; texture-aware multi-material blending is deliberately a separate rendering concern. Generated terrain, road, and water meshes use world-space X/Z as UV coordinates, so ordinary repeating materials can choose their own meter-scale tiling instead of stretching one texture across the whole map.
+The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root. The optional material provider resolves semantic terrain, road, and water definition IDs to normal Godot `Material` resources. Its signature is `(kind: String, definition_id: String) -> Material`, where `kind` is `terrain`, `road`, or `water`. With neither callback supplied, terrain uses generated, repeatable albedo textures for grass, dirt, rock, and fallback surface types; roads and water retain simple debug materials. The procedural textures are basic placeholders, not authored PBR assets. The optional **sixth** `terrain_texture_provider` callback takes a semantic terrain definition ID and returns a `Texture2D`; all returned textures must have the same dimensions. For example:
+
+```gdscript
+func terrain_texture(definition_id: String) -> Texture2D:
+    return terrain_albedos[definition_id]
+
+var root := GameMapBuilder.build(
+    game_map, self, spawn_building, spawn_object,
+    Callable(), terrain_texture
+)
+```
+
+The shader packs the provided layer textures into a `Texture2DArray` and samples the categorical PNG in fragment space: no four-layer vertex-color limit, and no changes to the map schema. The default tiling is 0.35 texture repeats per world meter. The existing **fifth** `material_provider` callback is unchanged for roads and water; if it is provided without a terrain texture provider, the legacy categorical terrain-material path remains in use. If both callbacks are passed, the textured terrain path takes precedence while road/water materials still come from the material provider. Generated terrain, road, and water meshes use world-space X/Z as UV coordinates.
 
 This means a preplaced `building.blacksmith` can be instantiated through the same catalog/factory that player or AI construction uses. There is no special "map building" type.
 

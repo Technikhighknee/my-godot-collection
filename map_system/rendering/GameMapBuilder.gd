@@ -10,7 +10,8 @@ static func build(
 	parent: Node3D,
 	building_spawner: Callable = Callable(),
 	object_spawner: Callable = Callable(),
-	material_provider: Callable = Callable()
+	material_provider: Callable = Callable(),
+	terrain_texture_provider: Callable = Callable()
 ) -> Node3D:
 	if game_map == null:
 		push_error("GameMapBuilder requires a loaded GameMap.");
@@ -40,7 +41,8 @@ static func build(
 	var terrain := _build_terrain(
 		game_map.terrain,
 		game_map.terrain_surfaces,
-		material_provider
+		material_provider,
+		terrain_texture_provider
 	);
 	if terrain == null:
 		root.free();
@@ -92,7 +94,8 @@ static func build(
 static func _build_terrain(
 	height_field: TerrainHeightField,
 	surface_field: TerrainSurfaceField,
-	material_provider: Callable
+	material_provider: Callable,
+	terrain_texture_provider: Callable
 ) -> Node3D:
 	var root := Node3D.new();
 	root.name = "Terrain";
@@ -103,10 +106,11 @@ static func _build_terrain(
 		return null;
 
 	var visuals: Node3D;
-	if material_provider.is_valid():
-		visuals = _build_terrain_surfaces(height_field, surface_field, material_provider);
+	if terrain_texture_provider.is_valid() or not material_provider.is_valid():
+		visuals = _build_textured_terrain(height_field, surface_field, terrain_texture_provider);
 	else:
-		visuals = _build_blended_debug_terrain(height_field, surface_field);
+		# Keep the existing per-definition Material callback behavior unchanged.
+		visuals = _build_terrain_surfaces(height_field, surface_field, material_provider);
 	if visuals == null:
 		root.free();
 		return null;
@@ -162,9 +166,10 @@ static func _build_terrain_collision_mesh(height_field: TerrainHeightField) -> A
 	return mesh;
 
 
-static func _build_blended_debug_terrain(
+static func _build_textured_terrain(
 	height_field: TerrainHeightField,
-	surface_field: TerrainSurfaceField
+	surface_field: TerrainSurfaceField,
+	texture_provider: Callable
 ) -> Node3D:
 	var root := Node3D.new();
 	root.name = "Surfaces";
@@ -179,7 +184,6 @@ static func _build_blended_debug_terrain(
 			var z_ratio := float(z) / float(samples.y - 1);
 			var world_x := x_ratio * size.x;
 			var world_z := z_ratio * size.y;
-			surface.set_color(_blended_debug_terrain_color(surface_field, x, z));
 			surface.set_uv(Vector2(world_x, world_z));
 			surface.set_normal(height_field.smooth_normal_at_sample(x, z));
 			surface.add_vertex(Vector3(
@@ -205,34 +209,21 @@ static func _build_blended_debug_terrain(
 
 	var mesh := surface.commit();
 	if mesh == null:
-		push_error("Could not build blended debug terrain.");
+		push_error("Could not build textured terrain.");
 		root.free();
 		return null;
 
-	var material := StandardMaterial3D.new();
-	material.vertex_color_use_as_albedo = true;
-	material.roughness = 1.0;
+	var material := TerrainTextureMaterial.create(surface_field, texture_provider);
+	if material == null:
+		root.free();
+		return null;
 
 	var visual := MeshInstance3D.new();
-	visual.name = "BlendedDebugSurface";
+	visual.name = "TexturedSurface";
 	visual.mesh = mesh;
 	visual.material_override = material;
 	root.add_child(visual);
 	return root;
-
-
-static func _blended_debug_terrain_color(
-	surface_field: TerrainSurfaceField,
-	x: int,
-	z: int
-) -> Color:
-	var result := Color(0.0, 0.0, 0.0, 0.0);
-	var weights := surface_field.blend_weights_at_sample(x, z);
-	for surface_index in weights:
-		var weight: float = weights[surface_index];
-		result += _debug_terrain_color(int(surface_index)) * weight;
-	result.a = 1.0;
-	return result;
 
 
 static func _debug_terrain_color(surface_index: int) -> Color:

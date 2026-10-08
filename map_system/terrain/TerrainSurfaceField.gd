@@ -59,6 +59,15 @@ func get_cell_count() -> Vector2i:
 	return Vector2i(_image.get_width(), _image.get_height());
 
 
+func get_world_size() -> Vector2:
+	return _world_size;
+
+
+func create_index_texture() -> ImageTexture:
+	# Keep the grayscale categorical IDs unchanged; the shader fetches raw texels.
+	return ImageTexture.create_from_image(_image);
+
+
 func get_definitions() -> PackedStringArray:
 	return _definitions.duplicate();
 
