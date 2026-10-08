@@ -24,7 +24,9 @@ There is deliberately no editor code in this package.
   "name": "Lübeck",
   "terrain": {
     "size": [1200, 900],
-    "height": 0
+    "heightmap": "terrain.height.png",
+    "min_height": -5,
+    "max_height": 85
   },
   "roads": [
     {
@@ -63,7 +65,11 @@ There is deliberately no editor code in this package.
 
 All road, settlement, building, and object IDs share one namespace and must be unique inside the map.
 
-The current terrain is intentionally flat: `size` defines the X/Z extent and `height` its Y position. Heightmap terrain should be added when the game actually needs it, rather than baking a speculative terrain pipeline into the format now.
+`size` defines the X/Z world extent. `heightmap` is a PNG path relative to the map JSON; map files therefore remain portable and contain no Godot resource paths. Pixel values are normalized from `min_height` to `max_height`.
+
+Use 16-bit grayscale PNG heightmaps for production maps. Lower-bit-depth PNGs can be loaded by Godot but reduce terrain precision. The heightmap resolution controls sample density independently of world size: a 601×451 image can describe a 1200×900 world without implying one pixel per meter.
+
+The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to `[size.x, size.z]`. Runtime height queries are bilinearly interpolated.
 
 ## Loading
 
@@ -80,9 +86,19 @@ Validation currently rejects:
 - malformed building/object placements.
 
 ```gdscript
-var map := GameMapLoader.load_file("res://maps/luebeck.map.json");
-if map.is_empty():
+var game_map := GameMapLoader.load_file("res://maps/luebeck/luebeck.map.json");
+if game_map == null:
     return;
+```
+
+The loader returns a `GameMap`, which keeps the validated portable JSON together with its source path and loaded `TerrainHeightField`. That runtime context lets multiple consumers resolve map-relative assets without putting runtime paths into the JSON.
+
+`TerrainHeightField` is the shared terrain truth and exposes interpolated height, normal, and slope queries:
+
+```gdscript
+var y := game_map.terrain.height_at(Vector2(x, z));
+var normal := game_map.terrain.normal_at(Vector2(x, z));
+var slope_degrees := game_map.terrain.slope_at(Vector2(x, z));
 ```
 
 ## Building the initial world
@@ -99,7 +115,7 @@ func spawn_object(definition_id: String, _entry: Dictionary) -> Node3D:
     return object_catalog.instantiate(definition_id);
 
 var root := GameMapBuilder.build(
-    map,
+    game_map,
     self,
     spawn_building,
     spawn_object
@@ -176,6 +192,6 @@ Road rendering and road exclusion both derive their area from the same centerlin
 - No `res://` paths in map files.
 - No map-version migration machinery while there are no released consumers to migrate.
 - No generic feature/component/factory hierarchy.
-- No speculative heightmap, chunking, biome, or terrain-layer architecture.
+- No speculative chunking, biome, or terrain-layer architecture.
 
 The format can grow when the game proves it needs another concept.
