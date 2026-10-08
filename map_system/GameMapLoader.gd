@@ -116,9 +116,20 @@ static func validate(map_data: Dictionary) -> PackedStringArray:
 		var palette: Array = palette_value;
 		if palette.is_empty() or palette.size() > 256:
 			errors.append("map.terrain.surface_palette must contain between 1 and 256 definitions.");
+		var seen_surfaces := {};
 		for index in range(palette.size()):
 			if not _is_non_empty_string(palette[index]):
 				errors.append("map.terrain.surface_palette[%d] must be a non-empty string." % index);
+				continue;
+
+			var definition := String(palette[index]);
+			if seen_surfaces.has(definition):
+				errors.append(
+					"map.terrain.surface_palette[%d] duplicates index %d: %s"
+					% [index, seen_surfaces[definition], definition]
+				);
+			else:
+				seen_surfaces[definition] = index;
 
 	var ids := {};
 	_validate_roads(map_data.get("roads"), size, ids, errors);
