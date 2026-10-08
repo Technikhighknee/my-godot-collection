@@ -156,7 +156,7 @@ static func _spawn_entries(
 			entry.duplicate(true)
 		);
 
-		if not created is Node3D:
+		if not (created is Node3D):
 			push_error(
 				"Spawner for %s %s (%s) must return a Node3D."
 				% [kind, entry["id"], entry["definition"]]
