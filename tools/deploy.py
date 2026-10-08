@@ -370,9 +370,13 @@ def run(argv: list[str] | None = None) -> int:
     for item in [*new, *selected]:
         copy_file(item.source, item.destination)
 
+    for item in obsolete:
+        item.unlink()
+
     print(
         f"Copied: {len(new)}\n"
         f"Overwritten: {len(selected)}\n"
+        f"Removed obsolete: {len(obsolete)}\n"
         f"Skipped identical: {len(identical)}\n"
         f"Skipped by user: {len(changed) - len(selected)}"
     )
