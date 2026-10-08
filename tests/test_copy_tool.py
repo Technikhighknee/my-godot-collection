@@ -76,12 +76,12 @@ class DeployTests(unittest.TestCase):
         self.execute("-y", str(self.manifest))
         self.assertFalse((installed / "my_file.gd").exists())
         self.assertEqual((installed / "core" / "GameMap.gd").read_bytes(), b"map")
-        self.assertTrue(any(
-            z.read("MapSystem/my_file.gd") == b"my own file"
-            for path in (self.root / "backups").glob("MapSystem-*.zip")
-            for z in [zipfile.ZipFile(path)]
-            if "MapSystem/my_file.gd" in z.namelist()
-        ))
+        archived_file_found = False
+        for path in (self.root / "backups").glob("MapSystem-*.zip"):
+            with zipfile.ZipFile(path) as archive:
+                if "MapSystem/my_file.gd" in archive.namelist():
+                    archived_file_found = archive.read("MapSystem/my_file.gd") == b"my own file"
+        self.assertTrue(archived_file_found)
 
     def test_cancel_preserves_all_files_and_does_not_make_backups(self) -> None:
         old = self.project / "MapSystem"
