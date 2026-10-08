@@ -129,15 +129,19 @@ func spawn_building(definition_id: String, _entry: Dictionary) -> Node3D:
 func spawn_object(definition_id: String, _entry: Dictionary) -> Node3D:
     return object_catalog.instantiate(definition_id);
 
+func terrain_material(definition_id: String) -> Material:
+    return terrain_materials.get(definition_id);
+
 var root := GameMapBuilder.build(
     game_map,
     self,
     spawn_building,
-    spawn_object
+    spawn_object,
+    terrain_material
 );
 ```
 
-The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root.
+The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root. The optional terrain material provider resolves semantic `surface_palette` IDs to normal Godot `Material` resources. If no provider is supplied, the builder uses distinct debug materials so a map remains directly inspectable without game-specific assets.
 
 This means a preplaced `building.blacksmith` can be instantiated through the same catalog/factory that player or AI construction uses. There is no special "map building" type.
 

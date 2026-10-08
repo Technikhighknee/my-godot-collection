@@ -86,6 +86,29 @@ func height_at_sample(x: int, z: int) -> float:
 	return _sample_height(x, z);
 
 
+func smooth_normal_at_sample(x: int, z: int) -> Vector3:
+	assert(x >= 0 and x < _image.get_width());
+	assert(z >= 0 and z < _image.get_height());
+
+	var spacing := get_sample_spacing();
+	var left := maxi(0, x - 1);
+	var right := mini(_image.get_width() - 1, x + 1);
+	var near := maxi(0, z - 1);
+	var far := mini(_image.get_height() - 1, z + 1);
+
+	var tangent_x := Vector3(
+		float(right - left) * spacing.x,
+		_sample_height(right, z) - _sample_height(left, z),
+		0.0
+	);
+	var tangent_z := Vector3(
+		0.0,
+		_sample_height(x, far) - _sample_height(x, near),
+		float(far - near) * spacing.y
+	);
+	return tangent_z.cross(tangent_x).normalized();
+
+
 func normal_at(position: Vector2) -> Vector3:
 	var cell := _cell_at(position);
 	var x0: int = cell["x"];

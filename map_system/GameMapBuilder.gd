@@ -9,7 +9,8 @@ static func build(
 	game_map: GameMap,
 	parent: Node3D,
 	building_spawner: Callable = Callable(),
-	object_spawner: Callable = Callable()
+	object_spawner: Callable = Callable(),
+	terrain_material_provider: Callable = Callable()
 ) -> Node3D:
 	if game_map == null:
 		push_error("GameMapBuilder requires a loaded GameMap.");
@@ -36,7 +37,11 @@ static func build(
 	var root := Node3D.new();
 	root.name = "Map";
 
-	var terrain := _build_terrain(game_map.terrain);
+	var terrain := _build_terrain(
+		game_map.terrain,
+		game_map.terrain_surfaces,
+		terrain_material_provider
+	);
 	if terrain == null:
 		root.free();
 		return null;
@@ -84,7 +89,36 @@ static func build(
 	return root;
 
 
-static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
+static func _build_terrain(
+	height_field: TerrainHeightField,
+	surface_field: TerrainSurfaceField,
+	material_provider: Callable
+) -> Node3D:
+	var root := Node3D.new();
+	root.name = "Terrain";
+
+	var collision_mesh := _build_terrain_collision_mesh(height_field);
+	if collision_mesh == null:
+		root.free();
+		return null;
+
+	var visuals := _build_terrain_surfaces(height_field, surface_field, material_provider);
+	if visuals == null:
+		root.free();
+		return null;
+	root.add_child(visuals);
+
+	var body := StaticBody3D.new();
+	body.name = "Collision";
+	var collision := CollisionShape3D.new();
+	collision.shape = collision_mesh.create_trimesh_shape();
+	body.add_child(collision);
+	root.add_child(body);
+
+	return root;
+
+
+static func _build_terrain_collision_mesh(height_field: TerrainHeightField) -> ArrayMesh:
 	var size := height_field.get_world_size();
 	var samples := height_field.get_sample_count();
 	var surface := SurfaceTool.new();
@@ -96,7 +130,6 @@ static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
 		for x in range(samples.x):
 			var x_ratio := float(x) / float(samples.x - 1);
 			var world_x := x_ratio * size.x;
-			surface.set_uv(Vector2(x_ratio, z_ratio));
 			surface.add_vertex(Vector3(
 				world_x,
 				height_field.height_at_sample(x, z),
@@ -110,7 +143,6 @@ static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
 			var bottom_left := top_left + samples.x;
 			var bottom_right := bottom_left + 1;
 
-			# Godot treats clockwise winding as front-facing.
 			surface.add_index(top_left);
 			surface.add_index(top_right);
 			surface.add_index(bottom_left);
@@ -119,29 +151,112 @@ static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
 			surface.add_index(bottom_right);
 			surface.add_index(bottom_left);
 
-	surface.generate_normals();
 	var mesh := surface.commit();
 	if mesh == null:
-		push_error("Could not build terrain mesh.");
+		push_error("Could not build terrain collision mesh.");
 		return null;
+	return mesh;
 
+
+static func _build_terrain_surfaces(
+	height_field: TerrainHeightField,
+	surface_field: TerrainSurfaceField,
+	material_provider: Callable
+) -> Node3D:
 	var root := Node3D.new();
-	root.name = "Terrain";
+	root.name = "Surfaces";
+	var definitions := surface_field.get_definitions();
+	var size := height_field.get_world_size();
+	var samples := height_field.get_sample_count();
 
-	var visual := MeshInstance3D.new();
-	visual.name = "Surface";
-	visual.mesh = mesh;
-	visual.material_override = _material(Color(0.32, 0.36, 0.28));
-	root.add_child(visual);
+	for surface_index in range(definitions.size()):
+		var surface := SurfaceTool.new();
+		surface.begin(Mesh.PRIMITIVE_TRIANGLES);
+		var cell_count := 0;
 
-	var body := StaticBody3D.new();
-	body.name = "Collision";
-	var collision := CollisionShape3D.new();
-	collision.shape = mesh.create_trimesh_shape();
-	body.add_child(collision);
-	root.add_child(body);
+		for z in range(samples.y - 1):
+			for x in range(samples.x - 1):
+				if surface_field.index_at_cell(x, z) != surface_index:
+					continue;
+				_emit_terrain_cell(surface, height_field, x, z, size, samples);
+				cell_count += 1;
+
+		if cell_count == 0:
+			continue;
+
+		var mesh := surface.commit();
+		if mesh == null:
+			push_error("Could not build terrain surface: %s" % definitions[surface_index]);
+			root.free();
+			return null;
+
+		var material := _resolve_terrain_material(
+			String(definitions[surface_index]),
+			surface_index,
+			material_provider
+		);
+		if material == null:
+			root.free();
+			return null;
+
+		var visual := MeshInstance3D.new();
+		visual.name = String(definitions[surface_index]).replace(".", "_");
+		visual.mesh = mesh;
+		visual.material_override = material;
+		root.add_child(visual);
 
 	return root;
+
+
+static func _emit_terrain_cell(
+	surface: SurfaceTool,
+	height_field: TerrainHeightField,
+	x: int,
+	z: int,
+	world_size: Vector2,
+	samples: Vector2i
+) -> void:
+	var points := [
+		Vector2i(x, z),
+		Vector2i(x + 1, z),
+		Vector2i(x, z + 1),
+		Vector2i(x + 1, z + 1),
+	];
+	var order := [0, 1, 2, 1, 3, 2];
+
+	for point_index in order:
+		var point: Vector2i = points[point_index];
+		var u := float(point.x) / float(samples.x - 1);
+		var v := float(point.y) / float(samples.y - 1);
+		surface.set_uv(Vector2(u, v));
+		surface.set_normal(height_field.smooth_normal_at_sample(point.x, point.y));
+		surface.add_vertex(Vector3(
+			u * world_size.x,
+			height_field.height_at_sample(point.x, point.y),
+			v * world_size.y
+		));
+
+
+static func _resolve_terrain_material(
+	definition: String,
+	surface_index: int,
+	provider: Callable
+) -> Material:
+	if provider.is_valid():
+		var created: Variant = provider.call(definition);
+		if created is Material:
+			return created as Material;
+		push_error("Terrain material provider must return a Material for: %s" % definition);
+		return null;
+
+	var colors := [
+		Color(0.32, 0.36, 0.28),
+		Color(0.38, 0.29, 0.20),
+		Color(0.38, 0.39, 0.40),
+		Color(0.47, 0.43, 0.29),
+		Color(0.24, 0.36, 0.24),
+	];
+	return _material(colors[surface_index % colors.size()]);
 
 
 static func _build_roads(entries: Array, height_field: TerrainHeightField) -> Node3D:
