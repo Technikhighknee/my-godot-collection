@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://cnhda44b41wq"]
+
+[ext_resource type="Script" uid="uid://rwfbnde003nl" path="res://packages/StrategyCamera/StrategyCamera.gd" id="1_t5foy"]
+
+[node name="StrategyCamera" type="Node3D" unique_id=152562480]
+script = ExtResource("1_t5foy")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=2051413366]
+fov = 45.0

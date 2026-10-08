@@ -1,6 +1,7 @@
 {
   "files": [
     "StrategyCamera.gd",
+    "StrategyCamera.tscn",
     "README.md"
   ]
 }
