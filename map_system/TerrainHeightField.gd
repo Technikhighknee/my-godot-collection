@@ -55,20 +55,29 @@ func get_sample_count() -> Vector2i:
 	return Vector2i(_image.get_width(), _image.get_height());
 
 
+func get_sample_spacing() -> Vector2:
+	return Vector2(
+		_world_size.x / float(_image.get_width() - 1),
+		_world_size.y / float(_image.get_height() - 1)
+	);
+
+
 func height_at(position: Vector2) -> float:
-	var x := clampf(position.x, 0.0, _world_size.x) / _world_size.x * float(_image.get_width() - 1);
-	var z := clampf(position.y, 0.0, _world_size.y) / _world_size.y * float(_image.get_height() - 1);
+	var cell := _cell_at(position);
+	var x0: int = cell["x"];
+	var z0: int = cell["z"];
+	var tx: float = cell["tx"];
+	var tz: float = cell["tz"];
 
-	var x0 := int(floor(x));
-	var z0 := int(floor(z));
-	var x1 := mini(x0 + 1, _image.get_width() - 1);
-	var z1 := mini(z0 + 1, _image.get_height() - 1);
-	var tx := x - float(x0);
-	var tz := z - float(z0);
+	var h00 := _sample_height(x0, z0);
+	var h10 := _sample_height(x0 + 1, z0);
+	var h01 := _sample_height(x0, z0 + 1);
+	var h11 := _sample_height(x0 + 1, z0 + 1);
 
-	var top := lerpf(_sample_height(x0, z0), _sample_height(x1, z0), tx);
-	var bottom := lerpf(_sample_height(x0, z1), _sample_height(x1, z1), tx);
-	return lerpf(top, bottom, tz);
+	if tx + tz <= 1.0:
+		return h00 + tx * (h10 - h00) + tz * (h01 - h00);
+
+	return h11 + (1.0 - tx) * (h01 - h11) + (1.0 - tz) * (h10 - h11);
 
 
 func height_at_sample(x: int, z: int) -> float:
@@ -78,31 +87,57 @@ func height_at_sample(x: int, z: int) -> float:
 
 
 func normal_at(position: Vector2) -> Vector3:
-	var sample_step := Vector2(
-		_world_size.x / float(_image.get_width() - 1),
-		_world_size.y / float(_image.get_height() - 1)
-	);
-	var left_x := maxf(0.0, position.x - sample_step.x);
-	var right_x := minf(_world_size.x, position.x + sample_step.x);
-	var near_z := maxf(0.0, position.y - sample_step.y);
-	var far_z := minf(_world_size.y, position.y + sample_step.y);
+	var cell := _cell_at(position);
+	var x0: int = cell["x"];
+	var z0: int = cell["z"];
+	var tx: float = cell["tx"];
+	var tz: float = cell["tz"];
+	var spacing := get_sample_spacing();
 
-	var tangent_x := Vector3(
-		right_x - left_x,
-		height_at(Vector2(right_x, position.y)) - height_at(Vector2(left_x, position.y)),
-		0.0
+	var top_left := Vector3(
+		float(x0) * spacing.x,
+		_sample_height(x0, z0),
+		float(z0) * spacing.y
 	);
-	var tangent_z := Vector3(
-		0.0,
-		height_at(Vector2(position.x, far_z)) - height_at(Vector2(position.x, near_z)),
-		far_z - near_z
+	var top_right := Vector3(
+		float(x0 + 1) * spacing.x,
+		_sample_height(x0 + 1, z0),
+		float(z0) * spacing.y
+	);
+	var bottom_left := Vector3(
+		float(x0) * spacing.x,
+		_sample_height(x0, z0 + 1),
+		float(z0 + 1) * spacing.y
+	);
+	var bottom_right := Vector3(
+		float(x0 + 1) * spacing.x,
+		_sample_height(x0 + 1, z0 + 1),
+		float(z0 + 1) * spacing.y
 	);
 
-	return tangent_z.cross(tangent_x).normalized();
+	if tx + tz <= 1.0:
+		return (bottom_left - top_left).cross(top_right - top_left).normalized();
+
+	return (bottom_left - top_right).cross(bottom_right - top_right).normalized();
 
 
 func slope_at(position: Vector2) -> float:
 	return rad_to_deg(acos(clampf(normal_at(position).y, -1.0, 1.0)));
+
+
+func _cell_at(position: Vector2) -> Dictionary:
+	var sample_position := Vector2(
+		clampf(position.x, 0.0, _world_size.x) / _world_size.x * float(_image.get_width() - 1),
+		clampf(position.y, 0.0, _world_size.y) / _world_size.y * float(_image.get_height() - 1)
+	);
+	var x := mini(int(floor(sample_position.x)), _image.get_width() - 2);
+	var z := mini(int(floor(sample_position.y)), _image.get_height() - 2);
+	return {
+		"x": x,
+		"z": z,
+		"tx": sample_position.x - float(x),
+		"tz": sample_position.y - float(z),
+	};
 
 
 func _sample_height(x: int, z: int) -> float:
