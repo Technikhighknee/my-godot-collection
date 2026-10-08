@@ -46,6 +46,13 @@ There is deliberately no editor code in this package.
       ]
     }
   ],
+  "water": [
+    {
+      "id": "river_trave",
+      "height": 2.5,
+      "polygon": [[250, 650], [900, 620], [920, 700], [260, 730]]
+    }
+  ],
   "buildings": [
     {
       "id": "blacksmith_01",
@@ -75,7 +82,7 @@ The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to 
 
 ## Loading
 
-`GameMapLoader.load_file(path)` parses and structurally validates the map. Invalid maps return an empty dictionary and report the concrete validation errors.
+`GameMapLoader.load_file(path)` parses and structurally validates the map. Invalid maps return `null` and report the concrete validation errors.
 
 Validation currently rejects:
 
@@ -105,7 +112,7 @@ var slope_degrees := game_map.terrain.slope_at(Vector2(x, z));
 
 ## Building the initial world
 
-`GameMapBuilder` owns map geometry: heightmap terrain, terrain collision, and road meshes. Terrain visual geometry and collision are produced from the same height samples. Roads, buildings, and objects query the same `TerrainHeightField` for their Y position.
+`GameMapBuilder` owns map geometry: heightmap terrain, terrain collision, terrain-conforming road meshes, and explicit water surfaces. Terrain visual geometry and collision are produced from the same height samples. Roads, buildings, and objects query the same `TerrainHeightField` for their Y position.
 
 It does **not** own a building registry. Instead, the game supplies two tiny spawner callbacks. That keeps definition lookup and the actual gameplay entities outside the map package.
 
