@@ -77,7 +77,7 @@ static func create(
 				push_error("Could not decompress terrain texture: %s." % definitions[index]);
 				return null;
 		else:
-			image = _default_texture(String(definitions[index]), index);
+			image = _default_texture(String(definitions[index]));
 
 		var size := Vector2i(image.get_width(), image.get_height());
 		if dimensions == Vector2i.ZERO:
@@ -112,7 +112,7 @@ static func create(
 	return material;
 
 
-static func _default_texture(definition: String, index: int) -> Image:
+static func _default_texture(definition: String) -> Image:
 	var base := Color(0.32, 0.36, 0.28);
 	if definition.ends_with(".dirt"):
 		base = Color(0.40, 0.29, 0.19);
@@ -123,13 +123,15 @@ static func _default_texture(definition: String, index: int) -> Image:
 	elif definition.ends_with(".moss"):
 		base = Color(0.24, 0.37, 0.23);
 
+	# The same semantic definition keeps its appearance across palette reorderings.
+	var seed := int(definition.hash()) & 0x7fffffff;
 	var image := Image.create_empty(TEXTURE_SIZE, TEXTURE_SIZE, false, Image.FORMAT_RGBA8);
 	for z in range(TEXTURE_SIZE):
 		for x in range(TEXTURE_SIZE):
 			var n := (
-				0.55 * _tile_noise(x, z, 4, index) +
-				0.30 * _tile_noise(x, z, 16, index + 71) +
-				0.15 * _tile_noise(x, z, 48, index + 131)
+				0.55 * _tile_noise(x, z, 4, seed) +
+				0.30 * _tile_noise(x, z, 16, seed + 71) +
+				0.15 * _tile_noise(x, z, 48, seed + 131)
 			);
 			var variation := 0.76 + n * 0.48;
 			image.set_pixel(x, z, Color(
