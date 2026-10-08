@@ -208,7 +208,7 @@ Placement currently checks:
 
 Successful checks also return `ground_height` at the building origin and the maximum sampled `terrain_slope` under its footprint. Placement results keep stable `water_id` and `road_id` fields; overlap failures populate the relevant one.
 
-Road rendering and road exclusion both derive their area from the same centerline + width data using Godot's `Geometry2D`, so they do not have competing interpretations of road width. For rendering, that exact road polygon is clipped against the terrain triangle grid before being lifted onto the height field. Long road segments therefore conform to the terrain instead of spanning hills or valleys as a few large triangles. The same shared terrain-grid clipping is also used by building slope checks, so roads and placement cannot silently disagree about which terrain triangles exist beneath a polygon.
+Road rendering and road exclusion both derive their area from the same centerline + width data using Godot's `Geometry2D`, so they do not have competing interpretations of road width. For rendering, that exact road polygon is clipped against the terrain triangle grid before being lifted onto the height field. Long road segments therefore conform to the terrain instead of spanning hills or valleys as a few large triangles. Without a game material provider, the debug road renderer adds a small transparent visual feather outside the semantic road width. Placement and road-distance checks still use the authored width exactly; the feather is rendering only. The same shared terrain-grid clipping is also used by building slope checks, so roads and placement cannot silently disagree about which terrain triangles exist beneath a polygon.
 
 ## What is intentionally not here
 
