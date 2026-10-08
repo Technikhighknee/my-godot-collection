@@ -7,54 +7,54 @@ Some Godot bits and bobs.
 - [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
 - [Map System](map_system/) — portable maps, road geometry, and runtime building placement.
 
-## Copy tool
+## Deploy tool
 
 >You're probably thinking, “Jason... why don't you just copy them by hand?”
 >No. That primitive act of manually moving files is personally insulting to me. I need manifest files, byte-by-byte comparison, selective conflict resolution, and atomic writes.
 
-Each package declares its files in its own \`manifest.json\`. The project manifest
-chooses the installed folder names, and \`deploy.py\` installs **entire packages** into
-\`packages/\` next to the project manifest:
+Each package declares its files in its own `manifest.json`. The project manifest
+chooses the installed folder names, and `deploy.py` installs **entire packages** into
+`packages/` next to the project manifest:
 
-\`\`\`json
+```json
 {
   "packages": {
     "strategy_camera": "StrategyCamera",
     "map_system": "MapSystem"
   }
 }
-\`\`\`
+```
 
 Running:
 
-\`\`\`powershell
+```powershell
 python .\tools\deploy.py C:\Users\posch\Documents\1400\manifest.json -y
-\`\`\`
+```
 
-installs \`packages/StrategyCamera/\` and \`packages/MapSystem/\` in that Godot project.
+installs `packages/StrategyCamera/` and `packages/MapSystem/` in that Godot project.
 Names and casing come from the values in the manifest; the keys identify repository packages.
 Manifest values are single folder names, not arbitrary paths. Files in the package are
 installed with their internal relative layout intact.
 
 **Owned directories:** the installed package folders are disposable copies, not workspaces.
 The installer stages a complete replacement, saves the entire existing folder as a ZIP under
-\`~/.my-godot-collection/backups/\` (outside the Godot project), and then swaps the directory.
+`~/.my-godot-collection/backups/` (outside the Godot project), and then swaps the directory.
 Local edits and extra files are preserved **in that backup**, not mixed with the new package.
-\`-y\` skips confirmation but NEVER skips backups. If preparation or backup fails, nothing is
+`-y` skips confirmation but NEVER skips backups. If preparation or backup fails, nothing is
 replaced; a swap failure attempts to restore the previous directory.
 
-On the first new-style deploy, the older \`MapSystem/\` and \`StrategyCamera/\` folders next
-to the project manifest are also backed up and retired to avoid duplicate Godot \`class_name\`
+On the first new-style deploy, the older `MapSystem/` and `StrategyCamera/` folders next
+to the project manifest are also backed up and retired to avoid duplicate Godot `class_name`
 declarations. Other project folders are untouched. Update any game paths from
-\`res://MapSystem/...\` to \`res://packages/MapSystem/...\` and likewise for the camera.
+`res://MapSystem/...` to `res://packages/MapSystem/...` and likewise for the camera.
 
 For a single package, you can still supply its **exact managed folder** directly:
 
-\`\`\`powershell
+```powershell
 python .\tools\deploy.py map_system C:\Projects\Game\packages\MapSystem -y
-\`\`\`
+```
 
-A missing \`-y\` prompts once before replacing directories. This is an intentionally
+A missing `-y` prompts once before replacing directories. This is an intentionally
 opinionated installer, not a per-file synchronizer. Do not use a project root as a destination.
 
 ---
