@@ -1,6 +1,6 @@
 # Map System
 
-An opinionated map foundation for a Guild-like 3D game in Godot 4.
+An opinionated map foundation for a 3D game in Godot 4.
 
 The map describes the physical world at the start of a new game. After that, runtime/save state owns what happens to it.
 
