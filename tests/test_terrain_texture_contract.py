@@ -80,6 +80,33 @@ class TerrainTextureContractTests(unittest.TestCase):
         self.assertIn("var seed := int(definition.hash())", self.shader)
         self.assertNotIn("_default_texture(String(definitions[index]), index)", self.shader)
 
+    def test_anti_tiling_does_not_warp_semantic_boundaries(self) -> None:
+        # The visual domain may warp. Gameplay/terrain classification must not.
+        self.assertIn("(UV / terrain_size) * cell_count", self.shader)
+        self.assertNotIn("(warped / terrain_size)", self.shader)
+        self.assertIn("vec2 macro_position = UV * macro_scale", self.shader)
+        self.assertEqual(self.shader.count("layer_color(warped, definition_at("), 4)
+
+    def test_macro_variation_stays_on_a_larger_scale(self) -> None:
+        import re
+
+        def constant(name: str) -> float:
+            match = re.search(rf"const {name} := ([0-9.]+);", self.shader)
+            self.assertIsNotNone(match)
+            return float(match.group(1))
+
+        tile_frequency = constant("TILE_SCALE")
+        macro_frequency = constant("MACRO_SCALE")
+        warp_distance = constant("WARP_METERS")
+        tint_strength = constant("MACRO_TINT_STRENGTH")
+        self.assertGreater(tile_frequency, 0.0)
+        self.assertGreater(macro_frequency, 0.0)
+        self.assertLess(macro_frequency, tile_frequency)
+        self.assertGreater(warp_distance, 0.0)
+        self.assertLess(warp_distance, 0.5 / tile_frequency)
+        self.assertGreater(tint_strength, 0.0)
+        self.assertLessEqual(tint_strength, 0.25)
+
     def test_blend_kernel_is_normalized_and_supports_high_indices(self) -> None:
         cells = [[0, 6], [2, 100]]
         for x, z in [(0, 0), (0.5, 0.5), (1.5, 1.5), (2, 2), (0, 2), (2, 0)]:
