@@ -218,6 +218,6 @@ Road rendering and road exclusion both derive their area from the same centerlin
 - No `res://` paths in map files.
 - No map-version migration machinery while there are no released consumers to migrate.
 - No generic feature/component/factory hierarchy.
-- No speculative chunking, biome, or terrain-layer architecture.
+- No speculative chunking or biome architecture.
 
 The format can grow when the game proves it needs another concept.
