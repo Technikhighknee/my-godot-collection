@@ -142,7 +142,7 @@ var root := GameMapBuilder.build(
 );
 ```
 
-The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root. The optional material provider resolves semantic terrain, road, and water definition IDs to normal Godot `Material` resources. Its signature is `(kind: String, definition_id: String) -> Material`, where `kind` is `terrain`, `road`, or `water`. If no provider is supplied, the builder uses debug materials so a map remains directly inspectable without game-specific assets.
+The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root. The optional material provider resolves semantic terrain, road, and water definition IDs to normal Godot `Material` resources. Its signature is `(kind: String, definition_id: String) -> Material`, where `kind` is `terrain`, `road`, or `water`. If no provider is supplied, the builder uses debug materials so a map remains directly inspectable without game-specific assets. Generated terrain, road, and water meshes use world-space X/Z as UV coordinates, so ordinary repeating materials can choose their own meter-scale tiling instead of stretching one texture across the whole map.
 
 This means a preplaced `building.blacksmith` can be instantiated through the same catalog/factory that player or AI construction uses. There is no special "map building" type.
 

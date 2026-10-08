@@ -227,14 +227,16 @@ static func _emit_terrain_cell(
 
 	for point_index in order:
 		var point: Vector2i = points[point_index];
-		var u := float(point.x) / float(samples.x - 1);
-		var v := float(point.y) / float(samples.y - 1);
-		surface.set_uv(Vector2(u, v));
+		var x_ratio := float(point.x) / float(samples.x - 1);
+		var z_ratio := float(point.y) / float(samples.y - 1);
+		var world_x := x_ratio * world_size.x;
+		var world_z := z_ratio * world_size.y;
+		surface.set_uv(Vector2(world_x, world_z));
 		surface.set_normal(height_field.smooth_normal_at_sample(point.x, point.y));
 		surface.add_vertex(Vector3(
-			u * world_size.x,
+			world_x,
 			height_field.height_at_sample(point.x, point.y),
-			v * world_size.y
+			world_z
 		));
 
 
@@ -372,6 +374,7 @@ static func _emit_road_triangle(
 
 	var shading_normal := -normal.normalized();
 	for vertex in [a3, b3, c3]:
+		surface.set_uv(Vector2(vertex.x, vertex.z));
 		surface.set_normal(shading_normal);
 		surface.add_vertex(vertex);
 
@@ -413,6 +416,7 @@ static func _build_water(entries: Array, material_provider: Callable) -> Node3D:
 				vertices[2] = swap;
 
 			for vertex in vertices:
+				surface.set_uv(Vector2(vertex.x, vertex.z));
 				surface.set_normal(Vector3.UP);
 				surface.add_vertex(vertex);
 
