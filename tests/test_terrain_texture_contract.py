@@ -67,6 +67,8 @@ class TerrainTextureContractTests(unittest.TestCase):
         self.assertIn('var size := height_field.get_world_size()', self.builder)
         self.assertIn("surface.set_uv(Vector2(world_x, world_z))", self.builder)
         self.assertIn("func create_index_texture() -> ImageTexture", self.field)
+        self.assertIn("image.is_compressed()", self.shader)
+        self.assertIn("image.decompress()", self.shader)
 
     def test_blend_kernel_is_normalized_and_supports_high_indices(self) -> None:
         cells = [[0, 6], [2, 100]]

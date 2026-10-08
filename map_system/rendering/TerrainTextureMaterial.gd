@@ -73,6 +73,9 @@ static func create(
 				push_error("Could not read terrain texture: %s." % definitions[index]);
 				return null;
 			image = image.duplicate() as Image;
+			if image.is_compressed() and image.decompress() != OK:
+				push_error("Could not decompress terrain texture: %s." % definitions[index]);
+				return null;
 		else:
 			image = _default_texture(String(definitions[index]), index);
 
