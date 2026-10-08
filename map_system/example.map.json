@@ -22,7 +22,8 @@
           220,
           90
         ]
-      ]
+      ],
+      "definition": "road.main"
     },
     {
       "id": "road_market_north_south",
@@ -36,7 +37,8 @@
           120,
           160
         ]
-      ]
+      ],
+      "definition": "road.main"
     },
     {
       "id": "road_south_east",
@@ -54,7 +56,8 @@
           190,
           145
         ]
-      ]
+      ],
+      "definition": "road.path"
     }
   ],
   "settlements": [

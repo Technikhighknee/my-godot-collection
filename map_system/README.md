@@ -9,11 +9,11 @@ The core rules are intentionally small:
 - Maps are portable JSON, not Godot scenes or resources.
 - Map coordinates are `[x, z]` world coordinates.
 - Rotation is stored in degrees and applied as Y rotation in Godot.
-- Roads are center-line polylines with a width.
+- Roads are center-line polylines with a width and a semantic definition ID.
 - Settlements own one or more build-area polygons.
 - Preplaced buildings are normal game buildings. The map only says which definition exists where at game start.
 - The same `BuildingPlacement` logic is intended for player and AI construction.
-- Definition IDs are semantic IDs. A map never contains `res://` paths.
+- Definition IDs are semantic IDs for game content such as buildings, objects, and road types. A map never contains `res://` paths.
 
 There is deliberately no editor code in this package.
 
@@ -31,6 +31,7 @@ There is deliberately no editor code in this package.
   "roads": [
     {
       "id": "road_market_north",
+      "definition": "road.cobblestone",
       "width": 5,
       "points": [[400, 300], [430, 340], [470, 355]]
     }
@@ -63,7 +64,7 @@ There is deliberately no editor code in this package.
 }
 ```
 
-All road, settlement, building, and object IDs share one namespace and must be unique inside the map.
+All road, settlement, building, and object IDs share one namespace and must be unique inside the map. A road `definition` describes its game-facing type (for example paving, movement rules, or later material lookup); `width` remains per-road map geometry.
 
 `size` defines the X/Z world extent. `heightmap` is a PNG path relative to the map JSON; map files therefore remain portable and contain no Godot resource paths. Pixel values are normalized from `min_height` to `max_height`.
 

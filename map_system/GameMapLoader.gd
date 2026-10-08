@@ -4,7 +4,7 @@ extends RefCounted;
 
 const ROOT_KEYS := ["name", "terrain", "roads", "settlements", "buildings", "objects"];
 const TERRAIN_KEYS := ["size", "heightmap", "min_height", "max_height"];
-const ROAD_KEYS := ["id", "width", "points"];
+const ROAD_KEYS := ["id", "definition", "width", "points"];
 const SETTLEMENT_KEYS := ["id", "name", "build_areas"];
 const ENTITY_KEYS := ["id", "definition", "position", "rotation"];
 
@@ -125,6 +125,9 @@ static func _validate_roads(
 		var road: Dictionary = road_value;
 		_check_keys(road, ROAD_KEYS, ROAD_KEYS, path, errors);
 		_register_id(road.get("id"), path, ids, errors);
+
+		if not _is_non_empty_string(road.get("definition")):
+			errors.append("%s.definition must be a non-empty string." % path);
 
 		if not _is_number(road.get("width")) or float(road.get("width", 0.0)) <= 0.0:
 			errors.append("%s.width must be greater than zero." % path);
