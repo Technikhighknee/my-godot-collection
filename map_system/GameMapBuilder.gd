@@ -102,7 +102,11 @@ static func _build_terrain(
 		root.free();
 		return null;
 
-	var visuals := _build_terrain_surfaces(height_field, surface_field, material_provider);
+	var visuals: Node3D;
+	if material_provider.is_valid():
+		visuals = _build_terrain_surfaces(height_field, surface_field, material_provider);
+	else:
+		visuals = _build_blended_debug_terrain(height_field, surface_field);
 	if visuals == null:
 		root.free();
 		return null;
@@ -156,6 +160,89 @@ static func _build_terrain_collision_mesh(height_field: TerrainHeightField) -> A
 		push_error("Could not build terrain collision mesh.");
 		return null;
 	return mesh;
+
+
+static func _build_blended_debug_terrain(
+	height_field: TerrainHeightField,
+	surface_field: TerrainSurfaceField
+) -> Node3D:
+	var root := Node3D.new();
+	root.name = "Surfaces";
+	var size := height_field.get_world_size();
+	var samples := height_field.get_sample_count();
+	var surface := SurfaceTool.new();
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES);
+
+	for z in range(samples.y):
+		for x in range(samples.x):
+			var x_ratio := float(x) / float(samples.x - 1);
+			var z_ratio := float(z) / float(samples.y - 1);
+			var world_x := x_ratio * size.x;
+			var world_z := z_ratio * size.y;
+			surface.set_color(_blended_debug_terrain_color(surface_field, x, z));
+			surface.set_uv(Vector2(world_x, world_z));
+			surface.set_normal(height_field.smooth_normal_at_sample(x, z));
+			surface.add_vertex(Vector3(
+				world_x,
+				height_field.height_at_sample(x, z),
+				world_z
+			));
+
+	for z in range(samples.y - 1):
+		for x in range(samples.x - 1):
+			var top_left := z * samples.x + x;
+			var top_right := top_left + 1;
+			var bottom_left := top_left + samples.x;
+			var bottom_right := bottom_left + 1;
+
+			surface.add_index(top_left);
+			surface.add_index(top_right);
+			surface.add_index(bottom_left);
+
+			surface.add_index(top_right);
+			surface.add_index(bottom_right);
+			surface.add_index(bottom_left);
+
+	var mesh := surface.commit();
+	if mesh == null:
+		push_error("Could not build blended debug terrain.");
+		root.free();
+		return null;
+
+	var material := StandardMaterial3D.new();
+	material.vertex_color_use_as_albedo = true;
+	material.roughness = 1.0;
+
+	var visual := MeshInstance3D.new();
+	visual.name = "BlendedDebugSurface";
+	visual.mesh = mesh;
+	visual.material_override = material;
+	root.add_child(visual);
+	return root;
+
+
+static func _blended_debug_terrain_color(
+	surface_field: TerrainSurfaceField,
+	x: int,
+	z: int
+) -> Color:
+	var result := Color(0.0, 0.0, 0.0, 1.0);
+	for surface_index in surface_field.blend_weights_at_sample(x, z):
+		var weight: float = surface_field.blend_weights_at_sample(x, z)[surface_index];
+		result += _debug_terrain_color(int(surface_index)) * weight;
+	result.a = 1.0;
+	return result;
+
+
+static func _debug_terrain_color(surface_index: int) -> Color:
+	var colors := [
+		Color(0.32, 0.36, 0.28),
+		Color(0.38, 0.29, 0.20),
+		Color(0.38, 0.39, 0.40),
+		Color(0.47, 0.43, 0.29),
+		Color(0.24, 0.36, 0.24),
+	];
+	return colors[surface_index % colors.size()];
 
 
 static func _build_terrain_surfaces(
@@ -256,15 +343,8 @@ static func _resolve_material(
 		);
 		return null;
 
-	var terrain_colors := [
-		Color(0.32, 0.36, 0.28),
-		Color(0.38, 0.29, 0.20),
-		Color(0.38, 0.39, 0.40),
-		Color(0.47, 0.43, 0.29),
-		Color(0.24, 0.36, 0.24),
-	];
 	if kind == "terrain":
-		return _material(terrain_colors[debug_index % terrain_colors.size()]);
+		return _material(_debug_terrain_color(debug_index));
 	if kind == "road":
 		return _material(Color(0.26, 0.23, 0.20));
 	return _material(Color(0.16, 0.35, 0.48));

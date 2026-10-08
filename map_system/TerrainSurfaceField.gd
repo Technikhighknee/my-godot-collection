@@ -69,6 +69,31 @@ func index_at_cell(x: int, z: int) -> int:
 	return _pixel_index(_image, x, z);
 
 
+func blend_weights_at_sample(x: int, z: int) -> Dictionary:
+	assert(x >= 0 and x <= _image.get_width());
+	assert(z >= 0 and z <= _image.get_height());
+
+	var weights := {};
+	var contributing_cells := 0;
+
+	for cell_z in range(z - 1, z + 1):
+		if cell_z < 0 or cell_z >= _image.get_height():
+			continue;
+
+		for cell_x in range(x - 1, x + 1):
+			if cell_x < 0 or cell_x >= _image.get_width():
+				continue;
+
+			var surface_index := index_at_cell(cell_x, cell_z);
+			weights[surface_index] = int(weights.get(surface_index, 0)) + 1;
+			contributing_cells += 1;
+
+	for surface_index in weights.keys():
+		weights[surface_index] = float(weights[surface_index]) / float(contributing_cells);
+
+	return weights;
+
+
 func definition_at(position: Vector2) -> String:
 	var x := mini(
 		int(floor(clampf(position.x, 0.0, _world_size.x) / _world_size.x * float(_image.get_width()))),
