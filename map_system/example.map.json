@@ -1,0 +1,79 @@
+{
+  "name": "Guild-like Test Town",
+  "terrain": {
+    "size": [240, 180],
+    "height": 0
+  },
+  "roads": [
+    {
+      "id": "road_market_east_west",
+      "width": 6,
+      "points": [[20, 90], [220, 90]]
+    },
+    {
+      "id": "road_market_north_south",
+      "width": 5,
+      "points": [[120, 20], [120, 160]]
+    },
+    {
+      "id": "road_south_east",
+      "width": 4,
+      "points": [[120, 90], [155, 112], [190, 145]]
+    }
+  ],
+  "settlements": [
+    {
+      "id": "test_town",
+      "name": "Test Town",
+      "build_areas": [
+        [[28, 28], [212, 28], [212, 152], [28, 152]]
+      ]
+    }
+  ],
+  "buildings": [
+    {
+      "id": "town_hall",
+      "definition": "building.town_hall",
+      "position": [100, 72],
+      "rotation": 0
+    },
+    {
+      "id": "tavern",
+      "definition": "building.tavern",
+      "position": [145, 72],
+      "rotation": 8
+    },
+    {
+      "id": "blacksmith",
+      "definition": "building.blacksmith",
+      "position": [82, 112],
+      "rotation": -4
+    },
+    {
+      "id": "house_01",
+      "definition": "building.house.small",
+      "position": [52, 70],
+      "rotation": 3
+    },
+    {
+      "id": "house_02",
+      "definition": "building.house.small",
+      "position": [55, 111],
+      "rotation": -5
+    },
+    {
+      "id": "house_03",
+      "definition": "building.house.small",
+      "position": [168, 111],
+      "rotation": 7
+    }
+  ],
+  "objects": [
+    {
+      "id": "market_well",
+      "definition": "object.well",
+      "position": [138, 108],
+      "rotation": 0
+    }
+  ]
+}
