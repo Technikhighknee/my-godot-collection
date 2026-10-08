@@ -192,51 +192,19 @@ static func _emit_terrain_conforming_road(
 	road_polygon: PackedVector2Array,
 	height_field: TerrainHeightField
 ) -> int:
-	var spacing := height_field.get_sample_spacing();
-	var samples := height_field.get_sample_count();
-	var bounds := _polygon_bounds(road_polygon);
-	var min_x := clampi(int(floor(bounds.position.x / spacing.x)), 0, samples.x - 2);
-	var max_x := clampi(int(floor(bounds.end.x / spacing.x)), 0, samples.x - 2);
-	var min_z := clampi(int(floor(bounds.position.y / spacing.y)), 0, samples.y - 2);
-	var max_z := clampi(int(floor(bounds.end.y / spacing.y)), 0, samples.y - 2);
 	var triangle_count := 0;
 
-	for z in range(min_z, max_z + 1):
-		var z0 := float(z) * spacing.y;
-		var z1 := float(z + 1) * spacing.y;
-
-		for x in range(min_x, max_x + 1):
-			var x0 := float(x) * spacing.x;
-			var x1 := float(x + 1) * spacing.x;
-			var top_left := Vector2(x0, z0);
-			var top_right := Vector2(x1, z0);
-			var bottom_left := Vector2(x0, z1);
-			var bottom_right := Vector2(x1, z1);
-			var terrain_triangles := [
-				PackedVector2Array([top_left, bottom_left, top_right]),
-				PackedVector2Array([top_right, bottom_left, bottom_right]),
-			];
-
-			for terrain_triangle in terrain_triangles:
-				var clipped_polygons := Geometry2D.intersect_polygons(
-					road_polygon,
-					terrain_triangle
-				);
-
-				for clipped in clipped_polygons:
-					if clipped.size() < 3:
-						continue;
-
-					var indices := Geometry2D.triangulate_polygon(clipped);
-					for index in range(0, indices.size(), 3):
-						if _emit_road_triangle(
-							surface,
-							clipped[indices[index]],
-							clipped[indices[index + 1]],
-							clipped[indices[index + 2]],
-							height_field
-						):
-							triangle_count += 1;
+	for clipped in TerrainGeometry.clip_polygon_to_grid(road_polygon, height_field):
+		var indices := Geometry2D.triangulate_polygon(clipped);
+		for index in range(0, indices.size(), 3):
+			if _emit_road_triangle(
+				surface,
+				clipped[indices[index]],
+				clipped[indices[index + 1]],
+				clipped[indices[index + 2]],
+				height_field
+			):
+				triangle_count += 1;
 
 	return triangle_count;
 
@@ -268,66 +236,6 @@ static func _emit_road_triangle(
 		surface.add_vertex(vertex);
 
 	return true;
-
-
-static func _polygon_bounds(polygon: PackedVector2Array) -> Rect2:
-	var min_point := polygon[0];
-	var max_point := polygon[0];
-
-	for point in polygon:
-		min_point.x = minf(min_point.x, point.x);
-		min_point.y = minf(min_point.y, point.y);
-		max_point.x = maxf(max_point.x, point.x);
-		max_point.y = maxf(max_point.y, point.y);
-
-	return Rect2(min_point, max_point - min_point);
-
-
-static func _build_water(entries: Array) -> Node3D:
-	var root := Node3D.new();
-	root.name = "Water";
-
-	for value in entries:
-		var entry: Dictionary = value;
-		var polygon := _polygon(entry["polygon"]);
-		var indices := Geometry2D.triangulate_polygon(polygon);
-		if indices.is_empty():
-			push_error("Could not triangulate water geometry: %s" % entry["id"]);
-			root.free();
-			return null;
-
-		var surface := SurfaceTool.new();
-		surface.begin(Mesh.PRIMITIVE_TRIANGLES);
-		var height := float(entry["height"]);
-
-		for index in range(0, indices.size(), 3):
-			var points := [
-				polygon[indices[index]],
-				polygon[indices[index + 1]],
-				polygon[indices[index + 2]],
-			];
-			var vertices := [
-				Vector3(points[0].x, height, points[0].y),
-				Vector3(points[1].x, height, points[1].y),
-				Vector3(points[2].x, height, points[2].y),
-			];
-			var normal: Vector3 = (vertices[1] - vertices[0]).cross(vertices[2] - vertices[0]);
-			if normal.y < 0.0:
-				var swap: Vector3 = vertices[1];
-				vertices[1] = vertices[2];
-				vertices[2] = swap;
-
-			for vertex in vertices:
-				surface.set_normal(Vector3.UP);
-				surface.add_vertex(vertex);
-
-		var mesh_instance := MeshInstance3D.new();
-		mesh_instance.name = String(entry["id"]);
-		mesh_instance.mesh = surface.commit();
-		mesh_instance.material_override = _material(Color(0.16, 0.35, 0.48));
-		root.add_child(mesh_instance);
-
-	return root;
 
 
 static func _spawn_entries(

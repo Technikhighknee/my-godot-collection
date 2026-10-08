@@ -1,6 +1,7 @@
 {
   "files": [
     "TerrainHeightField.gd",
+    "TerrainGeometry.gd",
     "GameMap.gd",
     "GameMapLoader.gd",
     "GameMapBuilder.gd",
