@@ -7,7 +7,13 @@
     ],
     "heightmap": "example.height.exr",
     "min_height": -4,
-    "max_height": 28
+    "max_height": 28,
+    "surface_map": "example.surface.png",
+    "surface_palette": [
+      "terrain.grass",
+      "terrain.dirt",
+      "terrain.rock"
+    ]
   },
   "roads": [
     {

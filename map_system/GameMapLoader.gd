@@ -3,7 +3,7 @@ extends RefCounted;
 
 
 const ROOT_KEYS := ["name", "terrain", "roads", "settlements", "water", "buildings", "objects"];
-const TERRAIN_KEYS := ["size", "heightmap", "min_height", "max_height"];
+const TERRAIN_KEYS := ["size", "heightmap", "min_height", "max_height", "surface_map", "surface_palette"];
 const ROAD_KEYS := ["id", "definition", "width", "points"];
 const SETTLEMENT_KEYS := ["id", "name", "build_areas"];
 const WATER_KEYS := ["id", "height", "polygon"];
@@ -53,7 +53,18 @@ static func load_file(path: String) -> GameMap:
 		push_error("Could not load terrain heightmap for map: %s" % path);
 		return null;
 
-	return GameMap.new(map_data.duplicate(true), path, height_field);
+	var surface_path := path.get_base_dir().path_join(String(terrain["surface_map"]));
+	var surface_field := TerrainSurfaceField.load_file(
+		surface_path,
+		_vec2(terrain["size"]),
+		height_field.get_sample_count() - Vector2i.ONE,
+		terrain["surface_palette"]
+	);
+	if surface_field == null:
+		push_error("Could not load terrain surface map for map: %s" % path);
+		return null;
+
+	return GameMap.new(map_data.duplicate(true), path, height_field, surface_field);
 
 
 static func validate(map_data: Dictionary) -> PackedStringArray:
@@ -94,6 +105,20 @@ static func validate(map_data: Dictionary) -> PackedStringArray:
 		and float(terrain["max_height"]) <= float(terrain["min_height"])
 	):
 		errors.append("map.terrain.max_height must be greater than min_height.");
+
+	if not _is_relative_surface_map_path(terrain.get("surface_map")):
+		errors.append("map.terrain.surface_map must be a relative .png path without '.' or '..' segments.");
+
+	var palette_value: Variant = terrain.get("surface_palette");
+	if typeof(palette_value) != TYPE_ARRAY:
+		errors.append("map.terrain.surface_palette must be an array.");
+	else:
+		var palette: Array = palette_value;
+		if palette.is_empty() or palette.size() > 256:
+			errors.append("map.terrain.surface_palette must contain between 1 and 256 definitions.");
+		for index in range(palette.size()):
+			if not _is_non_empty_string(palette[index]):
+				errors.append("map.terrain.surface_palette[%d] must be a non-empty string." % index);
 
 	var ids := {};
 	_validate_roads(map_data.get("roads"), size, ids, errors);
@@ -365,6 +390,23 @@ static func _is_relative_heightmap_path(value: Variant) -> bool:
 	if path.contains("\\") or path.begins_with("/") or path.contains(":"):
 		return false;
 	if not path.to_lower().ends_with(".exr"):
+		return false;
+
+	for segment in path.split("/"):
+		if segment.is_empty() or segment == "." or segment == "..":
+			return false;
+
+	return true;
+
+
+static func _is_relative_surface_map_path(value: Variant) -> bool:
+	if not _is_non_empty_string(value):
+		return false;
+
+	var path := String(value);
+	if path.contains("\\") or path.begins_with("/") or path.contains(":"):
+		return false;
+	if not path.to_lower().ends_with(".png"):
 		return false;
 
 	for segment in path.split("/"):

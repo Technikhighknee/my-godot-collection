@@ -14,7 +14,7 @@ static func load_file(
 	min_height: float,
 	max_height: float
 ) -> TerrainHeightField:
-	var image := _load_image(path);
+	var image := MapImageLoader.load(path);
 	if image == null or image.is_empty():
 		push_error("Could not load terrain heightmap: %s" % path);
 		return null;
@@ -33,25 +33,6 @@ static func load_file(
 
 	image.convert(Image.FORMAT_RF);
 	return TerrainHeightField.new(image, world_size, min_height, max_height);
-
-
-static func _load_image(path: String) -> Image:
-	# Project resources must go through ResourceLoader so imported image data is
-	# available in exported builds. Runtime/external map files are loaded raw.
-	if path.begins_with("res://"):
-		var resource := ResourceLoader.load(path);
-		if resource is Image:
-			return (resource as Image).duplicate();
-
-		if resource is Texture2D:
-			var image := (resource as Texture2D).get_image();
-			if image != null and not image.is_empty():
-				return image;
-
-		push_error("Terrain heightmap did not import as an Image or Texture2D: %s" % path);
-		return null;
-
-	return Image.load_from_file(path);
 
 
 func _init(

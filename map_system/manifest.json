@@ -1,5 +1,7 @@
 {
   "files": [
+    "TerrainSurfaceField.gd",
+    "MapImageLoader.gd",
     "TerrainHeightField.gd",
     "TerrainGeometry.gd",
     "GameMap.gd",
@@ -8,6 +10,7 @@
     "BuildingPlacement.gd",
     "README.md",
     "example.map.json",
-    "example.height.exr"
+    "example.height.exr",
+    "example.surface.png"
   ]
 }

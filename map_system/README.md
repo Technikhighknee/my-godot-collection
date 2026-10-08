@@ -27,7 +27,9 @@ There is deliberately no editor code in this package.
     "size": [1200, 900],
     "heightmap": "terrain.height.exr",
     "min_height": -5,
-    "max_height": 85
+    "max_height": 85,
+    "surface_map": "terrain.surface.png",
+    "surface_palette": ["terrain.grass", "terrain.dirt", "terrain.rock"]
   },
   "roads": [
     {
@@ -80,6 +82,8 @@ Use single-channel floating-point EXR heightmaps. Height data stays high precisi
 
 The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to `[size.x, size.z]`. Runtime height queries use the same two-triangle split as the rendered terrain mesh, so queried heights, terrain collision geometry, road surfaces, and placed entities agree on the actual ground surface.
 
+`surface_map` is an indexed grayscale PNG with exactly one pixel per terrain grid cell, so a heightmap with 33×25 samples uses a 32×24 surface map. Pixel value `0` maps to `surface_palette[0]`, `1` to `surface_palette[1]`, and so on. The palette contains semantic game IDs rather than Godot materials, keeping the map portable while still describing whether a cell is grass, dirt, rock, or another game-defined surface.
+
 ## Loading
 
 `GameMapLoader.load_file(path)` parses and structurally validates the map. Invalid maps return `null` and report the concrete validation errors.
@@ -103,12 +107,13 @@ if game_map == null:
 
 The loader returns a `GameMap`, which keeps the validated portable JSON together with its source path and loaded `TerrainHeightField`. That runtime context lets multiple consumers resolve map-relative assets without putting runtime paths into the JSON. `res://` heightmaps are loaded through Godot's resource pipeline so they continue to work after export; external/runtime map files use direct image loading.
 
-`TerrainHeightField` is the shared terrain truth and exposes interpolated height, normal, and slope queries:
+`TerrainHeightField` is the shared terrain truth and exposes interpolated height, normal, and slope queries. `TerrainSurfaceField` provides the corresponding semantic ground type:
 
 ```gdscript
 var y := game_map.terrain.height_at(Vector2(x, z));
 var normal := game_map.terrain.normal_at(Vector2(x, z));
 var slope_degrees := game_map.terrain.slope_at(Vector2(x, z));
+var surface_definition := game_map.terrain_surfaces.definition_at(Vector2(x, z));
 ```
 
 ## Building the initial world
