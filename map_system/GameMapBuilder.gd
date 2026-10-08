@@ -110,13 +110,14 @@ static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
 			var bottom_left := top_left + samples.x;
 			var bottom_right := bottom_left + 1;
 
+			# Godot treats clockwise winding as front-facing.
 			surface.add_index(top_left);
-			surface.add_index(bottom_left);
 			surface.add_index(top_right);
+			surface.add_index(bottom_left);
 
 			surface.add_index(top_right);
-			surface.add_index(bottom_left);
 			surface.add_index(bottom_right);
+			surface.add_index(bottom_left);
 
 	surface.generate_normals();
 	var mesh := surface.commit();
@@ -224,15 +225,17 @@ static func _emit_road_triangle(
 	if normal.length_squared() <= 0.0000001:
 		return false;
 
-	if normal.y < 0.0:
+	# Godot's front face is clockwise. Keep the rendered triangle clockwise,
+	# while the explicit shading normal still points away from the terrain.
+	if normal.y > 0.0:
 		var swap := b3;
 		b3 = c3;
 		c3 = swap;
 		normal = -normal;
 
-	normal = normal.normalized();
+	var shading_normal := -normal.normalized();
 	for vertex in [a3, b3, c3]:
-		surface.set_normal(normal);
+		surface.set_normal(shading_normal);
 		surface.add_vertex(vertex);
 
 	return true;
@@ -267,7 +270,7 @@ static func _build_water(entries: Array) -> Node3D:
 				Vector3(points[2].x, height, points[2].y),
 			];
 			var normal: Vector3 = (vertices[1] - vertices[0]).cross(vertices[2] - vertices[0]);
-			if normal.y < 0.0:
+			if normal.y > 0.0:
 				var swap: Vector3 = vertices[1];
 				vertices[1] = vertices[2];
 				vertices[2] = swap;
