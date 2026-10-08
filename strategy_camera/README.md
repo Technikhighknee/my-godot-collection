@@ -49,13 +49,13 @@ Tilt uses this convention:
 
 Vertical rotation is stored as a normalized position inside the currently valid tilt range. Because only the minimum changes with height, zooming naturally shifts the available view from close/forward toward far/top-down without a separate camera-arc state.
 
-Height input is logarithmic. Each wheel step moves 5% through the `5–120` height range, so the steps retain similar perceptual weight across the range.
+Height input is logarithmic. Each wheel step moves 5% through the `0.35–120` height range, so the steps retain similar perceptual weight across the range.
 
 ## Panning
 
 WASD, edge scrolling and RMB panning all use the same yaw-relative ground axes.
 
-Pan scale is derived from camera height and FOV, so movement stays consistent in screen-space terms rather than using a fixed world-units-per-second value.
+All panning modes use one shared pan scale derived from camera height and FOV. Below `12` units of camera height, that scale stops shrinking so close zoom remains responsive instead of turning WASD, edge scrolling, and RMB dragging into slow motion.
 
 RMB is intentionally click-safe. Pressing and releasing before the 120 ms hold delay does nothing to the camera and is not consumed. Once the hold activates, the pointer is captured and relative mouse motion drives the pan.
 
@@ -148,13 +148,14 @@ Return the current tilt in degrees.
 
 | Setting | Value |
 | --- | ---: |
-| Height range | `5–120` |
+| Height range | `0.35–120` |
 | Initial height | `28.7135` |
 | Wheel step | `5%` of logarithmic height range |
 | Near minimum tilt | `65°` |
 | Far minimum tilt | `25°` |
 | Maximum tilt | `90°` |
 | Pan speed | `1.5` screen-heights / second |
+| Minimum pan scale | equivalent to `12` units camera height |
 | Edge scroll margin | `24 px` |
 | RMB hold delay | `120 ms` |
 | Mouse yaw sensitivity | `0.2° / px` |

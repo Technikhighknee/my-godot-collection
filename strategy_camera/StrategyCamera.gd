@@ -8,7 +8,7 @@ signal pointer_rotation_started(anchor: Vector2);
 signal pointer_rotation_ended(anchor: Vector2);
 
 
-const MIN_HEIGHT := 5.0;
+const MIN_HEIGHT := 0.35;
 const MAX_HEIGHT := 120.0;
 const INITIAL_HEIGHT := 28.7135;
 const HEIGHT_STEP := 0.05;
@@ -18,6 +18,7 @@ const FAR_MIN_TILT := 25.0;
 const MAX_TILT := 90.0;
 
 const PAN_SCREEN_SPEED := 1.5;
+const MIN_PAN_HEIGHT := 12.0;
 const EDGE_SCROLL_MARGIN := 24.0;
 const POINTER_PAN_HOLD_DELAY_MSEC := 120;
 const MOVE_SMOOTHING := 16.0;
@@ -316,7 +317,7 @@ func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
 
 	var world_delta := _pan_world_delta(
 		motion,
-		_world_units_per_pixel()
+		_pan_world_units_per_pixel()
 	);
 
 	_focus += world_delta;
@@ -423,21 +424,22 @@ func _keyboard_pan_blocked_by_gui() -> bool:
 
 
 func _pan_speed() -> float:
-	return _world_span_at_height() * PAN_SCREEN_SPEED;
+	return _pan_world_span() * PAN_SCREEN_SPEED;
 
 
-func _world_units_per_pixel() -> float:
+func _pan_world_units_per_pixel() -> float:
 	var viewport_height := get_viewport().get_visible_rect().size.y;
 
 	if viewport_height <= 0.0:
 		return 0.0;
 
-	return _world_span_at_height() / viewport_height;
+	return _pan_world_span() / viewport_height;
 
 
-func _world_span_at_height() -> float:
+func _pan_world_span() -> float:
+	var pan_height := maxf(_height, MIN_PAN_HEIGHT);
 	var half_fov_tan := tan(deg_to_rad(camera.fov) * 0.5);
-	return 2.0 * _height * half_fov_tan;
+	return 2.0 * pan_height * half_fov_tan;
 
 
 func _change_height(direction: float, event_factor: float) -> void:
