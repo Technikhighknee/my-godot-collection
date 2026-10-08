@@ -108,13 +108,15 @@ if game_map == null:
 
 The loader returns a `GameMap`, which keeps the validated portable JSON together with its source path and loaded `TerrainHeightField`. That runtime context lets multiple consumers resolve map-relative assets without putting runtime paths into the JSON. `res://` heightmaps are loaded through Godot's resource pipeline so they continue to work after export; external/runtime map files use direct image loading.
 
-`TerrainHeightField` is the shared terrain truth and exposes interpolated height, normal, and slope queries. `TerrainSurfaceField` provides the corresponding semantic ground type:
+`TerrainHeightField` is the shared terrain truth and exposes interpolated height, normal, and slope queries. `TerrainSurfaceField` provides both the categorical gameplay surface and continuous visual blend weights. The blend weights never change the categorical answer returned by `definition_at(...)`:
 
 ```gdscript
-var y := game_map.terrain.height_at(Vector2(x, z));
-var normal := game_map.terrain.normal_at(Vector2(x, z));
-var slope_degrees := game_map.terrain.slope_at(Vector2(x, z));
-var surface_definition := game_map.terrain_surfaces.definition_at(Vector2(x, z));
+var position := Vector2(x, z);
+var y := game_map.terrain.height_at(position);
+var normal := game_map.terrain.normal_at(position);
+var slope_degrees := game_map.terrain.slope_at(position);
+var surface_definition := game_map.terrain_surfaces.definition_at(position);
+var visual_surface_weights := game_map.terrain_surfaces.blend_weights_at(position);
 ```
 
 ## Building the initial world
