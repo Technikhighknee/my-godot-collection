@@ -72,26 +72,43 @@ func index_at_cell(x: int, z: int) -> int:
 func blend_weights_at_sample(x: int, z: int) -> Dictionary:
 	assert(x >= 0 and x <= _image.get_width());
 	assert(z >= 0 and z <= _image.get_height());
+	return blend_weights_at(Vector2(
+		float(x) / float(_image.get_width()) * _world_size.x,
+		float(z) / float(_image.get_height()) * _world_size.y
+	));
 
+
+func blend_weights_at(position: Vector2) -> Dictionary:
+	var sample_x := clampf(
+		position.x / _world_size.x * float(_image.get_width()) - 0.5,
+		0.0,
+		float(_image.get_width() - 1)
+	);
+	var sample_z := clampf(
+		position.y / _world_size.y * float(_image.get_height()) - 0.5,
+		0.0,
+		float(_image.get_height() - 1)
+	);
+
+	var x0 := int(floor(sample_x));
+	var z0 := int(floor(sample_z));
+	var x1 := mini(x0 + 1, _image.get_width() - 1);
+	var z1 := mini(z0 + 1, _image.get_height() - 1);
+	var tx := sample_x - float(x0);
+	var tz := sample_z - float(z0);
 	var weights := {};
-	var contributing_cells := 0;
 
-	for cell_z in range(z - 1, z + 1):
-		if cell_z < 0 or cell_z >= _image.get_height():
-			continue;
-
-		for cell_x in range(x - 1, x + 1):
-			if cell_x < 0 or cell_x >= _image.get_width():
-				continue;
-
-			var surface_index := index_at_cell(cell_x, cell_z);
-			weights[surface_index] = int(weights.get(surface_index, 0)) + 1;
-			contributing_cells += 1;
-
-	for surface_index in weights.keys():
-		weights[surface_index] = float(weights[surface_index]) / float(contributing_cells);
-
+	_add_weight(weights, index_at_cell(x0, z0), (1.0 - tx) * (1.0 - tz));
+	_add_weight(weights, index_at_cell(x1, z0), tx * (1.0 - tz));
+	_add_weight(weights, index_at_cell(x0, z1), (1.0 - tx) * tz);
+	_add_weight(weights, index_at_cell(x1, z1), tx * tz);
 	return weights;
+
+
+static func _add_weight(weights: Dictionary, surface_index: int, weight: float) -> void:
+	if weight <= 0.0:
+		return;
+	weights[surface_index] = float(weights.get(surface_index, 0.0)) + weight;
 
 
 func definition_at(position: Vector2) -> String:
