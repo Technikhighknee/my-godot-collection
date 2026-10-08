@@ -90,9 +90,7 @@ static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
 		for x in range(samples.x):
 			var x_ratio := float(x) / float(samples.x - 1);
 			var world_x := x_ratio * size.x;
-			var position_2d := Vector2(world_x, world_z);
 			surface.set_uv(Vector2(x_ratio, z_ratio));
-			surface.set_normal(height_field.normal_at(position_2d));
 			surface.add_vertex(Vector3(
 				world_x,
 				height_field.height_at_sample(x, z),
@@ -114,6 +112,7 @@ static func _build_terrain(height_field: TerrainHeightField) -> Node3D:
 			surface.add_index(bottom_left);
 			surface.add_index(bottom_right);
 
+	surface.generate_normals();
 	var mesh := surface.commit();
 	if mesh == null:
 		push_error("Could not build terrain mesh.");
@@ -159,26 +158,19 @@ static func _build_roads(entries: Array, height_field: TerrainHeightField) -> No
 
 		var surface := SurfaceTool.new();
 		surface.begin(Mesh.PRIMITIVE_TRIANGLES);
+		var triangle_count := 0;
 
 		for polygon in polygons:
-			var triangles := Geometry2D.triangulate_polygon(polygon);
-			if triangles.is_empty():
-				push_error("Could not triangulate road geometry: %s" % road["id"]);
-				root.free();
-				return null;
+			triangle_count += _emit_terrain_conforming_road(
+				surface,
+				polygon,
+				height_field
+			);
 
-			# Geometry2D triangulates counter-clockwise in XY. Mapping its Y to
-			# world Z flips the winding, so emit each triangle in reverse order.
-			for triangle_index in range(0, triangles.size(), 3):
-				for offset in [0, 2, 1]:
-					var vertex_index := triangles[triangle_index + offset];
-					var point: Vector2 = polygon[vertex_index];
-					surface.set_normal(height_field.normal_at(point));
-					surface.add_vertex(Vector3(
-						point.x,
-						height_field.height_at(point) + ROAD_Y_OFFSET,
-						point.y
-					));
+		if triangle_count == 0:
+			push_error("Road does not produce drawable geometry: %s" % road["id"]);
+			root.free();
+			return null;
 
 		var mesh_instance := MeshInstance3D.new();
 		mesh_instance.name = String(road["id"]);
@@ -187,6 +179,102 @@ static func _build_roads(entries: Array, height_field: TerrainHeightField) -> No
 		root.add_child(mesh_instance);
 
 	return root;
+
+
+static func _emit_terrain_conforming_road(
+	surface: SurfaceTool,
+	road_polygon: PackedVector2Array,
+	height_field: TerrainHeightField
+) -> int:
+	var spacing := height_field.get_sample_spacing();
+	var samples := height_field.get_sample_count();
+	var bounds := _polygon_bounds(road_polygon);
+	var min_x := clampi(int(floor(bounds.position.x / spacing.x)), 0, samples.x - 2);
+	var max_x := clampi(int(floor(bounds.end.x / spacing.x)), 0, samples.x - 2);
+	var min_z := clampi(int(floor(bounds.position.y / spacing.y)), 0, samples.y - 2);
+	var max_z := clampi(int(floor(bounds.end.y / spacing.y)), 0, samples.y - 2);
+	var triangle_count := 0;
+
+	for z in range(min_z, max_z + 1):
+		var z0 := float(z) * spacing.y;
+		var z1 := float(z + 1) * spacing.y;
+
+		for x in range(min_x, max_x + 1):
+			var x0 := float(x) * spacing.x;
+			var x1 := float(x + 1) * spacing.x;
+			var top_left := Vector2(x0, z0);
+			var top_right := Vector2(x1, z0);
+			var bottom_left := Vector2(x0, z1);
+			var bottom_right := Vector2(x1, z1);
+			var terrain_triangles := [
+				PackedVector2Array([top_left, bottom_left, top_right]),
+				PackedVector2Array([top_right, bottom_left, bottom_right]),
+			];
+
+			for terrain_triangle in terrain_triangles:
+				var clipped_polygons := Geometry2D.intersect_polygons(
+					road_polygon,
+					terrain_triangle
+				);
+
+				for clipped in clipped_polygons:
+					if clipped.size() < 3:
+						continue;
+
+					var indices := Geometry2D.triangulate_polygon(clipped);
+					for index in range(0, indices.size(), 3):
+						if _emit_road_triangle(
+							surface,
+							clipped[indices[index]],
+							clipped[indices[index + 1]],
+							clipped[indices[index + 2]],
+							height_field
+						):
+							triangle_count += 1;
+
+	return triangle_count;
+
+
+static func _emit_road_triangle(
+	surface: SurfaceTool,
+	a: Vector2,
+	b: Vector2,
+	c: Vector2,
+	height_field: TerrainHeightField
+) -> bool:
+	var a3 := Vector3(a.x, height_field.height_at(a) + ROAD_Y_OFFSET, a.y);
+	var b3 := Vector3(b.x, height_field.height_at(b) + ROAD_Y_OFFSET, b.y);
+	var c3 := Vector3(c.x, height_field.height_at(c) + ROAD_Y_OFFSET, c.y);
+	var normal := (b3 - a3).cross(c3 - a3);
+
+	if normal.length_squared() <= 0.0000001:
+		return false;
+
+	if normal.y < 0.0:
+		var swap := b3;
+		b3 = c3;
+		c3 = swap;
+		normal = -normal;
+
+	normal = normal.normalized();
+	for vertex in [a3, b3, c3]:
+		surface.set_normal(normal);
+		surface.add_vertex(vertex);
+
+	return true;
+
+
+static func _polygon_bounds(polygon: PackedVector2Array) -> Rect2:
+	var min_point := polygon[0];
+	var max_point := polygon[0];
+
+	for point in polygon:
+		min_point.x = minf(min_point.x, point.x);
+		min_point.y = minf(min_point.y, point.y);
+		max_point.x = maxf(max_point.x, point.x);
+		max_point.y = maxf(max_point.y, point.y);
+
+	return Rect2(min_point, max_point - min_point);
 
 
 static func _spawn_entries(
