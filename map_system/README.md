@@ -11,7 +11,7 @@ The core rules are intentionally small:
 - Rotation is stored in degrees and applied as Y rotation in Godot.
 - Roads are center-line polylines with a width and a semantic definition ID.
 - Settlements own one or more build-area polygons.
-- Water is represented explicitly as flat polygons with a world-space height.
+- Water is represented explicitly as flat polygons with a world-space height and semantic definition ID.
 - Preplaced buildings are normal game buildings. The map only says which definition exists where at game start.
 - The same `BuildingPlacement` logic is intended for player and AI construction.
 - Definition IDs are semantic IDs for game content such as buildings, objects, and road types. A map never contains `res://` paths.
@@ -51,6 +51,7 @@ There is deliberately no editor code in this package.
   "water": [
     {
       "id": "river_trave",
+      "definition": "water.river",
       "height": 2.5,
       "polygon": [[250, 650], [900, 620], [920, 700], [260, 730]]
     }
@@ -129,19 +130,19 @@ func spawn_building(definition_id: String, _entry: Dictionary) -> Node3D:
 func spawn_object(definition_id: String, _entry: Dictionary) -> Node3D:
     return object_catalog.instantiate(definition_id);
 
-func terrain_material(definition_id: String) -> Material:
-    return terrain_materials.get(definition_id);
+func map_material(kind: String, definition_id: String) -> Material:
+    return map_materials.get(kind + ":" + definition_id);
 
 var root := GameMapBuilder.build(
     game_map,
     self,
     spawn_building,
     spawn_object,
-    terrain_material
+    map_material
 );
 ```
 
-The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root. The optional terrain material provider resolves semantic `surface_palette` IDs to normal Godot `Material` resources. If no provider is supplied, the builder uses distinct debug materials so a map remains directly inspectable without game-specific assets.
+The returned building/object nodes receive the map entry's position and rotation and are parented under the generated map root. The optional material provider resolves semantic terrain, road, and water definition IDs to normal Godot `Material` resources. Its signature is `(kind: String, definition_id: String) -> Material`, where `kind` is `terrain`, `road`, or `water`. If no provider is supplied, the builder uses debug materials so a map remains directly inspectable without game-specific assets.
 
 This means a preplaced `building.blacksmith` can be instantiated through the same catalog/factory that player or AI construction uses. There is no special "map building" type.
 

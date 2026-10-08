@@ -6,7 +6,7 @@ const ROOT_KEYS := ["name", "terrain", "roads", "settlements", "water", "buildin
 const TERRAIN_KEYS := ["size", "heightmap", "min_height", "max_height", "surface_map", "surface_palette"];
 const ROAD_KEYS := ["id", "definition", "width", "points"];
 const SETTLEMENT_KEYS := ["id", "name", "build_areas"];
-const WATER_KEYS := ["id", "height", "polygon"];
+const WATER_KEYS := ["id", "definition", "height", "polygon"];
 const ENTITY_KEYS := ["id", "definition", "position", "rotation"];
 
 
@@ -270,6 +270,9 @@ static func _validate_water(
 		var entry: Dictionary = entry_value;
 		_check_keys(entry, WATER_KEYS, WATER_KEYS, path, errors);
 		_register_id(entry.get("id"), path, ids, errors);
+
+		if not _is_non_empty_string(entry.get("definition")):
+			errors.append("%s.definition must be a non-empty string." % path);
 
 		if not _is_number(entry.get("height")):
 			errors.append("%s.height must be a number." % path);

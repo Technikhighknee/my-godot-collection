@@ -10,7 +10,7 @@ static func build(
 	parent: Node3D,
 	building_spawner: Callable = Callable(),
 	object_spawner: Callable = Callable(),
-	terrain_material_provider: Callable = Callable()
+	material_provider: Callable = Callable()
 ) -> Node3D:
 	if game_map == null:
 		push_error("GameMapBuilder requires a loaded GameMap.");
@@ -40,20 +40,20 @@ static func build(
 	var terrain := _build_terrain(
 		game_map.terrain,
 		game_map.terrain_surfaces,
-		terrain_material_provider
+		material_provider
 	);
 	if terrain == null:
 		root.free();
 		return null;
 	root.add_child(terrain);
 
-	var roads := _build_roads(map_data["roads"], game_map.terrain);
+	var roads := _build_roads(map_data["roads"], game_map.terrain, material_provider);
 	if roads == null:
 		root.free();
 		return null;
 	root.add_child(roads);
 
-	var water := _build_water(map_data["water"]);
+	var water := _build_water(map_data["water"], material_provider);
 	if water == null:
 		root.free();
 		return null;
@@ -190,7 +190,8 @@ static func _build_terrain_surfaces(
 			root.free();
 			return null;
 
-		var material := _resolve_terrain_material(
+		var material := _resolve_material(
+			"terrain",
 			String(definitions[surface_index]),
 			surface_index,
 			material_provider
@@ -237,29 +238,41 @@ static func _emit_terrain_cell(
 		));
 
 
-static func _resolve_terrain_material(
+static func _resolve_material(
+	kind: String,
 	definition: String,
-	surface_index: int,
+	debug_index: int,
 	provider: Callable
 ) -> Material:
 	if provider.is_valid():
-		var created: Variant = provider.call(definition);
+		var created: Variant = provider.call(kind, definition);
 		if created is Material:
 			return created as Material;
-		push_error("Terrain material provider must return a Material for: %s" % definition);
+		push_error(
+			"Material provider must return a Material for %s definition: %s"
+			% [kind, definition]
+		);
 		return null;
 
-	var colors := [
+	var terrain_colors := [
 		Color(0.32, 0.36, 0.28),
 		Color(0.38, 0.29, 0.20),
 		Color(0.38, 0.39, 0.40),
 		Color(0.47, 0.43, 0.29),
 		Color(0.24, 0.36, 0.24),
 	];
-	return _material(colors[surface_index % colors.size()]);
+	if kind == "terrain":
+		return _material(terrain_colors[debug_index % terrain_colors.size()]);
+	if kind == "road":
+		return _material(Color(0.26, 0.23, 0.20));
+	return _material(Color(0.16, 0.35, 0.48));
 
 
-static func _build_roads(entries: Array, height_field: TerrainHeightField) -> Node3D:
+static func _build_roads(
+	entries: Array,
+	height_field: TerrainHeightField,
+	material_provider: Callable
+) -> Node3D:
 	var root := Node3D.new();
 	root.name = "Roads";
 
@@ -297,7 +310,16 @@ static func _build_roads(entries: Array, height_field: TerrainHeightField) -> No
 		var mesh_instance := MeshInstance3D.new();
 		mesh_instance.name = String(road["id"]);
 		mesh_instance.mesh = surface.commit();
-		mesh_instance.material_override = _material(Color(0.26, 0.23, 0.20));
+		var material := _resolve_material(
+			"road",
+			String(road["definition"]),
+			0,
+			material_provider
+		);
+		if material == null:
+			root.free();
+			return null;
+		mesh_instance.material_override = material;
 		root.add_child(mesh_instance);
 
 	return root;
@@ -356,7 +378,7 @@ static func _emit_road_triangle(
 	return true;
 
 
-static func _build_water(entries: Array) -> Node3D:
+static func _build_water(entries: Array, material_provider: Callable) -> Node3D:
 	var root := Node3D.new();
 	root.name = "Water";
 
@@ -397,7 +419,16 @@ static func _build_water(entries: Array) -> Node3D:
 		var mesh_instance := MeshInstance3D.new();
 		mesh_instance.name = String(entry["id"]);
 		mesh_instance.mesh = surface.commit();
-		mesh_instance.material_override = _material(Color(0.16, 0.35, 0.48));
+		var material := _resolve_material(
+			"water",
+			String(entry["definition"]),
+			0,
+			material_provider
+		);
+		if material == null:
+			root.free();
+			return null;
+		mesh_instance.material_override = material;
 		root.add_child(mesh_instance);
 
 	return root;
