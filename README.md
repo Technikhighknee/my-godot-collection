@@ -57,6 +57,19 @@ python .\tools\deploy.py map_system C:\Projects\Game\packages\MapSystem -y
 A missing `-y` prompts once before replacing directories. This is an intentionally
 opinionated installer, not a per-file synchronizer. Do not use a project root as a destination.
 
+## Godot scene and resource files
+
+For `.tscn` and `.tres` files authored outside the Godot editor, use
+**relative paths** for references to files within the same package, so the
+project manifest can freely choose the installed folder name. Keep
+`ExtResource` and `SubResource` IDs local and unique within their file.
+Do **not** invent `uid="uid://..."` values or node `unique_id` values.
+If globally stable resource UIDs are needed, let Godot generate them and
+commit its real metadata. Godot may rewrite relative paths to `res://` paths
+when it saves a scene in the editor; check before committing that change
+back into a relocatable package.
+
+
 ---
 
 ## Repository Notice

@@ -4,7 +4,7 @@ An opinionated 3D strategy / city-builder camera for Godot 4.
 
 ## Setup
 
-`StrategyCamera.tscn` is included in the package. Instantiate it directly in your scene. It already contains a `Node3D` using `StrategyCamera.gd` and its `Camera3D` child, with FOV `45`.
+`StrategyCamera.tscn` is included in the package. Instantiate it directly in your scene. It already contains a `Node3D` using `StrategyCamera.gd` and its `Camera3D` child, with FOV `45`. The scene references its script using a relative path, so the installation folder name is up to the project manifest. The scene has no handwritten resource UIDs or node `unique_id` values; `ExtResource("1")` refers only to the scene-local external-resource ID.
 
 Alternatively, attach `StrategyCamera.gd` to a `Node3D` with a direct `Camera3D` child named `Camera3D`:
 
