@@ -226,9 +226,10 @@ static func _blended_debug_terrain_color(
 	x: int,
 	z: int
 ) -> Color:
-	var result := Color(0.0, 0.0, 0.0, 1.0);
-	for surface_index in surface_field.blend_weights_at_sample(x, z):
-		var weight: float = surface_field.blend_weights_at_sample(x, z)[surface_index];
+	var result := Color(0.0, 0.0, 0.0, 0.0);
+	var weights := surface_field.blend_weights_at_sample(x, z);
+	for surface_index in weights:
+		var weight: float = weights[surface_index];
 		result += _debug_terrain_color(int(surface_index)) * weight;
 	result.a = 1.0;
 	return result;
