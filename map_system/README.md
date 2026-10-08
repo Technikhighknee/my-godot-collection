@@ -140,14 +140,15 @@ A minimal building definition for placement looks like this:
     "requires_build_area": true,
     "entrance": [0.0, 6.0],
     "max_road_distance": 10.0,
+    "max_slope": 8.0,
 }
 ```
 
-Only `footprint` is mandatory. If `max_road_distance` is present, `entrance` is mandatory too. Buildings without `max_road_distance` do not require road access. `requires_build_area` defaults to `true`, so rural/special buildings can explicitly opt out.
+Only `footprint` is mandatory. If `max_road_distance` is present, `entrance` is mandatory too. Buildings without `max_road_distance` do not require road access. `requires_build_area` defaults to `true`, so rural/special buildings can explicitly opt out. `max_slope` is optional and rejects footprints whose sampled terrain exceeds that slope in degrees.
 
 ```gdscript
 var result := BuildingPlacement.check(
-    map,
+    game_map,
     definition,
     Vector2(430, 395),
     12.0,
@@ -179,7 +180,10 @@ Placement currently checks:
 - the entire footprint fits inside a settlement build area unless the definition opts out;
 - the footprint does not overlap a road;
 - the footprint does not overlap an occupied building;
-- when road access is required, the transformed entrance is close enough to the nearest road edge.
+- when road access is required, the transformed entrance is close enough to the nearest road edge;
+- when `max_slope` is present, the terrain under the footprint stays within that slope.
+
+Successful checks also return `ground_height` at the building origin and the maximum sampled `terrain_slope` under its footprint.
 
 Road rendering and road exclusion both derive their area from the same centerline + width data using Godot's `Geometry2D`, so they do not have competing interpretations of road width.
 
