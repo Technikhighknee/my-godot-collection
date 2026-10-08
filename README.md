@@ -31,7 +31,7 @@ Overwrite these files? [y/N/p]:
 - `p` lets you pick individual files using numbers and ranges such as `1, 2, 6-9, 14`.
 - `-y` skips the prompt and overwrites all differing existing files.
 
-Identical files are skipped.
+Identical files are skipped. Packages can also list known obsolete paths in `manifest.json` as `remove`; these are removed from the deployment destination after confirmation (or with `-y`). This is used by the Map System folder migration so old top-level Godot scripts do not linger beside the new nested copies.
 
 A project can also contain a manifest that maps packages to target directories:
 

@@ -16,6 +16,24 @@ The core rules are intentionally small:
 - The same `BuildingPlacement` logic is intended for player and AI construction.
 - Definition IDs are semantic IDs for game content such as buildings, objects, and road types. A map never contains `res://` paths.
 
+The package layout separates data, geometry, and rendering:
+
+```text
+map_system/
+  core/           Map loading, map state, building placement
+  terrain/        Height, surface types, geometric clipping
+  rendering/      Godot world builder
+  io/             Image loading
+  assets/         Example heightmap and surface map
+  example.map.json
+  manifest.json
+  README.md
+```
+
+`example.map.json` stays at package root so existing Godot test scenes can keep loading it at `res://MapSystem/example.map.json`. Its external images now live in `assets/`. All GDScript classes still use `class_name`, so callers do not need to change their code paths.
+
+The manifest declares obsolete paths from the previous flat layout. `deploy.py` copies the nested files and removes the old copies in the destination (after confirmation, or with `-y`). This is needed to avoid duplicate `class_name` declarations in Godot. A hand-copied upgrade must delete the old top-level scripts.
+
 There is deliberately no editor code in this package.
 
 ## Map format
@@ -25,10 +43,10 @@ There is deliberately no editor code in this package.
   "name": "Lübeck",
   "terrain": {
     "size": [1200, 900],
-    "heightmap": "terrain.height.exr",
+    "heightmap": "assets/terrain.height.exr",
     "min_height": -5,
     "max_height": 85,
-    "surface_map": "terrain.surface.png",
+    "surface_map": "assets/terrain.surface.png",
     "surface_palette": ["terrain.grass", "terrain.dirt", "terrain.rock"]
   },
   "roads": [

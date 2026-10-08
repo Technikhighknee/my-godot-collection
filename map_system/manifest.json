@@ -1,15 +1,27 @@
 {
   "files": [
-    "TerrainSurfaceField.gd",
-    "MapImageLoader.gd",
-    "TerrainHeightField.gd",
-    "TerrainGeometry.gd",
-    "GameMap.gd",
-    "GameMapLoader.gd",
-    "GameMapBuilder.gd",
-    "BuildingPlacement.gd",
+    "terrain/TerrainSurfaceField.gd",
+    "io/MapImageLoader.gd",
+    "terrain/TerrainHeightField.gd",
+    "terrain/TerrainGeometry.gd",
+    "core/GameMap.gd",
+    "core/GameMapLoader.gd",
+    "rendering/GameMapBuilder.gd",
+    "core/BuildingPlacement.gd",
     "README.md",
     "example.map.json",
+    "assets/example.height.exr",
+    "assets/example.surface.png"
+  ],
+  "remove": [
+    "GameMap.gd",
+    "GameMapLoader.gd",
+    "BuildingPlacement.gd",
+    "GameMapBuilder.gd",
+    "TerrainHeightField.gd",
+    "TerrainSurfaceField.gd",
+    "TerrainGeometry.gd",
+    "MapImageLoader.gd",
     "example.height.exr",
     "example.surface.png"
   ]

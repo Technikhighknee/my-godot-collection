@@ -5,10 +5,10 @@
       240,
       180
     ],
-    "heightmap": "example.height.exr",
+    "heightmap": "assets/example.height.exr",
     "min_height": -4,
     "max_height": 28,
-    "surface_map": "example.surface.png",
+    "surface_map": "assets/example.surface.png",
     "surface_palette": [
       "terrain.grass",
       "terrain.dirt",
