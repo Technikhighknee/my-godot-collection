@@ -253,3 +253,7 @@ Road rendering and road exclusion both derive their area from the same centerlin
 - No speculative chunking or biome architecture.
 
 The format can grow when the game proves it needs another concept.
+
+## Coastal relief test map
+
+Load `res://packages/MapSystem/coastal_relief.map.json` instead of `example.map.json` using the usual `GameMapLoader` and `GameMapBuilder`. This separate relief-first example is 480 × 360 world meters with a 321 × 241 floating-point EXR, a steep peninsula, asymmetric ridges, two paths, and one hole-free sea polygon. The 320 × 240 indexed PNG still represents categorical grass, dirt and rock; no buildings or objects are spawned. Existing shader and map architecture are unchanged. Inspect silhouette, slopes and the coast before judging materials.

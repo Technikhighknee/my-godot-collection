@@ -12,6 +12,9 @@
     "README.md",
     "example.map.json",
     "assets/example.height.exr",
-    "assets/example.surface.png"
+    "assets/example.surface.png",
+    "coastal_relief.map.json",
+    "assets/coastal_relief.height.exr",
+    "assets/coastal_relief.surface.png"
   ]
 }
