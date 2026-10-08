@@ -103,7 +103,7 @@ var slope_degrees := game_map.terrain.slope_at(Vector2(x, z));
 
 ## Building the initial world
 
-`GameMapBuilder` owns map geometry: flat terrain, terrain collision, and road meshes.
+`GameMapBuilder` owns map geometry: heightmap terrain, terrain collision, and road meshes. Terrain visual geometry and collision are produced from the same height samples. Roads, buildings, and objects query the same `TerrainHeightField` for their Y position.
 
 It does **not** own a building registry. Instead, the game supplies two tiny spawner callbacks. That keeps definition lookup and the actual gameplay entities outside the map package.
 
