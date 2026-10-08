@@ -3,12 +3,16 @@ extends RefCounted;
 
 
 static func check(
-	map_data: Dictionary,
+	game_map: GameMap,
 	definition: Dictionary,
 	position: Vector2,
 	rotation_degrees: float,
 	occupied: Array = []
 ) -> Dictionary:
+	if game_map == null:
+		return _invalid(&"invalid_map");
+
+	var map_data := game_map.data;
 	var footprint_size := _read_positive_size(definition.get("footprint"));
 	if footprint_size == Vector2.ZERO:
 		return _invalid(&"invalid_definition");
@@ -47,12 +51,33 @@ static func check(
 	if not blocking_building.is_empty():
 		return _invalid(&"overlaps_building", {"building_id": blocking_building});
 
+	var terrain_slope := _max_terrain_slope(game_map.terrain, footprint, position);
+	if definition.has("max_slope"):
+		var max_slope_value: Variant = definition["max_slope"];
+		if (
+			not _is_number(max_slope_value)
+			or float(max_slope_value) < 0.0
+			or float(max_slope_value) >= 90.0
+		):
+			return _invalid(&"invalid_definition");
+
+		if terrain_slope > float(max_slope_value):
+			return _invalid(
+				&"terrain_too_steep",
+				{
+					"ground_height": game_map.terrain.height_at(position),
+					"terrain_slope": terrain_slope,
+				}
+			);
+
 	var result := {
 		"valid": true,
 		"reason": &"",
 		"settlement_id": settlement_id,
 		"road_id": "",
 		"road_distance": INF,
+		"ground_height": game_map.terrain.height_at(position),
+		"terrain_slope": terrain_slope,
 	};
 
 	if definition.has("max_road_distance"):
@@ -83,6 +108,47 @@ static func check(
 		result["road_distance"] = nearest["distance"];
 
 	return result;
+
+
+static func _max_terrain_slope(
+	height_field: TerrainHeightField,
+	footprint: PackedVector2Array,
+	center: Vector2
+) -> float:
+	var max_slope := height_field.slope_at(center);
+	for point in footprint:
+		max_slope = maxf(max_slope, height_field.slope_at(point));
+
+	var bounds := _polygon_bounds(footprint);
+	var samples := height_field.get_sample_count();
+	var world_size := height_field.get_world_size();
+	var step := Vector2(
+		world_size.x / float(samples.x - 1),
+		world_size.y / float(samples.y - 1)
+	);
+	var min_x := maxi(0, int(ceil(bounds.position.x / step.x)));
+	var max_x := mini(samples.x - 1, int(floor(bounds.end.x / step.x)));
+	var min_z := maxi(0, int(ceil(bounds.position.y / step.y)));
+	var max_z := mini(samples.y - 1, int(floor(bounds.end.y / step.y)));
+
+	for z in range(min_z, max_z + 1):
+		for x in range(min_x, max_x + 1):
+			var point := Vector2(float(x) * step.x, float(z) * step.y);
+			if Geometry2D.is_point_in_polygon(point, footprint):
+				max_slope = maxf(max_slope, height_field.slope_at(point));
+
+	return max_slope;
+
+
+static func _polygon_bounds(polygon: PackedVector2Array) -> Rect2:
+	var min_point := polygon[0];
+	var max_point := polygon[0];
+	for point in polygon:
+		min_point.x = minf(min_point.x, point.x);
+		min_point.y = minf(min_point.y, point.y);
+		max_point.x = maxf(max_point.x, point.x);
+		max_point.y = maxf(max_point.y, point.y);
+	return Rect2(min_point, max_point - min_point);
 
 
 static func _find_settlement(map_data: Dictionary, footprint: PackedVector2Array) -> String:
@@ -238,6 +304,8 @@ static func _invalid(reason: StringName, extra: Dictionary = {}) -> Dictionary:
 		"settlement_id": "",
 		"road_id": "",
 		"road_distance": INF,
+		"ground_height": NAN,
+		"terrain_slope": NAN,
 	};
 	result.merge(extra, true);
 	return result;
