@@ -30,9 +30,9 @@ map_system/
   README.md
 ```
 
-`example.map.json` stays at package root so existing Godot test scenes can keep loading it at `res://MapSystem/example.map.json`. Its external images now live in `assets/`. All GDScript classes still use `class_name`, so callers do not need to change their code paths.
+`example.map.json` stays at package root so existing Godot test scenes can keep loading it at `res://packages/MapSystem/example.map.json`. Its external images now live in `assets/`. All GDScript classes still use `class_name`, so callers do not need to change their code paths.
 
-The manifest declares obsolete paths from the previous flat layout. `deploy.py` copies the nested files and removes the old copies in the destination (after confirmation, or with `-y`). This is needed to avoid duplicate `class_name` declarations in Godot. A hand-copied upgrade must delete the old top-level scripts.
+`deploy.py` installs this as a whole package under `packages/<folder chosen by the project manifest>/`. Its source manifest lists only current files: there is no `remove` history. On upgrade, the prior install is backed up outside the project before the new nested layout replaces it.
 
 There is deliberately no editor code in this package.
 

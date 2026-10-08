@@ -12,17 +12,5 @@
     "example.map.json",
     "assets/example.height.exr",
     "assets/example.surface.png"
-  ],
-  "remove": [
-    "GameMap.gd",
-    "GameMapLoader.gd",
-    "BuildingPlacement.gd",
-    "GameMapBuilder.gd",
-    "TerrainHeightField.gd",
-    "TerrainSurfaceField.gd",
-    "TerrainGeometry.gd",
-    "MapImageLoader.gd",
-    "example.height.exr",
-    "example.surface.png"
   ]
 }
