@@ -1,0 +1,9 @@
+{
+  "files": [
+    "GameMapLoader.gd",
+    "GameMapBuilder.gd",
+    "BuildingPlacement.gd",
+    "README.md",
+    "example.map.json"
+  ]
+}
