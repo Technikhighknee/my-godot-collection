@@ -26,8 +26,9 @@ def shader_style_weights(cells: list[list[int]], world_size: tuple[float, float]
         (x0, z1, (1.0 - tx) * tz),
         (x1, z1, tx * tz),
     ]:
-        index = cells[cell_z][cell_x]
-        weights[index] = weights.get(index, 0.0) + weight
+        if weight > 0.0:
+            index = cells[cell_z][cell_x]
+            weights[index] = weights.get(index, 0.0) + weight
     return weights
 
 
