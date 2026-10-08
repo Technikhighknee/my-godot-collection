@@ -5,6 +5,7 @@ Some Godot bits and bobs.
 ## Collection
 
 - [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
+- [Map System](map_system/) — portable Guild-like maps, road geometry, and runtime building placement.
 
 ## Copy tool
 
