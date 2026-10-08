@@ -7,6 +7,7 @@
     "core/GameMap.gd",
     "core/GameMapLoader.gd",
     "rendering/GameMapBuilder.gd",
+    "rendering/TerrainTextureMaterial.gd",
     "core/BuildingPlacement.gd",
     "README.md",
     "example.map.json",
