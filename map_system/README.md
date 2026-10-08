@@ -83,7 +83,7 @@ Use single-channel floating-point EXR heightmaps. Height data stays high precisi
 
 The top-left heightmap sample maps to `[0, 0]`; the bottom-right sample maps to `[size.x, size.z]`. Runtime height queries use the same two-triangle split as the rendered terrain mesh, so queried heights, terrain collision geometry, road surfaces, and placed entities agree on the actual ground surface.
 
-`surface_map` is an indexed grayscale PNG with exactly one pixel per terrain grid cell, so a heightmap with 33×25 samples uses a 32×24 surface map. Pixel value `0` maps to `surface_palette[0]`, `1` to `surface_palette[1]`, and so on. The palette contains semantic game IDs rather than Godot materials, keeping the map portable while still describing whether a cell is grass, dirt, rock, or another game-defined surface.
+`surface_map` is an indexed grayscale PNG with exactly one pixel per terrain grid cell, so a heightmap with 33×25 samples uses a 32×24 surface map. Pixel value `0` maps to `surface_palette[0]`, `1` to `surface_palette[1]`, and so on. The palette contains semantic game IDs rather than Godot materials, keeping the map portable while still describing whether a cell is grass, dirt, rock, or another game-defined surface. Surface assignment is intentionally categorical at this stage: one terrain cell has one surface definition. Texture blending can be layered on later without changing the semantic ground type used by gameplay.
 
 ## Loading
 
