@@ -58,6 +58,14 @@ class TerrainTextureContractTests(unittest.TestCase):
         self.assertIn("UV / terrain_size", self.shader)
         self.assertIn("- vec2(0.5)", self.shader)
         self.assertIn("ALBEDO = mix(top, bottom, t.y)", self.shader)
+        self.assertIn("vec2 warped = UV +", self.shader)
+        self.assertIn("layer_color(warped, definition_at(a), variation)", self.shader)
+        self.assertIn("vec3 second = texture(layer_albedos", self.shader)
+        self.assertIn("ALBEDO *= 1.0 + macro_tint_strength", self.shader)
+        self.assertIn("float variation = smoothstep(", self.shader)
+        self.assertIn('set_shader_parameter("macro_scale", MACRO_SCALE)', self.shader)
+        self.assertIn('set_shader_parameter("warp_meters", WARP_METERS)', self.shader)
+        self.assertIn('set_shader_parameter("macro_tint_strength", MACRO_TINT_STRENGTH)', self.shader)
         self.assertNotIn("COLOR", self.shader)
 
     def test_renderer_uses_texture_material_without_changing_legacy_provider(self) -> None:

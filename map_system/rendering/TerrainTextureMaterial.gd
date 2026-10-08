@@ -5,7 +5,10 @@ extends RefCounted;
 # The index texture contains the *categorical* surface IDs as 8-bit values.
 # Shader blending happens per pixel, independently of terrain mesh density.
 const TEXTURE_SIZE := 128;
-const TILE_SCALE := 0.35;
+const TILE_SCALE := 0.24;
+const MACRO_SCALE := 0.035;
+const WARP_METERS := 1.1;
+const MACRO_TINT_STRENGTH := 0.15;
 
 const TERRAIN_SHADER := """
 shader_type spatial;
@@ -15,17 +18,52 @@ uniform sampler2D surface_indices : filter_nearest, repeat_disable;
 uniform sampler2DArray layer_albedos : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec2 terrain_size = vec2(1.0);
 uniform vec2 cell_count = vec2(1.0);
-uniform float tiles_per_meter = 0.35;
+uniform float tiles_per_meter = 0.24;
+uniform float macro_scale = 0.035;
+uniform float warp_meters = 1.1;
+uniform float macro_tint_strength = 0.15;
 
 int definition_at(ivec2 cell) {
 	return int(round(texelFetch(surface_indices, cell, 0).r * 255.0));
 }
 
-vec3 layer_color(vec2 position, int index) {
-	return texture(layer_albedos, vec3(position * tiles_per_meter, float(index))).rgb;
+// All coordinates are world-space; no repeat-period tied to the terrain dimensions.
+float cell_hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float value_noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 t = f * f * (vec2(3.0) - vec2(2.0) * f);
+	float x0 = mix(cell_hash(i), cell_hash(i + vec2(1.0, 0.0)), t.x);
+	float x1 = mix(cell_hash(i + vec2(0.0, 1.0)), cell_hash(i + vec2(1.0, 1.0)), t.x);
+	return mix(x0, x1, t.y);
+}
+
+vec3 layer_color(vec2 position, int index, float variation) {
+	vec2 uv = position * tiles_per_meter;
+	// The second sampling orientation is deliberately non-axis-aligned.
+	// Smooth, world-scale weights avoid texture seams at patch boundaries.
+	vec2 shifted = vec2(
+		uv.x * 0.786 - uv.y * 0.618,
+		uv.x * 0.618 + uv.y * 0.786
+	) + vec2(13.1, 32.7) + float(index) * vec2(0.263, 0.691);
+	vec3 first = texture(layer_albedos, vec3(uv, float(index))).rgb;
+	vec3 second = texture(layer_albedos, vec3(shifted, float(index))).rgb;
+	return mix(first, second, variation);
 }
 
 void fragment() {
+	// Distort UVs gradually, rather than tiling the same 128px patch on a grid.
+	vec2 macro_position = UV * macro_scale;
+	float macro_a = value_noise(macro_position);
+	float macro_b = value_noise(macro_position + vec2(37.2, 11.7));
+	float variation = smoothstep(
+		0.20, 0.80,
+		value_noise(macro_position * 0.72 + vec2(19.6, 48.3))
+	);
+	vec2 warped = UV + (vec2(macro_a, macro_b) - vec2(0.5)) * (2.0 * warp_meters);
 	// Surface pixels describe cells, so their centers live at (cell + 0.5).
 	// This reproduces TerrainSurfaceField.blend_weights_at() at fragment resolution.
 	vec2 sample_position = clamp(
@@ -38,16 +76,18 @@ void fragment() {
 	vec2 t = fract(sample_position);
 
 	vec3 top = mix(
-		layer_color(UV, definition_at(a)),
-		layer_color(UV, definition_at(ivec2(b.x, a.y))),
+		layer_color(warped, definition_at(a), variation),
+		layer_color(warped, definition_at(ivec2(b.x, a.y)), variation),
 		t.x
 	);
 	vec3 bottom = mix(
-		layer_color(UV, definition_at(ivec2(a.x, b.y))),
-		layer_color(UV, definition_at(b)),
+		layer_color(warped, definition_at(ivec2(a.x, b.y)), variation),
+		layer_color(warped, definition_at(b), variation),
 		t.x
 	);
 	ALBEDO = mix(top, bottom, t.y);
+	// Broad tonal variation breaks repeating contrast without changing biome IDs.
+	ALBEDO *= 1.0 + macro_tint_strength * (macro_a + macro_b - 1.0);
 	ROUGHNESS = 0.98;
 }
 """;
@@ -109,6 +149,9 @@ static func create(
 	material.set_shader_parameter("terrain_size", surface_field.get_world_size());
 	material.set_shader_parameter("cell_count", Vector2(surface_field.get_cell_count()));
 	material.set_shader_parameter("tiles_per_meter", TILE_SCALE);
+	material.set_shader_parameter("macro_scale", MACRO_SCALE);
+	material.set_shader_parameter("warp_meters", WARP_METERS);
+	material.set_shader_parameter("macro_tint_strength", MACRO_TINT_STRENGTH);
 	return material;
 
 
