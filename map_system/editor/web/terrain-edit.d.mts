@@ -4,6 +4,9 @@ export declare class MapEdits {
   get roads(): any[];
   get buildings(): any[];
   get objects(): any[];
+  get water(): any[];
+  get settlements(): any[];
+  get polygonDirty(): boolean;
   get entityDirty(): boolean;
   get isDirty(): boolean;
   get roadDirty(): boolean;
@@ -13,6 +16,7 @@ export declare class MapEdits {
   get canRedo(): boolean;
   get painting(): boolean;
   commit(roads: any[]): boolean;
+  commitPolygons(kind: 'water' | 'settlements', entries: any[]): boolean;
   commitEntities(kind: 'buildings' | 'objects', entries: any[]): boolean;
   beginStroke(kind: string, options: any, point: number[]): boolean;
   strokeTo(point: number[]): boolean;

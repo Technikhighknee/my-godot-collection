@@ -13,7 +13,7 @@
   <div class="shell">
     <header class="header">
       <div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
-      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">MAP EDITOR · M4</span></div>
+      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">MAP EDITOR · M5</span></div>
       <div class="history-controls">
         <button id="undo" type="button" title="Ctrl+Z" disabled>Undo</button>
         <button id="redo" type="button" title="Ctrl+Shift+Z" disabled>Redo</button>
@@ -63,6 +63,23 @@
         <div class="tool-row"><button type="button" id="applyEntity">Apply properties</button><button type="button" id="deleteEntity">Delete marker</button></div>
         <div id="entityInfo" class="point-info">Select a marker or place a new one.</div>
       </section>
+      <section class="polygon-editor">
+        <h3>BUILD AREAS & WATER</h3>
+        <div class="tool-row"><button id="modePolygons" type="button">Edit polygons</button><button id="insertPolygonPoint" type="button">Insert vertex</button></div>
+        <label class="editor-label" for="polygonKind">LAYER</label>
+        <select id="polygonKind"><option value="settlements">Build areas</option><option value="water">Water</option></select>
+        <label class="editor-label" for="polygonSelect">SELECTED POLYGON</label>
+        <select id="polygonSelect"></select>
+        <label class="editor-label" for="polygonName" id="polygonNameLabel">SETTLEMENT NAME</label>
+        <input type="text" id="polygonName" maxlength="200" autocomplete="off" spellcheck="false">
+        <label class="editor-label" for="polygonHeight" id="polygonHeightLabel" hidden>WATER HEIGHT (METERS)</label>
+        <input type="number" id="polygonHeight" step="0.5" value="0" hidden>
+        <div class="tool-row"><button type="button" id="newSettlement">New settlement</button><button type="button" id="addBuildArea">Add area</button><button type="button" id="newWater">New water</button></div>
+        <div class="tool-row"><button type="button" id="applyPolygon">Apply properties</button><button type="button" id="deletePolygon">Delete polygon</button></div>
+        <div class="tool-row"><button type="button" id="deletePolygonPoint">Remove vertex</button></div>
+        <div class="tool-row"><button type="button" id="finishPolygon" hidden>Finish polygon</button><button type="button" id="cancelPolygon" hidden>Cancel drawing</button></div>
+        <div class="point-info" id="polygonInfo">Select or draw a closed polygon.</div>
+      </section>
       <section class="terrain-editor">
         <h3>TERRAIN TOOLS</h3>
         <div class="tool-row"><button type="button" id="modeSculpt">Sculpt</button><button type="button" id="modePaint">Paint</button></div>
@@ -92,7 +109,7 @@
       <div class="view-badge">PERSPECTIVE / MAP EDITOR</div>
       <div class="loading" id="loading"><span class="spinner"></span><span id="loadingText">Loading map geometry…</span></div>
       <div class="compass" id="compass">N <span>↑</span></div>
-      <div class="help">Navigate: left drag <b>Orbit</b><span>·</span>Edit: drag <b>Road points</b> / <b>Markers</b> or <b>Paint terrain</b><span>·</span>Right drag <b>Pan</b><span>·</span>Scroll <b>Zoom</b></div>
+      <div class="help">Navigate: left drag <b>Orbit</b><span>·</span>Edit: drag <b>Road points</b> / <b>Markers</b> / <b>Polygon vertices</b> or <b>Paint terrain</b><span>·</span>Right drag <b>Pan</b><span>·</span>Scroll <b>Zoom</b></div>
       <div class="probe" id="probe">MOVE CURSOR OVER TERRAIN</div>
     </main>
   </div>

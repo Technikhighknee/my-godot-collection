@@ -12,6 +12,7 @@ const responses: Record<string, [string, string]> = {
   '/road-edit.mjs': ['web/road-edit.mjs', 'text/javascript; charset=utf-8'],
   '/terrain-edit.mjs': ['web/terrain-edit.mjs', 'text/javascript; charset=utf-8'],
   '/entity-edit.mjs': ['web/entity-edit.mjs', 'text/javascript; charset=utf-8'],
+  '/polygon-edit.mjs': ['web/polygon-edit.mjs', 'text/javascript; charset=utf-8'],
   '/mesh-data.mjs': ['web/mesh-data.mjs', 'text/javascript; charset=utf-8'],
   '/style.css': ['web/style.css', 'text/css; charset=utf-8'],
   '/vendor/three/build/three.module.js': ['node_modules/three/build/three.module.js', 'text/javascript; charset=utf-8'],
@@ -76,11 +77,13 @@ export function createEditorServer(source: MapDocument, store?: RoadStore): Serv
           if (Object.keys(body).some(key => !['revision', 'roads'].includes(key))) throw new Error('Invalid road payload');
           saved = await store.save(roads, revision as string);
         } else {
-          if (Object.keys(body).some(key => !['revision', 'roads', 'buildings', 'objects', 'heights', 'surfaces'].includes(key))) throw new Error('Invalid map payload');
+          if (Object.keys(body).some(key => !['revision', 'roads', 'buildings', 'objects', 'water', 'settlements', 'heights', 'surfaces'].includes(key))) throw new Error('Invalid map payload');
           const current = store.getDocument();
-          const changes: { roads: unknown; buildings?: unknown; objects?: unknown; heights?: Float32Array; surfaces?: Uint8Array } = { roads };
+          const changes: { roads: unknown; buildings?: unknown; objects?: unknown; water?: unknown; settlements?: unknown; heights?: Float32Array; surfaces?: Uint8Array } = { roads };
           if (Object.hasOwn(body, 'buildings')) changes.buildings = (body as Record<string, unknown>).buildings;
           if (Object.hasOwn(body, 'objects')) changes.objects = (body as Record<string, unknown>).objects;
+          if (Object.hasOwn(body, 'water')) changes.water = (body as Record<string, unknown>).water;
+          if (Object.hasOwn(body, 'settlements')) changes.settlements = (body as Record<string, unknown>).settlements;
           if (Object.hasOwn(body, 'heights')) {
             const bytes = encoded((body as Record<string,unknown>).heights, current.heights.data.length * 4);
             const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);

@@ -1,6 +1,7 @@
 import { validateRoads } from './road-edit.mjs';
 import { sampleHeight } from './mesh-data.mjs';
 import { validateEntities } from './entity-edit.mjs';
+import { validatePolygons } from './polygon-edit.mjs';
 
 const clone = value => structuredClone(value);
 const clamp = (value, a, b) => Math.max(a, Math.min(b, value));
@@ -59,6 +60,9 @@ export class MapEdits {
   #buildings;
   #objects;
   #savedEntities;
+  #water;
+  #settlements;
+  #savedPolygons;
   #savedHeight;
   #savedSurface;
   #heightDirty = new Set();
@@ -74,21 +78,27 @@ export class MapEdits {
     this.#buildings = clone(validateEntities('buildings', doc.map.buildings ?? [], doc.map.terrain.size, [...doc.map.roads, ...(doc.map.settlements ?? []), ...(doc.map.water ?? []), ...(doc.map.objects ?? [])].map(x => x.id)));
     this.#objects = clone(validateEntities('objects', doc.map.objects ?? [], doc.map.terrain.size, [...doc.map.roads, ...(doc.map.settlements ?? []), ...(doc.map.water ?? []), ...(doc.map.buildings ?? [])].map(x => x.id)));
     this.#savedEntities = { buildings: JSON.stringify(this.#buildings), objects: JSON.stringify(this.#objects) };
+    this.#water = clone(validatePolygons('water', doc.map.water ?? [], doc.map.terrain.size));
+    this.#settlements = clone(validatePolygons('settlements', doc.map.settlements ?? [], doc.map.terrain.size));
+    this.#savedPolygons = { water: JSON.stringify(this.#water), settlements: JSON.stringify(this.#settlements) };
     this.#savedHeight = doc.height.data.slice();
     this.#savedSurface = doc.surface.data.slice();
   }
   get roads() { return clone(this.#roads); }
   get buildings() { return clone(this.#buildings); }
   get objects() { return clone(this.#objects); }
+  get water() { return clone(this.#water); }
+  get settlements() { return clone(this.#settlements); }
+  get polygonDirty() { return JSON.stringify(this.#water) !== this.#savedPolygons.water || JSON.stringify(this.#settlements) !== this.#savedPolygons.settlements; }
   get entityDirty() { return JSON.stringify(this.#buildings) !== this.#savedEntities.buildings || JSON.stringify(this.#objects) !== this.#savedEntities.objects; }
-  get isDirty() { return this.roadDirty || this.entityDirty || this.heightDirty || this.surfaceDirty; }
+  get isDirty() { return this.roadDirty || this.entityDirty || this.polygonDirty || this.heightDirty || this.surfaceDirty; }
   get roadDirty() { return JSON.stringify(this.#roads) !== this.#savedRoads; }
   get heightDirty() { return this.#heightDirty.size > 0; }
   get surfaceDirty() { return this.#surfaceDirty.size > 0; }
   get canUndo() { return this.#undo.length > 0; }
   get canRedo() { return this.#redo.length > 0; }
   get painting() { return this.#stroke !== null; }
-  #cost(entry) { return ['roads', 'buildings', 'objects'].includes(entry.kind) ? 20 : entry.changes.length; }
+  #cost(entry) { return ['roads', 'buildings', 'objects', 'water', 'settlements'].includes(entry.kind) ? 20 : entry.changes.length; }
   #push(entry) {
     this.#undo.push(entry);
     this.#undoCost += this.#cost(entry);
@@ -110,12 +120,24 @@ export class MapEdits {
     if (this.#stroke) throw new Error('Finish brush stroke before editing entities');
     if (kind !== 'buildings' && kind !== 'objects') throw new Error('Invalid entity collection');
     const other = kind === 'buildings' ? this.#objects : this.#buildings;
-    const occupied = [...this.#roads, ...(this.#doc.map.settlements ?? []), ...(this.#doc.map.water ?? []), ...other].map(x => x.id);
+    const occupied = [...this.#roads, ...this.#settlements, ...this.#water, ...other].map(x => x.id);
     const next = clone(validateEntities(kind, entries, this.#doc.map.terrain.size, occupied));
     const before = kind === 'buildings' ? this.#buildings : this.#objects;
     if (JSON.stringify(next) === JSON.stringify(before)) return false;
     this.#push({ kind, before, after: next });
     if (kind === 'buildings') this.#buildings = next; else this.#objects = next;
+    return true;
+  }
+  commitPolygons(kind, entries) {
+    if (this.#stroke) throw new Error('Finish brush stroke before editing polygons');
+    if (kind !== 'water' && kind !== 'settlements') throw new Error('Invalid polygon collection');
+    const other = kind === 'water' ? this.#settlements : this.#water;
+    const occupied = [...this.#roads, ...this.#buildings, ...this.#objects, ...other].map(x => x.id);
+    const next = clone(validatePolygons(kind, entries, this.#doc.map.terrain.size, occupied));
+    const before = kind === 'water' ? this.#water : this.#settlements;
+    if (JSON.stringify(next) === JSON.stringify(before)) return false;
+    this.#push({ kind, before, after: next });
+    if (kind === 'water') this.#water = next; else this.#settlements = next;
     return true;
   }
   beginStroke(kind, options, point) {
@@ -174,6 +196,8 @@ export class MapEdits {
     if (entry.kind === 'roads') this.#roads = clone(entry[next]);
     else if (entry.kind === 'buildings') this.#buildings = clone(entry[next]);
     else if (entry.kind === 'objects') this.#objects = clone(entry[next]);
+    else if (entry.kind === 'water') this.#water = clone(entry[next]);
+    else if (entry.kind === 'settlements') this.#settlements = clone(entry[next]);
     else for (const change of entry.changes) {
       const value = change[next];
       this.#doc[change.layer === 'height' ? 'height' : 'surface'].data[change.index] = value;
@@ -195,6 +219,7 @@ export class MapEdits {
     if (this.#stroke) throw new Error('Cannot save during brush stroke');
     this.#savedRoads = JSON.stringify(this.#roads);
     this.#savedEntities = { buildings: JSON.stringify(this.#buildings), objects: JSON.stringify(this.#objects) };
+    this.#savedPolygons = { water: JSON.stringify(this.#water), settlements: JSON.stringify(this.#settlements) };
     this.#savedHeight.set(this.#doc.height.data);
     this.#savedSurface.set(this.#doc.surface.data);
     this.#heightDirty.clear(); this.#surfaceDirty.clear();

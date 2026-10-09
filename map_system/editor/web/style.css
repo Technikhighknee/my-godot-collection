@@ -25,3 +25,14 @@
 .entity-editor input,.entity-editor select{width:100%;padding:9px;background:#10181e;border:1px solid #3b4b55;border-radius:4px;color:#e4e9e8;font-size:12px}
 .entity-editor .point-info{margin-top:9px}
 @media(max-width:750px){.entity-editor{padding:12px}}
+
+/* M5 polygons share the existing neutral editor controls. */
+.polygon-editor{padding:17px 21px 20px;border-top:1px solid var(--line)}
+.polygon-editor h3{margin:0 0 15px;font-size:10px;color:#e2b77c;font-weight:750;letter-spacing:.15em}
+.polygon-editor button{cursor:pointer;border:1px solid #47545b;background:#252f36;color:#dbe4e2;border-radius:5px;font-size:11px;padding:9px 5px;flex:1}
+.polygon-editor button.active{color:#f5d2a2;border-color:#b58b5d;background:#463627}
+.polygon-editor button:disabled{opacity:.32;cursor:not-allowed}
+.polygon-editor select,.polygon-editor input{width:100%;padding:9px;background:#10181e;border:1px solid #3b4b55;border-radius:4px;color:#e4e9e8;font-size:12px}
+.polygon-editor [hidden]{display:none}
+.polygon-editor #polygonInfo{margin-top:8px}
+@media(max-width:750px){.polygon-editor{padding:12px}}

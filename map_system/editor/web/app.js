@@ -4,6 +4,7 @@ import { buildTerrainGeometry, makeVertexColors, paletteColor, sampleHeight, sur
 import { nearestSegment, validateRoads } from './road-edit.mjs';
 import { MapEdits } from './terrain-edit.mjs';
 import { newEntityId, validateEntities } from './entity-edit.mjs';
+import { newPolygonId, nearestPolygonEdge, validatePolygon, validatePolygons } from './polygon-edit.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -29,6 +30,14 @@ let selectedPointIndex = -1;
 let selectedEntityKind = 'buildings';
 let selectedEntityId = null;
 let draggingEntity = null;
+let polygonKind = 'settlements';
+let selectedPolygonId = null;
+let selectedAreaIndex = 0;
+let selectedVertexIndex = -1;
+let polygonDrag = null;
+let polygonDraft = null;
+let polygonHandles;
+let polygonDraftGroup;
 let editMode = 'navigate';
 let draftStart = null;
 let dragging = null;
@@ -157,6 +166,7 @@ function setLayerVisibility() {
   roadGroup.visible = el('roads').checked;
   waterGroup.visible = el('water').checked;
   settlementGroup.visible = el('settlements').checked;
+  if (polygonHandles) polygonHandles.visible = (polygonKind === 'water' ? el('water') : el('settlements')).checked;
   entitiesGroup.visible = el('entities').checked;
 }
 function configureDetails(doc) {
@@ -245,14 +255,15 @@ function initScene(doc) {
   brushRing = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf2daac, transparent: true, opacity: 0.85, depthTest: false }));
   brushRing.renderOrder = 6; brushRing.visible = false; scene.add(brushRing);
   waterGroup = new THREE.Group();
-  for (const water of map.water) waterGroup.add(buildWater(water));
   scene.add(waterGroup);
   settlementGroup = new THREE.Group();
-  for (const settlement of map.settlements) for (const area of settlement.build_areas) settlementGroup.add(makeBuildOutline(area, map, height, 0xe9bd74));
   scene.add(settlementGroup);
+  polygonHandles = new THREE.Group(); scene.add(polygonHandles);
+  polygonDraftGroup = new THREE.Group(); scene.add(polygonDraftGroup);
   entitiesGroup = new THREE.Group();
   scene.add(entitiesGroup);
   repaintEntities();
+  drawPolygons();
   resetCamera();
   setLayerVisibility();
   const resize = () => {
@@ -299,6 +310,296 @@ function disposeRoadMeshes(group) {
     mesh.material.dispose();
   }
 }
+function polygonChoices(kind = polygonKind, water = edits.water, settlements = edits.settlements) {
+  if (kind === 'water') return water.map(item => ({ id: item.id, index: 0, label: item.id }));
+  return settlements.flatMap(s => s.build_areas.map((_, index) => ({ id: s.id, index, label: `${s.name} · Area ${index + 1}` })));
+}
+function currentPolygon(water = edits.water, settlements = edits.settlements) {
+  const entry = (polygonKind === 'water' ? water : settlements).find(x => x.id === selectedPolygonId);
+  const points = polygonKind === 'water' ? entry?.polygon : entry?.build_areas[selectedAreaIndex];
+  return entry && points ? { entry, points } : null;
+}
+function syncPolygonSelection() {
+  const choices = polygonChoices();
+  if (!choices.some(x => x.id === selectedPolygonId && x.index === selectedAreaIndex)) {
+    selectedPolygonId = choices[0]?.id ?? null;
+    selectedAreaIndex = choices[0]?.index ?? 0;
+    selectedVertexIndex = -1;
+  }
+  return choices;
+}
+function disposeGeometryGroup(group) {
+  for (const child of [...group.children]) {
+    group.remove(child);
+    child.geometry?.dispose();
+    child.material?.dispose();
+  }
+}
+function polygonHandlePosition(point, waterHeight = null) {
+  const y = sampleHeight(currentDoc.map.terrain, currentDoc.height, ...point);
+  return new THREE.Vector3(point[0], Math.max(y + 0.8, waterHeight === null ? -Infinity : waterHeight + 0.8), point[1]);
+}
+function drawPolygons(previewKind = null, previewItems = null) {
+  if (!waterGroup || !settlementGroup || !polygonHandles) return;
+  for (const group of [waterGroup, settlementGroup, polygonHandles, polygonDraftGroup]) disposeGeometryGroup(group);
+  const water = previewKind === 'water' ? previewItems : edits.water;
+  const settlements = previewKind === 'settlements' ? previewItems : edits.settlements;
+  for (const entry of water) {
+    const waterMesh = buildWater(entry);
+    waterMesh.userData = { polygonKind: 'water', polygonId: entry.id, areaIndex: 0 };
+    waterGroup.add(waterMesh);
+    if (polygonKind === 'water' && entry.id === selectedPolygonId && ['polygon-edit', 'polygon-insert'].includes(editMode)) {
+      const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(entry.polygon.map(p => polygonHandlePosition(p, entry.height))), new THREE.LineBasicMaterial({ color: 0xffd495, depthTest: false }));
+      outline.renderOrder = 4;
+      outline.userData = { ...waterMesh.userData };
+      waterGroup.add(outline);
+    }
+  }
+  for (const entry of settlements) {
+    entry.build_areas.forEach((area, index) => {
+      const selected = polygonKind === 'settlements' && entry.id === selectedPolygonId && index === selectedAreaIndex;
+      const outline = makeBuildOutline(area, currentDoc.map, currentDoc.height, selected ? 0xffd495 : 0xe9bd74);
+      outline.userData = { polygonKind: 'settlements', polygonId: entry.id, areaIndex: index };
+      if (selected && ['polygon-edit', 'polygon-insert'].includes(editMode)) {
+        outline.material.depthTest = false; outline.renderOrder = 4;
+      }
+      settlementGroup.add(outline);
+    });
+  }
+  if (!polygonDraft && ['polygon-edit', 'polygon-insert'].includes(editMode)) {
+    const selected = currentPolygon(water, settlements);
+    if (selected) selected.points.forEach((point, index) => {
+      const isSelected = index === selectedVertexIndex;
+      const marker = new THREE.Mesh(new THREE.SphereGeometry(isSelected ? 1.45 : 1.1, 10, 8), new THREE.MeshBasicMaterial({ color: isSelected ? 0xffffff : 0xffc988, depthTest: false }));
+      marker.position.copy(polygonHandlePosition(point, polygonKind === 'water' ? selected.entry.height : null));
+      marker.renderOrder = 6;
+      marker.userData.pointIndex = index;
+      polygonHandles.add(marker);
+    });
+  }
+  if (polygonDraft) {
+    const positions = polygonDraft.points.map(p => polygonHandlePosition(p));
+    if (positions.length >= 2) {
+      const geometry = new THREE.BufferGeometry().setFromPoints(positions);
+      const material = new THREE.LineBasicMaterial({ color: 0x8be1d5, depthTest: false });
+      const line = positions.length >= 3 ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
+      line.renderOrder = 6; polygonDraftGroup.add(line);
+    }
+    for (const position of positions) {
+      const node = new THREE.Mesh(new THREE.SphereGeometry(1.2, 10, 8), new THREE.MeshBasicMaterial({ color: 0x8be1d5, depthTest: false }));
+      node.position.copy(position); node.renderOrder = 6; polygonDraftGroup.add(node);
+    }
+  }
+  setLayerVisibility();
+  el('waterCount').textContent = String(edits.water.length);
+  el('settlementsCount').textContent = String(edits.settlements.reduce((sum, x) => sum + x.build_areas.length, 0));
+}
+function updatePolygonUI() {
+  if (!edits) return;
+  const options = syncPolygonSelection(), selected = currentPolygon(), drawing = !!polygonDraft;
+  el('polygonKind').value = polygonKind;
+  const select = el('polygonSelect'), value = options.findIndex(x => x.id === selectedPolygonId && x.index === selectedAreaIndex);
+  select.replaceChildren();
+  options.forEach((choice, index) => { const option = document.createElement('option'); option.value = String(index); option.textContent = choice.label; select.append(option); });
+  if (value >= 0) select.value = String(value);
+  const isWater = polygonKind === 'water';
+  el('polygonNameLabel').textContent = isWater ? 'WATER DEFINITION ID' : 'SETTLEMENT NAME';
+  el('polygonHeightLabel').hidden = !isWater;
+  el('polygonHeight').hidden = !isWater;
+  if (!drawing) {
+    if (document.activeElement !== el('polygonName')) el('polygonName').value = selected ? (isWater ? selected.entry.definition : selected.entry.name) : '';
+    if (document.activeElement !== el('polygonHeight')) el('polygonHeight').value = isWater && selected ? String(selected.entry.height) : '0';
+  }
+  el('polygonInfo').textContent = drawing ? `${polygonDraft.points.length} vertices · At least 3 · Enter to close · Esc to cancel` :
+    selected ? `${selected.entry.id} · ${selected.points.length} vertices${selectedVertexIndex >= 0 ? ` · Vertex ${selectedVertexIndex + 1}` : ''}` : 'No polygons in this layer';
+  for (const id of ['modePolygons','insertPolygonPoint','polygonKind','polygonSelect','polygonName','polygonHeight','newSettlement','addBuildArea','newWater','applyPolygon','deletePolygon','deletePolygonPoint','finishPolygon','cancelPolygon']) el(id).disabled = currentDoc.readOnly || savePending;
+  select.disabled ||= !options.length || drawing;
+  el('polygonKind').disabled ||= drawing;
+  el('modePolygons').disabled ||= drawing;
+  el('insertPolygonPoint').disabled ||= !selected || drawing;
+  el('applyPolygon').disabled ||= !selected || drawing;
+  el('deletePolygon').disabled ||= !selected || drawing;
+  el('deletePolygonPoint').disabled ||= !selected || selected.points.length <= 3 || selectedVertexIndex < 0 || drawing;
+  el('addBuildArea').disabled ||= !edits.settlements.length || drawing;
+  el('newSettlement').disabled ||= drawing;
+  el('newWater').disabled ||= drawing;
+  el('polygonName').disabled ||= !selected && !drawing;
+  el('polygonHeight').disabled ||= !selected && !drawing;
+  el('finishPolygon').hidden = !drawing;
+  el('cancelPolygon').hidden = !drawing;
+  el('finishPolygon').disabled ||= !drawing || polygonDraft.points.length < 3;
+  el('cancelPolygon').disabled ||= !drawing;
+  el('modePolygons').classList.toggle('active', editMode === 'polygon-edit');
+  el('insertPolygonPoint').classList.toggle('active', editMode === 'polygon-insert');
+}
+function selectPolygon(kind, id, index = 0) {
+  polygonKind = kind; selectedPolygonId = id; selectedAreaIndex = index; selectedVertexIndex = -1;
+  syncPolygonSelection(); drawPolygons(); updatePolygonUI();
+}
+function commitPolygons(kind, items, message, selection = null) {
+  try {
+    if (edits.commitPolygons(kind, items)) {
+      currentDoc.map[kind] = edits[kind];
+      if (selection) { polygonKind = kind; selectedPolygonId = selection.id; selectedAreaIndex = selection.index; selectedVertexIndex = -1; }
+      syncPolygonSelection(); drawPolygons(); updateRoadUI();
+      setMessage(message);
+      return true;
+    }
+  } catch (error) { setMessage(error.message, true); }
+  drawPolygons(); updatePolygonUI();
+  return false;
+}
+function beginPolygon(kind, mode) {
+  if (currentDoc.readOnly || savePending) return;
+  if (mode === 'append' && !edits.settlements.some(s => s.id === selectedPolygonId)) {
+    selectedPolygonId = edits.settlements[0]?.id ?? null; selectedAreaIndex = 0;
+    if (!selectedPolygonId) { setMessage('Select a settlement to add an area.', true); return; }
+  }
+  polygonKind = kind;
+  const parentId = mode === 'append' ? selectedPolygonId : null;
+  setEditMode('draw-polygon');
+  polygonDraft = { kind, mode, parentId, points: [] };
+  drawPolygons(); updatePolygonUI();
+  setMessage('Click vertices on the terrain. Enter finishes; Esc cancels. Nothing is saved yet.');
+}
+function cancelPolygonDraft() {
+  if (!polygonDraft) return;
+  polygonDraft = null; setEditMode('polygon-edit');
+  setMessage('Polygon drawing canceled.');
+}
+function finishPolygon() {
+  if (!polygonDraft) return;
+  const draft = polygonDraft;
+  try {
+    validatePolygon(draft.points, currentDoc.map.terrain.size);
+    let id, areaIndex = 0, next;
+    if (draft.kind === 'water') {
+      id = newPolygonId('water', [...edits.water, ...edits.settlements, ...edits.roads, ...edits.buildings, ...edits.objects].map(x => x.id));
+      next = [...edits.water, { id, definition: 'water.sea', height: 0, polygon: draft.points }];
+    } else if (draft.mode === 'append') {
+      id = draft.parentId;
+      next = edits.settlements;
+      const parent = next.find(s => s.id === id);
+      if (!parent) throw new Error('Selected settlement no longer exists');
+      areaIndex = parent.build_areas.length;
+      parent.build_areas.push(draft.points);
+    } else {
+      id = newPolygonId('settlements', [...edits.water, ...edits.settlements, ...edits.roads, ...edits.buildings, ...edits.objects].map(x => x.id));
+      next = [...edits.settlements, { id, name: `Settlement ${id.split('_').at(-1)}`, build_areas: [draft.points] }];
+    }
+    const kind = draft.kind;
+    // Commit first; failed validation keeps draft intact for correction.
+    if (commitPolygons(kind, next, 'Polygon created. Drag handles or update properties.', { id, index: areaIndex })) {
+      polygonDraft = null;
+      setEditMode('polygon-edit');
+    }
+  } catch (error) { setMessage(error.message, true); }
+}
+function polygonPointerDown(ev) {
+  if (editMode === 'draw-polygon') {
+    if (!polygonDraft) return;
+    const point = terrainPoint(ev);
+    if (!point) return;
+    const first = polygonDraft.points[0], previous = polygonDraft.points.at(-1);
+    if (first && polygonDraft.points.length >= 3 && Math.hypot(point[0] - first[0], point[1] - first[1]) < 2) { finishPolygon(); return; }
+    if (previous && Math.hypot(point[0] - previous[0], point[1] - previous[1]) < 0.08) return;
+    if (polygonDraft.points.length >= 4096) { setMessage('Polygon is too detailed; finish or simplify it.', true); return; }
+    polygonDraft.points.push(point); drawPolygons(); updatePolygonUI(); ev.preventDefault(); return;
+  }
+  makeRay(ev);
+  if (editMode === 'polygon-edit') {
+    const handle = raycaster.intersectObjects(polygonHandles.children, false)[0];
+    if (handle) {
+      selectedVertexIndex = handle.object.userData.pointIndex;
+      polygonDrag = { kind: polygonKind, id: selectedPolygonId, index: selectedAreaIndex, vertex: selectedVertexIndex, original: edits[polygonKind], preview: null, pointerId: ev.pointerId };
+      renderer.domElement.setPointerCapture(ev.pointerId); controls.enabled = false;
+      updatePolygonUI(); ev.preventDefault(); return;
+    }
+    const hit = raycaster.intersectObjects([...waterGroup.children, ...settlementGroup.children], false)[0];
+    if (hit?.object.userData.polygonKind) {
+      const { polygonKind: kind, polygonId: id, areaIndex: index } = hit.object.userData;
+      selectPolygon(kind, id, index);
+    }
+    return;
+  }
+  if (editMode === 'polygon-insert') {
+    const point = terrainPoint(ev), selection = currentPolygon();
+    if (!point || !selection) return;
+    const nearest = nearestPolygonEdge(selection.points, point);
+    if (nearest.distance > 8) { setMessage('Click within 8 meters of a polygon edge.', true); return; }
+    const next = edits[polygonKind], entry = next.find(e => e.id === selectedPolygonId);
+    const points = polygonKind === 'water' ? entry.polygon : entry.build_areas[selectedAreaIndex];
+    points.splice(nearest.index + 1, 0, point);
+    if (commitPolygons(polygonKind, next, 'Polygon vertex inserted.')) {
+      selectedVertexIndex = nearest.index + 1;
+      setEditMode('polygon-edit');
+    }
+  }
+}
+function polygonPointerMove(ev) {
+  if (!polygonDrag || ev.pointerId !== polygonDrag.pointerId) return;
+  const point = terrainPoint(ev);
+  if (!point) return;
+  const d = polygonDrag, next = structuredClone(d.original), entry = next.find(x => x.id === d.id);
+  if (!entry) return;
+  const points = d.kind === 'water' ? entry.polygon : entry.build_areas[d.index];
+  points[d.vertex] = point;
+  try {
+    const occupied = [...edits.roads, ...edits.buildings, ...edits.objects, ...edits[d.kind === 'water' ? 'settlements' : 'water']].map(x => x.id);
+    validatePolygons(d.kind, next, currentDoc.map.terrain.size, occupied);
+    d.preview = next;
+    drawPolygons(d.kind, next);
+  } catch { /* Keep last valid vertex position. */ }
+}
+function polygonPointerUp(ev) {
+  if (!polygonDrag || ev.pointerId !== polygonDrag.pointerId) return;
+  const { kind, preview } = polygonDrag;
+  polygonDrag = null;
+  if (renderer.domElement.hasPointerCapture(ev.pointerId)) renderer.domElement.releasePointerCapture(ev.pointerId);
+  controls.enabled = true;
+  if (preview) commitPolygons(kind, preview, 'Polygon vertex moved. Ctrl+Z to undo.');
+  else drawPolygons();
+  updatePolygonUI();
+}
+function initializePolygonEditing() {
+  el('modePolygons').addEventListener('click', () => setEditMode('polygon-edit'));
+  el('insertPolygonPoint').addEventListener('click', () => setEditMode('polygon-insert'));
+  el('polygonKind').addEventListener('change', event => { polygonKind = event.target.value; selectedPolygonId = null; selectedAreaIndex = 0; selectPolygon(polygonKind, null); setEditMode('polygon-edit'); });
+  el('polygonSelect').addEventListener('change', event => { const option = polygonChoices()[Number(event.target.value)]; if (option) selectPolygon(polygonKind, option.id, option.index); });
+  el('newSettlement').addEventListener('click', () => beginPolygon('settlements', 'new'));
+  el('addBuildArea').addEventListener('click', () => beginPolygon('settlements', 'append'));
+  el('newWater').addEventListener('click', () => beginPolygon('water', 'new'));
+  el('finishPolygon').addEventListener('click', finishPolygon);
+  el('cancelPolygon').addEventListener('click', cancelPolygonDraft);
+  el('applyPolygon').addEventListener('click', () => {
+    const selected = currentPolygon(); if (!selected || savePending) return;
+    const next = edits[polygonKind], entry = next.find(e => e.id === selected.entry.id);
+    if (polygonKind === 'water') { entry.definition = el('polygonName').value.trim(); entry.height = Number(el('polygonHeight').value); }
+    else entry.name = el('polygonName').value.trim();
+    commitPolygons(polygonKind, next, 'Polygon properties updated.');
+  });
+  el('deletePolygon').addEventListener('click', () => {
+    const selected = currentPolygon(); if (!selected || savePending || !window.confirm('Delete the selected polygon? Ctrl+Z restores it.')) return;
+    let next;
+    if (polygonKind === 'water') next = edits.water.filter(x => x.id !== selected.entry.id);
+    else {
+      next = edits.settlements;
+      const parent = next.find(x => x.id === selected.entry.id);
+      parent.build_areas.splice(selectedAreaIndex, 1);
+      if (!parent.build_areas.length) next = next.filter(x => x.id !== parent.id);
+    }
+    commitPolygons(polygonKind, next, 'Polygon deleted. Ctrl+Z to undo.');
+  });
+  el('deletePolygonPoint').addEventListener('click', () => {
+    const selected = currentPolygon(); if (!selected || selectedVertexIndex < 0 || selected.points.length <= 3 || savePending) return;
+    const next = edits[polygonKind], entry = next.find(x => x.id === selected.entry.id);
+    const points = polygonKind === 'water' ? entry.polygon : entry.build_areas[selectedAreaIndex];
+    points.splice(selectedVertexIndex, 1);
+    if (commitPolygons(polygonKind, next, 'Polygon vertex removed.')) selectedVertexIndex = -1;
+  });
+  updatePolygonUI();
+}
+
 function currentEntity() {
   return edits[selectedEntityKind].find(item => item.id === selectedEntityId) ?? null;
 }
@@ -387,7 +688,7 @@ function drawHandles(roads = edits.roads) {
     marker.renderOrder = 5;
     handleGroup.add(marker);
   }
-  if (!road || editMode === 'navigate' || editMode === 'sculpt' || editMode === 'paint') return;
+  if (!road || !['edit', 'create', 'append', 'insert'].includes(editMode)) return;
   road.points.forEach(([x, z], index) => {
     const selected = index === selectedPointIndex;
     const marker = new THREE.Mesh(
@@ -426,12 +727,13 @@ function updateRoadUI() {
   el('deleteRoad').disabled = el('deleteRoad').disabled || !road;
   el('undo').disabled = savePending || !edits.canUndo;
   el('redo').disabled = savePending || !edits.canRedo;
-  el('saveRoads').disabled = savePending || !edits.isDirty || currentDoc.readOnly;
+  el('saveRoads').disabled = savePending || !edits.isDirty || currentDoc.readOnly || !!polygonDraft || !!polygonDrag;
   el('saveRoads').textContent = savePending ? 'Saving…' : 'Save map';
   el('modeNavigate').classList.toggle('active', editMode === 'navigate');
   updateTerrainUI();
   updateEntityUI();
   el('modeEdit').classList.toggle('active', ['edit','create','append','insert'].includes(editMode));
+  updatePolygonUI();
   el('mapName').textContent = `${currentDoc.map.name}${edits.isDirty ? ' •' : ''}`;
   document.querySelector('.status-dot').classList.toggle('dirty', edits.isDirty);
   document.querySelector('.quiet').textContent = currentDoc.readOnly ? 'READ ONLY' : edits.isDirty ? 'UNSAVED CHANGES' : 'MAP · SAVED';
@@ -458,7 +760,8 @@ function selectRoad(id) {
 }
 function setEditMode(next) {
   if (currentDoc.readOnly && next !== 'navigate') return;
-  if (dragging || draggingEntity || edits.painting) cancelDrag();
+  if (dragging || draggingEntity || polygonDrag || edits.painting) cancelDrag();
+  if (editMode === 'draw-polygon' && next !== 'draw-polygon') polygonDraft = null;
   editMode = next;
   draftStart = null;
   controls.enableRotate = next === 'navigate';
@@ -466,6 +769,7 @@ function setEditMode(next) {
   viewport.classList.toggle('edit-cursor', next !== 'navigate');
   if (['edit', 'create', 'append', 'insert'].includes(next)) { el('roads').checked = true; setLayerVisibility(); }
   if (['entities', 'place-entity'].includes(next)) { el('entities').checked = true; setLayerVisibility(); }
+  if (['polygon-edit', 'polygon-insert', 'draw-polygon'].includes(next)) { el(polygonKind === 'water' ? 'water' : 'settlements').checked = true; setLayerVisibility(); }
   const hints = {
     navigate: 'Navigate mode: left-drag to orbit; right-drag to pan.',
     edit: 'Drag a highlighted road handle. Click another road to select.',
@@ -476,10 +780,14 @@ function setEditMode(next) {
     paint: 'Left drag to paint a categorical surface. Select a definition below.',
     entities: 'Click a marker to select; drag it to move. Rotations are in degrees.',
     'place-entity': 'Enter a definition ID, then click the terrain to place a marker.',
+    'polygon-edit': 'Select an area, then drag its corner handles.',
+    'polygon-insert': 'Click near an edge of the selected polygon to insert a vertex.',
+    'draw-polygon': 'Click to add vertices. Finish with Enter or the Finish polygon button; Esc cancels.',
   };
   setMessage(hints[next]);
   drawHandles(); updateRoadUI();
-  updateTerrainUI(); updateEntityUI();
+  updateTerrainUI(); updateEntityUI(); updatePolygonUI();
+  drawPolygons();
 }
 function makeRay(ev) {
   const rect = renderer.domElement.getBoundingClientRect();
@@ -498,6 +806,11 @@ function cancelDrag() {
     draggingEntity = null;
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) renderer.domElement.releasePointerCapture(previous.pointerId);
     repaintEntities();
+  }
+  if (polygonDrag) {
+    const previous = polygonDrag; polygonDrag = null;
+    if (renderer.domElement.hasPointerCapture(previous.pointerId)) renderer.domElement.releasePointerCapture(previous.pointerId);
+    controls.enabled = true; drawPolygons();
   }
   if (!dragging) return;
   dragging = null;
@@ -519,6 +832,7 @@ function editorPointerDown(ev) {
     } catch (error) { setMessage(error.message, true); }
     return;
   }
+  if (['polygon-edit', 'polygon-insert', 'draw-polygon'].includes(editMode)) { polygonPointerDown(ev); return; }
   if (editMode === 'entities') {
     makeRay(ev);
     const hit = raycaster.intersectObjects(entitiesGroup.children, false)[0];
@@ -603,6 +917,7 @@ function editorPointerDown(ev) {
   }
 }
 function editorPointerMove(ev) {
+  if (polygonDrag) { polygonPointerMove(ev); return; }
   if (edits.painting) {
     const pos = terrainPoint(ev);
     if (pos) {
@@ -640,6 +955,7 @@ function editorPointerMove(ev) {
   } catch { /* Keep last valid preview. */ }
 }
 function editorPointerUp(ev) {
+  if (polygonDrag) { polygonPointerUp(ev); return; }
   if (edits.painting) {
     edits.endStroke();
     controls.enabled = true;
@@ -687,12 +1003,7 @@ function refreshTerrain(decorations = false) {
   terrainMesh.geometry.setAttribute('color', new THREE.BufferAttribute(makeVertexColors(currentDoc.map.terrain, currentDoc.height, currentDoc.surface, currentDoc.map.terrain.surface_palette), 3));
   if (decorations) {
     repaintRoads();
-    for (const group of [settlementGroup]) {
-      for (const child of [...group.children]) {
-        group.remove(child); child.geometry.dispose(); child.material.dispose();
-      }
-    }
-    for (const settlement of currentDoc.map.settlements) for (const area of settlement.build_areas) settlementGroup.add(makeBuildOutline(area, currentDoc.map, currentDoc.height, 0xe9bd74));
+    drawPolygons();
     repaintEntities();
   }
 }
@@ -720,25 +1031,26 @@ function updateTerrainUI() {
   el('modeSculpt').classList.toggle('active', editMode === 'sculpt');
   el('modePaint').classList.toggle('active', editMode === 'paint');
   el('terrainStatus').textContent = edits.isDirty ?
-    [edits.heightDirty ? 'HEIGHTMAP' : '', edits.surfaceDirty ? 'SURFACE MAP' : '', edits.entityDirty ? 'MARKERS' : '', edits.roadDirty ? 'ROADS' : ''].filter(Boolean).join(' · ') : 'NO UNSAVED CHANGES';
+    [edits.heightDirty ? 'HEIGHTMAP' : '', edits.surfaceDirty ? 'SURFACE MAP' : '', edits.entityDirty ? 'MARKERS' : '', edits.roadDirty ? 'ROADS' : '', edits.polygonDirty ? 'POLYGONS' : ''].filter(Boolean).join(' · ') : 'NO UNSAVED CHANGES';
 }
 function performHistory(redo = false) {
-  if (savePending || edits.painting || dragging || draggingEntity) return;
+  if (savePending || edits.painting || dragging || draggingEntity || polygonDrag || polygonDraft) return;
   const kind = redo ? edits.redo() : edits.undo();
   if (kind === 'roads') repaintRoads();
   else if (kind === 'buildings' || kind === 'objects') { currentDoc.map[kind] = edits[kind]; updateEntityUI(); repaintEntities(); }
+  else if (kind === 'water' || kind === 'settlements') { currentDoc.map[kind] = edits[kind]; drawPolygons(); updatePolygonUI(); }
   else if (kind === 'height' || kind === 'surface') refreshTerrain(true);
   updateRoadUI(); updateTerrainUI(); updateEntityUI();
   if (kind) setMessage(redo ? 'Change redone.' : 'Change undone.');
 }
 async function saveRoadEdits() {
   if (savePending || !edits.isDirty || currentDoc.readOnly) return;
-  if (dragging || draggingEntity || edits.painting) { setMessage('Finish the current action before saving.', true); return; }
+  if (dragging || draggingEntity || polygonDrag || polygonDraft || edits.painting) { setMessage('Finish the current action before saving.', true); return; }
   savePending = true;
   updateRoadUI(); updateTerrainUI();
   setMessage('Saving map and immutable terrain assets…');
   try {
-    const body = { revision: currentDoc.revision, roads: edits.roads, buildings: edits.buildings, objects: edits.objects };
+    const body = { revision: currentDoc.revision, roads: edits.roads, buildings: edits.buildings, objects: edits.objects, water: edits.water, settlements: edits.settlements };
     if (edits.heightDirty) body.heights = encodeHeights(currentDoc.height.data);
     if (edits.surfaceDirty) body.surfaces = encodeBytes(currentDoc.surface.data);
     const response = await fetch('/api/document', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -748,9 +1060,12 @@ async function saveRoadEdits() {
     currentDoc.map.roads = edits.roads;
     currentDoc.map.buildings = edits.buildings;
     currentDoc.map.objects = edits.objects;
+    currentDoc.map.water = edits.water;
+    currentDoc.map.settlements = edits.settlements;
     edits.markSaved();
     currentDoc.map.terrain = result.terrain;
     setMessage('Map saved. Prior terrain assets remain untouched.');
+    drawPolygons();
   } catch (error) { setMessage(error.message, true); }
   finally { savePending = false; updateRoadUI(); updateTerrainUI(); updateEntityUI(); }
 }
@@ -827,8 +1142,13 @@ function initializeRoadEditing() {
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 's') {
       event.preventDefault(); saveRoadEdits();
     } else if (key === 'escape') {
-      if (dragging || draggingEntity) cancelDrag();
-      else setEditMode('edit');
+      if (polygonDrag || dragging || draggingEntity) cancelDrag();
+      else if (polygonDraft) cancelPolygonDraft();
+      else setEditMode('navigate');
+    } else if (key === 'enter' && polygonDraft) {
+      event.preventDefault(); finishPolygon();
+    } else if ((key === 'backspace' || key === 'delete') && polygonDraft) {
+      event.preventDefault(); polygonDraft.points.pop(); drawPolygons(); updatePolygonUI();
     } else if ((key === 'delete' || key === 'backspace') && editMode === 'entities' && currentEntity()) {
       event.preventDefault(); el('deleteEntity').click();
     } else if ((key === 'delete' || key === 'backspace') && selectedPointIndex >= 0 && editMode === 'edit') {
@@ -847,9 +1167,10 @@ try {
   initScene(currentDoc);
   initializeRoadEditing();
   initializeEntityEditing();
+  initializePolygonEditing();
   layerNames.forEach(id => el(id).addEventListener('change', setLayerVisibility));
   el('resetCamera').addEventListener('click', resetCamera);
-  document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey) resetCamera(); });
+  document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey && !(e.target instanceof HTMLElement && e.target.closest('input,select,textarea'))) resetCamera(); });
   loading.remove();
 } catch (error) {
   el('loadingText').textContent = `Cannot open map: ${error instanceof Error ? error.message : String(error)}`;

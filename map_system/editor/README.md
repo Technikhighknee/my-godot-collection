@@ -24,6 +24,7 @@ npm start -- ../godot/example.map.json --port 4372
 
 - **Navigate:** left drag to orbit, right drag to pan, wheel to zoom, `F` to reset.
 - **Edit roads:** select, create, move points, insert/append, delete or change width.
+- **Water & settlements:** draw closed polygons, edit/insert/remove vertices, create settlements with multiple build areas, adjust water heights and definitions, rename settlements or remove polygons. Finish with `Enter` (or click the first point), `Esc` cancels. Invalid and self-intersecting polygons cannot be committed.
 - **Buildings & objects:** select visible markers, drag them to new positions, change definition/rotation, place or delete markers. New IDs are generated automatically; type a real definition ID before placing.
 - **Sculpt:** raise, lower, smooth or flatten with a circular brush. Flatten samples the height at stroke start.
 - **Paint:** choose a surface definition and paint its categorical cell IDs.
