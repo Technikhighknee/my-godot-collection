@@ -154,9 +154,13 @@ export class MapEdits {
     try { return this.strokeTo(point); }
     catch (error) { this.cancelStroke(); throw error; }
   }
-  strokeTo(point) {
+  strokeTo(point, overrideKind = null) {
     const stroke = this.#stroke;
     if (!stroke) return false;
+    const kind = overrideKind ?? stroke.kind;
+    if (stroke.kind === 'paint' ? kind !== 'paint' : !['raise','lower','smooth','flatten'].includes(kind)) {
+      throw new Error('Invalid mode for active brush stroke');
+    }
     const from = stroke.previous ?? point;
     const distance = Math.hypot(point[0] - from[0], point[1] - from[1]);
     const steps = Math.max(1, Math.min(4096, Math.ceil(distance / Math.max(0.25, stroke.radius / 3))));
@@ -164,7 +168,7 @@ export class MapEdits {
     for (let n = 1; n <= steps; n++) {
       const x = from[0] + (point[0] - from[0]) * n / steps;
       const z = from[1] + (point[1] - from[1]) * n / steps;
-      any = dab(this.#doc, stroke.kind, x, z, stroke.radius, stroke.strength, stroke.surfaceIndex, stroke.flattenHeight, (layer, index, before, after) => {
+      any = dab(this.#doc, kind, x, z, stroke.radius, stroke.strength, stroke.surfaceIndex, stroke.flattenHeight, (layer, index, before, after) => {
         const key = `${layer}:${index}`;
         const delta = stroke.changes.get(key);
         if (delta) delta.after = after;

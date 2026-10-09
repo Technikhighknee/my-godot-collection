@@ -164,3 +164,23 @@ test('document HTTP API rejects invalid binary writes and cross-origin requests;
     await rm(temp, { recursive:true, force:true });
   }
 });
+
+test('temporarily reversing and smoothing mid-stroke keeps a single undo entry', () => {
+  const doc = sampleDoc();
+  const edits = new MapEdits(doc);
+  edits.beginStroke('raise', { radius: 1.1, strength: 3 }, [1, 1]);
+  assert.ok(doc.height.data[6] > 0.5);
+  edits.strokeTo([2, 1], 'lower');
+  edits.strokeTo([2, 2], 'smooth');
+  edits.strokeTo([3, 2], 'raise');
+  assert.equal(edits.endStroke(), true);
+  assert.equal(edits.canUndo, true);
+  assert.equal(edits.undo(), 'height');
+  assert.deepEqual(doc.height.data, new Float32Array(25).fill(0.5));
+  assert.equal(edits.canUndo, false);
+  assert.equal(edits.redo(), 'height');
+  assert.equal(edits.isDirty, true);
+  edits.beginStroke('paint', {radius: 1, strength: 1, surfaceIndex: 1}, [1,1]);
+  assert.throws(() => edits.strokeTo([2, 2], 'raise'), /Invalid mode/);
+  edits.cancelStroke();
+});

@@ -14,6 +14,7 @@ const responses: Record<string, [string, string]> = {
   '/road-edit.mjs': ['web/road-edit.mjs', 'text/javascript; charset=utf-8'],
   '/terrain-edit.mjs': ['web/terrain-edit.mjs', 'text/javascript; charset=utf-8'],
   '/tool-state.mjs': ['web/tool-state.mjs', 'text/javascript; charset=utf-8'],
+  '/edit-shortcuts.mjs': ['web/edit-shortcuts.mjs', 'text/javascript; charset=utf-8'],
   '/terrain-ray.mjs': ['web/terrain-ray.mjs', 'text/javascript; charset=utf-8'],
   '/terrain-patch.mjs': ['web/terrain-patch.mjs', 'text/javascript; charset=utf-8'],
   '/water-field.mjs': ['web/water-field.mjs', 'text/javascript; charset=utf-8'],

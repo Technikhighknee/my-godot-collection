@@ -31,17 +31,17 @@ The workspace is intentionally limited to one directory and does **not** expose 
 
 ## Controls
 
-- **Grid (Grid button):** optional coordinate grid (0.25–100 m), hold `Alt` while placing or dragging to bypass it. Grid affects points/markers, not brush strokes. Numerical X/Z point, vertex, and marker fields support precise placement.
+- **Grid (`G` toggles; Grid button opens settings):** optional coordinate grid (0.25–100 m), hold `Alt` while placing or dragging to bypass it. Grid affects points/markers, not brush strokes. Numerical X/Z point, vertex, and marker fields support precise placement.
 - **Multi-select markers:** `Shift`+click or `Ctrl`+click to toggle; `Ctrl+A` selects all markers of the current type; drag one selected marker to move the group. Each group operation is one Undo step.
-- **Duplicate:** `D` or the Duplicate selection button in Road Edit / Marker Edit. Copy offset is grid spacing when snapping is enabled, otherwise 5 m. Invalid copies are rejected; no clamping into illegal placement.
-- **Hotbar:** `1` Select (inspect and drag markers), `2` Sculpt, `3` Paint, `4` Draw (Roads / Build areas), `5` Place (Buildings & objects / Water). Context settings replace the long sidebar; the Maps, Layers and Grid buttons expose secondary controls. `Esc` cancels a drag/draft. Tool shortcuts do not intercept focused inputs.
-- **Camera (every tool):** middle drag to orbit, right drag to pan, wheel to zoom. `F` focuses the selected marker/road/build area or resets the map view if nothing is selected.
+- **Duplicate:** `D` or Duplicate selection starts a cursor-aligned preview for selected markers or a road. Hover to position it; green is valid, red is invalid. `LMB` commits one undoable duplicate, `Esc` cancels. `R` rotates marker duplicates in 15° steps. No changes occur until placement succeeds.
+- **Hotbar:** `1–5` selects Select, Sculpt, Paint, Draw, or Place. `Q/E` cycles the current tool’s modes (sculpt, surfaces, roads/areas, entities/lakes). Context settings replace the long sidebar. Tools remember their last mode. Hotkeys never intercept focused form controls.
+- **Camera (every tool):** middle drag to orbit, right drag or hold `Space` and left-drag to pan, wheel to zoom **toward the cursor**. `F` focuses the selected marker/road/build area or resets the map view if nothing is selected.
 - **Edit roads:** select, create, move points, insert/append, delete or change width.
 - **Water:** set a single global sea level and click the terrain to place lake sources with independent water levels. Ocean water only reaches terrain below sea level connected to a submerged boundary; lakes flood terrain reachable from their point. Shorelines derive from the triangular heightmap and react to Sculpt edits. No freehand water polygons. A lake source must remain below its water level. Existing polygon-water maps must be migrated.
 - **Settlements:** draw closed build-area polygons, edit/insert/remove vertices, create settlements with multiple build areas, rename or remove areas. Finish with `Enter` (or click the first point), `Esc` cancels. Invalid and self-intersecting polygons cannot be committed.
-- **Buildings & objects:** select visible markers, drag them to new positions, change definition/rotation, place or delete markers. New IDs are generated automatically; type a real definition ID before placing.
-- **Sculpt:** raise, lower, smooth or flatten with a circular brush. Flatten samples the height at stroke start.
-- **Paint:** choose a surface definition and paint its categorical cell IDs.
+- **Buildings & objects:** select visible markers, drag them to new positions, change definition/rotation, place or delete markers. `R` rotates placed or selected markers by 15° (`Shift+R` reverses); `Delete` removes the current selection (including roads/areas when selected). New IDs are generated automatically; type a real definition ID before placing.
+- **Sculpt:** raise, lower, smooth or flatten with a circular brush. Hold `Shift` to reverse raise/lower, `Ctrl` to temporarily smooth (takes precedence over `Shift`), even mid-stroke. `Shift+wheel` changes brush radius; this does not zoom the camera. Releasing modifiers restores the chosen sculpt mode. One drag is one undo entry. Flatten samples the height at stroke start.
+- **Paint:** choose a surface definition or hold `I` and click an existing surface to sample it without painting. `Q/E` cycles definitions, `Shift+wheel` resizes the brush.
 - **Undo/Redo:** `Ctrl+Z`, `Ctrl+Shift+Z` / `Ctrl+Y` (one history across all tools).
 - **Save map:** `Ctrl+S`. Nothing changes on disk before saving.
 

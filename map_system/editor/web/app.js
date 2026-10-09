@@ -12,6 +12,7 @@ import { intersectTerrainRay } from './terrain-ray.mjs';
 import { updateTerrainPatch } from './terrain-patch.mjs';
 import { buildWaterRegions } from './water-field.mjs';
 import { toolForMode, modeForTool, toolShortcut } from './tool-state.mjs';
+import { SCULPT_MODES, effectiveSculptMode, cycleChoice, resizeBrush, rotateDegrees } from './edit-shortcuts.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -66,6 +67,13 @@ let intentionalReload = false;
 let handleGroup;
 let brushRing;
 let lastPreview = 0;
+let paintEyedropper = false;
+let brushStrokePointerId = null;
+let spacePan = false;
+let brushPointerModifiers = { shiftKey: false, ctrlKey: false };
+let duplicateDraft = null;
+let duplicateGhost = null;
+let lastPointerWorld = null;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 
@@ -349,6 +357,7 @@ function initScene(doc) {
   controls.maxDistance = Math.max(...map.terrain.size) * 4;
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.screenSpacePanning = true;
+  controls.zoomToCursor = true;
   controls.mouseButtons.LEFT = null;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
   controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
@@ -398,6 +407,8 @@ function initScene(doc) {
   scene.add(entitiesGroup);
   placementPreview = new THREE.Group();
   scene.add(placementPreview);
+  duplicateGhost = new THREE.Group();
+  scene.add(duplicateGhost);
   repaintEntities();
   drawPolygons();
   resetCamera();
@@ -412,16 +423,18 @@ function initScene(doc) {
   resize();
   let last = 0;
   renderer.domElement.addEventListener('pointermove', ev => {
-    if (dragging || edits?.painting) return;
+    if (dragging || edits?.painting || duplicateDraft || spacePan) return;
     const now = performance.now(); if (now - last < 45) return; last = now;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set((ev.clientX - rect.left) / rect.width * 2 - 1, -((ev.clientY - rect.top) / rect.height * 2 - 1));
     raycaster.setFromCamera(pointer, camera);
     const hit = intersectTerrainRay(map.terrain, height, raycaster.ray.origin.toArray(), raycaster.ray.direction.toArray());
     if (!hit) { el('probe').textContent = 'OUTSIDE TERRAIN'; brushRing.visible = false; return; }
+    lastPointerWorld = [hit.point.x, hit.point.z];
+    brushPointerModifiers = { shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey };
     updateTerrainPointerFeedback(hit.point.x, hit.point.z);
   });
-  renderer.domElement.addEventListener('pointerleave', () => { el('probe').textContent = 'MOVE CURSOR OVER TERRAIN'; brushRing.visible = false; if (editMode === 'place-entity') { placementPoint = null; drawPlacement(); } });
+  renderer.domElement.addEventListener('pointerleave', () => { lastPointerWorld = null; el('probe').textContent = 'MOVE CURSOR OVER TERRAIN'; brushRing.visible = false; if (editMode === 'place-entity') { placementPoint = null; drawPlacement(); } });
   function frame() {
     controls.update(); updateCompass(); renderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -813,28 +826,6 @@ function deleteSelectedEntities() {
     selectedEntityIds.clear(); selectedEntityId = null; updateEntityUI(); repaintEntities();
   }
 }
-function duplicateSelection() {
-  if (currentDoc.readOnly || savePending || dragging || draggingEntity || polygonDrag || polygonDraft || edits.painting) return;
-  try {
-    if (editMode === 'entities' || (editMode === 'select' && selectionContext === 'entity')) {
-      const ids = selectedMarkerIds(); if (!ids.length) return;
-      const kind = selectedEntityKind;
-      const used = [...edits.roads, ...edits.water, ...edits.settlements, ...edits[kind === 'objects' ? 'buildings' : 'objects']].map(e => e.id);
-      const step = el('gridSnap').checked ? Number(el('gridStep').value) : 5;
-      const { entries, addedIds } = duplicateEntities(kind, edits[kind], ids, currentDoc.map.terrain.size, [step, step], used);
-      if (commitEntities(kind, entries, `${addedIds.length} marker(s) duplicated. Ctrl+Z to undo.`)) {
-        selectedEntityIds = new Set(addedIds); selectedEntityId = addedIds[0];
-        updateEntityUI(); repaintEntities();
-      }
-    } else if ((editMode === 'edit' || (editMode === 'select' && selectionContext === 'road')) && currentRoad()) {
-      const used = [...edits.water, ...edits.settlements, ...edits.buildings, ...edits.objects].map(e => e.id);
-      const step = el('gridSnap').checked ? Number(el('gridStep').value) : 5;
-      const { entries, addedId } = duplicateRoad(edits.roads, selectedRoadId, currentDoc.map.terrain.size, [step, step], used);
-      if (commitRoads(entries, 'Road duplicated. Ctrl+Z to undo.')) selectRoad(addedId);
-    }
-  } catch (error) { setMessage(error.message, true); }
-}
-
 function updateEntityUI() {
   const items = edits[selectedEntityKind];
   selectedEntityIds = new Set([...selectedEntityIds].filter(id => items.some(item => item.id === id)));
@@ -994,6 +985,7 @@ function selectRoad(id) {
   if (editMode === 'select') { selectionContext = id ? 'road' : null; renderEditorChrome(); }
 }
 function setEditMode(next) {
+  if (duplicateDraft) { setMessage('Place or cancel the duplicate first.', true); return; }
   if (currentDoc.readOnly && !['navigate','select','entities'].includes(next)) return;
   if (next === 'navigate' || next === 'entities') next = 'select';
   if (dragging || draggingEntity || polygonDrag || edits.painting) cancelDrag();
@@ -1035,14 +1027,14 @@ function setEditMode(next) {
   renderEditorChrome();
 }
 const toolHints = {
-  select: 'LMB Select · Drag markers · MMB Orbit · RMB Pan · Wheel Zoom',
-  sculpt: 'LMB Sculpt · MMB Orbit · RMB Pan · Wheel Zoom',
-  paint: 'LMB Paint · MMB Orbit · RMB Pan · Wheel Zoom',
-  draw: 'LMB Edit or draw points · Enter Finish · Esc Cancel',
-  place: 'LMB Place · MMB Orbit · RMB Pan · Wheel Zoom',
+  select: 'LMB Select · D Duplicate · R Rotate · Delete Remove · Space+Drag Pan',
+  sculpt: 'LMB Sculpt · Shift Reverse · Ctrl Smooth · Q/E Mode · Shift+Wheel Radius',
+  paint: 'LMB Paint · Hold I + click Pick surface · Q/E Surface · Shift+Wheel Radius',
+  draw: 'LMB Draw/Edit · Q/E Roads/Areas · Enter Finish · Esc Cancel',
+  place: 'LMB Place · Q/E Kind · R Rotate marker · MMB Orbit · RMB Pan',
 };
 function editingInProgress() {
-  return !!(dragging || draggingEntity || polygonDrag || edits.painting || polygonDraft || draftStart);
+  return !!(dragging || draggingEntity || polygonDrag || edits.painting || polygonDraft || draftStart || duplicateDraft);
 }
 function switchToolMode(mode) {
   if (editingInProgress()) { setMessage('Finish or cancel the current action before switching tools.', true); return; }
@@ -1092,7 +1084,7 @@ function renderEditorChrome() {
     el(id).classList.toggle('is-active', state);
     el(id).setAttribute('aria-pressed', String(state));
   }
-  el('interactionHint').textContent = toolHints[tool];
+  el('interactionHint').textContent = tool === 'paint' && paintEyedropper ? 'PIPETTE · Click terrain to sample surface · Release I to paint' : toolHints[tool];
   terrainPanel.classList.toggle('sculpt-active', tool === 'sculpt');
   terrainPanel.classList.toggle('paint-active', tool === 'paint');
   for (const button of document.querySelectorAll('[data-sculpt-kind]')) {
@@ -1121,6 +1113,109 @@ function togglePopover(name) {
   closeOpenPanel();
   panel.hidden = !next;
   el(`${name}Toggle`).setAttribute('aria-expanded', String(next));
+}
+function setBrushRadius(next) {
+  el('brushRadius').value = String(next);
+  el('brushRadiusSlider').value = String(next);
+  updateTerrainUI();
+  renderEditorChrome();
+  if (lastPointerWorld) updateTerrainPointerFeedback(...lastPointerWorld);
+}
+function cycleCurrentSubtool(direction) {
+  if (editingInProgress()) { setMessage('Finish or cancel the current action first.', true); return; }
+  const tool = toolForMode(editMode);
+  if (tool === 'sculpt') {
+    el('sculptMode').value = cycleChoice([...SCULPT_MODES], el('sculptMode').value, direction);
+    renderEditorChrome();
+  } else if (tool === 'paint') {
+    const options = [...el('brushSurface').options].map(o => o.value);
+    el('brushSurface').value = cycleChoice(options, el('brushSurface').value, direction);
+    renderEditorChrome();
+  } else if (tool === 'draw') {
+    subtools.draw = cycleChoice(['roads','areas'], subtools.draw, direction);
+    setEditMode(modeForTool('draw', subtools));
+  } else if (tool === 'place') {
+    subtools.place = cycleChoice(['entity','lake'], subtools.place, direction);
+    setEditMode(modeForTool('place', subtools));
+  }
+}
+function rotateActiveMarker(direction = 1) {
+  if (currentDoc.readOnly || savePending || editingInProgress()) return;
+  if (editMode === 'place-entity') {
+    el('entityRotation').value = String(rotateDegrees(Number(el('entityRotation').value), direction));
+    drawPlacement(); return;
+  }
+  if (editMode !== 'select' || selectionContext !== 'entity') return;
+  const ids = selectedMarkerIds();
+  if (!ids.length) return;
+  const next = edits[selectedEntityKind].map(e => ids.includes(e.id) ? { ...e, rotation: rotateDegrees(e.rotation, direction) } : e);
+  if (commitEntities(selectedEntityKind, next, `Rotated ${ids.length} marker(s) by ${direction * 15}°. Ctrl+Z to undo.`)) {
+    el('entityRotation').value = String(currentEntity()?.rotation ?? 0);
+    repaintEntities(); renderEditorChrome();
+  }
+}
+function clearDuplicateDraft() {
+  duplicateDraft = null;
+  if (duplicateGhost) disposeRoadMeshes(duplicateGhost);
+}
+function startDuplicateAtCursor() {
+  if (currentDoc.readOnly || savePending || editingInProgress()) return;
+  const selection = editMode === 'select' ? selectionContext : editMode === 'edit' ? 'road' : null;
+  if (selection === 'entity') {
+    const ids = selectedMarkerIds(); if (!ids.length) return;
+    const kind = selectedEntityKind;
+    const used = [...edits.roads, ...edits.water, ...edits.settlements, ...edits[kind === 'buildings' ? 'objects' : 'buildings']].map(e => e.id);
+    try {
+      const copy = duplicateEntities(kind, edits[kind], ids, currentDoc.map.terrain.size, [0,0], used);
+      duplicateDraft = { kind, original: copy.entries, createdIds: copy.addedIds,
+        anchor: edits[kind].find(e => e.id === (selectedEntityId ?? ids[0])).position,
+        valid: false, candidate: null, rotationOffset: 0 };
+    } catch (error) { setMessage(error.message, true); return; }
+  } else if (selection === 'road' && currentRoad()) {
+    try {
+      const occupied = [...edits.water, ...edits.settlements, ...edits.buildings, ...edits.objects].map(e=>e.id);
+      const copy = duplicateRoad(edits.roads, selectedRoadId, currentDoc.map.terrain.size, [0,0], occupied);
+      duplicateDraft = { kind: 'road', original: copy.entries, createdIds: [copy.addedId],
+        anchor: [...currentRoad().points[0]], valid: false, candidate: null, rotationOffset: 0 };
+    } catch (error) { setMessage(error.message, true); return; }
+  } else return;
+  setMessage('Move cursor to position duplicate · LMB place · R rotate markers · Esc cancel');
+  if (lastPointerWorld) updateDuplicatePreview(lastPointerWorld, true);
+}
+function updateDuplicatePreview(point, force = false) {
+  if (!duplicateDraft || !point) return;
+  const draft = duplicateDraft;
+  const now = performance.now();
+  if (!force && now - (draft.lastPreviewAt ?? 0) < 28) return;
+  draft.lastPreviewAt = now;
+  const dx = point[0] - draft.anchor[0], dz = point[1] - draft.anchor[1];
+  const chosen = new Set(draft.createdIds);
+  const candidate = draft.original.map(e => chosen.has(e.id) ? draft.kind === 'road'
+    ? { ...e, points: e.points.map(([x,z]) => [Number((x+dx).toFixed(6)),Number((z+dz).toFixed(6))]) }
+    : { ...e, position: [Number((e.position[0]+dx).toFixed(6)),Number((e.position[1]+dz).toFixed(6))],
+        rotation: ((e.rotation + draft.rotationOffset) % 360 + 360) % 360 } : e);
+  let valid = true, error = null;
+  try {
+    if (draft.kind === 'road') validateRoads(candidate, currentDoc.map.terrain.size);
+    else {
+      validateEntities(draft.kind, candidate, currentDoc.map.terrain.size, [...edits.roads,...edits.water,...edits.settlements,...edits[draft.kind === 'buildings' ? 'objects' : 'buildings']].map(e=>e.id));
+      if (draft.kind === 'buildings') for (const e of candidate) if (chosen.has(e.id)) {
+        const placement = placementFor(e, candidate);
+        if (!placement.valid) throw new Error(placementReasons[placement.reason] ?? placement.reason);
+      }
+    }
+  } catch (e) { valid = false; error = e.message; }
+  draft.valid = valid; draft.error = error; draft.candidate = candidate;
+  disposeRoadMeshes(duplicateGhost);
+  for (const entry of candidate) if (chosen.has(entry.id)) {
+    try {
+      const mesh = draft.kind === 'road' ? createRoadMesh(entry, currentDoc.map, currentDoc.height)
+        : buildEntity(entry, currentDoc.map, currentDoc.height, valid ? 0x64efbd : 0xff6c62);
+      mesh.material.color.setHex(valid ? 0x64efbd : 0xff6c62);
+      mesh.material.transparent = true; mesh.material.opacity = 0.55;
+      duplicateGhost.add(mesh);
+    } catch { /* An off-map preview remains invalid and cannot be committed. */ }
+  }
 }
 function initializeEditorChrome() {
   for (const toolButton of document.querySelectorAll('[data-tool]')) toolButton.addEventListener('click', () => selectTool(toolButton.dataset.tool));
@@ -1174,7 +1269,11 @@ function spatialPoint(ev) {
   catch (error) { setMessage(error.message, true); return null; }
 }
 function cancelDrag() {
-  if (edits.painting) { edits.cancelStroke(); controls.enabled = true; refreshTerrain(true); updateRoadUI(); }
+  if (edits.painting) {
+    edits.cancelStroke();
+    if (brushStrokePointerId !== null && renderer.domElement.hasPointerCapture(brushStrokePointerId)) renderer.domElement.releasePointerCapture(brushStrokePointerId);
+    brushStrokePointerId = null; controls.enabled = true; refreshTerrain(true); updateRoadUI();
+  }
   if (draggingEntity) {
     const previous = draggingEntity;
     draggingEntity = null;
@@ -1192,7 +1291,7 @@ function cancelDrag() {
   repaintRoads();
 }
 function editorPointerDown(ev) {
-  if (editMode === 'place-lake' && ev.button === 0) {
+  if (editMode === 'place-lake' && ev.button === 0 && !spacePan && !duplicateDraft && !currentDoc.readOnly && !savePending) {
     const point = spatialPoint(ev);
     if (!point) return;
     const level = sampleHeight(currentDoc.map.terrain, currentDoc.height, ...point) + 1;
@@ -1202,7 +1301,40 @@ function editorPointerDown(ev) {
     selectedLakeId = id; updateWaterUI(); renderEditorChrome();
     ev.preventDefault(); return;
   }
-  if (ev.button !== 0 || editMode === 'navigate' || savePending) return;
+  if (spacePan || ev.button !== 0 || editMode === 'navigate' || savePending) return;
+  if (duplicateDraft) {
+    ev.preventDefault();
+    if (!duplicateDraft.valid || !duplicateDraft.candidate) {
+      setMessage(duplicateDraft.error ?? 'Move over a valid position to place the duplicate.', true);
+      return;
+    }
+    const draft = duplicateDraft;
+    const ok = draft.kind === 'road'
+      ? commitRoads(draft.candidate, 'Road duplicated at cursor. Ctrl+Z to undo.')
+      : commitEntities(draft.kind, draft.candidate, 'Markers duplicated at cursor. Ctrl+Z to undo.');
+    if (ok) {
+      clearDuplicateDraft();
+      if (draft.kind === 'road') selectRoad(draft.createdIds[0]);
+      else {
+        selectedEntityKind = draft.kind;
+        selectedEntityIds = new Set(draft.createdIds);
+        selectedEntityId = draft.createdIds[0];
+        updateEntityUI(); repaintEntities(); renderEditorChrome();
+      }
+    }
+    return;
+  }
+  if (editMode === 'paint' && paintEyedropper) {
+    const point = terrainPoint(ev);
+    if (point) {
+      const surfaceIndex = surfaceAt(currentDoc.map.terrain, currentDoc.surface, ...point);
+      el('brushSurface').value = String(surfaceIndex);
+      renderEditorChrome();
+      setMessage(`Picked ${currentDoc.map.terrain.surface_palette[surfaceIndex]}. Release I to paint.`);
+    }
+    ev.preventDefault();
+    return;
+  }
   if (editMode === 'select') {
     makeRay(ev);
     const entityHit = entitiesGroup.visible ? raycaster.intersectObjects(entitiesGroup.children, false)[0] : null;
@@ -1236,9 +1368,11 @@ function editorPointerDown(ev) {
     const pos = terrainPoint(ev);
     if (!pos) return;
     try {
+      brushPointerModifiers = { shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey };
       const radius = Number(el('brushRadius').value), strength = Number(el('brushStrength').value);
-      const kind = editMode === 'paint' ? 'paint' : el('sculptMode').value;
+      const kind = editMode === 'paint' ? 'paint' : effectiveSculptMode(el('sculptMode').value, ev);
       edits.beginStroke(kind, { radius, strength, surfaceIndex: Number(el('brushSurface').value) }, pos);
+      brushStrokePointerId = ev.pointerId;
       renderer.domElement.setPointerCapture(ev.pointerId);
       controls.enabled = false;
       const changed = edits.takeStrokeBounds();
@@ -1339,11 +1473,21 @@ function editorPointerDown(ev) {
   }
 }
 function editorPointerMove(ev) {
+  brushPointerModifiers = { shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey };
+  if (spacePan) return;
   if (polygonDrag) { polygonPointerMove(ev); return; }
+  if (duplicateDraft) {
+    const point = spatialPoint(ev);
+    lastPointerWorld = point;
+    if (point) updateDuplicatePreview(point);
+    return;
+  }
   if (edits.painting) {
+    if (ev.pointerId !== brushStrokePointerId) return;
     const pos = terrainPoint(ev);
     if (pos) {
-      edits.strokeTo(pos);
+      brushPointerModifiers = { shiftKey: ev.shiftKey, ctrlKey: ev.ctrlKey };
+      edits.strokeTo(pos, editMode === 'sculpt' ? effectiveSculptMode(el('sculptMode').value, ev) : 'paint');
       const now = performance.now();
       if (now - lastPreview > 42) {
         const changed = edits.takeStrokeBounds();
@@ -1401,6 +1545,8 @@ function editorPointerMove(ev) {
 function editorPointerUp(ev) {
   if (polygonDrag) { polygonPointerUp(ev); return; }
   if (edits.painting) {
+    if (ev.pointerId !== brushStrokePointerId) return;
+    brushStrokePointerId = null;
     const strokeKind = editMode;
     const pending = edits.takeStrokeBounds();
     edits.endStroke();
@@ -1474,9 +1620,12 @@ function refreshTerrain(decorations = false, changed = null) {
   }
 }
 function updateTerrainPointerFeedback(x, z) {
+  lastPointerWorld = [x, z];
   const { terrain, surface_palette } = currentDoc.map.terrain;
   const definition = surface_palette[surfaceAt(terrain, currentDoc.surface, x, z)];
-  el('probe').textContent = `X ${x.toFixed(1)} · Z ${z.toFixed(1)} · H ${sampleHeight(terrain, currentDoc.height, x, z).toFixed(2)} m · ${definition}`;
+  const action = editMode === 'sculpt' ? effectiveSculptMode(el('sculptMode').value, brushPointerModifiers).toUpperCase()
+    : editMode === 'paint' ? (paintEyedropper ? 'PICK SURFACE' : 'PAINT') : '';
+  el('probe').textContent = `${action ? action + ' · ' : ''}X ${x.toFixed(1)} · Z ${z.toFixed(1)} · H ${sampleHeight(terrain, currentDoc.height, x, z).toFixed(2)} m · ${definition}`;
   showBrushRing(x, z);
 }
 function showBrushRing(x, z) {
@@ -1508,7 +1657,7 @@ function updateTerrainUI() {
     [edits.heightDirty ? 'HEIGHTMAP' : '', edits.surfaceDirty ? 'SURFACE MAP' : '', edits.entityDirty ? 'MARKERS' : '', edits.roadDirty ? 'ROADS' : '', edits.polygonDirty ? 'WATER / BUILD AREAS' : ''].filter(Boolean).join(' · ') : 'NO UNSAVED CHANGES';
 }
 function performHistory(redo = false) {
-  if (savePending || edits.painting || dragging || draggingEntity || polygonDrag || polygonDraft) return;
+  if (savePending || editingInProgress()) return;
   const kind = redo ? edits.redo() : edits.undo();
   if (kind === 'roads') repaintRoads();
   else if (kind === 'buildings' || kind === 'objects') { currentDoc.map[kind] = edits[kind]; updateEntityUI(); repaintEntities(); }
@@ -1519,7 +1668,7 @@ function performHistory(redo = false) {
 }
 async function saveRoadEdits() {
   if (savePending || !edits.isDirty || currentDoc.readOnly) return;
-  if (dragging || draggingEntity || polygonDrag || polygonDraft || edits.painting) { setMessage('Finish the current action before saving.', true); return; }
+  if (editingInProgress()) { setMessage('Finish or cancel the current action before saving.', true); return; }
   savePending = true;
   updateRoadUI(); updateTerrainUI();
   setMessage('Saving map and immutable terrain assets…');
@@ -1601,7 +1750,7 @@ function initializeRoadEditing() {
   });
   el('undo').addEventListener('click', () => performHistory());
   el('redo').addEventListener('click', () => performHistory(true));
-  el('duplicateSelected').addEventListener('click', duplicateSelection);
+  el('duplicateSelected').addEventListener('click', startDuplicateAtCursor);
   el('gridSnap').addEventListener('change', () => setMessage(el('gridSnap').checked ? 'Grid snapping enabled. Hold Alt for free placement.' : 'Free placement enabled.'));
   el('gridStep').addEventListener('change', () => {
     const step = Number(el('gridStep').value);
@@ -1611,16 +1760,32 @@ function initializeRoadEditing() {
   el('modeSculpt').addEventListener('click', () => setEditMode('sculpt'));
   el('modePaint').addEventListener('click', () => setEditMode('paint'));
   for (const id of ['brushRadius','brushStrength','sculptMode','brushSurface']) el(id).addEventListener('change', updateTerrainUI);
+  renderer.domElement.addEventListener('wheel', ev => {
+    if (!ev.shiftKey || ev.ctrlKey || ev.metaKey || ev.altKey || !['sculpt','paint'].includes(editMode) || edits.painting) return;
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    const delta = Math.abs(ev.deltaY) >= Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX;
+    if (delta) setBrushRadius(resizeBrush(Number(el('brushRadius').value), delta < 0 ? 1 : -1));
+  }, { capture: true, passive: false });
   renderer.domElement.addEventListener('pointerdown', editorPointerDown);
   renderer.domElement.addEventListener('pointermove', editorPointerMove);
   renderer.domElement.addEventListener('pointerup', editorPointerUp);
   renderer.domElement.addEventListener('pointercancel', cancelDrag);
-  window.addEventListener('blur', cancelDrag);
+  window.addEventListener('blur', () => { cancelDrag(); clearDuplicateDraft(); paintEyedropper = false; spacePan = false; controls.mouseButtons.LEFT = null; renderEditorChrome(); });
   window.addEventListener('beforeunload', event => { if (edits.isDirty && !intentionalReload) event.preventDefault(); });
   document.addEventListener('keydown', event => {
     if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea,[contenteditable=true]')) return;
-    if (event.repeat) return;
     const key = event.key.toLowerCase();
+    if (['shift','control'].includes(key)) { brushPointerModifiers = { shiftKey: event.shiftKey, ctrlKey: event.ctrlKey }; if (lastPointerWorld) updateTerrainPointerFeedback(...lastPointerWorld); }
+    if (key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      if (!editingInProgress() && !event.repeat) { spacePan = true; controls.mouseButtons.LEFT = THREE.MOUSE.PAN; }
+      return;
+    }
+    if (key === 'i' && !event.ctrlKey && !event.metaKey && !event.altKey && editMode === 'paint') {
+      if (!event.repeat) { paintEyedropper = true; renderEditorChrome(); if (lastPointerWorld) updateTerrainPointerFeedback(...lastPointerWorld); }
+      return;
+    }
+    if (event.repeat) return;
     if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 'z') {
       event.preventDefault();
       performHistory(event.shiftKey);
@@ -1629,15 +1794,27 @@ function initializeRoadEditing() {
       performHistory(true);
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 's') {
       event.preventDefault(); saveRoadEdits();
-    } else if ((event.ctrlKey || event.metaKey) && key === 'a' && (editMode === 'select' || editMode === 'entities') && !savePending) {
+    } else if ((event.ctrlKey || event.metaKey) && key === 'a' && (editMode === 'select' || editMode === 'entities') && !savePending && !editingInProgress()) {
       event.preventDefault();
       selectedEntityIds = new Set(edits[selectedEntityKind].map(e => e.id));
       selectedEntityId = selectedEntityIds.values().next().value ?? null;
       if (editMode === 'select') selectionContext = selectedEntityIds.size ? 'entity' : null;
       updateEntityUI(); repaintEntities(); renderEditorChrome();
-    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && key === 'd' && (['entities','edit'].includes(editMode) || (editMode === 'select' && ['road','entity'].includes(selectionContext)))) {
-      event.preventDefault(); duplicateSelection();
+    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && (key === 'q' || key === 'e')) {
+      event.preventDefault(); cycleCurrentSubtool(key === 'q' ? -1 : 1);
+    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && key === 'g') {
+      event.preventDefault();
+      el('gridSnap').checked = !el('gridSnap').checked;
+      el('gridSnap').dispatchEvent(new Event('change'));
+    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && key === 'r') {
+      event.preventDefault();
+      if (duplicateDraft) {
+        if (duplicateDraft.kind !== 'road') { duplicateDraft.rotationOffset = (duplicateDraft.rotationOffset + (event.shiftKey ? -15 : 15) + 360) % 360; if (lastPointerWorld) updateDuplicatePreview(lastPointerWorld, true); }
+      } else rotateActiveMarker(event.shiftKey ? -1 : 1);
+    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && key === 'd') {
+      event.preventDefault(); startDuplicateAtCursor();
     } else if (key === 'escape') {
+      if (duplicateDraft) { event.preventDefault(); clearDuplicateDraft(); setMessage('Duplication canceled.'); return; }
       if (closeOpenPanel()) { event.preventDefault(); return; }
       if (polygonDrag || dragging || draggingEntity) cancelDrag();
       else if (polygonDraft) cancelPolygonDraft();
@@ -1651,10 +1828,19 @@ function initializeRoadEditing() {
       event.preventDefault(); el('deleteEntity').click();
     } else if ((key === 'delete' || key === 'backspace') && selectedPointIndex >= 0 && editMode === 'edit') {
       event.preventDefault(); el('deletePoint').click();
+    } else if ((key === 'delete' || key === 'backspace') && !editingInProgress() && editMode === 'select' && selectionContext === 'road' && currentRoad()) {
+      event.preventDefault(); el('deleteRoad').click();
+    } else if ((key === 'delete' || key === 'backspace') && !editingInProgress() && editMode === 'select' && selectionContext === 'polygon' && currentPolygon()) {
+      event.preventDefault(); el('deletePolygon').click();
     } else {
       const tool = toolShortcut(event);
       if (tool) { event.preventDefault(); selectTool(tool); }
     }
+  });
+  document.addEventListener('keyup', event => {
+    if (event.key === ' ') { spacePan = false; controls.mouseButtons.LEFT = null; }
+    if (event.key.toLowerCase() === 'i') { paintEyedropper = false; renderEditorChrome(); if (lastPointerWorld) updateTerrainPointerFeedback(...lastPointerWorld); }
+    if (['Shift','Control'].includes(event.key)) { brushPointerModifiers = { shiftKey: event.shiftKey, ctrlKey: event.ctrlKey }; if (lastPointerWorld) updateTerrainPointerFeedback(...lastPointerWorld); }
   });
   updateRoadUI(); updateTerrainUI();
 }
@@ -1695,7 +1881,7 @@ function initializeMapManagement() {
   const write = async (path, method, data) => {
     if (workspacePending || savePending) return;
     if (edits.isDirty && !window.confirm('Discard unsaved editor changes?')) return;
-    if (dragging || draggingEntity || polygonDrag || polygonDraft || edits.painting) throw new Error('Finish the current edit first');
+    if (editingInProgress()) throw new Error('Finish the current edit first');
     workspacePending = true;
     for (const id of ['openWorkspaceMap','refreshWorkspaceMaps','createWorkspaceMap','applyMapSettings']) el(id).disabled = true;
     try {

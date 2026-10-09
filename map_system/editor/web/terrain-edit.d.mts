@@ -19,7 +19,7 @@ export declare class MapEdits {
   commitPolygons(kind: 'water' | 'settlements', entries: any[]): boolean;
   commitEntities(kind: 'buildings' | 'objects', entries: any[]): boolean;
   beginStroke(kind: string, options: any, point: number[]): boolean;
-  strokeTo(point: number[]): boolean;
+  strokeTo(point: number[], overrideKind?: string | null): boolean;
   takeStrokeBounds(): { height?: { minX: number; maxX: number; minZ: number; maxZ: number }; surface?: { minX: number; maxX: number; minZ: number; maxZ: number } } | null;
   endStroke(): boolean;
   cancelStroke(): boolean;
