@@ -1,8 +1,6 @@
 # 1400 Map Editor
 
-Local browser-based map viewer/editor foundation for the Godot map system. Lives
-inside `my-godot-collection/map_system/editor`; it is **not** a standalone repo or
-a game package. The application is currently a **read-only 3D viewer (M1)**.
+Local browser-based map viewer/editor foundation for the Godot map system. 
 
 ## Run
 
@@ -69,4 +67,4 @@ Godot runtime remains the final authority for map compatibility.
 
 Copyright © 2026 Jason Posch. All rights reserved. Source is publicly visible
 for inspection, but is not open source. See [NOTICE.md](NOTICE.md) for rights
-and third-party licenses. npm package metadata uses `UNLICENSED` and `private`.
+and third-party licenses.
