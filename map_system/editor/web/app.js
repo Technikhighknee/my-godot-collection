@@ -69,17 +69,26 @@ function decodeFloats(bytes) {
   return result;
 }
 async function getDocument() {
-  const [meta, heights, surfaces, definitions] = await Promise.all([
-    fetchResource('/api/map').then(r => r.json()),
-    fetchResource('/api/heights').then(r => r.arrayBuffer()),
-    fetchResource('/api/surfaces').then(r => r.arrayBuffer()),
-    fetchResource('/api/placement-definitions').then(r => r.json()),
-  ]);
-  if (typeof meta.readOnly !== 'boolean') throw new Error('Map server lacks edit capabilities');
-  if (meta.height.width * meta.height.height * 4 !== heights.byteLength) throw new Error('Heightmap byte length mismatch');
-  if (meta.surface.width * meta.surface.height !== surfaces.byteLength) throw new Error('Surface map byte length mismatch');
-  if (meta.surface.width !== meta.height.width - 1 || meta.surface.height !== meta.height.height - 1) throw new Error('Surface grid does not match height grid');
-  return { readOnly: meta.readOnly, revision: meta.revision, mapFile: meta.mapFile, workspace: meta.workspace, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
+  // Map switching in another tab must not mix JSON, EXR and PNG revisions.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const meta = await fetchResource('/api/map').then(r => r.json());
+    if (typeof meta.readOnly !== 'boolean') throw new Error('Map server lacks edit capabilities');
+    const headers = typeof meta.revision === 'string' ? { 'If-Match': `"${meta.revision}"` } : {};
+    const [heightResponse, surfaceResponse, definitions] = await Promise.all([
+      fetch('/api/heights', { cache: 'no-store', headers }),
+      fetch('/api/surfaces', { cache: 'no-store', headers }),
+      fetchResource('/api/placement-definitions').then(r => r.json()),
+    ]);
+    if (heightResponse.status === 409 || surfaceResponse.status === 409) continue;
+    if (!heightResponse.ok || !surfaceResponse.ok)
+      throw new Error(`Map assets unavailable (heights: HTTP ${heightResponse.status}, surfaces: HTTP ${surfaceResponse.status})`);
+    const [heights, surfaces] = await Promise.all([heightResponse.arrayBuffer(), surfaceResponse.arrayBuffer()]);
+    if (meta.height.width * meta.height.height * 4 !== heights.byteLength) throw new Error('Heightmap byte length mismatch');
+    if (meta.surface.width * meta.surface.height !== surfaces.byteLength) throw new Error('Surface map byte length mismatch');
+    if (meta.surface.width !== meta.height.width - 1 || meta.surface.height !== meta.height.height - 1) throw new Error('Surface grid does not match height grid');
+    return { readOnly: meta.readOnly, revision: meta.revision, mapFile: meta.mapFile, workspace: meta.workspace, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
+  }
+  throw new Error('Active map changed repeatedly while loading. Reload the editor.');
 }
 
 function createMeshGeometry(geo) {

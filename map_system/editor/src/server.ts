@@ -133,6 +133,18 @@ export function createEditorServer(source: MapDocument, store?: RoadStore, place
     }
     try {
       const current = workspace?.getDocument() ?? activeStore?.getDocument() ?? doc;
+      const readRevision = workspace?.getRevision() ?? activeStore?.getRevision() ?? null;
+      // A different tab can switch active maps between /api/map and the two
+      // binary downloads. Never serve an unrelated binary for old metadata.
+      if ((path === '/api/heights' || path === '/api/surfaces') && req.headers['if-match'] !== undefined &&
+          (readRevision === null || req.headers['if-match'] !== `"${readRevision}"`)) {
+        res.writeHead(409, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Map revision changed during load');
+        return;
+      }
+      if (path === '/api/heights' || path === '/api/surfaces') {
+        if (readRevision !== null) res.setHeader('ETag', `"${readRevision}"`);
+      }
       const item = path === '/api/maps' && workspace
         ? [Buffer.from(JSON.stringify({ maps: await workspace.list(), activeFile: workspace.getFile() })), 'application/json; charset=utf-8'] as [Buffer, string]
         : path === '/api/placement-definitions'

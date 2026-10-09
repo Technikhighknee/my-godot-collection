@@ -94,8 +94,15 @@ export class MapWorkspace {
     for (const file of files) {
       if (!file.isFile() || !(filenamePattern.test(file.name) || file.name === this.activeFile)) continue;
       let valid = true, name = file.name;
-      try { name = validateMap(JSON.parse((await safeRead(join(this.root, file.name))).toString('utf8'))).name; }
-      catch { valid = false; }
+      try {
+        const path = join(this.root, file.name);
+        // Only advertise maps that this workspace can actually open, including
+        // their EXR/PNG dimensions, contents and symlink protections.
+        await safeRead(path);
+        const doc = await loadMap(path);
+        await RoadStore.open(path, doc, this.definitions);
+        name = doc.map.name;
+      } catch { valid = false; }
       result.push({ file: file.name, name, valid, active: file.name === this.activeFile });
     }
     return result.sort((a, b) => a.file.localeCompare(b.file));
