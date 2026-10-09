@@ -12,9 +12,8 @@ test('home lists tools honestly and editor can return to it', () => {
   assert.match(home, /<title>1400 · Dev Tool<\/title>/);
   assert.match(home, /href="\/tools\/map-editor\/"/);
   assert.match(home, /id="dt-map-name"/);
-  assert.match(home, /<article class="dt-card dt-card-planned"/);
-  assert.match(home, /PLANNED — NOT YET AVAILABLE/);
-  assert.doesNotMatch(home, /href="[^"]*asset-procgen/);
+  assert.match(home, /href="\/tools\/asset-procgen\/"/);
+  assert.match(home, /02 AVAILABLE/);
   assert.match(editor, /href="\/" aria-label="Return to Dev Tool home"/);
   assert.match(editor, /\/dev-tool\.css/);
   assert.match(homeJs, /fetch\('\/api\/map'/);
@@ -61,7 +60,9 @@ test('HTTP main menu and existing map editor are separate, working routes', asyn
     const api = await get('/api/map');
     assert.equal(api.status, 200);
     assert.equal((await api.json()).map.name, doc.map.name);
-    assert.equal((await get('/tools/asset-procgen/')).status, 404);
+    const procgen = await get('/tools/asset-procgen/');
+    assert.equal(procgen.status, 200);
+    assert.match(await procgen.text(), /1400 · Asset ProcGen/);
     assert.equal((await get('/tools/map-editor/', { method: 'POST' })).status, 405);
     assert.equal((await get('/dev_tool/web/index.html')).status, 404);
   } finally {

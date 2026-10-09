@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>1400 · Asset ProcGen</title>
+<link rel="stylesheet" href="/dev-tool.css">
+<link rel="stylesheet" href="/tools/asset-procgen/style.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+<script type="module" src="/tools/asset-procgen/app.js"></script>
+</head>
+<body class="pg-page">
+<header class="pg-header">
+  <div class="pg-heading">
+    <a class="dt-brand" href="/" aria-label="Back to Dev Tool home"><span class="dt-mark">14</span><span class="dt-brand-copy">1400 <strong>Dev Tool</strong><small>WORLD CREATION WORKSPACE</small></span></a>
+    <span class="dt-brand-divider" aria-hidden="true">/</span><strong class="dt-tool-name">Asset ProcGen</strong>
+  </div>
+  <div class="pg-top-actions">
+    <span class="pg-local"><span class="pg-live-dot"></span> LOCAL · OFFLINE READY</span>
+    <button id="loadRecipe" class="pg-action" type="button">Load recipe</button>
+    <button id="saveRecipe" class="pg-action" type="button">Save recipe</button>
+    <button id="exportGlb" class="pg-action pg-action-primary" type="button">Export GLB <span aria-hidden="true">↗</span></button>
+    <input id="recipeFile" type="file" accept=".json,application/json" hidden>
+  </div>
+</header>
+<div class="pg-layout">
+  <aside class="pg-sidebar pg-library" aria-label="Generator library">
+    <div class="pg-sidebar-head">GENERATORS <span>01</span></div>
+    <button class="pg-generator is-selected" type="button" aria-current="true"><span class="pg-gen-symbol" aria-hidden="true">♣</span><span><strong>Broadleaf tree</strong><small>Oak · Revision 1</small></span><span class="pg-selected-mark" aria-hidden="true">↗</span></button>
+    <div class="pg-sidebar-label">COMING LATER</div>
+    <div class="pg-generator pg-disabled"><span class="pg-gen-symbol" aria-hidden="true">△</span><span><strong>Conifers</strong><small>New growth rules</small></span></div>
+    <div class="pg-generator pg-disabled"><span class="pg-gen-symbol" aria-hidden="true">◈</span><span><strong>Rocks &amp; props</strong><small>Additional generators</small></span></div>
+    <div class="pg-sidebar-note"><strong>Procedural, not destructive.</strong> Save a recipe to reproduce and edit the tree. Export a GLB to use the finished mesh independently in the Map Editor or Godot.</div>
+  </aside>
+  <main class="pg-main">
+    <div class="pg-canvas-wrap">
+      <div id="viewport" aria-label="Interactive 3D tree preview" role="img"></div>
+      <div class="pg-viewport-overline"><span class="pg-viewport-dot"></span> LIVE GENERATION <span class="pg-view-label">PERSPECTIVE / SHADED</span></div>
+      <div class="pg-viewport-tools">
+        <button id="focus" type="button" title="Frame tree">Focus</button>
+        <button id="wireframe" type="button" aria-pressed="false" title="Toggle wireframe">Wireframe</button>
+        <button id="spin" type="button" aria-pressed="false" title="Rotate preview">Auto orbit</button>
+      </div>
+      <div class="pg-preview-hint">DRAG TO ORBIT <span>·</span> SCROLL TO ZOOM <span>·</span> RIGHT-DRAG TO PAN</div>
+      <div id="viewportError" class="pg-error" hidden role="alert"></div>
+    </div>
+    <section class="pg-variants" aria-labelledby="variantsHeading">
+      <div class="pg-section-title"><div><span class="pg-overline">EXPLORE THE SHAPE</span><h2 id="variantsHeading">Seed variants</h2></div><span class="pg-secondary">Same settings, different growth</span></div>
+      <div id="variants" class="pg-variant-grid" aria-label="Alternative tree seeds"></div>
+    </section>
+    <section class="pg-stats" aria-live="polite">
+      <div><span>TRIANGLES</span><strong id="triangles">—</strong></div>
+      <div><span>BRANCH SEGMENTS</span><strong id="branches">—</strong></div>
+      <div><span>LEAVES</span><strong id="leaves">—</strong></div>
+      <div><span>FORMAT</span><strong>glTF 2.0 / GLB</strong></div>
+    </section>
+  </main>
+  <aside class="pg-sidebar pg-properties" aria-label="Generator parameters">
+    <div class="pg-properties-heading"><span class="pg-overline">ASSET SETTINGS</span><h1>Oak tree</h1><p>Grow a natural, asymmetric broadleaf tree from repeatable rules.</p></div>
+    <label class="pg-field-label" for="assetName">ASSET NAME</label>
+    <input id="assetName" maxlength="60" value="Oak 01" placeholder="Asset name">
+    <div class="pg-properties-section"><span class="pg-overline">STRUCTURE</span>
+      <label class="pg-slider"><span>Tree height <output id="heightValue"></output></span><input data-param="height" type="range" min="3" max="24" step=".5"></label>
+      <label class="pg-slider"><span>Crown radius <output id="crownRadiusValue"></output></span><input data-param="crownRadius" type="range" min="1" max="11" step=".1"></label>
+      <label class="pg-slider"><span>Trunk radius <output id="trunkRadiusValue"></output></span><input data-param="trunkRadius" type="range" min=".12" max="1.1" step=".01"></label>
+      <label class="pg-slider"><span>Branch density <output id="branchDensityValue"></output></span><input data-param="branchDensity" type="range" min=".2" max="1" step=".01"></label>
+      <label class="pg-slider"><span>Asymmetry <output id="asymmetryValue"></output></span><input data-param="asymmetry" type="range" min="0" max="1" step=".01"></label>
+    </div>
+    <div class="pg-properties-section"><span class="pg-overline">FOLIAGE</span>
+      <label class="pg-slider"><span>Leaf density <output id="leafDensityValue"></output></span><input data-param="leafDensity" type="range" min=".15" max="1" step=".01"></label>
+    </div>
+    <div class="pg-properties-section pg-seed-section"><label class="pg-field-label" for="seed">GENERATION SEED</label>
+      <div class="pg-seed-entry"><input id="seed" type="number" step="1" min="0" max="4294967295"><button id="randomSeed" type="button" title="Generate a random seed" aria-label="Randomize seed">↻</button></div>
+      <p>The same recipe, revision and seed always create the same geometry.</p>
+    </div>
+    <div class="pg-property-footer"><span id="status" role="status">Ready</span><button id="reset" type="button">Reset settings</button></div>
+  </aside>
+</div>
+</body>
+</html>
