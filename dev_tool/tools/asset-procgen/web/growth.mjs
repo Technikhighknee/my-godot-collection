@@ -1,5 +1,6 @@
 import { add,sub,scale,unit,mix,clamp,lerp,TAU,randomStream,signed } from './math.mjs';
 import { OAK } from './oak.mjs';
+import { resolveWoodStructure } from './wood-structure.mjs';
 
 const polar=angle=>[Math.cos(angle),0,Math.sin(angle)];
 const at=(path,t)=>{
@@ -27,11 +28,11 @@ function trunk(skeleton,recipe) {
     const flare=1+.57*Math.exp(-t*26);
     radii.push(Math.max(.008,radius*flare*Math.pow(1-t,.82)));
   }
-  skeleton.branches.push({id:1,parentId:null,generation:0,points,radii,vigor:1});
+  skeleton.branches.push({id:1,parentId:null,parentT:null,generation:0,points,radii,vigor:1});
   return points;
 }
 
-function appendBranch(skeleton,{id,parentId,generation,start,heading,length:span,baseRadius,vigor,seed,verticalBias,asymmetry,tilt=0}) {
+function appendBranch(skeleton,{id,parentId,parentT,generation,start,heading,length:span,baseRadius,vigor,seed,verticalBias,asymmetry,tilt=0}) {
   const rnd=randomStream(seed,id,31);
   const steps=[0,8,6,5,4][generation]??4;
   let pos=start,direction=unit(heading);
@@ -50,7 +51,7 @@ function appendBranch(skeleton,{id,parentId,generation,start,heading,length:span
     points.push(pos);
     radii.push(Math.max(.003,baseRadius*Math.pow(1-t,1.04)*(.96+.055*Math.sin(t*6+warp))));
   }
-  const branch={id,parentId,generation,points,radii,vigor};
+  const branch={id,parentId,parentT,generation,points,radii,vigor};
   skeleton.branches.push(branch);
   return branch;
 }
@@ -118,7 +119,7 @@ export function growOak(recipe) {
       const vigor=clamp(parent.vigor*(.80+.19*r()+.13*sun)-crowded*.016,.09,1);
       if(generation>=3 && ((crowded>7 && r()<.5)||(vigor<.22 && r()<.7)))continue;
       const branch=appendBranch(tree,{
-        id,parentId:parent.id,generation,start:origin,heading,length:span,
+        id,parentId:parent.id,parentT:t,generation,start:origin,heading,length:span,
         baseRadius:radius,vigor,seed:recipe.seed,verticalBias:OAK.upwardBias[generation-1],
         asymmetry:p.asymmetry,tilt:Math.max(0,(.57-sun)*.2)
       });
@@ -139,11 +140,11 @@ export function growOak(recipe) {
     const vigor=clamp(.64+.30*rnd()+.12*(.70-position),.25,1);
     const radius=p.trunkRadius*(.51-.19*position)*(.84+.24*rnd());
     const limb=appendBranch(tree,{
-      id,parentId:1,generation:1,start:origin,heading,length:Math.hypot(spread,rise),
+      id,parentId:1,parentT:position,generation:1,start:origin,heading,length:Math.hypot(spread,rise),
       baseRadius:radius,vigor,seed:recipe.seed,verticalBias:.18,
       asymmetry:p.asymmetry,tilt:.24
     });
     sprout(limb,2);
   }
-  return tree;
+  return resolveWoodStructure(tree,recipe);
 }
