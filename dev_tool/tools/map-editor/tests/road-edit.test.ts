@@ -8,7 +8,7 @@ import { createEditorServer } from '../src/server.ts';
 import { RoadStore, RoadConflict } from '../src/editing/road-store.ts';
 import { RoadEdits, nearestSegment } from '../web/road-edit.mjs';
 
-const fixture = '../godot/coastal_relief.map.json';
+const fixture = '../map_system/coastal_relief.map.json';
 
 test('road editing is isolated, transactional, bounded and undoable', () => {
   const roads = [{ id: 'path', definition: 'road.path', width: 3, points: [[1, 1], [6, 6]] as [number,number][] }];

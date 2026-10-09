@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": false
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": ["tools/map-editor/src/**/*.ts", "tools/map-editor/tests/**/*.ts"]
 }

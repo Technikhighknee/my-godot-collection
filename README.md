@@ -5,14 +5,15 @@ Some Godot bits and bobs.
 ## Collection
 
 - [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
-- [Map System](map_system/) — portable Godot map runtime under `godot/` and a separate Node.js editing tool under `editor/` in the same repository.
+- [Map System](map_system/) — deployable Godot map runtime and portable map format.
+- [Dev Tool](dev_tool/) — local Node.js development tools, currently including the browser-based Map Editor.
 
 ## Deploy tool
 
 >You're probably thinking, “Jason... why don't you just copy them by hand?”
 >No. That primitive act of manually moving files is personally insulting to me. I need manifest files, byte-by-byte comparison, selective conflict resolution, and atomic writes.
 
-Each deployable Godot package declares its files in `manifest.json` (for Map System: `map_system/godot/manifest.json`). The project manifest
+Each deployable Godot package declares its files in `manifest.json` (for Map System: `map_system/manifest.json`). The project manifest
 chooses the installed folder names, and `deploy.py` installs **entire packages** into
 `packages/` next to the project manifest:
 

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { MapWorkspace } from '../src/editing/map-workspace.ts';
@@ -65,9 +66,10 @@ test('map binary reads are bound to the metadata revision across workspace switc
 
 
 test('every shipped browser script passes the JavaScript syntax parser', async () => {
-  const files = (await readdir(resolve('web'))).filter(x => x.endsWith('.js') || x.endsWith('.mjs'));
+  const browserRoot = fileURLToPath(new URL('../web/', import.meta.url));
+  const files = (await readdir(browserRoot)).filter(x => x.endsWith('.js') || x.endsWith('.mjs'));
   assert.ok(files.length >= 9);
   for (const file of files) {
-    assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', join('web', file)], { stdio: 'pipe' }), file);
+    assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', join(browserRoot, file)], { stdio: 'pipe' }), file);
   }
 });

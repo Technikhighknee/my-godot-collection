@@ -10,7 +10,7 @@ import { createEditorServer } from '../src/server.ts';
 import { MapEdits } from '../web/terrain-edit.mjs';
 import { nearestPolygonEdge, newPolygonId, validatePolygon, validatePolygons } from '../web/polygon-edit.mjs';
 
-const fixture = '../godot/coastal_relief.map.json';
+const fixture = '../map_system/coastal_relief.map.json';
 const size: [number, number] = [480, 360];
 const rect: [number, number][] = [[10, 10], [40, 10], [40, 30], [10, 30]];
 const water = { id: 'pond_1', definition: 'water.lake' as const, height: -6, source: [0, 120] as [number,number] };

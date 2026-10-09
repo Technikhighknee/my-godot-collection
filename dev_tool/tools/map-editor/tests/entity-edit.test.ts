@@ -9,7 +9,7 @@ import { RoadStore, RoadConflict } from '../src/editing/road-store.ts';
 import { MapEdits } from '../web/terrain-edit.mjs';
 import { validateEntities, newEntityId } from '../web/entity-edit.mjs';
 
-const fixture = '../godot/coastal_relief.map.json';
+const fixture = '../map_system/coastal_relief.map.json';
 
 test('marker editing validates map-space positions, IDs and definitions', () => {
   const entries = [{ id: 'b_1', definition: 'building.house', position: [2, 9], rotation: -90 }];

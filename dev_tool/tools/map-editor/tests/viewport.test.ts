@@ -5,7 +5,7 @@ import { createEditorServer } from '../src/server.ts';
 import { buildTerrainGeometry, sampleHeight, surfaceAt, makeVertexColors } from '../web/mesh-data.mjs';
 import { heightAt } from '../src/core/map.ts';
 
-const fixture = '../godot/coastal_relief.map.json';
+const fixture = '../map_system/coastal_relief.map.json';
 
 test('browser mesh has exactly the Godot terrain vertex positions and triangle split', async () => {
   const doc = await loadMap(fixture);

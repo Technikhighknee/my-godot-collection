@@ -6,7 +6,7 @@ import { createEditorServer } from '../src/server.ts';
 // Missing static imports stop app.js before its startup/error handler runs.
 // Walk the real HTTP graph, rather than checking syntax on disk alone.
 test('all relative browser imports are served as JavaScript', async () => {
-  const doc = await loadMap('../godot/coastal_relief.map.json');
+  const doc = await loadMap('../map_system/coastal_relief.map.json');
   const server = createEditorServer(doc);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   try {

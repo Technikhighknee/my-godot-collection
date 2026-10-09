@@ -77,10 +77,10 @@ test('flatten uses initial brush elevation and smoothing is order-independent pe
 test('multi-file save publishes new immutable assets, updates manifest, retains original maps', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'map-terrain-assets-'));
   try {
-    const src = '../godot/coastal_relief.map.json';
+    const src = '../map_system/coastal_relief.map.json';
     const doc = await loadMap(src);
     const mapFile = join(temp, 'coastal_relief.map.json');
-    await cp('../godot/assets', join(temp, 'assets'), { recursive: true });
+    await cp('../map_system/assets', join(temp, 'assets'), { recursive: true });
     await cp(src, mapFile);
     const originalMap = await readFile(mapFile);
     const oldHeight = await readFile(join(temp, doc.map.terrain.heightmap));
@@ -132,8 +132,8 @@ test('multi-file save publishes new immutable assets, updates manifest, retains 
 
 test('document HTTP API rejects invalid binary writes and cross-origin requests; serves saved data', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'map-terrain-http-'));
-  const src = '../godot/coastal_relief.map.json';
-  await cp('../godot/assets', join(temp, 'assets'), { recursive: true });
+  const src = '../map_system/coastal_relief.map.json';
+  await cp('../map_system/assets', join(temp, 'assets'), { recursive: true });
   const path = join(temp, 'map.json');
   await cp(src, path);
   const doc = await loadMap(path);

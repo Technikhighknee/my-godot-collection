@@ -70,7 +70,7 @@ test('concave settlement edge cannot be crossed with corners still inside',()=>{
 test('save rejects invalid building placements and preserves original document',async()=>{
   const folder=await mkdtemp(join(tmpdir(),'m6-building-'));
   try {
-    const doc=await loadMap('../godot/coastal_relief.map.json');
+    const doc=await loadMap('../map_system/coastal_relief.map.json');
     const copy=join(folder,'map.json');await writeFile(copy,JSON.stringify(doc.map));
     // No build areas in sample; a new building requiring build area is rejected.
     const store=await RoadStore.open(copy,doc,catalog);
@@ -87,7 +87,7 @@ test('save rejects invalid building placements and preserves original document',
 
 test('API serves placement catalog; rejects invalid placements via PUT without writing',async()=>{
   const folder=await mkdtemp(join(tmpdir(),'m6-http-'));
-  const doc=await loadMap('../godot/coastal_relief.map.json');const file=join(folder,'map.json');
+  const doc=await loadMap('../map_system/coastal_relief.map.json');const file=join(folder,'map.json');
   await writeFile(file,JSON.stringify(doc.map));
   const store=await RoadStore.open(file,doc,catalog);
   const server=createEditorServer(doc,store,catalog);
@@ -111,7 +111,7 @@ test('API serves placement catalog; rejects invalid placements via PUT without w
 test('environment edits revalidate existing buildings, unrelated unknown markers are retained',async()=>{
   const folder=await mkdtemp(join(tmpdir(),'m6-env-'));
   try {
-    const doc=await loadMap('../godot/coastal_relief.map.json');
+    const doc=await loadMap('../map_system/coastal_relief.map.json');
     const file=join(folder,'map.json');await writeFile(file,JSON.stringify(doc.map));
     const store=await RoadStore.open(file,doc,catalog);let revision=store.getRevision();
     const building=entity([5,5],'free','building.free');

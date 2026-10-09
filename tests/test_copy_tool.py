@@ -32,7 +32,7 @@ class DeployTests(unittest.TestCase):
             "strategy_camera": {"StrategyCamera.gd": b"camera"},
             "map_system": {"core/GameMap.gd": b"map", "assets/example.surface.png": b"\x89PNG"},
         }.items():
-            folder = self.repo / name / "godot" if name == "map_system" else self.repo / name
+            folder = self.repo / name
             folder.mkdir(parents=True)
             for path, data in files.items():
                 f = folder / path
@@ -40,7 +40,7 @@ class DeployTests(unittest.TestCase):
                 f.write_bytes(data)
             (folder / "manifest.json").write_text(json.dumps({"files": list(files)}))
         # Editor tooling must never be copied into the Godot project.
-        editor = self.repo / "map_system" / "editor"
+        editor = self.repo / "dev_tool"
         editor.mkdir()
         (editor / "package.json").write_text('{"private":true,"license":"UNLICENSED"}')
         self.manifest = self.project / "manifest.json"
@@ -111,7 +111,7 @@ class DeployTests(unittest.TestCase):
         self.assertFalse((self.project / "packages").exists())
 
     def test_package_manifest_cannot_escape_or_request_remove(self) -> None:
-        path = self.repo / "map_system" / "godot" / "manifest.json"
+        path = self.repo / "map_system" / "manifest.json"
         path.write_text(json.dumps({"files": ["../tools/deploy.py"]}))
         with self.assertRaises(deploy.CopyError):
             self.execute("-y", str(self.manifest))

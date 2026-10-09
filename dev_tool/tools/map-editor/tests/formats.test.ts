@@ -7,11 +7,11 @@ import { decodeExr, encodeExr } from '../src/formats/exr.ts';
 import { decodeSurfacePng, encodeSurfacePng } from '../src/formats/png.ts';
 import { loadMap, serializeMap } from '../src/io/map-io.ts';
 import { heightAt, validateMap, validateDocument, type MapDocument } from '../src/core/map.ts';
-const fixture = '../godot/coastal_relief.map.json';
+const fixture = '../map_system/coastal_relief.map.json';
 const fail = (f: () => unknown, pattern:RegExp) => assert.throws(f,pattern);
 
 test('real compressed EXR preserves every float32 bit across encoding', async () => {
-  const raw=await readFile('../godot/assets/coastal_relief.height.exr');
+  const raw=await readFile('../map_system/assets/coastal_relief.height.exr');
   const image=decodeExr(raw);
   assert.ok(image.width >= 2 && image.height >= 2);
   const exported=encodeExr(image);
@@ -28,7 +28,7 @@ test('real compressed EXR preserves every float32 bit across encoding', async ()
 });
 
 test('EXR rejects unsupported compression, headers, malformed scanlines and nonfinite', async () => {
-  const sample=await readFile('../godot/assets/coastal_relief.height.exr');
+  const sample=await readFile('../map_system/assets/coastal_relief.height.exr');
   const badMagic=Buffer.from(sample);badMagic[0]=0;fail(()=>decodeExr(badMagic),/signature/);
   const badVersion=Buffer.from(sample);badVersion.writeUInt32LE(3,4);fail(()=>decodeExr(badVersion),/version/);
   const float=encodeExr({width:2,height:2,data:new Float32Array([0,1,.5,.25])});
@@ -39,7 +39,7 @@ test('EXR rejects unsupported compression, headers, malformed scanlines and nonf
 });
 
 test('surface PNG preserves categorical indices through encoding', async () => {
-  const bytes=await readFile('../godot/assets/coastal_relief.surface.png');
+  const bytes=await readFile('../map_system/assets/coastal_relief.surface.png');
   const surface=decodeSurfacePng(bytes);
   assert.deepEqual([surface.width,surface.height],[320,240]);
   assert.deepEqual(decodeSurfacePng(encodeSurfacePng(surface)),surface);
@@ -100,8 +100,8 @@ test('load is read-only and denies an asset symlink escape',async()=>{
     const data=JSON.parse(original.toString());data.terrain.heightmap='out.exr';data.terrain.surface_map='out.png';
     await writeFile(join(dir,'map.json'),JSON.stringify(data));
     const {symlink}=await import('node:fs/promises');
-    await symlink(join(process.cwd(),'../godot/assets/coastal_relief.height.exr'),join(dir,'out.exr'));
-    await symlink(join(process.cwd(),'../godot/assets/coastal_relief.surface.png'),join(dir,'out.png'));
+    await symlink(join(process.cwd(),'../map_system/assets/coastal_relief.height.exr'),join(dir,'out.exr'));
+    await symlink(join(process.cwd(),'../map_system/assets/coastal_relief.surface.png'),join(dir,'out.png'));
     await assert.rejects(loadMap(join(dir,'map.json')),/symlink escapes/);
   } finally {await rm(dir,{force:true,recursive:true});}
 });

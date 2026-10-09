@@ -8,7 +8,7 @@ import { MapWorkspace } from './editing/map-workspace.ts';
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
-  console.log('Usage: npm start -- [map.json] [--port 4371] [--definitions path.json]\nDefault map: ../godot/coastal_relief.map.json\nBinds to 127.0.0.1 only. Saves map JSON and edited terrain assets.');
+  console.log('Usage: npm start -- [map.json] [--port 4371] [--definitions path.json]\nDefault map: ../map_system/coastal_relief.map.json\nBinds to 127.0.0.1 only. Saves map JSON and edited terrain assets.');
 } else {
   try {
     const index = args.indexOf('--port');
@@ -19,7 +19,7 @@ if (args.includes('--help') || args.includes('-h')) {
     if (defsIndex >= 0 && (!args[defsIndex + 1] || args[defsIndex + 1].startsWith('--'))) throw new Error('Missing --definitions file');
     const paths = args.filter((arg, i) => arg !== '--port' && i !== index + 1 && arg !== '--definitions' && i !== defsIndex + 1);
     if (paths.length > 1 || paths.some(s => s.startsWith('--'))) throw new Error('Expected one map path and optional --port');
-    const file = resolve(paths[0] ?? '../godot/coastal_relief.map.json');
+    const file = resolve(paths[0] ?? '../map_system/coastal_relief.map.json');
     const doc = await loadMap(file);
     const definitionsFile = resolve(defsIndex >= 0 ? args[defsIndex + 1]! : fileURLToPath(new URL('../placement-definitions.json', import.meta.url)));
     const definitions = validatePlacementDefinitions(JSON.parse(await readFile(definitionsFile, 'utf8')));

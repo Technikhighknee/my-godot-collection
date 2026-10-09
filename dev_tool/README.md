@@ -1,13 +1,17 @@
-# 1400 Map Editor
+# 1400 Dev Tool
 
-Local Node.js / TypeScript browser editor for the Godot map format in `../godot/`.
+## Map Editor
+
+The first tool in this Node.js development package. The server currently opens the Map Editor directly; no new tools or navigation are part of this migration.
+
+Local Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
 
 ## Run
 
 Requires Node.js >= 22.10, npm, and a WebGL2 browser.
 
 ```sh
-cd map_system/editor
+cd dev_tool
 npm ci
 npm test
 npm run typecheck
@@ -17,7 +21,7 @@ npm start
 Open <http://127.0.0.1:4371/>. The **Maps** button can open or create maps in the startup map’s directory. To choose a different workspace, select its initial map on startup:
 
 ```sh
-npm start -- ../godot/example.map.json --port 4372
+npm start -- ../map_system/example.map.json --port 4372
 ```
 
 ## Map workspace
@@ -46,7 +50,7 @@ The workspace is intentionally limited to one directory and does **not** expose 
 - **Save map:** `Ctrl+S`. Nothing changes on disk before saving.
 
 Terrain saves create immutable content-addressed EXR/PNG assets. The map JSON is
-published last; the original files stay intact. If `../godot/manifest.json` exists,
+published last; the original files stay intact. If `../map_system/manifest.json` exists,
 new assets are included for deployment. Old generated assets are not removed
 automatically. External file changes cause a save conflict.
 
@@ -64,12 +68,12 @@ Copyright © 2026 Jason Posch. All rights reserved. See [NOTICE.md](NOTICE.md).
 The Godot map still stores only `id`, `definition`, `[x,z]`, and clockwise
 `rotation` for each building. Building **definitions are not embedded in maps**.
 For local preview and save-time checks, the editor reads
-[`placement-definitions.json`](placement-definitions.json) at startup. The two
+[`placement-definitions.json`](tools/map-editor/placement-definitions.json) at startup. The two
 included definitions (`building.house` and `building.workshop`) are **editable
 examples**, not canonical game content. Supply your own file with:
 
 ```sh
-npm start -- ../godot/coastal_relief.map.json --definitions ./placement-definitions.json
+npm start -- ../map_system/coastal_relief.map.json --definitions ./tools/map-editor/placement-definitions.json
 ```
 
 Each `buildings` entry contains `id` and `footprint` `[width,depth]` (meters),
