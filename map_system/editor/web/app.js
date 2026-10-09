@@ -1041,7 +1041,15 @@ const toolHints = {
   draw: 'LMB Edit or draw points · Enter Finish · Esc Cancel',
   place: 'LMB Place · MMB Orbit · RMB Pan · Wheel Zoom',
 };
+function editingInProgress() {
+  return !!(dragging || draggingEntity || polygonDrag || edits.painting || polygonDraft || draftStart);
+}
+function switchToolMode(mode) {
+  if (editingInProgress()) { setMessage('Finish or cancel the current action before switching tools.', true); return; }
+  setEditMode(mode);
+}
 function selectTool(tool) {
+  if (editingInProgress()) { setMessage('Finish or cancel the current action before switching tools.', true); return; }
   inspectorCollapsed = false;
   closeOpenPanel();
   setEditMode(modeForTool(tool, subtools));
@@ -1121,10 +1129,10 @@ function initializeEditorChrome() {
     el(`close${name[0].toUpperCase() + name.slice(1)}`).addEventListener('click', () => closeOpenPanel());
   }
   el('collapseToolPanel').addEventListener('click', () => { inspectorCollapsed = true; renderEditorChrome(); });
-  el('drawRoadsTab').addEventListener('click', () => setEditMode('edit'));
-  el('drawAreasTab').addEventListener('click', () => setEditMode('polygon-edit'));
-  el('placeEntitiesTab').addEventListener('click', () => setEditMode('place-entity'));
-  el('placeLakesTab').addEventListener('click', () => setEditMode('place-lake'));
+  el('drawRoadsTab').addEventListener('click', () => switchToolMode('edit'));
+  el('drawAreasTab').addEventListener('click', () => switchToolMode('polygon-edit'));
+  el('placeEntitiesTab').addEventListener('click', () => switchToolMode('place-entity'));
+  el('placeLakesTab').addEventListener('click', () => switchToolMode('place-lake'));
   for (const button of document.querySelectorAll('[data-sculpt-kind]')) {
     button.addEventListener('click', () => { el('sculptMode').value = button.dataset.sculptKind; renderEditorChrome(); });
   }
