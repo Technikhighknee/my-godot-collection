@@ -13,7 +13,7 @@
   <div class="shell">
     <header class="header">
       <div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
-      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">MAP EDITOR · M5</span></div>
+      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">MAP EDITOR · M6</span></div>
       <div class="history-controls">
         <button id="undo" type="button" title="Ctrl+Z" disabled>Undo</button>
         <button id="redo" type="button" title="Ctrl+Shift+Z" disabled>Redo</button>
@@ -57,11 +57,13 @@
         <label class="editor-label" for="entitySelect">SELECTED MARKER</label>
         <select id="entitySelect" aria-label="Selected marker"></select>
         <label class="editor-label" for="entityDefinition">DEFINITION ID</label>
-        <input type="text" id="entityDefinition" maxlength="200" spellcheck="false" placeholder="e.g. building.house" autocomplete="off">
+        <input type="text" id="entityDefinition" list="buildingDefinitionChoices" maxlength="200" spellcheck="false" placeholder="e.g. building.house" autocomplete="off">
+        <datalist id="buildingDefinitionChoices"></datalist>
         <label class="editor-label" for="entityRotation">ROTATION (DEGREES)</label>
         <input type="number" id="entityRotation" step="1" value="0">
         <div class="tool-row"><button type="button" id="applyEntity">Apply properties</button><button type="button" id="deleteEntity">Delete marker</button></div>
         <div id="entityInfo" class="point-info">Select a marker or place a new one.</div>
+        <div id="placementInfo" class="point-info placement-status" aria-live="polite">Building placement rules are loaded from placement-definitions.json.</div>
       </section>
       <section class="polygon-editor">
         <h3>BUILD AREAS & WATER</h3>

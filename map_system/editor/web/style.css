@@ -36,3 +36,8 @@
 .polygon-editor [hidden]{display:none}
 .polygon-editor #polygonInfo{margin-top:8px}
 @media(max-width:750px){.polygon-editor{padding:12px}}
+
+/* Building footprint validation */
+.placement-status{padding:9px 10px;border-left:2px solid #5e8c81;background:#1d302f;color:#aedfd2;margin-top:12px}
+.placement-status.invalid{border-left-color:#c87566;background:#322521;color:#f3b3a6}
+.placement-status.unverified{border-left-color:#b9a56f;background:#302b21;color:#d7c79b}

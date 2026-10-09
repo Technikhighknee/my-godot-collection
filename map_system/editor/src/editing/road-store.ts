@@ -4,6 +4,7 @@ import { basename, dirname, extname, join, relative, resolve, sep, isAbsolute } 
 import { validateMap, validateDocument, type MapDocument } from '../core/map.ts';
 import { encodeExr } from '../formats/exr.ts';
 import { encodeSurfacePng } from '../formats/png.ts';
+import { validateBuildingChanges, type PlacementDefinitions } from '../../web/building-placement.mjs';
 
 export class RoadConflict extends Error {}
 const hash = (data: Buffer): string => createHash('sha256').update(data).digest('hex');
@@ -37,17 +38,18 @@ export class RoadStore {
   private queue: Promise<void> = Promise.resolve();
   private assets = new Map<string, string>();
   private manifestHash: string | null = null;
+  private readonly definitions?: PlacementDefinitions;
 
-  private constructor(file: string, doc: MapDocument, revision: string) {
-    this.file = file; this.doc = doc; this.revision = revision;
+  private constructor(file: string, doc: MapDocument, revision: string, definitions?: PlacementDefinitions) {
+    this.file = file; this.doc = doc; this.revision = revision; this.definitions = definitions;
   }
 
-  static async open(file: string, doc: MapDocument): Promise<RoadStore> {
+  static async open(file: string, doc: MapDocument, definitions?: PlacementDefinitions): Promise<RoadStore> {
     const target = resolve(file);
     const bytes = await safeFile(target);
     const parsed = validateMap(JSON.parse(bytes.toString('utf8')));
     if (JSON.stringify(parsed) !== JSON.stringify(doc.map)) throw new RoadConflict('Map changed while editor was opening');
-    const store = new RoadStore(target, doc, hash(bytes));
+    const store = new RoadStore(target, doc, hash(bytes), definitions);
     for (const name of [parsed.terrain.heightmap, parsed.terrain.surface_map]) {
       const path = resolve(dirname(target), name);
       try { store.assets.set(path, hash(await store.assetBytes(path))); }
@@ -131,7 +133,13 @@ export class RoadStore {
     if (!(heights instanceof Float32Array) || heights.length !== this.doc.heights.data.length ||
         !(surfaces instanceof Uint8Array) || surfaces.length !== this.doc.surfaces.data.length) throw new Error('Invalid map asset dimensions');
     if (changes.heights) for (const h of heights) if (!Number.isFinite(h) || h < 0 || h > 1) throw new Error('Invalid height sample (expected 0..1)');
-    validateDocument({ map: next, heights: { ...this.doc.heights, data: heights }, surfaces: { ...this.doc.surfaces, data: surfaces } });
+    const candidate = { map: next, heights: { ...this.doc.heights, data: heights }, surfaces: { ...this.doc.surfaces, data: surfaces } };
+    validateDocument(candidate);
+    if (this.definitions) validateBuildingChanges(
+      { map: next, height: candidate.heights },
+      { map: this.doc.map, height: this.doc.heights },
+      this.definitions
+    );
     await this.verifySource();
     // Require source assets to have been loaded from disk before replacing their references.
     if (changes.heights && !this.assets.has(resolve(dirname(this.file), next.terrain.heightmap))) throw new RoadConflict('Cannot edit a missing heightmap file');

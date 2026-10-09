@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateDocument, type MapDocument } from './core/map.ts';
 import { RoadConflict, RoadStore } from './editing/road-store.ts';
+import { validatePlacementDefinitions, type PlacementDefinitions } from '../web/building-placement.mjs';
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const responses: Record<string, [string, string]> = {
@@ -14,6 +15,7 @@ const responses: Record<string, [string, string]> = {
   '/entity-edit.mjs': ['web/entity-edit.mjs', 'text/javascript; charset=utf-8'],
   '/polygon-edit.mjs': ['web/polygon-edit.mjs', 'text/javascript; charset=utf-8'],
   '/mesh-data.mjs': ['web/mesh-data.mjs', 'text/javascript; charset=utf-8'],
+  '/building-placement.mjs': ['web/building-placement.mjs', 'text/javascript; charset=utf-8'],
   '/style.css': ['web/style.css', 'text/css; charset=utf-8'],
   '/vendor/three/build/three.module.js': ['node_modules/three/build/three.module.js', 'text/javascript; charset=utf-8'],
   '/vendor/three/build/three.core.js': ['node_modules/three/build/three.core.js', 'text/javascript; charset=utf-8'],
@@ -32,8 +34,9 @@ async function jsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /** Read-only by default; a local store enables guarded document persistence. */
-export function createEditorServer(source: MapDocument, store?: RoadStore): Server {
+export function createEditorServer(source: MapDocument, store?: RoadStore, placementDefinitions?: PlacementDefinitions): Server {
   const doc = validateDocument(source);
+  const definitions = validatePlacementDefinitions(placementDefinitions ?? { buildings: [] });
   if (doc.heights.data.length > 1_500_000) throw new Error('Viewport currently supports at most 1,500,000 height samples');
   const binary = (current: MapDocument, path: string): Buffer => {
     if (path === '/api/surfaces') return Buffer.from(current.surfaces.data);
@@ -108,7 +111,9 @@ export function createEditorServer(source: MapDocument, store?: RoadStore): Serv
     }
     try {
       const current = store?.getDocument() ?? doc;
-      const item = path === '/api/map'
+      const item = path === '/api/placement-definitions'
+        ? [Buffer.from(JSON.stringify(definitions)), 'application/json; charset=utf-8'] as [Buffer, string]
+        : path === '/api/map'
         ? [Buffer.from(JSON.stringify({ map: current.map, height: { width: current.heights.width, height: current.heights.height }, surface: { width: current.surfaces.width, height: current.surfaces.height }, readOnly: !store, revision: store?.getRevision() ?? null })), 'application/json; charset=utf-8'] as [Buffer, string]
         : path === '/api/heights' || path === '/api/surfaces'
           ? [binary(current, path), 'application/octet-stream'] as [Buffer, string] : undefined;

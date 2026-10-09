@@ -4,6 +4,7 @@ import { buildTerrainGeometry, makeVertexColors, paletteColor, sampleHeight, sur
 import { nearestSegment, validateRoads } from './road-edit.mjs';
 import { MapEdits } from './terrain-edit.mjs';
 import { newEntityId, validateEntities } from './entity-edit.mjs';
+import { checkBuildingPlacement } from './building-placement.mjs';
 import { newPolygonId, nearestPolygonEdge, validatePolygon, validatePolygons } from './polygon-edit.mjs';
 
 const el = id => document.getElementById(id);
@@ -22,6 +23,8 @@ let roadGroup;
 let waterGroup;
 let settlementGroup;
 let entitiesGroup;
+let placementPreview;
+let placementPoint = null;
 let wireMaterial;
 let currentDoc;
 let edits;
@@ -61,16 +64,17 @@ function decodeFloats(bytes) {
   return result;
 }
 async function getDocument() {
-  const [meta, heights, surfaces] = await Promise.all([
+  const [meta, heights, surfaces, definitions] = await Promise.all([
     fetchResource('/api/map').then(r => r.json()),
     fetchResource('/api/heights').then(r => r.arrayBuffer()),
     fetchResource('/api/surfaces').then(r => r.arrayBuffer()),
+    fetchResource('/api/placement-definitions').then(r => r.json()),
   ]);
   if (typeof meta.readOnly !== 'boolean') throw new Error('Map server lacks edit capabilities');
   if (meta.height.width * meta.height.height * 4 !== heights.byteLength) throw new Error('Heightmap byte length mismatch');
   if (meta.surface.width * meta.surface.height !== surfaces.byteLength) throw new Error('Surface map byte length mismatch');
   if (meta.surface.width !== meta.height.width - 1 || meta.surface.height !== meta.height.height - 1) throw new Error('Surface grid does not match height grid');
-  return { readOnly: meta.readOnly, revision: meta.revision, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
+  return { readOnly: meta.readOnly, revision: meta.revision, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
 }
 
 function createMeshGeometry(geo) {
@@ -262,6 +266,8 @@ function initScene(doc) {
   polygonDraftGroup = new THREE.Group(); scene.add(polygonDraftGroup);
   entitiesGroup = new THREE.Group();
   scene.add(entitiesGroup);
+  placementPreview = new THREE.Group();
+  scene.add(placementPreview);
   repaintEntities();
   drawPolygons();
   resetCamera();
@@ -288,7 +294,7 @@ function initScene(doc) {
     el('probe').textContent = `X ${x.toFixed(1)} · Z ${z.toFixed(1)} · H ${sampleHeight(map.terrain, height, x, z).toFixed(2)} m · ${definition}`;
     showBrushRing(x, z);
   });
-  renderer.domElement.addEventListener('pointerleave', () => { el('probe').textContent = 'MOVE CURSOR OVER TERRAIN'; brushRing.visible = false; });
+  renderer.domElement.addEventListener('pointerleave', () => { el('probe').textContent = 'MOVE CURSOR OVER TERRAIN'; brushRing.visible = false; if (editMode === 'place-entity') { placementPoint = null; drawPlacement(); } });
   function frame() {
     controls.update(); updateCompass(); renderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -600,6 +606,56 @@ function initializePolygonEditing() {
   updatePolygonUI();
 }
 
+const placementReasons = {
+  unknown_definition: 'No footprint definition. Add it to placement-definitions.json and restart.',
+  unverified_neighbor: 'A neighboring building has no known footprint.',
+  outside_map: 'Footprint extends outside the map.',
+  outside_build_area: 'Footprint must fit inside a single settlement build area.',
+  overlaps_water: 'Footprint overlaps water.',
+  overlaps_road: 'Footprint overlaps a road.',
+  overlaps_building: 'Footprint overlaps another building.',
+  terrain_too_steep: 'Terrain slope exceeds this building’s limit.',
+  road_too_far: 'Building entrance is too far from a road.',
+  invalid_position: 'Invalid building coordinates or rotation.',
+};
+function definitionFor(id) {
+  return currentDoc.definitions.buildings.find(d => d.id === id);
+}
+function placementFor(entity, buildings = edits.buildings) {
+  const map = { ...currentDoc.map, roads: edits.roads, water: edits.water, settlements: edits.settlements, buildings };
+  return checkBuildingPlacement({ map, height: currentDoc.height, definitions: currentDoc.definitions }, definitionFor(entity.definition), entity, buildings);
+}
+function drawPlacement(entity = null, buildings = edits?.buildings) {
+  if (!placementPreview || !currentDoc || !edits) return;
+  disposeGeometryGroup(placementPreview);
+  const status = el('placementInfo');
+  const kind = selectedEntityKind;
+  if (kind === 'objects') {
+    status.textContent = 'Objects are point markers; footprint rules apply only to buildings.';
+    status.className = 'point-info placement-status unverified'; return;
+  }
+  const value = entity ?? (editMode === 'place-entity' ? (placementPoint ? {
+    id: '__preview__', definition: el('entityDefinition').value.trim(), position: placementPoint, rotation: Number(el('entityRotation').value)
+  } : null) : currentEntity());
+  if (!value) { status.textContent = editMode === 'place-entity' ? 'Move the cursor over terrain to preview a footprint.' : 'Select a building or enter placement mode.'; status.className = 'point-info placement-status'; return; }
+  const result = placementFor(value, buildings);
+  const valid = result.valid;
+  const message = valid
+    ? `Valid footprint · Slope ${result.slope.toFixed(1)}°${result.settlement_id ? ` · ${result.settlement_id}` : ''}${Number.isFinite(result.road_distance) ? ` · Road ${result.road_distance.toFixed(1)} m` : ''}`
+    : `${placementReasons[result.reason] ?? result.reason}${result.blocking_id ? ` [${result.blocking_id}]` : ''}`;
+  status.textContent = message;
+  status.className = 'point-info placement-status' + (valid ? '' : result.reason === 'unknown_definition' ? ' unverified' : ' invalid');
+  if (!result.footprint) return;
+  const coords = result.footprint.map(([x,z]) => new THREE.Vector3(x, sampleHeight(currentDoc.map.terrain,currentDoc.height,x,z)+0.5,z));
+  const color = valid ? 0x74e4c3 : 0xf17b67;
+  const outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(coords), new THREE.LineBasicMaterial({ color, depthTest: false }));
+  outline.renderOrder=7; placementPreview.add(outline);
+  const triangles = [0,1,2,0,2,3], vertices = new Float32Array(18);
+  triangles.forEach((index,i)=>coords[index].toArray(vertices,i*3));
+  const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position',new THREE.BufferAttribute(vertices,3));
+  const mesh = new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,opacity:0.25,depthTest:false,depthWrite:false}));
+  mesh.renderOrder=6; placementPreview.add(mesh);
+}
 function currentEntity() {
   return edits[selectedEntityKind].find(item => item.id === selectedEntityId) ?? null;
 }
@@ -617,6 +673,7 @@ function repaintEntities(previewKind = null, previewItems = null) {
     }
   }
   el('entitiesCount').textContent = String(edits.buildings.length + edits.objects.length);
+  drawPlacement();
 }
 function selectEntity(kind, id) {
   selectedEntityKind = kind;
@@ -649,9 +706,17 @@ function updateEntityUI() {
   el('applyEntity').disabled ||= !item || editMode === 'place-entity';
   el('modeEntities').classList.toggle('active', editMode === 'entities');
   el('placeEntity').classList.toggle('active', editMode === 'place-entity');
+  drawPlacement();
 }
 function commitEntities(kind, items, message) {
   try {
+    if (kind === 'buildings') {
+      const before = new Map(edits.buildings.map(item => [item.id, JSON.stringify(item)]));
+      for (const entity of items) if (before.get(entity.id) !== JSON.stringify(entity)) {
+        const result = placementFor(entity, items);
+        if (!result.valid) throw new Error(`Invalid building ${entity.id}: ${placementReasons[result.reason] ?? result.reason}`);
+      }
+    }
     if (edits.commitEntities(kind, items)) {
       currentDoc.map[kind] = edits[kind];
       updateEntityUI(); repaintEntities(); updateRoadUI();
@@ -769,6 +834,7 @@ function setEditMode(next) {
   viewport.classList.toggle('edit-cursor', next !== 'navigate');
   if (['edit', 'create', 'append', 'insert'].includes(next)) { el('roads').checked = true; setLayerVisibility(); }
   if (['entities', 'place-entity'].includes(next)) { el('entities').checked = true; setLayerVisibility(); }
+  if (next !== 'place-entity') placementPoint = null;
   if (['polygon-edit', 'polygon-insert', 'draw-polygon'].includes(next)) { el(polygonKind === 'water' ? 'water' : 'settlements').checked = true; setLayerVisibility(); }
   const hints = {
     navigate: 'Navigate mode: left-drag to orbit; right-drag to pan.',
@@ -788,6 +854,7 @@ function setEditMode(next) {
   drawHandles(); updateRoadUI();
   updateTerrainUI(); updateEntityUI(); updatePolygonUI();
   drawPolygons();
+  drawPlacement();
 }
 function makeRay(ev) {
   const rect = renderer.domElement.getBoundingClientRect();
@@ -927,14 +994,24 @@ function editorPointerMove(ev) {
     }
     return;
   }
+  if (editMode === 'place-entity' && !draggingEntity) {
+    const now = performance.now();
+    if (now - lastPreview > 50) { placementPoint = terrainPoint(ev); drawPlacement(); lastPreview = now; }
+    return;
+  }
   if (draggingEntity) {
+    if (ev.pointerId !== draggingEntity.pointerId) return;
     const point = terrainPoint(ev);
     if (!point) return;
     const next = structuredClone(draggingEntity.original);
     const entry = next.find(x => x.id === draggingEntity.id);
     if (!entry) return;
     entry.position = point;
-    draggingEntity.preview = next;
+    if (draggingEntity.kind === 'buildings') {
+      const result = placementFor(entry, next);
+      draggingEntity.preview = result.valid ? next : null;
+      drawPlacement(entry,next);
+    } else draggingEntity.preview = next;
     // Dragging one marker should not reconstruct every marker mesh per pointer event.
     const marker = entitiesGroup.children.find(x => x.userData.entityKind === draggingEntity.kind && x.userData.entityId === draggingEntity.id);
     if (marker) marker.position.set(point[0], sampleHeight(currentDoc.map.terrain, currentDoc.height, ...point) + 2.5, point[1]);
@@ -1074,6 +1151,7 @@ function initializeEntityEditing() {
   el('placeEntity').addEventListener('click', () => setEditMode('place-entity'));
   el('entityKind').addEventListener('change', e => selectEntity(e.target.value, null));
   el('entitySelect').addEventListener('change', e => selectEntity(selectedEntityKind, e.target.value));
+  for (const id of ['entityDefinition','entityRotation']) el(id).addEventListener('input', () => { if (editMode === 'place-entity') drawPlacement(); });
   el('applyEntity').addEventListener('click', () => {
     const item = currentEntity();
     if (!item || savePending) return;
@@ -1166,6 +1244,10 @@ try {
   configureDetails(currentDoc);
   initScene(currentDoc);
   initializeRoadEditing();
+  const choices = el('buildingDefinitionChoices');
+  for (const definition of currentDoc.definitions.buildings) {
+    const option = document.createElement('option'); option.value = definition.id; choices.append(option);
+  }
   initializeEntityEditing();
   initializePolygonEditing();
   layerNames.forEach(id => el(id).addEventListener('change', setLayerVisibility));
