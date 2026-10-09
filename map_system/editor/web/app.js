@@ -12,7 +12,7 @@ import { intersectTerrainRay } from './terrain-ray.mjs';
 import { updateTerrainPatch } from './terrain-patch.mjs';
 import { buildWaterRegions } from './water-field.mjs';
 import { toolForMode, modeForTool, toolShortcut } from './tool-state.mjs';
-import { SCULPT_MODES, effectiveSculptMode, cycleChoice, resizeBrush, rotateDegrees } from './edit-shortcuts.mjs';
+import { SCULPT_MODES, effectiveSculptMode, cycleChoice, resizeBrush, resizeBrushStrength, brushWheelSetting, rotateDegrees } from './edit-shortcuts.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -1028,8 +1028,8 @@ function setEditMode(next) {
 }
 const toolHints = {
   select: 'LMB Select · D Duplicate · R Rotate · Delete Remove · Space+Drag Pan',
-  sculpt: 'LMB Sculpt · Shift Reverse · Ctrl Smooth · Q/E Mode · Shift+Wheel Radius',
-  paint: 'LMB Paint · Hold I + click Pick surface · Q/E Surface · Shift+Wheel Radius',
+  sculpt: 'LMB Sculpt · Shift Reverse · Ctrl Smooth · Q/E Mode · Shift+Wheel Radius · Ctrl+Wheel Strength',
+  paint: 'LMB Paint · Hold I + click Pick surface · Q/E Surface · Shift+Wheel Radius · Ctrl+Wheel Strength',
   draw: 'LMB Draw/Edit · Q/E Roads/Areas · Enter Finish · Esc Cancel',
   place: 'LMB Place · Q/E Kind · R Rotate marker · MMB Orbit · RMB Pan',
 };
@@ -1120,6 +1120,12 @@ function setBrushRadius(next) {
   updateTerrainUI();
   renderEditorChrome();
   if (lastPointerWorld) updateTerrainPointerFeedback(...lastPointerWorld);
+}
+function setBrushStrength(next) {
+  el('brushStrength').value = String(next);
+  el('brushStrengthSlider').value = String(next);
+  updateTerrainUI();
+  renderEditorChrome();
 }
 function cycleCurrentSubtool(direction) {
   if (editingInProgress()) { setMessage('Finish or cancel the current action first.', true); return; }
@@ -1761,10 +1767,18 @@ function initializeRoadEditing() {
   el('modePaint').addEventListener('click', () => setEditMode('paint'));
   for (const id of ['brushRadius','brushStrength','sculptMode','brushSurface']) el(id).addEventListener('change', updateTerrainUI);
   renderer.domElement.addEventListener('wheel', ev => {
-    if (!ev.shiftKey || ev.ctrlKey || ev.metaKey || ev.altKey || !['sculpt','paint'].includes(editMode) || edits.painting) return;
-    ev.preventDefault(); ev.stopImmediatePropagation();
+    const brushTool = editMode === 'sculpt' || editMode === 'paint';
+    // Ctrl+wheel must never reach OrbitControls (its accelerated zoom path).
+    if (!ev.ctrlKey && !(brushTool && ev.shiftKey)) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    if (!brushTool || edits.painting || currentDoc.readOnly || savePending) return;
+    const setting = brushWheelSetting(ev);
     const delta = Math.abs(ev.deltaY) >= Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX;
-    if (delta) setBrushRadius(resizeBrush(Number(el('brushRadius').value), delta < 0 ? 1 : -1));
+    if (!setting || !delta) return;
+    const direction = delta < 0 ? 1 : -1;
+    if (setting === 'radius') setBrushRadius(resizeBrush(Number(el('brushRadius').value), direction));
+    else setBrushStrength(resizeBrushStrength(Number(el('brushStrength').value), direction));
   }, { capture: true, passive: false });
   renderer.domElement.addEventListener('pointerdown', editorPointerDown);
   renderer.domElement.addEventListener('pointermove', editorPointerMove);

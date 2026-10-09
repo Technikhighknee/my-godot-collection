@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { effectiveSculptMode, SCULPT_MODES, cycleChoice, resizeBrush, rotateDegrees, movedEntries } from '../web/edit-shortcuts.mjs';
+import { effectiveSculptMode, SCULPT_MODES, cycleChoice, resizeBrush, resizeBrushStrength, brushWheelSetting, rotateDegrees, movedEntries } from '../web/edit-shortcuts.mjs';
 
 test('Sculpt: shift reverses raise/lower, ctrl smooth wins; neither changes flatten', () => {
   for (const mode of SCULPT_MODES) {
@@ -24,6 +24,24 @@ test('Subtools cycle with wrap-around; brush bounds and 15-degree rotations are 
   assert.equal(resizeBrush(10, 1), 11);
   assert.equal(rotateDegrees(355), 10);
   assert.equal(rotateDegrees(0, -1), 345);
+});
+
+test('Wheel modifier mapping keeps radius and strength separate', () => {
+  assert.equal(brushWheelSetting({ shiftKey: true }), 'radius');
+  assert.equal(brushWheelSetting({ ctrlKey: true }), 'strength');
+  assert.equal(brushWheelSetting({ ctrlKey: true, shiftKey: true }), null);
+  assert.equal(brushWheelSetting(), null);
+  assert.equal(brushWheelSetting({ altKey: true, ctrlKey: true }), null);
+  assert.equal(brushWheelSetting({ metaKey: true, shiftKey: true }), null);
+  assert.equal(resizeBrushStrength(0.1, -1), 0.1);
+  assert.equal(resizeBrushStrength(0.1, 1), 0.2);
+  assert.equal(resizeBrushStrength(1.9, 1), 2);
+  assert.equal(resizeBrushStrength(2, 1), 2.5);
+  assert.equal(resizeBrushStrength(10, 1), 11);
+  assert.equal(resizeBrushStrength(50, 1), 50);
+  assert.throws(() => resizeBrushStrength(Number.NaN, 1));
+  // @ts-expect-error Deliberately exercise the invalid runtime direction.
+  assert.throws(() => resizeBrushStrength(1, 0));
 });
 
 test('Cursor-aligned duplication preserves group offsets and rejects outside bounds', () => {

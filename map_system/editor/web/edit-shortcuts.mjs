@@ -21,6 +21,17 @@ export function resizeBrush(radius, direction) {
   return Math.max(0.5, Math.min(100, Number((radius + step * direction).toFixed(2))));
 }
 
+export function resizeBrushStrength(strength, direction) {
+  if (!Number.isFinite(strength) || ![1, -1].includes(direction)) throw new Error('Invalid brush strength adjustment');
+  const step = strength < 2 ? 0.1 : strength < 10 ? 0.5 : 1;
+  return Math.max(0.1, Math.min(50, Number((strength + step * direction).toFixed(2))));
+}
+
+export function brushWheelSetting({ shiftKey = false, ctrlKey = false, altKey = false, metaKey = false } = {}) {
+  if (altKey || metaKey || shiftKey === ctrlKey) return null;
+  return shiftKey ? 'radius' : 'strength';
+}
+
 export function rotateDegrees(angle, direction = 1) {
   if (!Number.isFinite(angle) || ![1, -1].includes(direction)) throw new Error('Invalid rotation');
   return ((angle + direction * 15) % 360 + 360) % 360;
