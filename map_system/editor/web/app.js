@@ -303,10 +303,7 @@ function initScene(doc) {
     raycaster.setFromCamera(pointer, camera);
     const hit = raycaster.intersectObject(terrainMesh, false)[0];
     if (!hit) { el('probe').textContent = 'OUTSIDE TERRAIN'; brushRing.visible = false; return; }
-    const { x, z } = hit.point;
-    const definition = map.terrain.surface_palette[surfaceAt(map.terrain, surface, x, z)];
-    el('probe').textContent = `X ${x.toFixed(1)} · Z ${z.toFixed(1)} · H ${sampleHeight(map.terrain, height, x, z).toFixed(2)} m · ${definition}`;
-    showBrushRing(x, z);
+    updateTerrainPointerFeedback(hit.point.x, hit.point.z);
   });
   renderer.domElement.addEventListener('pointerleave', () => { el('probe').textContent = 'MOVE CURSOR OVER TERRAIN'; brushRing.visible = false; if (editMode === 'place-entity') { placementPoint = null; drawPlacement(); } });
   function frame() {
@@ -985,6 +982,7 @@ function editorPointerDown(ev) {
       renderer.domElement.setPointerCapture(ev.pointerId);
       controls.enabled = false;
       refreshTerrain(); updateRoadUI();
+      updateTerrainPointerFeedback(pos[0], pos[1]);
       ev.preventDefault();
     } catch (error) { setMessage(error.message, true); }
     return;
@@ -1086,6 +1084,7 @@ function editorPointerMove(ev) {
       edits.strokeTo(pos);
       const now = performance.now();
       if (now - lastPreview > 42) { refreshTerrain(); lastPreview = now; }
+      updateTerrainPointerFeedback(pos[0], pos[1]);
     }
     return;
   }
@@ -1186,6 +1185,12 @@ function refreshTerrain(decorations = false) {
     drawPolygons();
     repaintEntities();
   }
+}
+function updateTerrainPointerFeedback(x, z) {
+  const { terrain, surface_palette } = currentDoc.map.terrain;
+  const definition = surface_palette[surfaceAt(terrain, currentDoc.surface, x, z)];
+  el('probe').textContent = `X ${x.toFixed(1)} · Z ${z.toFixed(1)} · H ${sampleHeight(terrain, currentDoc.height, x, z).toFixed(2)} m · ${definition}`;
+  showBrushRing(x, z);
 }
 function showBrushRing(x, z) {
   const brushMode = editMode === 'sculpt' || editMode === 'paint';
