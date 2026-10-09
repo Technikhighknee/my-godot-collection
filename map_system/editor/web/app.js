@@ -6,6 +6,7 @@ import { MapEdits } from './terrain-edit.mjs';
 import { newEntityId, validateEntities } from './entity-edit.mjs';
 import { checkBuildingPlacement } from './building-placement.mjs';
 import { newPolygonId, nearestPolygonEdge, validatePolygon, validatePolygons } from './polygon-edit.mjs';
+import { snapPoint, toggleSelection, moveEntities, duplicateEntities, duplicateRoad } from './workflow.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -32,6 +33,7 @@ let selectedRoadId = null;
 let selectedPointIndex = -1;
 let selectedEntityKind = 'buildings';
 let selectedEntityId = null;
+let selectedEntityIds = new Set();
 let draggingEntity = null;
 let polygonKind = 'settlements';
 let selectedPolygonId = null;
@@ -416,9 +418,13 @@ function updatePolygonUI() {
     if (document.activeElement !== el('polygonName')) el('polygonName').value = selected ? (isWater ? selected.entry.definition : selected.entry.name) : '';
     if (document.activeElement !== el('polygonHeight')) el('polygonHeight').value = isWater && selected ? String(selected.entry.height) : '0';
   }
+  const vertex = selected && selectedVertexIndex >= 0 ? selected.points[selectedVertexIndex] : null;
+  for (const [id, index] of [['polygonPointX', 0], ['polygonPointZ', 1]]) {
+    if (document.activeElement !== el(id)) el(id).value = vertex ? String(vertex[index]) : '';
+  }
   el('polygonInfo').textContent = drawing ? `${polygonDraft.points.length} vertices · At least 3 · Enter to close · Esc to cancel` :
     selected ? `${selected.entry.id} · ${selected.points.length} vertices${selectedVertexIndex >= 0 ? ` · Vertex ${selectedVertexIndex + 1}` : ''}` : 'No polygons in this layer';
-  for (const id of ['modePolygons','insertPolygonPoint','polygonKind','polygonSelect','polygonName','polygonHeight','newSettlement','addBuildArea','newWater','applyPolygon','deletePolygon','deletePolygonPoint','finishPolygon','cancelPolygon']) el(id).disabled = currentDoc.readOnly || savePending;
+  for (const id of ['modePolygons','insertPolygonPoint','polygonKind','polygonSelect','polygonName','polygonHeight','newSettlement','addBuildArea','newWater','applyPolygon','deletePolygon','deletePolygonPoint','finishPolygon','cancelPolygon','polygonPointX','polygonPointZ','applyPolygonPoint']) el(id).disabled = currentDoc.readOnly || savePending;
   select.disabled ||= !options.length || drawing;
   el('polygonKind').disabled ||= drawing;
   el('modePolygons').disabled ||= drawing;
@@ -426,6 +432,7 @@ function updatePolygonUI() {
   el('applyPolygon').disabled ||= !selected || drawing;
   el('deletePolygon').disabled ||= !selected || drawing;
   el('deletePolygonPoint').disabled ||= !selected || selected.points.length <= 3 || selectedVertexIndex < 0 || drawing;
+  for (const id of ['polygonPointX','polygonPointZ','applyPolygonPoint']) el(id).disabled ||= !vertex || drawing;
   el('addBuildArea').disabled ||= !edits.settlements.length || drawing;
   el('newSettlement').disabled ||= drawing;
   el('newWater').disabled ||= drawing;
@@ -504,7 +511,7 @@ function finishPolygon() {
 function polygonPointerDown(ev) {
   if (editMode === 'draw-polygon') {
     if (!polygonDraft) return;
-    const point = terrainPoint(ev);
+    const point = spatialPoint(ev);
     if (!point) return;
     const first = polygonDraft.points[0], previous = polygonDraft.points.at(-1);
     if (first && polygonDraft.points.length >= 3 && Math.hypot(point[0] - first[0], point[1] - first[1]) < 2) { finishPolygon(); return; }
@@ -529,7 +536,7 @@ function polygonPointerDown(ev) {
     return;
   }
   if (editMode === 'polygon-insert') {
-    const point = terrainPoint(ev), selection = currentPolygon();
+    const point = spatialPoint(ev), selection = currentPolygon();
     if (!point || !selection) return;
     const nearest = nearestPolygonEdge(selection.points, point);
     if (nearest.distance > 8) { setMessage('Click within 8 meters of a polygon edge.', true); return; }
@@ -544,7 +551,7 @@ function polygonPointerDown(ev) {
 }
 function polygonPointerMove(ev) {
   if (!polygonDrag || ev.pointerId !== polygonDrag.pointerId) return;
-  const point = terrainPoint(ev);
+  const point = spatialPoint(ev);
   if (!point) return;
   const d = polygonDrag, next = structuredClone(d.original), entry = next.find(x => x.id === d.id);
   if (!entry) return;
@@ -595,6 +602,16 @@ function initializePolygonEditing() {
       if (!parent.build_areas.length) next = next.filter(x => x.id !== parent.id);
     }
     commitPolygons(polygonKind, next, 'Polygon deleted. Ctrl+Z to undo.');
+  });
+  el('applyPolygonPoint').addEventListener('click', () => {
+    const current = currentPolygon();
+    if (!current || selectedVertexIndex < 0 || savePending || polygonDraft || polygonDrag) return;
+    const x = el('polygonPointX').value.trim(), z = el('polygonPointZ').value.trim();
+    if (!x || !z) { setMessage('X and Z are required.', true); return; }
+    const next = edits[polygonKind], entry = next.find(e => e.id === current.entry.id);
+    const points = polygonKind === 'water' ? entry.polygon : entry.build_areas[selectedAreaIndex];
+    points[selectedVertexIndex] = [Number(x), Number(z)];
+    commitPolygons(polygonKind, next, 'Polygon vertex coordinates updated.');
   });
   el('deletePolygonPoint').addEventListener('click', () => {
     const selected = currentPolygon(); if (!selected || selectedVertexIndex < 0 || selected.points.length <= 3 || savePending) return;
@@ -665,7 +682,7 @@ function repaintEntities(previewKind = null, previewItems = null) {
   for (const kind of ['buildings', 'objects']) {
     const entities = kind === previewKind ? previewItems : edits[kind];
     for (const entity of entities) {
-      const selected = kind === selectedEntityKind && entity.id === selectedEntityId;
+      const selected = kind === selectedEntityKind && selectedEntityIds.has(entity.id);
       const marker = buildEntity(entity, currentDoc.map, currentDoc.height, selected ? 0xffd995 : kind === 'buildings' ? 0xe9ba6c : 0x82bdc7);
       marker.userData.entityKind = kind;
       marker.userData.entityId = entity.id;
@@ -675,18 +692,55 @@ function repaintEntities(previewKind = null, previewItems = null) {
   el('entitiesCount').textContent = String(edits.buildings.length + edits.objects.length);
   drawPlacement();
 }
-function selectEntity(kind, id) {
+function selectEntity(kind, id, additive = false) {
+  const sameKind = kind === selectedEntityKind;
+  selectedEntityIds = id ? toggleSelection(sameKind ? selectedEntityIds : new Set(), id, additive) : new Set();
   selectedEntityKind = kind;
-  selectedEntityId = id;
+  selectedEntityId = selectedEntityIds.has(id) ? id : (selectedEntityIds.values().next().value ?? null);
   el('entityKind').value = kind;
   const entity = currentEntity();
   el('entityDefinition').value = entity?.definition ?? '';
   el('entityRotation').value = String(entity?.rotation ?? 0);
   repaintEntities(); updateEntityUI();
 }
+function selectedMarkerIds() {
+  return [...selectedEntityIds].filter(id => edits[selectedEntityKind].some(e => e.id === id));
+}
+function deleteSelectedEntities() {
+  if (currentDoc.readOnly || savePending || draggingEntity) return;
+  const ids = selectedMarkerIds();
+  if (!ids.length || !window.confirm(`Delete ${ids.length} selected marker${ids.length === 1 ? '' : 's'}? Ctrl+Z restores them.`)) return;
+  const selected = new Set(ids);
+  if (commitEntities(selectedEntityKind, edits[selectedEntityKind].filter(e => !selected.has(e.id)), `${ids.length} marker(s) deleted.`)) {
+    selectedEntityIds.clear(); selectedEntityId = null; updateEntityUI(); repaintEntities();
+  }
+}
+function duplicateSelection() {
+  if (currentDoc.readOnly || savePending || dragging || draggingEntity || polygonDrag || polygonDraft || edits.painting) return;
+  try {
+    if (editMode === 'entities') {
+      const ids = selectedMarkerIds(); if (!ids.length) return;
+      const kind = selectedEntityKind;
+      const used = [...edits.roads, ...edits.water, ...edits.settlements, ...edits[kind === 'objects' ? 'buildings' : 'objects']].map(e => e.id);
+      const step = el('gridSnap').checked ? Number(el('gridStep').value) : 5;
+      const { entries, addedIds } = duplicateEntities(kind, edits[kind], ids, currentDoc.map.terrain.size, [step, step], used);
+      if (commitEntities(kind, entries, `${addedIds.length} marker(s) duplicated. Ctrl+Z to undo.`)) {
+        selectedEntityIds = new Set(addedIds); selectedEntityId = addedIds[0];
+        updateEntityUI(); repaintEntities();
+      }
+    } else if (editMode === 'edit' && currentRoad()) {
+      const used = [...edits.water, ...edits.settlements, ...edits.buildings, ...edits.objects].map(e => e.id);
+      const step = el('gridSnap').checked ? Number(el('gridStep').value) : 5;
+      const { entries, addedId } = duplicateRoad(edits.roads, selectedRoadId, currentDoc.map.terrain.size, [step, step], used);
+      if (commitRoads(entries, 'Road duplicated. Ctrl+Z to undo.')) selectRoad(addedId);
+    }
+  } catch (error) { setMessage(error.message, true); }
+}
+
 function updateEntityUI() {
   const items = edits[selectedEntityKind];
-  if (!items.some(item => item.id === selectedEntityId)) selectedEntityId = items[0]?.id ?? null;
+  selectedEntityIds = new Set([...selectedEntityIds].filter(id => items.some(item => item.id === id)));
+  if (!selectedEntityIds.has(selectedEntityId)) selectedEntityId = selectedEntityIds.values().next().value ?? null;
   const item = currentEntity();
   const select = el('entitySelect');
   select.replaceChildren();
@@ -694,16 +748,23 @@ function updateEntityUI() {
     const option = document.createElement('option');
     option.value = entity.id; option.textContent = entity.id; select.append(option);
   }
-  if (item) select.value = item.id;
+  if (item) select.value = item.id; else select.value = ''; 
   if (editMode !== 'place-entity') {
     if (document.activeElement !== el('entityDefinition')) el('entityDefinition').value = item?.definition ?? '';
     if (document.activeElement !== el('entityRotation')) el('entityRotation').value = String(item?.rotation ?? 0);
   }
-  el('entityInfo').textContent = item ? `ID ${item.id} · X ${item.position[0].toFixed(2)} · Z ${item.position[1].toFixed(2)}` : 'No markers of this type';
-  for (const id of ['modeEntities', 'placeEntity', 'entityKind', 'entitySelect', 'entityDefinition', 'entityRotation', 'applyEntity', 'deleteEntity']) el(id).disabled = currentDoc.readOnly || savePending;
+  const count = selectedEntityIds.size;
+  el('entityInfo').textContent = count > 1 ? `${count} selected · Shift+click to add/remove · Drag any selected marker to move the group` : item ? `ID ${item.id} · X ${item.position[0].toFixed(2)} · Z ${item.position[1].toFixed(2)}` : 'No marker selected · Shift+click for multiselect';
+  if (item && count === 1) {
+    if (document.activeElement !== el('entityX')) el('entityX').value = String(item.position[0]);
+    if (document.activeElement !== el('entityZ')) el('entityZ').value = String(item.position[1]);
+  } else if (document.activeElement !== el('entityX') && document.activeElement !== el('entityZ')) { el('entityX').value = ''; el('entityZ').value = ''; }
+  for (const id of ['modeEntities', 'placeEntity', 'entityKind', 'entitySelect', 'entityDefinition', 'entityRotation', 'entityX', 'entityZ', 'applyEntity', 'deleteEntity']) el(id).disabled = currentDoc.readOnly || savePending;
   select.disabled ||= !items.length;
-  el('deleteEntity').disabled ||= !item;
-  el('applyEntity').disabled ||= !item || editMode === 'place-entity';
+  el('deleteEntity').disabled ||= count === 0;
+  el('applyEntity').disabled ||= count !== 1 || editMode === 'place-entity';
+  for (const id of ['entityDefinition','entityRotation','entityX','entityZ']) el(id).disabled ||= count !== 1 && editMode !== 'place-entity';
+  el('duplicateSelected').disabled = currentDoc.readOnly || savePending || !(['entities','edit'].includes(editMode) && (editMode === 'edit' ? !!currentRoad() : count > 0));
   el('modeEntities').classList.toggle('active', editMode === 'entities');
   el('placeEntity').classList.toggle('active', editMode === 'place-entity');
   drawPlacement();
@@ -721,8 +782,10 @@ function commitEntities(kind, items, message) {
       currentDoc.map[kind] = edits[kind];
       updateEntityUI(); repaintEntities(); updateRoadUI();
       setMessage(message);
+      return true;
     }
   } catch (error) { setMessage(error.message, true); }
+  return false;
 }
 function drawRoads(roads = edits.roads, changedId = null) {
   if (changedId) {
@@ -783,6 +846,12 @@ function updateRoadUI() {
   select.disabled = !roads.length || currentDoc.readOnly || savePending;
   if (document.activeElement !== el('roadWidth')) el('roadWidth').value = road ? String(road.width) : '';
   el('roadWidth').disabled = !road || currentDoc.readOnly || savePending;
+  const selectedRoadPoint = road?.points[selectedPointIndex];
+  for (const [id, index] of [['roadPointX', 0], ['roadPointZ', 1]]) {
+    if (document.activeElement !== el(id)) el(id).value = selectedRoadPoint ? String(selectedRoadPoint[index]) : '';
+    el(id).disabled = !selectedRoadPoint || currentDoc.readOnly || savePending;
+  }
+  el('applyRoadPoint').disabled = !selectedRoadPoint || currentDoc.readOnly || savePending;
   el('pointInfo').textContent = road && selectedPointIndex >= 0 && selectedPointIndex < road.points.length
     ? `Point ${selectedPointIndex + 1} / ${road.points.length} · X ${road.points[selectedPointIndex][0].toFixed(2)} · Z ${road.points[selectedPointIndex][1].toFixed(2)}`
     : road ? `${road.points.length} points · Click a handle to select and drag` : 'No road selected';
@@ -815,8 +884,10 @@ function commitRoads(roads, message = 'Roads updated. Remember to save.') {
     if (edits.commit(roads)) {
       repaintRoads();
       setMessage(message);
+      return true;
     }
   } catch (error) { setMessage(error.message, true); }
+  return false;
 }
 function selectRoad(id) {
   selectedRoadId = id;
@@ -866,11 +937,18 @@ function terrainPoint(ev) {
   const hit = raycaster.intersectObject(terrainMesh, false)[0];
   return hit ? [Number(hit.point.x.toFixed(4)), Number(hit.point.z.toFixed(4))] : null;
 }
+function spatialPoint(ev) {
+  const point = terrainPoint(ev);
+  if (!point) return null;
+  try { return snapPoint(point, currentDoc.map.terrain.size, el('gridSnap').checked && !ev.altKey, Number(el('gridStep').value)); }
+  catch (error) { setMessage(error.message, true); return null; }
+}
 function cancelDrag() {
   if (edits.painting) { edits.cancelStroke(); controls.enabled = true; refreshTerrain(true); updateRoadUI(); }
   if (draggingEntity) {
     const previous = draggingEntity;
     draggingEntity = null;
+    controls.enabled = true;
     if (renderer.domElement.hasPointerCapture(previous.pointerId)) renderer.domElement.releasePointerCapture(previous.pointerId);
     repaintEntities();
   }
@@ -905,15 +983,20 @@ function editorPointerDown(ev) {
     const hit = raycaster.intersectObjects(entitiesGroup.children, false)[0];
     if (hit) {
       const { entityKind, entityId } = hit.object.userData;
-      selectEntity(entityKind, entityId);
-      draggingEntity = { kind: entityKind, id: entityId, original: edits[entityKind], preview: null, pointerId: ev.pointerId };
+      if (ev.shiftKey || ev.ctrlKey || ev.metaKey) {
+        selectEntity(entityKind, entityId, true);
+        ev.preventDefault(); return;
+      }
+      if (entityKind !== selectedEntityKind || !selectedEntityIds.has(entityId)) selectEntity(entityKind, entityId);
+      draggingEntity = { kind: entityKind, id: entityId, ids: selectedMarkerIds(), original: edits[entityKind], preview: null, pointerId: ev.pointerId };
       renderer.domElement.setPointerCapture(ev.pointerId);
+      controls.enabled = false;
       ev.preventDefault();
-    }
+    } else if (!ev.shiftKey && !ev.ctrlKey && !ev.metaKey) selectEntity(selectedEntityKind, null);
     return;
   }
   if (editMode === 'place-entity') {
-    const pos = terrainPoint(ev);
+    const pos = spatialPoint(ev);
     if (!pos) return;
     const kind = selectedEntityKind;
     const definition = el('entityDefinition').value.trim();
@@ -947,7 +1030,7 @@ function editorPointerDown(ev) {
     else { selectedPointIndex = -1; drawHandles(); updateRoadUI(); }
     return;
   }
-  const pos = terrainPoint(ev);
+  const pos = spatialPoint(ev);
   if (!pos) return;
   if (editMode === 'create') {
     if (!draftStart) {
@@ -996,29 +1079,36 @@ function editorPointerMove(ev) {
   }
   if (editMode === 'place-entity' && !draggingEntity) {
     const now = performance.now();
-    if (now - lastPreview > 50) { placementPoint = terrainPoint(ev); drawPlacement(); lastPreview = now; }
+    if (now - lastPreview > 50) { placementPoint = spatialPoint(ev); drawPlacement(); lastPreview = now; }
     return;
   }
   if (draggingEntity) {
     if (ev.pointerId !== draggingEntity.pointerId) return;
-    const point = terrainPoint(ev);
+    const point = spatialPoint(ev);
     if (!point) return;
-    const next = structuredClone(draggingEntity.original);
-    const entry = next.find(x => x.id === draggingEntity.id);
-    if (!entry) return;
-    entry.position = point;
-    if (draggingEntity.kind === 'buildings') {
-      const result = placementFor(entry, next);
-      draggingEntity.preview = result.valid ? next : null;
-      drawPlacement(entry,next);
-    } else draggingEntity.preview = next;
-    // Dragging one marker should not reconstruct every marker mesh per pointer event.
-    const marker = entitiesGroup.children.find(x => x.userData.entityKind === draggingEntity.kind && x.userData.entityId === draggingEntity.id);
-    if (marker) marker.position.set(point[0], sampleHeight(currentDoc.map.terrain, currentDoc.height, ...point) + 2.5, point[1]);
+    try {
+      const d = draggingEntity;
+      const next = moveEntities(d.original, d.ids, d.id, point, currentDoc.map.terrain.size);
+      if (d.kind === 'buildings') {
+        for (const entry of next) if (d.ids.includes(entry.id)) {
+          const result = placementFor(entry, next);
+          if (!result.valid) throw new Error(placementReasons[result.reason] ?? result.reason);
+        }
+      }
+      d.preview = next;
+      for (const marker of entitiesGroup.children) {
+        if (marker.userData.entityKind !== d.kind || !d.ids.includes(marker.userData.entityId)) continue;
+        const entry = next.find(e => e.id === marker.userData.entityId);
+        marker.position.set(entry.position[0], sampleHeight(currentDoc.map.terrain, currentDoc.height, ...entry.position) + 2.5, entry.position[1]);
+      }
+      const anchor = next.find(e => e.id === d.id);
+      if (d.kind === 'buildings') drawPlacement(anchor, next);
+    } catch { /* Keep last valid group preview; never commit invalid positions. */ }
     return;
   }
+
   if (!dragging) return;
-  const point = terrainPoint(ev);
+  const point = spatialPoint(ev);
   if (!point) return;
   const roads = structuredClone(dragging.original);
   const road = roads.find(x => x.id === dragging.roadId);
@@ -1045,6 +1135,7 @@ function editorPointerUp(ev) {
     if (draggingEntity.pointerId !== ev.pointerId) return;
     const { kind, preview } = draggingEntity;
     draggingEntity = null;
+    controls.enabled = true;
     if (renderer.domElement.hasPointerCapture(ev.pointerId)) renderer.domElement.releasePointerCapture(ev.pointerId);
     if (preview) commitEntities(kind, preview, 'Marker moved. Ctrl+Z to undo.');
     repaintEntities(); updateEntityUI();
@@ -1159,13 +1250,11 @@ function initializeEntityEditing() {
     const change = items.find(x => x.id === item.id);
     change.definition = el('entityDefinition').value.trim();
     change.rotation = Number(el('entityRotation').value);
+    if (el('entityX').value.trim() === '' || el('entityZ').value.trim() === '') { setMessage('Both X and Z coordinates are required.', true); return; }
+    change.position = [Number(el('entityX').value), Number(el('entityZ').value)];
     commitEntities(selectedEntityKind, items, 'Marker properties updated.');
   });
-  el('deleteEntity').addEventListener('click', () => {
-    const item = currentEntity();
-    if (!item || savePending || !window.confirm(`Delete marker "${item.id}"? You can undo this.`)) return;
-    commitEntities(selectedEntityKind, edits[selectedEntityKind].filter(x => x.id !== item.id), 'Marker deleted.');
-  });
+  el('deleteEntity').addEventListener('click', deleteSelectedEntities);
   updateEntityUI();
 }
 function initializeRoadEditing() {
@@ -1185,6 +1274,14 @@ function initializeRoadEditing() {
     if (!edits.roads.some(r => r.id === selectedRoadId && r.width === width)) ev.target.value = String(currentRoad()?.width ?? 3);
     updateRoadUI();
   });
+  el('applyRoadPoint').addEventListener('click', () => {
+    if (savePending || currentDoc.readOnly || selectedPointIndex < 0 || !currentRoad()) return;
+    const x = el('roadPointX').value.trim(), z = el('roadPointZ').value.trim();
+    if (!x || !z) { setMessage('X and Z are required.', true); return; }
+    const next = edits.roads;
+    next.find(r => r.id === selectedRoadId).points[selectedPointIndex] = [Number(x), Number(z)];
+    commitRoads(next, 'Road point coordinates updated.');
+  });
   el('deletePoint').addEventListener('click', () => {
     if (!currentRoad() || selectedPointIndex < 0 || currentRoad().points.length <= 2 || savePending) return;
     const roads = edits.roads;
@@ -1198,6 +1295,12 @@ function initializeRoadEditing() {
   });
   el('undo').addEventListener('click', () => performHistory());
   el('redo').addEventListener('click', () => performHistory(true));
+  el('duplicateSelected').addEventListener('click', duplicateSelection);
+  el('gridSnap').addEventListener('change', () => setMessage(el('gridSnap').checked ? 'Grid snapping enabled. Hold Alt for free placement.' : 'Free placement enabled.'));
+  el('gridStep').addEventListener('change', () => {
+    const step = Number(el('gridStep').value);
+    if (!Number.isFinite(step) || step < 0.25 || step > 100) { el('gridStep').value = '1'; setMessage('Grid step reset to 1 meter.', true); }
+  });
   el('saveRoads').addEventListener('click', saveRoadEdits);
   el('modeSculpt').addEventListener('click', () => setEditMode('sculpt'));
   el('modePaint').addEventListener('click', () => setEditMode('paint'));
@@ -1210,6 +1313,7 @@ function initializeRoadEditing() {
   window.addEventListener('beforeunload', event => { if (edits.isDirty) event.preventDefault(); });
   document.addEventListener('keydown', event => {
     if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea,[contenteditable=true]')) return;
+    if (event.repeat) return;
     const key = event.key.toLowerCase();
     if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 'z') {
       event.preventDefault();
@@ -1219,18 +1323,29 @@ function initializeRoadEditing() {
       performHistory(true);
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 's') {
       event.preventDefault(); saveRoadEdits();
+    } else if ((event.ctrlKey || event.metaKey) && key === 'a' && editMode === 'entities' && !savePending) {
+      event.preventDefault();
+      selectedEntityIds = new Set(edits[selectedEntityKind].map(e => e.id));
+      selectedEntityId = selectedEntityIds.values().next().value ?? null;
+      updateEntityUI(); repaintEntities();
+    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && key === 'd' && ['entities','edit'].includes(editMode)) {
+      event.preventDefault(); duplicateSelection();
     } else if (key === 'escape') {
       if (polygonDrag || dragging || draggingEntity) cancelDrag();
       else if (polygonDraft) cancelPolygonDraft();
+      else if (editMode === 'entities' && selectedEntityIds.size > 1) selectEntity(selectedEntityKind, null);
       else setEditMode('navigate');
     } else if (key === 'enter' && polygonDraft) {
       event.preventDefault(); finishPolygon();
     } else if ((key === 'backspace' || key === 'delete') && polygonDraft) {
       event.preventDefault(); polygonDraft.points.pop(); drawPolygons(); updatePolygonUI();
-    } else if ((key === 'delete' || key === 'backspace') && editMode === 'entities' && currentEntity()) {
+    } else if ((key === 'delete' || key === 'backspace') && editMode === 'entities' && selectedEntityIds.size) {
       event.preventDefault(); el('deleteEntity').click();
     } else if ((key === 'delete' || key === 'backspace') && selectedPointIndex >= 0 && editMode === 'edit') {
       event.preventDefault(); el('deletePoint').click();
+    } else if (!event.ctrlKey && !event.altKey && !event.metaKey) {
+      const modes = { v: 'navigate', r: 'edit', e: 'entities', g: 'polygon-edit', h: 'sculpt', p: 'paint' };
+      if (modes[key]) { event.preventDefault(); setEditMode(modes[key]); }
     }
   });
   updateRoadUI(); updateTerrainUI();

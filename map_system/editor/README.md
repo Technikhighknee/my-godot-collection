@@ -22,6 +22,10 @@ npm start -- ../godot/example.map.json --port 4372
 
 ## Controls
 
+- **Workflow (M7):** optional coordinate grid (0.25–100 m), hold `Alt` while placing or dragging to bypass it. Grid affects points/markers, not brush strokes. Numerical X/Z point, vertex, and marker fields support precise placement.
+- **Multi-select markers:** `Shift`+click or `Ctrl`+click to toggle; `Ctrl+A` selects all markers of the current type; drag one selected marker to move the group. Each group operation is one Undo step.
+- **Duplicate:** `D` or the Duplicate selection button in Road Edit / Marker Edit. Copy offset is grid spacing when snapping is enabled, otherwise 5 m. Invalid copies are rejected; no clamping into illegal placement.
+- **Tool keys:** `V` navigate, `R` roads, `E` markers, `G` polygons, `H` sculpt, `P` paint; `Esc` cancels a drag/draft. Shortcuts do not intercept focused inputs.
 - **Navigate:** left drag to orbit, right drag to pan, wheel to zoom, `F` to reset.
 - **Edit roads:** select, create, move points, insert/append, delete or change width.
 - **Water & settlements:** draw closed polygons, edit/insert/remove vertices, create settlements with multiple build areas, adjust water heights and definitions, rename settlements or remove polygons. Finish with `Enter` (or click the first point), `Esc` cancels. Invalid and self-intersecting polygons cannot be committed.
@@ -39,9 +43,10 @@ automatically. External file changes cause a save conflict.
 The editor is bound to `127.0.0.1`; writes require same-origin requests. The map
 is chosen on startup. Preview colors and road ribbons approximate Godot rendering;
 height geometry, triangular interpolation and stored surface indices use its map contract.
-Building/object markers are placeholders, not actual game assets. Placement validates
-IDs, map bounds and the JSON schema; Godot's definition-specific footprint, road,
-slope and build-area checks require gameplay definitions and are **not** asserted here.
+Building/object markers are placeholders, not actual game assets. The editor validates
+known building definitions against footprints, build areas, slopes, roads and water
+both in the browser and before saving. Rules depend on the supplied definition
+catalog; Godot remains authoritative for final geometric placement decisions.
 
 Copyright © 2026 Jason Posch. All rights reserved. See [NOTICE.md](NOTICE.md).
 

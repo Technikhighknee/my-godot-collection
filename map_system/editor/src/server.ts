@@ -16,6 +16,7 @@ const responses: Record<string, [string, string]> = {
   '/polygon-edit.mjs': ['web/polygon-edit.mjs', 'text/javascript; charset=utf-8'],
   '/mesh-data.mjs': ['web/mesh-data.mjs', 'text/javascript; charset=utf-8'],
   '/building-placement.mjs': ['web/building-placement.mjs', 'text/javascript; charset=utf-8'],
+  '/workflow.mjs': ['web/workflow.mjs', 'text/javascript; charset=utf-8'],
   '/style.css': ['web/style.css', 'text/css; charset=utf-8'],
   '/vendor/three/build/three.module.js': ['node_modules/three/build/three.module.js', 'text/javascript; charset=utf-8'],
   '/vendor/three/build/three.core.js': ['node_modules/three/build/three.core.js', 'text/javascript; charset=utf-8'],
