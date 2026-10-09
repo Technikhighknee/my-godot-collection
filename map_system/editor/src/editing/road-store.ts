@@ -66,7 +66,7 @@ export class RoadStore {
     return this.saveDocument({ roads }, expectedRevision);
   }
 
-  saveDocument(changes: { roads: unknown; heights?: Float32Array; surfaces?: Uint8Array }, expectedRevision: string): Promise<string> {
+  saveDocument(changes: { roads: unknown; buildings?: unknown; objects?: unknown; heights?: Float32Array; surfaces?: Uint8Array }, expectedRevision: string): Promise<string> {
     const run = this.queue.then(() => this.persist(changes, expectedRevision));
     this.queue = run.then(() => {}, () => {});
     return run;
@@ -117,11 +117,13 @@ export class RoadStore {
     return name.split(sep).join('/');
   }
 
-  private async persist(changes: { roads: unknown; heights?: Float32Array; surfaces?: Uint8Array }, expectedRevision: string): Promise<string> {
+  private async persist(changes: { roads: unknown; buildings?: unknown; objects?: unknown; heights?: Float32Array; surfaces?: Uint8Array }, expectedRevision: string): Promise<string> {
     if (typeof expectedRevision !== 'string' || !/^[0-9a-f]{64}$/.test(expectedRevision)) throw new Error('Invalid save revision');
     if (expectedRevision !== this.revision) throw new RoadConflict('Map revision is stale; refresh before saving');
     const next = structuredClone(this.doc.map);
     next.roads = changes.roads as typeof next.roads;
+    if (changes.buildings !== undefined) next.buildings = changes.buildings as typeof next.buildings;
+    if (changes.objects !== undefined) next.objects = changes.objects as typeof next.objects;
     const heights = changes.heights ?? this.doc.heights.data;
     const surfaces = changes.surfaces ?? this.doc.surfaces.data;
     if (!(heights instanceof Float32Array) || heights.length !== this.doc.heights.data.length ||

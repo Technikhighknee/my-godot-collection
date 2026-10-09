@@ -5,7 +5,7 @@ import { RoadStore } from './editing/road-store.ts';
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
-  console.log('Usage: npm start -- [map.json] [--port 4371]\nDefault map: ../godot/coastal_relief.map.json\nBinds to 127.0.0.1 only. Saves only roads to the selected map JSON.');
+  console.log('Usage: npm start -- [map.json] [--port 4371]\nDefault map: ../godot/coastal_relief.map.json\nBinds to 127.0.0.1 only. Saves map JSON and edited terrain assets.');
 } else {
   try {
     const index = args.indexOf('--port');
@@ -20,7 +20,7 @@ if (args.includes('--help') || args.includes('-h')) {
     const server = createEditorServer(doc, store);
     server.on('error', error => { console.error(error); process.exitCode = 1; });
     server.listen(port, '127.0.0.1', () => {
-      console.log(`1400 Map Editor (roads editable) — ${doc.map.name}`);
+      console.log(`1400 Map Editor — ${doc.map.name}`);
       console.log(`http://127.0.0.1:${port}/`);
     });
   } catch (error) {

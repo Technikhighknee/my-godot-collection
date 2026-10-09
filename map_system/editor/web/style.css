@@ -15,3 +15,13 @@
 .terrain-editor #terrainStatus{margin-top:15px;color:#d6ae7f;font-size:10px;letter-spacing:.08em}
 @media(max-width:750px){.terrain-editor{padding:12px}}
 @media(max-width:540px){.terrain-editor{padding:10px 13px}}
+
+/* Entity marker editing shares the other editing controls, not runtime rendering. */
+.entity-editor{padding:17px 21px 20px;border-top:1px solid var(--line)}
+.entity-editor h3{margin:0 0 15px;font-size:10px;color:#e2b77c;font-weight:750;letter-spacing:.15em}
+.entity-editor button{cursor:pointer;border:1px solid #47545b;background:#252f36;color:#dbe4e2;border-radius:5px;font-size:11px;padding:9px 6px;flex:1}
+.entity-editor button.active{color:#f5d2a2;border-color:#b58b5d;background:#463627}
+.entity-editor button:disabled{opacity:.32;cursor:not-allowed}
+.entity-editor input,.entity-editor select{width:100%;padding:9px;background:#10181e;border:1px solid #3b4b55;border-radius:4px;color:#e4e9e8;font-size:12px}
+.entity-editor .point-info{margin-top:9px}
+@media(max-width:750px){.entity-editor{padding:12px}}

@@ -24,6 +24,7 @@ npm start -- ../godot/example.map.json --port 4372
 
 - **Navigate:** left drag to orbit, right drag to pan, wheel to zoom, `F` to reset.
 - **Edit roads:** select, create, move points, insert/append, delete or change width.
+- **Buildings & objects:** select visible markers, drag them to new positions, change definition/rotation, place or delete markers. New IDs are generated automatically; type a real definition ID before placing.
 - **Sculpt:** raise, lower, smooth or flatten with a circular brush. Flatten samples the height at stroke start.
 - **Paint:** choose a surface definition and paint its categorical cell IDs.
 - **Undo/Redo:** `Ctrl+Z`, `Ctrl+Shift+Z` / `Ctrl+Y` (one history across all tools).
@@ -37,5 +38,8 @@ automatically. External file changes cause a save conflict.
 The editor is bound to `127.0.0.1`; writes require same-origin requests. The map
 is chosen on startup. Preview colors and road ribbons approximate Godot rendering;
 height geometry, triangular interpolation and stored surface indices use its map contract.
+Building/object markers are placeholders, not actual game assets. Placement validates
+IDs, map bounds and the JSON schema; Godot's definition-specific footprint, road,
+slope and build-area checks require gameplay definitions and are **not** asserted here.
 
 Copyright © 2026 Jason Posch. All rights reserved. See [NOTICE.md](NOTICE.md).

@@ -13,7 +13,7 @@
   <div class="shell">
     <header class="header">
       <div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
-      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">TERRAIN EDITOR · M3</span></div>
+      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">MAP EDITOR · M4</span></div>
       <div class="history-controls">
         <button id="undo" type="button" title="Ctrl+Z" disabled>Undo</button>
         <button id="redo" type="button" title="Ctrl+Shift+Z" disabled>Redo</button>
@@ -49,6 +49,20 @@
         <div id="pointInfo" class="point-info">Select a point to move it.</div>
         <div id="editorMessage" class="editor-message" role="status" aria-live="polite">Edit terrain or roads, then save the map.</div>
       </section>
+      <section class="entity-editor">
+        <h3>BUILDINGS & OBJECTS</h3>
+        <div class="tool-row"><button type="button" id="modeEntities">Edit markers</button><button type="button" id="placeEntity">Place marker</button></div>
+        <label class="editor-label" for="entityKind">TYPE</label>
+        <select id="entityKind"><option value="buildings">Building</option><option value="objects">Object</option></select>
+        <label class="editor-label" for="entitySelect">SELECTED MARKER</label>
+        <select id="entitySelect" aria-label="Selected marker"></select>
+        <label class="editor-label" for="entityDefinition">DEFINITION ID</label>
+        <input type="text" id="entityDefinition" maxlength="200" spellcheck="false" placeholder="e.g. building.house" autocomplete="off">
+        <label class="editor-label" for="entityRotation">ROTATION (DEGREES)</label>
+        <input type="number" id="entityRotation" step="1" value="0">
+        <div class="tool-row"><button type="button" id="applyEntity">Apply properties</button><button type="button" id="deleteEntity">Delete marker</button></div>
+        <div id="entityInfo" class="point-info">Select a marker or place a new one.</div>
+      </section>
       <section class="terrain-editor">
         <h3>TERRAIN TOOLS</h3>
         <div class="tool-row"><button type="button" id="modeSculpt">Sculpt</button><button type="button" id="modePaint">Paint</button></div>
@@ -78,7 +92,7 @@
       <div class="view-badge">PERSPECTIVE / MAP EDITOR</div>
       <div class="loading" id="loading"><span class="spinner"></span><span id="loadingText">Loading map geometry…</span></div>
       <div class="compass" id="compass">N <span>↑</span></div>
-      <div class="help">Navigate: left drag <b>Orbit</b><span>·</span>Edit: drag <b>Road points</b> or <b>Paint terrain</b><span>·</span>Right drag <b>Pan</b><span>·</span>Scroll <b>Zoom</b></div>
+      <div class="help">Navigate: left drag <b>Orbit</b><span>·</span>Edit: drag <b>Road points</b> / <b>Markers</b> or <b>Paint terrain</b><span>·</span>Right drag <b>Pan</b><span>·</span>Scroll <b>Zoom</b></div>
       <div class="probe" id="probe">MOVE CURSOR OVER TERRAIN</div>
     </main>
   </div>

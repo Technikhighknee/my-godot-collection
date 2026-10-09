@@ -2,6 +2,9 @@ export declare function dab(doc: any, kind: string, x: number, z: number, radius
 export declare class MapEdits {
   constructor(doc: any);
   get roads(): any[];
+  get buildings(): any[];
+  get objects(): any[];
+  get entityDirty(): boolean;
   get isDirty(): boolean;
   get roadDirty(): boolean;
   get heightDirty(): boolean;
@@ -10,6 +13,7 @@ export declare class MapEdits {
   get canRedo(): boolean;
   get painting(): boolean;
   commit(roads: any[]): boolean;
+  commitEntities(kind: 'buildings' | 'objects', entries: any[]): boolean;
   beginStroke(kind: string, options: any, point: number[]): boolean;
   strokeTo(point: number[]): boolean;
   endStroke(): boolean;
