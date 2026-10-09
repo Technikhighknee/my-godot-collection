@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>1400 · Map Editor</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
+      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">READ ONLY · M1</span></div>
+      <button class="reset" id="resetCamera" type="button">Reset camera <kbd>F</kbd></button>
+    </header>
+    <aside class="side">
+      <div class="side-head">MAP OVERVIEW</div>
+      <section class="information">
+        <div class="thumb-title">CURRENT DOCUMENT</div>
+        <h2 id="panelName">—</h2>
+        <p id="documentPath">Loaded from local Node.js server</p>
+        <div class="stats">
+          <div><span>AREA</span><strong id="sizeStat">—</strong></div>
+          <div><span>HEIGHT GRID</span><strong id="gridStat">—</strong></div>
+          <div><span>ELEVATION</span><strong id="elevationStat">—</strong></div>
+          <div><span>SURFACES</span><strong id="surfaceStat">—</strong></div>
+        </div>
+      </section>
+      <section class="layers">
+        <h3>DISPLAY LAYERS</h3>
+        <label class="switch"><input id="surfaces" type="checkbox" checked><span>Surface palette</span><small>Color preview</small></label>
+        <label class="switch"><input id="wireframe" type="checkbox"><span>Terrain wireframe</span><small>Triangle grid</small></label>
+        <label class="switch"><input id="roads" type="checkbox" checked><span>Roads</span><small id="roadsCount">—</small></label>
+        <label class="switch"><input id="water" type="checkbox" checked><span>Water</span><small id="waterCount">—</small></label>
+        <label class="switch"><input id="settlements" type="checkbox" checked><span>Build areas</span><small id="settlementsCount">—</small></label>
+        <label class="switch"><input id="entities" type="checkbox" checked><span>Entity markers</span><small id="entitiesCount">—</small></label>
+      </section>
+      <section class="legend"><h3>SURFACE DEFINITIONS</h3><div id="palette" class="palette"></div></section>
+      <div class="side-footer">LOCAL WORKSPACE<br><span>No files are changed by this preview.</span></div>
+    </aside>
+    <main class="viewport" id="viewport">
+      <div class="view-badge">PERSPECTIVE / TERRAIN PREVIEW</div>
+      <div class="loading" id="loading"><span class="spinner"></span><span id="loadingText">Loading map geometry…</span></div>
+      <div class="compass" id="compass">N <span>↑</span></div>
+      <div class="help">Left drag <b>Orbit</b><span>·</span>Right drag <b>Pan</b><span>·</span>Scroll <b>Zoom</b></div>
+      <div class="probe" id="probe">MOVE CURSOR OVER TERRAIN</div>
+    </main>
+  </div>
+</body>
+</html>
