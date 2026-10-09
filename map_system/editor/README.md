@@ -14,7 +14,7 @@ npm run typecheck
 npm start
 ```
 
-Open <http://127.0.0.1:4371/>. The Map Workspace panel can open or create maps in the startup map’s directory. To choose a different workspace, select its initial map on startup:
+Open <http://127.0.0.1:4371/>. The **Maps** button can open or create maps in the startup map’s directory. To choose a different workspace, select its initial map on startup:
 
 ```sh
 npm start -- ../godot/example.map.json --port 4372
@@ -31,11 +31,11 @@ The workspace is intentionally limited to one directory and does **not** expose 
 
 ## Controls
 
-- **Workflow (M7):** optional coordinate grid (0.25–100 m), hold `Alt` while placing or dragging to bypass it. Grid affects points/markers, not brush strokes. Numerical X/Z point, vertex, and marker fields support precise placement.
+- **Grid (Grid button):** optional coordinate grid (0.25–100 m), hold `Alt` while placing or dragging to bypass it. Grid affects points/markers, not brush strokes. Numerical X/Z point, vertex, and marker fields support precise placement.
 - **Multi-select markers:** `Shift`+click or `Ctrl`+click to toggle; `Ctrl+A` selects all markers of the current type; drag one selected marker to move the group. Each group operation is one Undo step.
 - **Duplicate:** `D` or the Duplicate selection button in Road Edit / Marker Edit. Copy offset is grid spacing when snapping is enabled, otherwise 5 m. Invalid copies are rejected; no clamping into illegal placement.
-- **Tool keys:** `V` navigate, `R` roads, `E` markers, `G` polygons, `H` sculpt, `P` paint; `Esc` cancels a drag/draft. Shortcuts do not intercept focused inputs.
-- **Navigate:** left drag to orbit, right drag to pan, wheel to zoom, `F` to reset.
+- **Hotbar:** `1` Select (inspect and drag markers), `2` Sculpt, `3` Paint, `4` Draw (Roads / Build areas), `5` Place (Buildings & objects / Water). Context settings replace the long sidebar; the Maps, Layers and Grid buttons expose secondary controls. `Esc` cancels a drag/draft. Tool shortcuts do not intercept focused inputs.
+- **Camera (every tool):** middle drag to orbit, right drag to pan, wheel to zoom. `F` focuses the selected marker/road/build area or resets the map view if nothing is selected.
 - **Edit roads:** select, create, move points, insert/append, delete or change width.
 - **Water:** set a single global sea level and click the terrain to place lake sources with independent water levels. Ocean water only reaches terrain below sea level connected to a submerged boundary; lakes flood terrain reachable from their point. Shorelines derive from the triangular heightmap and react to Sculpt edits. No freehand water polygons. A lake source must remain below its water level. Existing polygon-water maps must be migrated.
 - **Settlements:** draw closed build-area polygons, edit/insert/remove vertices, create settlements with multiple build areas, rename or remove areas. Finish with `Enter` (or click the first point), `Esc` cancels. Invalid and self-intersecting polygons cannot be committed.

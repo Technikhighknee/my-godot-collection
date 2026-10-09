@@ -11,6 +11,7 @@ import { parsePalette, validateCreate } from './map-management.mjs';
 import { intersectTerrainRay } from './terrain-ray.mjs';
 import { updateTerrainPatch } from './terrain-patch.mjs';
 import { buildWaterRegions } from './water-field.mjs';
+import { toolForMode, modeForTool, toolShortcut } from './tool-state.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -52,7 +53,11 @@ let polygonDrag = null;
 let polygonDraft = null;
 let polygonHandles;
 let polygonDraftGroup;
-let editMode = 'navigate';
+let editMode = 'select';
+let selectionContext = null;
+let inspectorCollapsed = false;
+const subtools = { draw: 'roads', place: 'entity' };
+const toolLabels = { select: 'Select', sculpt: 'Sculpt terrain', paint: 'Paint surfaces', draw: 'Draw', place: 'Place' };
 let draftStart = null;
 let dragging = null;
 let savePending = false;
@@ -294,6 +299,23 @@ function configureDetails(doc) {
     label.append(swatch, name); el('palette').append(label);
   }
 }
+function focusCamera() {
+  let point = null;
+  if (toolForMode(editMode) === 'select' && selectionContext === 'entity') point = currentEntity()?.position;
+  if (toolForMode(editMode) === 'select' && selectionContext === 'road') {
+    const points = currentRoad()?.points;
+    if (points?.length) point = [points.reduce((sum, p) => sum + p[0], 0) / points.length, points.reduce((sum, p) => sum + p[1], 0) / points.length];
+  }
+  if (toolForMode(editMode) === 'select' && selectionContext === 'polygon') {
+    const points = currentPolygon()?.points;
+    if (points?.length) point = [points.reduce((sum, p) => sum + p[0], 0) / points.length, points.reduce((sum, p) => sum + p[1], 0) / points.length];
+  }
+  if (!point) { resetCamera(); return; }
+  const offset = camera.position.clone().sub(controls.target);
+  controls.target.set(point[0], sampleHeight(currentDoc.map.terrain, currentDoc.height, ...point), point[1]);
+  camera.position.copy(controls.target).add(offset);
+  controls.update();
+}
 function resetCamera() {
   const [sx, sz] = currentDoc.map.terrain.size;
   target.set(sx * 0.5, sampleHeight(currentDoc.map.terrain, currentDoc.height, sx * 0.5, sz * 0.5), sz * 0.5);
@@ -327,6 +349,9 @@ function initScene(doc) {
   controls.maxDistance = Math.max(...map.terrain.size) * 4;
   controls.maxPolarAngle = Math.PI * 0.49;
   controls.screenSpacePanning = true;
+  controls.mouseButtons.LEFT = null;
+  controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+  controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
   target = new THREE.Vector3();
   scene.add(new THREE.HemisphereLight(0xe8f2ff, 0x655a47, 2.0));
   const sun = new THREE.DirectionalLight(0xffedd6, 2.5);
@@ -527,6 +552,7 @@ function updatePolygonUI() {
 function selectPolygon(kind, id, index = 0) {
   polygonKind = kind; selectedPolygonId = id; selectedAreaIndex = index; selectedVertexIndex = -1;
   syncPolygonSelection(); drawPolygons(); updatePolygonUI();
+  if (editMode === 'select') { selectionContext = id ? 'polygon' : null; renderEditorChrome(); }
 }
 function commitPolygons(kind, items, message, selection = null) {
   try {
@@ -773,6 +799,7 @@ function selectEntity(kind, id, additive = false) {
   el('entityDefinition').value = entity?.definition ?? '';
   el('entityRotation').value = String(entity?.rotation ?? 0);
   repaintEntities(); updateEntityUI();
+  if (editMode === 'select') { selectionContext = selectedEntityIds.size ? 'entity' : null; renderEditorChrome(); }
 }
 function selectedMarkerIds() {
   return [...selectedEntityIds].filter(id => edits[selectedEntityKind].some(e => e.id === id));
@@ -789,7 +816,7 @@ function deleteSelectedEntities() {
 function duplicateSelection() {
   if (currentDoc.readOnly || savePending || dragging || draggingEntity || polygonDrag || polygonDraft || edits.painting) return;
   try {
-    if (editMode === 'entities') {
+    if (editMode === 'entities' || (editMode === 'select' && selectionContext === 'entity')) {
       const ids = selectedMarkerIds(); if (!ids.length) return;
       const kind = selectedEntityKind;
       const used = [...edits.roads, ...edits.water, ...edits.settlements, ...edits[kind === 'objects' ? 'buildings' : 'objects']].map(e => e.id);
@@ -799,7 +826,7 @@ function duplicateSelection() {
         selectedEntityIds = new Set(addedIds); selectedEntityId = addedIds[0];
         updateEntityUI(); repaintEntities();
       }
-    } else if (editMode === 'edit' && currentRoad()) {
+    } else if ((editMode === 'edit' || (editMode === 'select' && selectionContext === 'road')) && currentRoad()) {
       const used = [...edits.water, ...edits.settlements, ...edits.buildings, ...edits.objects].map(e => e.id);
       const step = el('gridSnap').checked ? Number(el('gridStep').value) : 5;
       const { entries, addedId } = duplicateRoad(edits.roads, selectedRoadId, currentDoc.map.terrain.size, [step, step], used);
@@ -835,7 +862,7 @@ function updateEntityUI() {
   el('deleteEntity').disabled ||= count === 0;
   el('applyEntity').disabled ||= count !== 1 || editMode === 'place-entity';
   for (const id of ['entityDefinition','entityRotation','entityX','entityZ']) el(id).disabled ||= count !== 1 && editMode !== 'place-entity';
-  el('duplicateSelected').disabled = currentDoc.readOnly || savePending || !(['entities','edit'].includes(editMode) && (editMode === 'edit' ? !!currentRoad() : count > 0));
+  el('duplicateSelected').disabled = currentDoc.readOnly || savePending || !((['entities','edit'].includes(editMode) || (editMode === 'select' && ['entity','road'].includes(selectionContext))) && (editMode === 'edit' || selectionContext === 'road' ? !!currentRoad() : count > 0));
   el('modeEntities').classList.toggle('active', editMode === 'entities');
   el('placeEntity').classList.toggle('active', editMode === 'place-entity');
   drawPlacement();
@@ -942,7 +969,7 @@ function updateRoadUI() {
   el('mapName').textContent = `${currentDoc.map.name}${edits.isDirty ? ' •' : ''}`;
   document.querySelector('.status-dot').classList.toggle('dirty', edits.isDirty);
   document.querySelector('.quiet').textContent = currentDoc.readOnly ? 'READ ONLY' : edits.isDirty ? 'UNSAVED CHANGES' : 'MAP · SAVED';
-  document.querySelector('.side-footer span').textContent = edits.isDirty ? 'Unsaved changes in memory.' : 'Map and assets are saved locally.';
+  el('saveRoads').classList.toggle('is-dirty', edits.isDirty);
 }
 function repaintRoads(roads = edits.roads, preview = false) {
   currentDoc.map.roads = roads;
@@ -964,22 +991,29 @@ function selectRoad(id) {
   selectedRoadId = id;
   selectedPointIndex = -1;
   drawRoads(); drawHandles(); updateRoadUI();
+  if (editMode === 'select') { selectionContext = id ? 'road' : null; renderEditorChrome(); }
 }
 function setEditMode(next) {
-  if (currentDoc.readOnly && next !== 'navigate') return;
+  if (currentDoc.readOnly && !['navigate','select','entities'].includes(next)) return;
+  if (next === 'navigate' || next === 'entities') next = 'select';
   if (dragging || draggingEntity || polygonDrag || edits.painting) cancelDrag();
   if (editMode === 'draw-polygon' && next !== 'draw-polygon') polygonDraft = null;
   editMode = next;
   draftStart = null;
-  controls.enableRotate = next === 'navigate';
+  controls.enableRotate = true;
+  if (['edit','create','append','insert'].includes(next)) subtools.draw = 'roads';
+  if (['polygon-edit','polygon-insert','draw-polygon'].includes(next)) subtools.draw = 'areas';
+  if (next === 'place-entity') subtools.place = 'entity';
+  if (next === 'place-lake') subtools.place = 'lake';
   brushRing.visible = false;
-  viewport.classList.toggle('edit-cursor', next !== 'navigate');
+  viewport.classList.toggle('edit-cursor', next !== 'navigate' && next !== 'select');
   if (['edit', 'create', 'append', 'insert'].includes(next)) { el('roads').checked = true; setLayerVisibility(); }
   if (['entities', 'place-entity'].includes(next)) { el('entities').checked = true; setLayerVisibility(); }
   if (next !== 'place-entity') placementPoint = null;
   if (['polygon-edit', 'polygon-insert', 'draw-polygon'].includes(next)) { el('settlements').checked = true; setLayerVisibility(); }
   const hints = {
-    navigate: 'Navigate mode: left-drag to orbit; right-drag to pan.',
+    navigate: 'Middle-drag to orbit, right-drag to pan, wheel to zoom.',
+    select: 'Click a marker, road or build area to select; drag selected markers to move.',
     edit: 'Drag a highlighted road handle. Click another road to select.',
     create: 'Click the terrain to set the first point of the new road.',
     append: 'Click the terrain to append a point to the selected road.',
@@ -998,7 +1032,123 @@ function setEditMode(next) {
   updateTerrainUI(); updateEntityUI(); updatePolygonUI(); updateWaterUI();
   drawPolygons();
   drawPlacement();
+  renderEditorChrome();
 }
+const toolHints = {
+  select: 'LMB Select · Drag markers · MMB Orbit · RMB Pan · Wheel Zoom',
+  sculpt: 'LMB Sculpt · MMB Orbit · RMB Pan · Wheel Zoom',
+  paint: 'LMB Paint · MMB Orbit · RMB Pan · Wheel Zoom',
+  draw: 'LMB Edit or draw points · Enter Finish · Esc Cancel',
+  place: 'LMB Place · MMB Orbit · RMB Pan · Wheel Zoom',
+};
+function selectTool(tool) {
+  inspectorCollapsed = false;
+  closeOpenPanel();
+  setEditMode(modeForTool(tool, subtools));
+}
+function renderEditorChrome() {
+  if (!currentDoc) return;
+  const tool = toolForMode(editMode);
+  const panel = el('toolPanel');
+  const roadPanel = panel.querySelector('.road-editor');
+  const entityPanel = panel.querySelector('.entity-editor');
+  const polygonPanel = panel.querySelector('.polygon-editor');
+  const waterPanel = panel.querySelector('.water-editor');
+  const terrainPanel = panel.querySelector('.terrain-editor');
+  const context = tool === 'select' ? selectionContext : tool === 'draw' ? subtools.draw : tool === 'place' ? subtools.place : tool;
+  const visible = {
+    road: context === 'road' || context === 'roads',
+    entity: context === 'entity',
+    polygon: context === 'polygon' || context === 'areas',
+    water: context === 'lake',
+    terrain: tool === 'sculpt' || tool === 'paint',
+  };
+  roadPanel.hidden = !visible.road;
+  entityPanel.hidden = !visible.entity;
+  polygonPanel.hidden = !visible.polygon;
+  waterPanel.hidden = !visible.water;
+  terrainPanel.hidden = !visible.terrain;
+  el('selectionHint').hidden = !(tool === 'select' && !selectionContext);
+  panel.hidden = inspectorCollapsed || (tool === 'select' && !selectionContext);
+  el('drawModeTabs').hidden = tool !== 'draw';
+  el('placeModeTabs').hidden = tool !== 'place';
+  el('toolEyebrow').textContent = `TOOL ${['select','sculpt','paint','draw','place'].indexOf(tool) + 1}`;
+  el('toolTitle').textContent = tool === 'select' ? ({ entity: 'Selected marker', road: 'Selected road', polygon: 'Selected build area' }[selectionContext] ?? 'Select') : toolLabels[tool];
+  for (const button of document.querySelectorAll('[data-tool]')) {
+    const active = button.dataset.tool === tool;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
+    button.disabled = !!currentDoc.readOnly && button.dataset.tool !== 'select';
+  }
+  for (const [id, state] of [['drawRoadsTab', subtools.draw === 'roads'], ['drawAreasTab', subtools.draw === 'areas'], ['placeEntitiesTab', subtools.place === 'entity'], ['placeLakesTab', subtools.place === 'lake']]) {
+    el(id).classList.toggle('is-active', state);
+    el(id).setAttribute('aria-pressed', String(state));
+  }
+  el('interactionHint').textContent = toolHints[tool];
+  terrainPanel.classList.toggle('sculpt-active', tool === 'sculpt');
+  terrainPanel.classList.toggle('paint-active', tool === 'paint');
+  for (const button of document.querySelectorAll('[data-sculpt-kind]')) {
+    const selected = el('sculptMode').value === button.dataset.sculptKind;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  }
+  for (const button of document.querySelectorAll('[data-surface-index]')) {
+    const selected = Number(el('brushSurface').value) === Number(button.dataset.surfaceIndex);
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  }
+  for (const id of ['brushRadius','brushStrength']) {
+    if (document.activeElement !== el(`${id}Slider`)) el(`${id}Slider`).value = el(id).value;
+  }
+}
+function closeOpenPanel() {
+  for (const name of ['workspace','view','settings']) {
+    const panel = el(`${name}Panel`);
+    if (!panel.hidden) { panel.hidden = true; el(`${name}Toggle`).setAttribute('aria-expanded', 'false'); return true; }
+  }
+  return false;
+}
+function togglePopover(name) {
+  const panel = el(`${name}Panel`), next = panel.hidden;
+  closeOpenPanel();
+  panel.hidden = !next;
+  el(`${name}Toggle`).setAttribute('aria-expanded', String(next));
+}
+function initializeEditorChrome() {
+  for (const toolButton of document.querySelectorAll('[data-tool]')) toolButton.addEventListener('click', () => selectTool(toolButton.dataset.tool));
+  for (const name of ['workspace','view','settings']) {
+    el(`${name}Toggle`).addEventListener('click', () => togglePopover(name));
+    el(`close${name[0].toUpperCase() + name.slice(1)}`).addEventListener('click', () => closeOpenPanel());
+  }
+  el('collapseToolPanel').addEventListener('click', () => { inspectorCollapsed = true; renderEditorChrome(); });
+  el('drawRoadsTab').addEventListener('click', () => setEditMode('edit'));
+  el('drawAreasTab').addEventListener('click', () => setEditMode('polygon-edit'));
+  el('placeEntitiesTab').addEventListener('click', () => setEditMode('place-entity'));
+  el('placeLakesTab').addEventListener('click', () => setEditMode('place-lake'));
+  for (const button of document.querySelectorAll('[data-sculpt-kind]')) {
+    button.addEventListener('click', () => { el('sculptMode').value = button.dataset.sculptKind; renderEditorChrome(); });
+  }
+  for (const id of ['brushRadius','brushStrength']) {
+    const field = el(id), slider = el(`${id}Slider`);
+    slider.addEventListener('input', () => { field.value = slider.value; updateTerrainUI(); });
+    field.addEventListener('input', () => { slider.value = field.value; });
+  }
+  for (const id of ['sculptMode','brushSurface','brushRadius','brushStrength']) el(id).addEventListener('change', renderEditorChrome);
+  for (const option of el('brushSurface').options) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.dataset.surfaceIndex = option.value;
+    button.textContent = option.textContent.split('.').at(-1);
+    button.title = option.textContent;
+    button.setAttribute('aria-pressed', 'false');
+    button.addEventListener('click', () => { el('brushSurface').value = option.value; renderEditorChrome(); });
+    el('surfaceChoices').append(button);
+  }
+  el('entitySelect').addEventListener('change', renderEditorChrome);
+  el('roadSelect').addEventListener('change', renderEditorChrome);
+  el('polygonSelect').addEventListener('change', renderEditorChrome);
+  el('lakeSelect').addEventListener('change', renderEditorChrome);
+}
+
 function makeRay(ev) {
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.set((ev.clientX - rect.left) / rect.width * 2 - 1, -((ev.clientY - rect.top) / rect.height * 2 - 1));
@@ -1041,10 +1191,39 @@ function editorPointerDown(ev) {
     const used = [...edits.water, ...edits.roads, ...edits.settlements, ...edits.buildings, ...edits.objects].map(x => x.id);
     const id = newPolygonId('water', used);
     commitWater([...edits.water, { id, definition: 'water.lake', height: level, source: point }], 'Lake source added. Set its level in the Water panel.');
-    selectedLakeId = id; updateWaterUI(); setEditMode('navigate');
+    selectedLakeId = id; updateWaterUI(); renderEditorChrome();
     ev.preventDefault(); return;
   }
-  if (ev.button !== 0 || editMode === 'navigate' || currentDoc.readOnly || savePending) return;
+  if (ev.button !== 0 || editMode === 'navigate' || savePending) return;
+  if (editMode === 'select') {
+    makeRay(ev);
+    const entityHit = entitiesGroup.visible ? raycaster.intersectObjects(entitiesGroup.children, false)[0] : null;
+    if (entityHit) {
+      const { entityKind, entityId } = entityHit.object.userData;
+      if (ev.shiftKey || ev.ctrlKey || ev.metaKey) { selectEntity(entityKind, entityId, true); ev.preventDefault(); return; }
+      if (entityKind !== selectedEntityKind || !selectedEntityIds.has(entityId)) selectEntity(entityKind, entityId);
+      if (!currentDoc.readOnly) {
+        draggingEntity = { kind: entityKind, id: entityId, ids: selectedMarkerIds(), original: edits[entityKind], preview: null, pointerId: ev.pointerId };
+        renderer.domElement.setPointerCapture(ev.pointerId);
+        controls.enabled = false;
+      }
+      ev.preventDefault(); return;
+    }
+    const roadHit = roadGroup.visible ? raycaster.intersectObjects(roadGroup.children, false)[0] : null;
+    if (roadHit) { selectRoad(roadHit.object.userData.roadId); ev.preventDefault(); return; }
+    raycaster.params.Line.threshold = Math.max(1.5, controls.target.distanceTo(camera.position) * 0.005);
+    const areaHit = settlementGroup.visible ? raycaster.intersectObjects(settlementGroup.children, false)[0] : null;
+    if (areaHit?.object.userData.polygonKind) {
+      selectPolygon('settlements', areaHit.object.userData.polygonId, areaHit.object.userData.areaIndex);
+      ev.preventDefault(); return;
+    }
+    if (!ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
+      selectedEntityIds.clear(); selectedEntityId = null; selectionContext = null;
+      updateEntityUI(); repaintEntities(); renderEditorChrome();
+    }
+    return;
+  }
+  if (currentDoc.readOnly) return;
   if (editMode === 'sculpt' || editMode === 'paint') {
     const pos = terrainPoint(ev);
     if (!pos) return;
@@ -1094,7 +1273,7 @@ function editorPointerDown(ev) {
       commitEntities(kind, items, `Placed ${id}. Ctrl+S to save.`);
       if (edits[kind].some(x => x.id === id)) {
         selectEntity(kind, id);
-        setEditMode('entities');
+        renderEditorChrome();
       }
     } catch (error) { setMessage(error.message, true); }
     return;
@@ -1442,29 +1621,31 @@ function initializeRoadEditing() {
       performHistory(true);
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 's') {
       event.preventDefault(); saveRoadEdits();
-    } else if ((event.ctrlKey || event.metaKey) && key === 'a' && editMode === 'entities' && !savePending) {
+    } else if ((event.ctrlKey || event.metaKey) && key === 'a' && (editMode === 'select' || editMode === 'entities') && !savePending) {
       event.preventDefault();
       selectedEntityIds = new Set(edits[selectedEntityKind].map(e => e.id));
       selectedEntityId = selectedEntityIds.values().next().value ?? null;
-      updateEntityUI(); repaintEntities();
-    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && key === 'd' && ['entities','edit'].includes(editMode)) {
+      if (editMode === 'select') selectionContext = selectedEntityIds.size ? 'entity' : null;
+      updateEntityUI(); repaintEntities(); renderEditorChrome();
+    } else if (!event.ctrlKey && !event.altKey && !event.metaKey && key === 'd' && (['entities','edit'].includes(editMode) || (editMode === 'select' && ['road','entity'].includes(selectionContext)))) {
       event.preventDefault(); duplicateSelection();
     } else if (key === 'escape') {
+      if (closeOpenPanel()) { event.preventDefault(); return; }
       if (polygonDrag || dragging || draggingEntity) cancelDrag();
       else if (polygonDraft) cancelPolygonDraft();
-      else if (editMode === 'entities' && selectedEntityIds.size > 1) selectEntity(selectedEntityKind, null);
-      else setEditMode('navigate');
+      else if (editMode === 'select' && selectionContext) { selectionContext = null; selectedEntityIds.clear(); selectedEntityId = null; updateEntityUI(); repaintEntities(); renderEditorChrome(); }
+      else setEditMode('select');
     } else if (key === 'enter' && polygonDraft) {
       event.preventDefault(); finishPolygon();
     } else if ((key === 'backspace' || key === 'delete') && polygonDraft) {
       event.preventDefault(); polygonDraft.points.pop(); drawPolygons(); updatePolygonUI();
-    } else if ((key === 'delete' || key === 'backspace') && editMode === 'entities' && selectedEntityIds.size) {
+    } else if ((key === 'delete' || key === 'backspace') && (editMode === 'entities' || (editMode === 'select' && selectionContext === 'entity')) && selectedEntityIds.size) {
       event.preventDefault(); el('deleteEntity').click();
     } else if ((key === 'delete' || key === 'backspace') && selectedPointIndex >= 0 && editMode === 'edit') {
       event.preventDefault(); el('deletePoint').click();
-    } else if (!event.ctrlKey && !event.altKey && !event.metaKey) {
-      const modes = { v: 'navigate', r: 'edit', e: 'entities', g: 'polygon-edit', h: 'sculpt', p: 'paint' };
-      if (modes[key]) { event.preventDefault(); setEditMode(modes[key]); }
+    } else {
+      const tool = toolShortcut(event);
+      if (tool) { event.preventDefault(); selectTool(tool); }
     }
   });
   updateRoadUI(); updateTerrainUI();
@@ -1576,8 +1757,10 @@ try {
   initializePolygonEditing();
   initializeWaterEditing();
   layerNames.forEach(id => el(id).addEventListener('change', setLayerVisibility));
-  el('resetCamera').addEventListener('click', resetCamera);
-  document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey && !(e.target instanceof HTMLElement && e.target.closest('input,select,textarea'))) resetCamera(); });
+  el('resetCamera').addEventListener('click', focusCamera);
+  document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey && !(e.target instanceof HTMLElement && e.target.closest('input,select,textarea,[contenteditable=true]'))) { e.preventDefault(); focusCamera(); } });
+  initializeEditorChrome();
+  renderEditorChrome();
   loading.remove();
 } catch (error) {
   el('loadingText').textContent = `Cannot open map: ${error instanceof Error ? error.message : String(error)}`;
