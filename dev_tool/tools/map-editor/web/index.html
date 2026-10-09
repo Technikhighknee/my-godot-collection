@@ -7,13 +7,14 @@
 <meta content="dark" name="color-scheme"/>
 <title>1400 · Map Editor</title>
 <link href="/style.css" rel="stylesheet"/>
+<link href="/dev-tool.css" rel="stylesheet"/>
 <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
 <script src="/app.js" type="module"></script>
 </head>
 <body>
 <div class="shell ux-shell">
 <header class="header">
-<div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
+<div class="brand"><a class="dt-brand" href="/" aria-label="Return to Dev Tool home"><span class="dt-mark">14</span><span class="dt-brand-copy">1400 <strong>Dev Tool</strong><small>WORLD CREATION WORKSPACE</small></span></a><span class="dt-brand-divider" aria-hidden="true">/</span><span class="dt-tool-name">Map Editor</span></div>
 <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">SAVED</span></div>
 <button aria-controls="workspacePanel" aria-expanded="false" class="map-picker" id="workspaceToggle" title="Open maps and map settings" type="button"><span class="map-picker-mark">▤</span><span>Maps</span></button><div class="history-controls">
 <button disabled="" id="undo" title="Ctrl+Z" type="button">Undo</button>

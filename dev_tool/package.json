@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node --experimental-strip-types tools/map-editor/src/serve.ts",
     "inspect": "node --experimental-strip-types tools/map-editor/src/cli.ts",
-    "test": "node --experimental-strip-types --test tools/map-editor/tests/*.test.ts",
+    "test": "node --experimental-strip-types --test tools/map-editor/tests/*.test.ts tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

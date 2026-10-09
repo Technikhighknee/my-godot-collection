@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>1400 · Dev Tool</title>
+<link rel="stylesheet" href="/dev-tool.css">
+<script src="/dev-tool.js" type="module"></script>
+</head>
+<body class="dt-home">
+<header class="dt-header">
+  <a class="dt-brand" href="/" aria-label="1400 Dev Tool home">
+    <span class="dt-mark">14</span>
+    <span class="dt-brand-copy">1400 <strong>Dev Tool</strong><small>WORLD CREATION WORKSPACE</small></span>
+  </a>
+  <nav class="dt-nav" aria-label="Main navigation"><a href="/" aria-current="page">Tools</a></nav>
+  <span class="dt-local"><span class="dt-local-dot" aria-hidden="true"></span> LOCAL WORKSPACE</span>
+</header>
+<main class="dt-main">
+  <section class="dt-hero" aria-labelledby="dt-title">
+    <div class="dt-kicker"><span class="dt-kicker-line"></span> YOUR WORKSPACE <span class="dt-kicker-count">/ 1400</span></div>
+    <h1 id="dt-title">Make worlds.<br><span>Build what matters.</span></h1>
+    <p>One workspace for designing maps, creating assets and building the world behind 1400. Choose a tool to get started.</p>
+  </section>
+  <section class="dt-tools" aria-labelledby="dt-tools-heading">
+    <div class="dt-section-heading">
+      <h2 id="dt-tools-heading">Tools <span class="dt-section-rule" aria-hidden="true"></span></h2>
+      <span class="dt-section-meta">01 AVAILABLE <span aria-hidden="true">·</span> 01 PLANNED</span>
+    </div>
+    <div class="dt-card-grid">
+      <a class="dt-card dt-card-ready" href="/tools/map-editor/" aria-labelledby="dt-map-title">
+        <div class="dt-card-visual dt-map-visual" aria-hidden="true">
+          <svg viewBox="0 0 520 240" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="dt-terrain" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#384b43"/><stop offset="0.55" stop-color="#283b36"/><stop offset="1" stop-color="#1b2b2d"/>
+              </linearGradient>
+            </defs>
+            <rect width="520" height="240" fill="url(#dt-terrain)"/>
+            <g fill="none" stroke="#80937d" stroke-width="1.5" opacity=".36">
+              <path d="M-80 38C-6 9 18 67 93 41S213-23 269 8s79 71 151 41S504 18 573 40"/>
+              <path d="M-80 64C-2 32 23 95 104 65s100-65 164-35 87 78 156 48 95-33 147-10"/>
+              <path d="M-80 92C-4 60 31 126 111 91s105-59 162-29 83 78 152 52 97-36 146-10"/>
+              <path d="M-80 121C-4 90 41 158 120 122s106-64 161-28 82 74 150 51 95-31 140-15"/>
+              <path d="M-80 153C-4 121 49 185 127 151s105-61 157-25 87 69 154 48 94-28 133-15"/>
+              <path d="M-80 187C-4 155 55 215 137 181s96-63 147-27 93 70 158 50 93-27 131-14"/>
+              <path d="M-80 220C-4 189 66 245 149 211s88-60 138-27 96 72 161 49 91-24 125-14"/>
+            </g>
+            <path d="M-5 198C87 184 130 185 206 139S343 119 400 63 461 18 523 29" fill="none" stroke="#ad9a77" stroke-width="22" opacity=".14"/>
+            <path d="M-5 198C87 184 130 185 206 139S343 119 400 63 461 18 523 29" fill="none" stroke="#d7b887" stroke-width="3" stroke-dasharray="1 0" opacity=".9"/>
+            <g stroke="#d9ddc4" fill="#d9ddc4"><circle cx="206" cy="139" r="5"/><circle cx="206" cy="139" r="13" fill="none" opacity=".6"/></g>
+          </svg>
+          <span class="dt-visual-caption">TERRAIN / ROADS / SETTLEMENTS</span>
+        </div>
+        <div class="dt-card-body">
+          <div class="dt-card-overline"><span class="dt-ready-dot"></span> READY TO USE <span>01</span></div>
+          <h3 id="dt-map-title">Map Editor</h3>
+          <p>Sculpt terrain, paint surfaces and shape the world. Roads, water, settlements and placement in one canvas.</p>
+          <span class="dt-open">Open Map Editor <span aria-hidden="true">↗</span></span>
+        </div>
+      </a>
+      <article class="dt-card dt-card-planned" aria-labelledby="dt-procgen-title">
+        <div class="dt-card-visual dt-procgen-visual" aria-hidden="true">
+          <svg viewBox="0 0 520 240" preserveAspectRatio="xMidYMid meet">
+            <g stroke="#718477" stroke-width="1" opacity=".16" fill="none">
+              <path d="M30 213H490M30 181H490M30 149H490M30 117H490M30 85H490M30 53H490"/>
+              <path d="M70 20V220M135 20V220M200 20V220M265 20V220M330 20V220M395 20V220M460 20V220"/>
+            </g>
+            <g stroke="#9baf93" stroke-linecap="round" fill="none">
+              <path d="M261 208V109m0 48-55-38m55 14 52-53m-52 23-10-49" stroke-width="8" opacity=".65"/>
+              <path d="M206 119l-30-35m30 35 4-40m103 1 25-31m-25 31 18 6m-80-32-21-24" stroke-width="4" opacity=".55"/>
+            </g>
+            <g fill="#708970" opacity=".38">
+              <circle cx="175" cy="74" r="38"/><circle cx="211" cy="54" r="43"/><circle cx="255" cy="48" r="47"/>
+              <circle cx="310" cy="57" r="43"/><circle cx="343" cy="85" r="37"/><circle cx="220" cy="95" r="36"/><circle cx="293" cy="105" r="36"/>
+            </g>
+            <g fill="none" stroke="#a4baa0" opacity=".42" stroke-width="1.5">
+              <circle cx="255" cy="94" r="84" stroke-dasharray="4 7"/>
+              <path d="M255 0V227M145 94h218"/>
+            </g>
+          </svg>
+          <span class="dt-visual-caption">PROCEDURAL GEOMETRY / ASSETS</span>
+        </div>
+        <div class="dt-card-body">
+          <div class="dt-card-overline"><span class="dt-planned-dot"></span> NEXT TOOL <span>02</span></div>
+          <h3 id="dt-procgen-title">Asset ProcGen</h3>
+          <p>Design reusable models from parameters and seeds. Trees, foliage and more, ready for the editor and game.</p>
+          <span class="dt-upcoming">PLANNED — NOT YET AVAILABLE</span>
+        </div>
+      </article>
+    </div>
+  </section>
+  <section class="dt-workspace" aria-labelledby="dt-workspace-heading">
+    <div><span class="dt-workspace-label" id="dt-workspace-heading">CURRENT MAP WORKSPACE</span><strong id="dt-map-name" aria-live="polite">Loading map…</strong></div>
+    <span class="dt-workspace-detail" id="dt-map-detail">Your tools run locally on this machine.</span>
+  </section>
+</main>
+<footer class="dt-footer"><span>1400 DEV TOOL</span><span>LOCAL FIRST <span aria-hidden="true">·</span> BUILT FOR MAKING WORLDS</span></footer>
+</body>
+</html>
