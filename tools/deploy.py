@@ -7,6 +7,9 @@ import os
 import shutil
 import sys
 import tempfile
+import uuid
+import zipfile
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,9 +47,14 @@ def package_files(repo: Path, name: str, target: Path) -> list[FileCopy]:
     if not name or name in {".", ".."} or Path(name).name != name:
         raise CopyError(f"Invalid package name: {name!r}")
 
-    package = repo / name
-    if package.is_symlink():
+    package_root = repo / name
+    if package_root.is_symlink():
         raise CopyError(f"Package directory may not be a symlink: {name}")
+
+    # Each deployable package owns a manifest.json at its root.
+    package = package_root
+    if package.is_symlink():
+        raise CopyError(f"Package directory may not be a symlink: {package}")
 
     package = package.resolve()
     if not package.is_dir():
@@ -88,185 +96,148 @@ def package_files(repo: Path, name: str, target: Path) -> list[FileCopy]:
     return result
 
 
-def project_packages(path: Path) -> list[tuple[str, Path]]:
-    path = path.resolve()
-    declared = read_manifest(path, "packages")
-
-    if not isinstance(declared, dict) or not declared:
-        raise CopyError(f"{path}: 'packages' must be a non-empty object.")
-
-    result: list[tuple[str, Path]] = []
-    for name, target in declared.items():
-        if not isinstance(name, str) or not name:
-            raise CopyError(f"{path}: package names must be non-empty strings.")
-        if not isinstance(target, str) or not target.strip():
-            raise CopyError(f"{path}: target for {name!r} must be a non-empty string.")
-
-        destination = Path(target).expanduser()
-        if not destination.is_absolute():
-            destination = path.parent / destination
-
-        result.append((name, destination.resolve()))
-
-    return result
-
-
-def collect_files(repo: Path, packages: list[tuple[str, Path]]) -> list[FileCopy]:
-    result: list[FileCopy] = []
-    destinations: set[Path] = set()
-
-    for name, target in packages:
-        for item in package_files(repo, name, target):
-            destination = item.destination.resolve(strict=False)
-            if destination in destinations:
-                raise CopyError(f"Multiple package files map to: {item.destination}")
-
-            destinations.add(destination)
-            result.append(item)
-
-    return result
-
-
-def classify(files: list[FileCopy]) -> tuple[list[FileCopy], list[FileCopy], list[FileCopy]]:
-    new: list[FileCopy] = []
-    identical: list[FileCopy] = []
-    changed: list[FileCopy] = []
-
-    for item in files:
-        target = item.destination
-
-        if target.is_symlink():
-            raise CopyError(f"Destination is a symlink: {target}")
-        if not target.exists():
-            new.append(item)
-        elif not target.is_file():
-            raise CopyError(f"Destination exists and is not a file: {target}")
-        elif same_contents(item.source, target):
-            identical.append(item)
-        else:
-            changed.append(item)
-
-    return new, identical, changed
-
-
-def same_contents(left: Path, right: Path) -> bool:
-    if left.stat().st_size != right.stat().st_size:
+def _name(value: str) -> bool:
+    if not isinstance(value, str) or not value or value != value.strip():
         return False
-
-    with left.open("rb") as a, right.open("rb") as b:
-        while chunk := a.read(1024 * 1024):
-            if chunk != b.read(len(chunk)):
-                return False
-        return not b.read(1)
-
-
-def parse_selection(text: str, maximum: int) -> set[int]:
-    if not text.strip():
-        raise ValueError("Selection cannot be empty.")
-
-    selected: set[int] = set()
-
-    for raw in text.split(","):
-        part = raw.strip()
-        if not part:
-            raise ValueError("Empty selection item.")
-
-        if "-" in part:
-            if part.count("-") != 1:
-                raise ValueError(f"Invalid range: {part}")
-
-            start_text, end_text = map(str.strip, part.split("-", 1))
-            if not start_text.isdigit() or not end_text.isdigit():
-                raise ValueError(f"Invalid range: {part}")
-
-            start, end = int(start_text), int(end_text)
-            if start > end:
-                raise ValueError(f"Range start is greater than range end: {part}")
-            numbers = range(start, end + 1)
-        else:
-            if not part.isdigit():
-                raise ValueError(f"Invalid selection: {part}")
-            numbers = (int(part),)
-
-        for number in numbers:
-            if not 1 <= number <= maximum:
-                raise ValueError(f"Selection out of range 1-{maximum}: {number}")
-            selected.add(number - 1)
-
-    return selected
+    if value in {".", ".."} or value.endswith(".") or any(c in value for c in '<>:"/\\|?*'):
+        return False
+    if any(ord(c) < 32 for c in value):
+        return False
+    return value.split(".", 1)[0].upper() not in {"CON", "PRN", "AUX", "NUL", *[f"COM{i}" for i in range(1, 10)], *[f"LPT{i}" for i in range(1, 10)]}
 
 
-def choose_overwrites(changed: list[FileCopy], yes: bool, display_base: Path) -> set[int] | None:
-    if not changed:
-        return set()
-    if yes:
-        return set(range(len(changed)))
+def project_packages(path: Path) -> list[tuple[str, Path, Path]]:
+    path = path.resolve()
+    values = read_manifest(path, "packages")
+    if not isinstance(values, dict) or not values:
+        raise CopyError(f"{path}: 'packages' must be a non-empty object.")
+    root = path.parent / "packages"
+    if root.is_symlink():
+        raise CopyError(f"Package root cannot be a symlink: {root}")
+    result = []
+    for name, folder in values.items():
+        if not _name(name) or not _name(folder) or folder.casefold() == "packages":
+            raise CopyError(f"Invalid package/folder: {name!r}: {folder!r}")
+        result.append((name, root / folder, path.parent / folder))
+    return result
 
-    print("Files that would be overwritten:\n")
-    for number, item in enumerate(changed, 1):
-        print(f"  {number}. {display_path(item.destination, display_base)}")
 
-    while True:
+BACKUP_ROOT = Path.home() / ".my-godot-collection" / "backups"
+
+
+def _backup(folder: Path) -> Path:
+    BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    archive_path = BACKUP_ROOT / f"{folder.name}-{stamp}-{uuid.uuid4().hex[:12]}.zip"
+    try:
+        with zipfile.ZipFile(archive_path, "x", zipfile.ZIP_DEFLATED) as archive:
+            for root, dirs, files in os.walk(folder, followlinks=False):
+                for entry in [*dirs, *files]:
+                    item = Path(root) / entry
+                    if item.is_symlink():
+                        raise CopyError(f"Refusing to back up symlink: {item}")
+                    rel = item.relative_to(folder.parent).as_posix()
+                    if item.is_dir():
+                        archive.writestr(rel + "/", "")
+                    else:
+                        archive.write(item, rel)
+    except Exception:
+        archive_path.unlink(missing_ok=True)
+        raise
+    return archive_path
+
+
+def _plans(repo: Path, specs: list[tuple[str, Path, Path | None]]) -> list[tuple[str, Path, Path | None, list[FileCopy]]]:
+    result = []
+    used: set[str] = set()
+    for name, target, legacy in specs:
+        if not _name(name):
+            raise CopyError(f"Invalid package name: {name!r}")
+        if target == repo.resolve() or target == Path(target.anchor) or (target / "project.godot").is_file():
+            raise CopyError(f"Refusing to replace project, repository, or filesystem root: {target}")
+        if target.is_symlink() or (target.exists() and not target.is_dir()):
+            raise CopyError(f"Destination is not a normal directory: {target}")
+        if legacy is not None and (legacy.is_symlink() or (legacy.exists() and not legacy.is_dir())):
+            raise CopyError(f"Legacy destination is not a normal directory: {legacy}")
+        legacy = legacy if legacy is not None and legacy.exists() else None
+        for location in [target, legacy]:
+            if location is None:
+                continue
+            norm = str(location.resolve(strict=False)).casefold()
+            if norm in used:
+                raise CopyError(f"Package destination overlaps another: {location}")
+            used.add(norm)
+        result.append((name, target, legacy, package_files(repo, name, target)))
+    return result
+
+
+def _stage(files: list[FileCopy], target: Path) -> Path:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    stage = Path(tempfile.mkdtemp(prefix=".deploy-stage-", dir=target.parent))
+    try:
+        for item in files:
+            relative = item.destination.relative_to(target)
+            output = stage / relative
+            output.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item.source, output)
+    except Exception:
+        shutil.rmtree(stage)
+        raise
+    return stage
+
+
+def _install(plans: list[tuple[str, Path, Path | None, list[FileCopy]]], yes: bool) -> bool:
+    print("Installing whole packages (these destination folders are managed):")
+    for name, target, old, _ in plans:
+        print(f"  {name} -> {target}")
+        if old is not None:
+            print(f"    retire legacy folder: {old}")
+    if not yes:
         try:
-            answer = input("\nOverwrite these files? [y/N/p]: ").strip().lower()
+            answer = input("Back up and replace these folders? [y/N]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print()
-            return None
+            return False
+        if answer not in {"y", "yes"}:
+            return False
 
-        if answer in {"", "n", "no"}:
-            return None
-        if answer in {"y", "yes"}:
-            return set(range(len(changed)))
-        if answer in {"p", "pick"}:
-            return pick_files(len(changed))
-
-        print("Please enter y, N, or p.")
-
-
-def pick_files(maximum: int) -> set[int] | None:
-    while True:
-        try:
-            text = input("Pick files to overwrite (e.g. 1, 3, 7-12): ")
-        except (EOFError, KeyboardInterrupt):
-            print()
-            return None
-
-        try:
-            return parse_selection(text, maximum)
-        except ValueError as exc:
-            print(f"Invalid selection: {exc}")
-
-
-def display_path(path: Path, base: Path) -> str:
+    stages: dict[Path, Path] = {}
+    moved: list[tuple[Path, Path]] = []
+    installed: list[Path] = []
     try:
-        return str(path.resolve(strict=False).relative_to(base.resolve()))
-    except ValueError:
-        return str(path)
-
-
-def copy_file(source: Path, destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-
-    temp: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as handle:
-            temp = Path(handle.name)
-
-        shutil.copy2(source, temp)
-        os.replace(temp, destination)
-        temp = None
+        for _, target, _, files in plans:
+            stages[target] = _stage(files, target)
+        # Every existing folder gets a complete off-project backup BEFORE the first swap.
+        for _, target, old, _ in plans:
+            for folder in [target, old]:
+                if folder is not None and folder.exists():
+                    print(f"  Backup: {_backup(folder)}")
+        try:
+            for _, target, old, _ in plans:
+                for folder in [target, old]:
+                    if folder is not None and folder.exists():
+                        rollback = Path(tempfile.mkdtemp(prefix=".deploy-old-", dir=folder.parent))
+                        rollback.rmdir()
+                        os.replace(folder, rollback)
+                        moved.append((folder, rollback))
+            for _, target, _, _ in plans:
+                os.replace(stages[target], target)
+                installed.append(target)
+        except Exception:
+            for target in reversed(installed):
+                shutil.rmtree(target)
+            for original, rollback in reversed(moved):
+                os.replace(rollback, original)
+            raise
     finally:
-        if temp is not None:
-            temp.unlink(missing_ok=True)
+        for stage in stages.values():
+            if stage.exists():
+                shutil.rmtree(stage)
 
-
-def validate_parents(files: list[FileCopy]) -> None:
-    for item in files:
-        parent = item.destination.parent
-        while not parent.exists() and parent != parent.parent:
-            parent = parent.parent
-        if parent.exists() and not parent.is_dir():
-            raise CopyError(f"Cannot create directory below a file: {item.destination.parent}")
+    for _, rollback in moved:
+        shutil.rmtree(rollback)
+    print(f"Deployed {len(plans)} package(s).")
+    return True
 
 
 def arguments(argv: list[str] | None) -> argparse.Namespace:
@@ -280,41 +251,15 @@ def arguments(argv: list[str] | None) -> argparse.Namespace:
 def run(argv: list[str] | None = None) -> int:
     args = arguments(argv)
     repo = Path(__file__).resolve().parent.parent
-
     if args.destination:
-        packages = [(args.source, Path(args.destination).expanduser().resolve())]
-        display_base = Path.cwd()
+        specs = [(args.source, Path(args.destination).expanduser().resolve(), None)]
     else:
-        package = repo / args.source
-        if package.is_dir() and (package / "manifest.json").is_file():
-            raise CopyError(
-                f"Destination missing for package {args.source!r}. "
-                f"Usage: deploy.py {args.source} <destination>"
-            )
-
-        manifest = Path(args.source).expanduser().resolve()
-        packages = project_packages(manifest)
-        display_base = manifest.parent
-
-    new, identical, changed = classify(collect_files(repo, packages))
-    overwrite = choose_overwrites(changed, args.yes, display_base)
-
-    if overwrite is None:
-        print("Cancelled. No files were changed.")
-        return 0
-
-    selected = [item for index, item in enumerate(changed) if index in overwrite]
-    validate_parents([*new, *selected])
-
-    for item in [*new, *selected]:
-        copy_file(item.source, item.destination)
-
-    print(
-        f"Copied: {len(new)}\n"
-        f"Overwritten: {len(selected)}\n"
-        f"Skipped identical: {len(identical)}\n"
-        f"Skipped by user: {len(changed) - len(selected)}"
-    )
+        if (repo / args.source / "manifest.json").is_file():
+            raise CopyError(f"Destination missing for package {args.source!r}.")
+        specs = project_packages(Path(args.source).expanduser())
+    plans = _plans(repo, specs)
+    if not _install(plans, args.yes):
+        print("Cancelled. No package directories changed.")
     return 0
 
 

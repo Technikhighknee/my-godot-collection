@@ -1,0 +1,112 @@
+{
+  "name": "Coastal Relief - Peninsula Test",
+  "terrain": {
+    "size": [
+      480,
+      360
+    ],
+    "heightmap": "assets/coastal_relief.height.exr",
+    "min_height": -12,
+    "max_height": 76,
+    "surface_map": "assets/coastal_relief.surface.png",
+    "surface_palette": [
+      "terrain.grass",
+      "terrain.dirt",
+      "terrain.rock"
+    ]
+  },
+  "roads": [
+    {
+      "id": "ridge_path",
+      "definition": "road.path",
+      "width": 3.6,
+      "points": [
+        [
+          233,
+          15
+        ],
+        [
+          234,
+          42
+        ],
+        [
+          237,
+          67
+        ],
+        [
+          241,
+          91
+        ],
+        [
+          244,
+          118
+        ],
+        [
+          247,
+          143
+        ],
+        [
+          247,
+          166
+        ],
+        [
+          243,
+          191
+        ],
+        [
+          239,
+          216
+        ],
+        [
+          238,
+          243
+        ],
+        [
+          241,
+          266
+        ],
+        [
+          245,
+          284
+        ]
+      ]
+    },
+    {
+      "id": "western_spur",
+      "definition": "road.path",
+      "width": 3,
+      "points": [
+        [
+          245,
+          165
+        ],
+        [
+          239,
+          178
+        ],
+        [
+          227,
+          188
+        ],
+        [
+          216,
+          196
+        ],
+        [
+          205,
+          211
+        ]
+      ]
+    }
+  ],
+  "settlements": [],
+  "water": [
+    {
+      "id": "southern_sea",
+      "definition": "water.sea",
+      "height": 0.5
+    }
+  ],
+  "buildings": [],
+  "objects": []
+}

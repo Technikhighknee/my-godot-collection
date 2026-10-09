@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="dark" name="color-scheme"/>
+<title>1400 · Map Editor</title>
+<link href="/style.css" rel="stylesheet"/>
+<script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+<script src="/app.js" type="module"></script>
+</head>
+<body>
+<div class="shell ux-shell">
+<header class="header">
+<div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
+<div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">SAVED</span></div>
+<button aria-controls="workspacePanel" aria-expanded="false" class="map-picker" id="workspaceToggle" title="Open maps and map settings" type="button"><span class="map-picker-mark">▤</span><span>Maps</span></button><div class="history-controls">
+<button disabled="" id="undo" title="Ctrl+Z" type="button">Undo</button>
+<button disabled="" id="redo" title="Ctrl+Shift+Z" type="button">Redo</button>
+<button class="save" disabled="" id="saveRoads" type="button">Save map</button>
+</div>
+</header>
+<main class="viewport" id="viewport">
+<div class="loading" id="loading"><span class="spinner"></span><span id="loadingText">Loading map geometry…</span></div>
+<div class="compass" id="compass">N <span>↑</span></div>
+<div class="probe" id="probe">MOVE OVER TERRAIN</div>
+<aside aria-label="Map workspace" class="workspace-drawer floating-panel" hidden="" id="workspacePanel">
+<div class="floating-head"><div><span class="eyebrow">WORKSPACE</span><h2>Maps &amp; settings</h2></div><button aria-label="Close maps" class="icon-button" id="closeWorkspace" type="button">×</button></div>
+<div class="drawer-scroll" id="workspaceContent"><section class="map-manager" id="mapManager">
+<h3>MAP WORKSPACE</h3>
+<label class="editor-label" for="workspaceMaps">LOCAL MAP FILES</label>
+<select aria-label="Maps in the current folder" id="workspaceMaps"></select>
+<div class="tool-row"><button id="openWorkspaceMap" type="button">Open selected</button><button id="refreshWorkspaceMaps" type="button">Refresh</button></div>
+<details id="newMapDetails">
+<summary>New map</summary>
+<label class="editor-label" for="newMapName">NAME</label><input id="newMapName" maxlength="100" type="text" value="New map"/>
+<label class="editor-label" for="newMapSlug">FILENAME (NO EXTENSION)</label><input id="newMapSlug" maxlength="48" pattern="[a-z0-9][a-z0-9_-]*" type="text" value="new_map"/>
+<div class="coordinate-inputs">
+<label class="editor-label" for="newMapWidth">WIDTH (M)<input id="newMapWidth" max="8192" min="1" type="number" value="480"/></label>
+<label class="editor-label" for="newMapDepth">DEPTH (M)<input id="newMapDepth" max="8192" min="1" type="number" value="360"/></label>
+</div>
+<div class="coordinate-inputs">
+<label class="editor-label" for="newMapSamplesX">HEIGHT SAMPLES X<input id="newMapSamplesX" max="1025" min="2" step="1" type="number" value="257"/></label>
+<label class="editor-label" for="newMapSamplesZ">HEIGHT SAMPLES Z<input id="newMapSamplesZ" max="1025" min="2" step="1" type="number" value="257"/></label>
+</div>
+<div class="coordinate-inputs">
+<label class="editor-label" for="newMapMinHeight">MIN HEIGHT (M)<input id="newMapMinHeight" type="number" value="-20"/></label>
+<label class="editor-label" for="newMapMaxHeight">MAX HEIGHT (M)<input id="newMapMaxHeight" type="number" value="80"/></label>
+</div>
+<label class="editor-label" for="newMapPalette">SURFACE IDS (ONE PER LINE)</label>
+<textarea id="newMapPalette" rows="3" spellcheck="false">terrain.grass
+terrain.dirt
+terrain.rock</textarea>
+<button id="createWorkspaceMap" type="button">Create and open map</button>
+</details>
+<details id="mapSettingsDetails">
+<summary>Map settings</summary>
+<label class="editor-label" for="settingsName">MAP NAME</label><input id="settingsName" maxlength="100" type="text"/>
+<div class="coordinate-inputs">
+<label class="editor-label" for="settingsMinHeight">MIN HEIGHT (M)<input id="settingsMinHeight" type="number"/></label>
+<label class="editor-label" for="settingsMaxHeight">MAX HEIGHT (M)<input id="settingsMaxHeight" type="number"/></label>
+</div>
+<label class="editor-label" for="settingsPalette">SURFACE IDS (ONE PER LINE)</label><textarea id="settingsPalette" rows="3" spellcheck="false"></textarea>
+<div class="point-info">World size and pixel resolution cannot be changed after creation. Palette order determines each cell's meaning.</div>
+<button id="applyMapSettings" type="button">Save map settings</button>
+</details>
+<details id="mapAssetsDetails"><summary>Active assets</summary><div class="point-info" id="mapAssetPaths"></div></details>
+</section><section class="information">
+<div class="thumb-title">CURRENT DOCUMENT</div>
+<h2 id="panelName">—</h2>
+<p id="documentPath">Loaded from local Node.js server</p>
+<div class="stats">
+<div><span>AREA</span><strong id="sizeStat">—</strong></div>
+<div><span>HEIGHT GRID</span><strong id="gridStat">—</strong></div>
+<div><span>ELEVATION</span><strong id="elevationStat">—</strong></div>
+<div><span>SURFACES</span><strong id="surfaceStat">—</strong></div>
+</div>
+</section></div>
+</aside><div aria-label="View controls" class="view-tools">
+<button aria-controls="viewPanel" aria-expanded="false" class="view-button" id="viewToggle" title="Layers and display settings" type="button"><span aria-hidden="true">▧</span> Layers</button>
+<button aria-controls="settingsPanel" aria-expanded="false" class="view-button" id="settingsToggle" title="Grid and editing preferences" type="button"><span aria-hidden="true">⚙</span> Grid</button>
+<button class="view-button" id="resetCamera" title="Focus map (F)" type="button">Focus <kbd>F</kbd></button>
+</div><aside aria-label="Display layers" class="floating-panel utility-panel" hidden="" id="viewPanel"><div class="floating-head"><div><span class="eyebrow">DISPLAY</span><h2>Layers</h2></div><button aria-label="Close layers" class="icon-button" id="closeView" type="button">×</button></div><section class="layers">
+<h3>DISPLAY LAYERS</h3>
+<label class="switch"><input checked="" id="surfaces" type="checkbox"/><span>Surface palette</span><small>Color preview</small></label>
+<label class="switch"><input id="wireframe" type="checkbox"/><span>Terrain wireframe</span><small>Triangle grid</small></label>
+<label class="switch"><input checked="" id="roads" type="checkbox"/><span>Roads</span><small id="roadsCount">—</small></label>
+<label class="switch"><input checked="" id="water" type="checkbox"/><span>Water</span><small id="waterCount">—</small></label>
+<label class="switch"><input checked="" id="settlements" type="checkbox"/><span>Build areas</span><small id="settlementsCount">—</small></label>
+<label class="switch"><input checked="" id="entities" type="checkbox"/><span>Entity markers</span><small id="entitiesCount">—</small></label>
+</section><section class="legend"><h3>SURFACE DEFINITIONS</h3><div class="palette" id="palette"></div></section></aside><aside aria-label="Editing preferences" class="floating-panel utility-panel" hidden="" id="settingsPanel"><div class="floating-head"><div><span class="eyebrow">PREFERENCES</span><h2>Snap &amp; precision</h2></div><button aria-label="Close grid settings" class="icon-button" id="closeSettings" type="button">×</button></div><section class="workflow-editor">
+<h3>EDITING WORKFLOW</h3>
+<label class="switch"><input id="gridSnap" type="checkbox"/><span>Snap to grid</span><small>Alt bypass</small></label>
+<label class="editor-label" for="gridStep">GRID SPACING (METERS)</label>
+<input id="gridStep" max="100" min="0.25" step="0.25" type="number" value="1"/>
+<button disabled="" id="duplicateSelected" type="button">Duplicate selection <kbd>D</kbd></button>
+<p class="workflow-hint">1–5 Tools · Q/E Subtool · G Snap · D Duplicate at cursor · R Rotate · F Focus · Space+drag Pan. Shift+click multi-selects markers.</p>
+</section></aside><aside aria-label="Tool settings" class="tool-inspector floating-panel" hidden="" id="toolPanel">
+<div class="floating-head"><div><span class="eyebrow" id="toolEyebrow">TOOL 1</span><h2 id="toolTitle">Select</h2></div><button aria-label="Hide tool settings" class="icon-button" id="collapseToolPanel" title="Hide tool panel" type="button">×</button></div>
+<div aria-label="Drawing type" class="mode-tabs" hidden="" id="drawModeTabs" role="group"><button id="drawRoadsTab" type="button">Roads</button><button id="drawAreasTab" type="button">Build areas</button></div>
+<div aria-label="Placement type" class="mode-tabs" hidden="" id="placeModeTabs" role="group"><button id="placeEntitiesTab" type="button">Buildings &amp; objects</button><button id="placeLakesTab" type="button">Water</button></div>
+<div class="selection-hint" hidden="" id="selectionHint">Select a building, object, road or build area on the map to inspect it.</div>
+<div class="inspector-scroll" id="inspectorContent"><section class="road-editor" id="roadEditor"><p class="section-intro">Click a road to select it. Drag its handles to shape it.</p>
+<div class="legacy-controls" hidden="">
+<button class="active" id="modeNavigate" type="button">Navigate</button>
+<button id="modeEdit" type="button">Edit roads</button>
+</div>
+<label class="editor-label" for="roadSelect">SELECTED ROAD</label>
+<select aria-label="Selected road" id="roadSelect"></select>
+<div class="tool-row"><button id="newRoad" type="button">New road</button><button id="deleteRoad" type="button">Delete road</button></div>
+<label class="editor-label" for="roadWidth">WIDTH (METERS)</label>
+<input id="roadWidth" max="100" min="0.1" step="0.1" type="number" value="3"/>
+<div class="tool-row"><button id="appendPoint" type="button">Append</button><button id="insertPoint" type="button">Insert</button><button id="deletePoint" type="button">Remove point</button></div>
+<div class="coordinate-inputs">
+<label class="editor-label" for="roadPointX">POINT X (M)<input id="roadPointX" step="0.01" type="number"/></label>
+<label class="editor-label" for="roadPointZ">POINT Z (M)<input id="roadPointZ" step="0.01" type="number"/></label>
+</div>
+<div class="tool-row"><button id="applyRoadPoint" type="button">Apply point coordinates</button></div>
+<div class="point-info" id="pointInfo">Select a point to move it.</div>
+</section><section class="polygon-editor"><p class="section-intro">Draw closed build areas; drag a vertex to edit its outline.</p>
+<div class="legacy-controls" hidden=""><button id="modePolygons" type="button">Edit polygons</button><button id="insertPolygonPoint" type="button">Insert vertex</button></div>
+<label class="editor-label" for="polygonSelect">SELECTED POLYGON</label>
+<select id="polygonSelect"></select>
+<label class="editor-label" for="polygonName" id="polygonNameLabel">SETTLEMENT NAME</label>
+<input autocomplete="off" id="polygonName" maxlength="200" spellcheck="false" type="text"/>
+<div class="tool-row"><button id="newSettlement" type="button">New settlement</button><button id="addBuildArea" type="button">Add area</button></div>
+<div class="tool-row"><button id="applyPolygon" type="button">Apply properties</button><button id="deletePolygon" type="button">Delete polygon</button></div>
+<div class="tool-row"><button id="deletePolygonPoint" type="button">Remove vertex</button></div>
+<div class="tool-row"><button hidden="" id="finishPolygon" type="button">Finish polygon</button><button hidden="" id="cancelPolygon" type="button">Cancel drawing</button></div>
+<div class="coordinate-inputs">
+<label class="editor-label" for="polygonPointX">VERTEX X (M)<input id="polygonPointX" step="0.01" type="number"/></label>
+<label class="editor-label" for="polygonPointZ">VERTEX Z (M)<input id="polygonPointZ" step="0.01" type="number"/></label>
+</div>
+<div class="tool-row"><button id="applyPolygonPoint" type="button">Apply vertex coordinates</button></div>
+<div class="point-info" id="polygonInfo">Select or draw a closed polygon.</div>
+</section><section class="entity-editor"><p class="section-intro">Select a definition, then click terrain to place.</p>
+<div class="legacy-controls" hidden=""><button id="modeEntities" type="button">Edit markers</button><button id="placeEntity" type="button">Place marker</button></div>
+<label class="editor-label" for="entityKind">TYPE</label>
+<select id="entityKind"><option value="buildings">Building</option><option value="objects">Object</option></select>
+<label class="editor-label" for="entitySelect">SELECTED MARKER</label>
+<select aria-label="Selected marker" id="entitySelect"></select>
+<label class="editor-label" for="entityDefinition">DEFINITION ID</label>
+<input autocomplete="off" id="entityDefinition" list="buildingDefinitionChoices" maxlength="200" placeholder="e.g. building.house" spellcheck="false" type="text"/>
+<datalist id="buildingDefinitionChoices"></datalist>
+<div class="entity-position-row">
+<label class="editor-label" for="entityX">X (METERS)<input id="entityX" step="0.01" type="number" value="0"/></label>
+<label class="editor-label" for="entityZ">Z (METERS)<input id="entityZ" step="0.01" type="number" value="0"/></label>
+</div>
+<label class="editor-label" for="entityRotation">ROTATION (DEGREES)</label>
+<input id="entityRotation" step="1" type="number" value="0"/>
+<div class="tool-row"><button id="applyEntity" type="button">Apply properties</button><button id="deleteEntity" type="button">Delete marker</button></div>
+<div class="point-info" id="entityInfo">Select a marker or place a new one.</div>
+<div aria-live="polite" class="point-info placement-status" id="placementInfo">Building placement rules are loaded from placement-definitions.json.</div>
+</section><section class="water-editor"><p class="section-intro">The shoreline follows terrain height. Lakes fill a connected basin from a source.</p>
+<p class="point-info">The sea floods connected terrain below its level. Lakes fill connected basins from a source point. Shape the shoreline with Sculpt.</p>
+<label class="editor-label" for="seaLevel">SEA LEVEL (METERS)</label>
+<input id="seaLevel" step="0.5" type="number" value="0"/>
+<button id="seaApply" type="button">Apply sea level</button>
+<label class="editor-label" for="lakeSelect">LAKE SOURCES</label>
+<select id="lakeSelect"></select>
+<button id="lakePlace" type="button">Place lake source</button>
+<label class="editor-label" for="lakeLevel">LAKE LEVEL (METERS)</label>
+<input id="lakeLevel" step="0.5" type="number"/>
+<div class="coordinate-inputs">
+<label class="editor-label" for="lakeX">SOURCE X<input id="lakeX" step="0.01" type="number"/></label>
+<label class="editor-label" for="lakeZ">SOURCE Z<input id="lakeZ" step="0.01" type="number"/></label>
+</div>
+<div class="tool-row"><button id="lakeApply" type="button">Apply lake</button><button id="lakeDelete" type="button">Remove lake</button></div>
+<div class="point-info" id="lakeInfo"></div>
+</section><section class="terrain-editor"><div class="legacy-controls" hidden=""><button id="modeSculpt" type="button">Sculpt</button><button id="modePaint" type="button">Paint</button></div>
+<label class="editor-label" for="sculptMode">SCULPT MODE</label><div aria-label="Sculpt mode" class="sculpt-options" id="sculptOptions" role="group">
+<button aria-pressed="true" data-sculpt-kind="raise" type="button">Raise</button>
+<button aria-pressed="false" data-sculpt-kind="lower" type="button">Lower</button>
+<button aria-pressed="false" data-sculpt-kind="smooth" type="button">Smooth</button>
+<button aria-pressed="false" data-sculpt-kind="flatten" type="button">Flatten</button>
+</div>
+<select class="native-select" id="sculptMode"><option value="raise">Raise</option><option value="lower">Lower</option><option value="smooth">Smooth</option><option value="flatten">Flatten</option></select>
+<label class="editor-label" for="brushSurface">PAINT SURFACE</label>
+<select class="native-select" id="brushSurface"></select><div aria-label="Paint surface" class="surface-choices" id="surfaceChoices" role="group"></div>
+<label class="editor-label" for="brushRadius">BRUSH RADIUS (METERS)</label><input aria-label="Brush radius slider" class="range-control" id="brushRadiusSlider" max="100" min="0.5" step="0.5" type="range" value="10"/>
+<input id="brushRadius" max="100" min="0.5" step="0.5" type="number" value="10"/>
+<label class="editor-label" for="brushStrength">BRUSH STRENGTH</label><input aria-label="Brush strength slider" class="range-control" id="brushStrengthSlider" max="50" min="0.1" step="0.1" type="range" value="2"/>
+<input id="brushStrength" max="50" min="0.1" step="0.1" type="number" value="2"/>
+<div class="point-info" id="terrainStatus">NO UNSAVED CHANGES</div>
+</section></div>
+</aside><nav aria-label="Editor tools" class="hotbar" id="hotbar">
+<button aria-keyshortcuts="1" aria-pressed="true" class="hotbar-slot is-active" data-tool="select" type="button"><kbd>1</kbd><span aria-hidden="true" class="tool-icon"><svg fill="none" height="27" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="27"><path d="m5 3 13 11-7 1-3.5 6L5 3Z"></path><path d="m11 15 3 5"></path></svg></span><span class="tool-label">Select</span></button>
+<button aria-keyshortcuts="2" aria-pressed="false" class="hotbar-slot" data-tool="sculpt" type="button"><kbd>2</kbd><span aria-hidden="true" class="tool-icon"><svg fill="none" height="27" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="27"><path d="m2 19 7-13 4 7 3-4 6 10H2Z"></path><path d="m9 6 3 9"></path></svg></span><span class="tool-label">Sculpt</span></button>
+<button aria-keyshortcuts="3" aria-pressed="false" class="hotbar-slot" data-tool="paint" type="button"><kbd>3</kbd><span aria-hidden="true" class="tool-icon"><svg fill="none" height="27" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="27"><path d="m13 4 7 7-9 9H4v-7l9-9Z"></path><path d="m11 6 7 7M4 20l7-7"></path></svg></span><span class="tool-label">Paint</span></button>
+<button aria-keyshortcuts="4" aria-pressed="false" class="hotbar-slot" data-tool="draw" type="button"><kbd>4</kbd><span aria-hidden="true" class="tool-icon"><svg fill="none" height="27" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="27"><circle cx="5" cy="6" r="2"></circle><circle cx="19" cy="18" r="2"></circle><path d="M7 6h5a3 3 0 0 1 3 3v3a3 3 0 0 0 3 3M6 8v12"></path></svg></span><span class="tool-label">Draw</span></button>
+<button aria-keyshortcuts="5" aria-pressed="false" class="hotbar-slot" data-tool="place" type="button"><kbd>5</kbd><span aria-hidden="true" class="tool-icon"><svg fill="none" height="27" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="27"><path d="M3 21V7l9-4 9 4v14H3Z"></path><path d="M9 21v-8h6v8M3 9l9 4 9-4"></path></svg></span><span class="tool-label">Place</span></button>
+</nav><div aria-live="off" class="interaction-hint" id="interactionHint">LMB Select <span>·</span> MMB Orbit <span>·</span> RMB Pan <span>·</span> Wheel Zoom</div><div aria-live="polite" class="editor-message message-toast" id="editorMessage" role="status">Edit terrain or roads, then save the map.</div></main>
+</div>
+</body>
+</html>

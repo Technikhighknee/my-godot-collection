@@ -5,50 +5,71 @@ Some Godot bits and bobs.
 ## Collection
 
 - [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
+- [Map System](map_system/) — deployable Godot map runtime and portable map format.
+- [Dev Tool](dev_tool/) — local Node.js development tools, currently including the browser-based Map Editor.
 
-## Copy tool
+## Deploy tool
 
 >You're probably thinking, “Jason... why don't you just copy them by hand?”
 >No. That primitive act of manually moving files is personally insulting to me. I need manifest files, byte-by-byte comparison, selective conflict resolution, and atomic writes.
 
-Each package declares its files in a local `manifest.json`.
-
-Copy one package to any directory:
-
-```bash
-python tools/deploy.py strategy_camera "D:\\Projects\\MyGame\\camera"
-```
-
-If existing destination files differ, the tool lists only those files and asks:
-
-```text
-Overwrite these files? [y/N/p]:
-```
-
-- `y` overwrites all listed files.
-- `N` cancels without changing anything.
-- `p` lets you pick individual files using numbers and ranges such as `1, 2, 6-9, 14`.
-- `-y` skips the prompt and overwrites all differing existing files.
-
-Identical files are skipped.
-
-A project can also contain a manifest that maps packages to target directories:
+Each deployable Godot package declares its files in `manifest.json` (for Map System: `map_system/manifest.json`). The project manifest
+chooses the installed folder names, and `deploy.py` installs **entire packages** into
+`packages/` next to the project manifest:
 
 ```json
 {
   "packages": {
-    "strategy_camera": "src/camera"
+    "strategy_camera": "StrategyCamera",
+    "map_system": "MapSystem"
   }
 }
 ```
 
-Then copy everything declared there with:
+Running:
 
-```bash
-python tools/deploy.py "D:\\Projects\\MyGame\\manifest.json"
+```powershell
+python .\tools\deploy.py C:\Users\posch\Documents\1400\manifest.json -y
 ```
 
-Relative target paths are resolved from the project manifest's directory.
+installs `packages/StrategyCamera/` and `packages/MapSystem/` in that Godot project.
+Names and casing come from the values in the manifest; the keys identify repository packages.
+Manifest values are single folder names, not arbitrary paths. Files in the package are
+installed with their internal relative layout intact.
+
+**Owned directories:** the installed package folders are disposable copies, not workspaces.
+The installer stages a complete replacement, saves the entire existing folder as a ZIP under
+`~/.my-godot-collection/backups/` (outside the Godot project), and then swaps the directory.
+Local edits and extra files are preserved **in that backup**, not mixed with the new package.
+`-y` skips confirmation but NEVER skips backups. If preparation or backup fails, nothing is
+replaced; a swap failure attempts to restore the previous directory.
+
+On the first new-style deploy, the older `MapSystem/` and `StrategyCamera/` folders next
+to the project manifest are also backed up and retired to avoid duplicate Godot `class_name`
+declarations. Other project folders are untouched. Update any game paths from
+`res://MapSystem/...` to `res://packages/MapSystem/...` and likewise for the camera.
+
+For a single package, you can still supply its **exact managed folder** directly:
+
+```powershell
+python .\tools\deploy.py map_system C:\Projects\Game\packages\MapSystem -y
+```
+
+A missing `-y` prompts once before replacing directories. This is an intentionally
+opinionated installer, not a per-file synchronizer. Do not use a project root as a destination.
+
+## Godot scene and resource files
+
+For `.tscn` and `.tres` files authored outside the Godot editor, use
+**relative paths** for references to files within the same package, so the
+project manifest can freely choose the installed folder name. Keep
+`ExtResource` and `SubResource` IDs local and unique within their file.
+Do **not** invent `uid="uid://..."` values or node `unique_id` values.
+If globally stable resource UIDs are needed, let Godot generate them and
+commit its real metadata. Godot may rewrite relative paths to `res://` paths
+when it saves a scene in the editor; check before committing that change
+back into a relocatable package.
+
 
 ---
 
