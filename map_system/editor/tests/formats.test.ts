@@ -83,10 +83,10 @@ test('rejects ID duplicates, bad points, surface indices and unsafe paths', asyn
   fail(()=>serializeMap(doc),/outside palette/);
 });
 
-test('rejects polygon self intersections and nonfinite map numbers', async () => {
+test('rejects invalid water sources and nonfinite map numbers', async () => {
   const doc=structuredClone((await loadMap(fixture)).map);
-  doc.water[0].polygon=[[0,0],[10,10],[0,10],[10,0]];
-  fail(()=>validateMap(doc),/self-intersects|zero area/);
+  doc.water[0] = { id: 'bad-lake', definition: 'water.lake', height: 4, source: [1000, 1000] };
+  fail(()=>validateMap(doc),/Invalid lake source/);
   doc.water=[];doc.roads[0].width=NaN;
   fail(()=>validateMap(doc),/finite/);
 });

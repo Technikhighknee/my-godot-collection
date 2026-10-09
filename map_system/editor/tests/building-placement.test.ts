@@ -18,11 +18,11 @@ function scene() {
     map: {
       terrain:{size:[100,100],min_height:0,max_height:100},
       roads:[{id:'road1',width:3,points:[[10,25],[90,25]]}],
-      water:[{id:'lake',polygon:[[60,60],[90,60],[90,90],[60,90]]}],
+      water:[{id:'lake',definition:'water.lake',height:45,source:[100,100]}],
       settlements:[{id:'town',build_areas:[[[10,10],[90,10],[90,90],[10,90]]]}],
       buildings:[],
     },
-    height:{width:3,height:3,data:new Float32Array(9).fill(0.5)},
+    height:{width:3,height:3,data:new Float32Array([0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.2])},
     definitions:catalog,
   };
 }
@@ -49,7 +49,7 @@ test('inside build area, water, road, neighbour, slope and road-distance checks'
   const doc=scene();
   assert.equal(checkBuildingPlacement(doc,house,entity([40,40])).valid,true);
   assert.equal(checkBuildingPlacement(doc,house,entity([8,40])).reason,'outside_build_area');
-  assert.equal(checkBuildingPlacement(doc,house,entity([65,65])).reason,'overlaps_water');
+  assert.equal(checkBuildingPlacement(doc,house,entity([85,85])).reason,'overlaps_water');
   assert.equal(checkBuildingPlacement(doc,house,entity([40,27])).reason,'overlaps_road');
   assert.equal(checkBuildingPlacement(doc,house,entity([42,42],'house2'),[entity([40,40])]).reason,'overlaps_building');
   assert.equal(checkBuildingPlacement(doc,house,entity([40,78])).reason,'road_too_far');

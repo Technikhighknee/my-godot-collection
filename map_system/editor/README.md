@@ -20,7 +20,7 @@ Open <http://127.0.0.1:4371/>. The Map Workspace panel can open or create maps i
 npm start -- ../godot/example.map.json --port 4372
 ```
 
-## Map workspace (M8)
+## Map workspace
 
 - **Open:** choose an existing `*.map.json` from the active map folder; opening another map reloads the editor. Unsaved changes require confirmation.
 - **Create:** provide a new lowercase filename slug, name, physical dimensions, height-sample grid, height range and surface palette. New maps start with flat terrain at elevation 0 (clamped to the configured range), and the first palette entry across every cell. The editor writes EXR/PNG/JSON without overwriting existing paths and registers all three files in a present Godot deployment manifest.
@@ -37,7 +37,8 @@ The workspace is intentionally limited to one directory and does **not** expose 
 - **Tool keys:** `V` navigate, `R` roads, `E` markers, `G` polygons, `H` sculpt, `P` paint; `Esc` cancels a drag/draft. Shortcuts do not intercept focused inputs.
 - **Navigate:** left drag to orbit, right drag to pan, wheel to zoom, `F` to reset.
 - **Edit roads:** select, create, move points, insert/append, delete or change width.
-- **Water & settlements:** draw closed polygons, edit/insert/remove vertices, create settlements with multiple build areas, adjust water heights and definitions, rename settlements or remove polygons. Finish with `Enter` (or click the first point), `Esc` cancels. Invalid and self-intersecting polygons cannot be committed.
+- **Water:** set a single global sea level and click the terrain to place lake sources with independent water levels. Ocean water only reaches terrain below sea level connected to a submerged boundary; lakes flood terrain reachable from their point. Shorelines derive from the triangular heightmap and react to Sculpt edits. No freehand water polygons. A lake source must remain below its water level. Existing polygon-water maps must be migrated.
+- **Settlements:** draw closed build-area polygons, edit/insert/remove vertices, create settlements with multiple build areas, rename or remove areas. Finish with `Enter` (or click the first point), `Esc` cancels. Invalid and self-intersecting polygons cannot be committed.
 - **Buildings & objects:** select visible markers, drag them to new positions, change definition/rotation, place or delete markers. New IDs are generated automatically; type a real definition ID before placing.
 - **Sculpt:** raise, lower, smooth or flatten with a circular brush. Flatten samples the height at stroke start.
 - **Paint:** choose a surface definition and paint its categorical cell IDs.
@@ -99,3 +100,14 @@ Godot uses `Geometry2D.offset_polyline` miter geometry. The Godot runtime is
 still authoritative at this boundary; the preview is not a pixel-exact
 replacement for Godot geometry. Editor preview is geometry, not a rendered
 building model. This feature does **not** make the editor a building modeller.
+
+## Terrain-derived water format
+
+```json
+"water": [
+  { "id": "sea", "definition": "water.sea", "height": 0 },
+  { "id": "hill_lake", "definition": "water.lake", "height": 18, "source": [140, 90] }
+]
+```
+
+The lake coordinate is illustrative: it must lie strictly below its water level in the actual map. Maps may omit the sea (`"water": []`). Coastline geometry and water collision are derived, never serialized as polygons. Sea flooding starts from submerged map boundaries; lakes from their source triangle. Lakes and seas are static and require no fluid simulation. Water levels do not sculpt terrain. **Legacy `water[].polygon` maps are not backward-compatible** and require an explicit migration. Rivers are a future separate feature.

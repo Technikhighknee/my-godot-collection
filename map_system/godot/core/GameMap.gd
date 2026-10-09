@@ -6,6 +6,7 @@ var data: Dictionary;
 var source_path: String;
 var terrain: TerrainHeightField;
 var terrain_surfaces: TerrainSurfaceField;
+var water_regions: Array = [];
 
 
 func _init(

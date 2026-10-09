@@ -1,3 +1,4 @@
+import { validateWaterSources } from './water-field.mjs';
 // Geometry for map-space, closed polygons. No implicit closing vertex in the JSON.
 const finite = n => typeof n === 'number' && Number.isFinite(n);
 const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
@@ -43,23 +44,17 @@ const nonEmpty = s => typeof s === 'string' && s.trim().length > 0;
 
 export function validatePolygons(kind, entries, size, occupiedIds = []) {
   if (!['water', 'settlements'].includes(kind) || !Array.isArray(entries)) throw new Error('Invalid polygon collection');
+  if (kind === 'water') return validateWaterSources(entries, size, occupiedIds);
   const ids = new Set(occupiedIds);
   for (const item of entries) {
     if (!item || typeof item !== 'object' || Array.isArray(item) || !nonEmpty(item.id) || ids.has(item.id)) {
       throw new Error('Invalid polygon: missing or duplicate ID');
     }
     ids.add(item.id);
-    if (kind === 'water') {
-      if (!hasOnly(item, ['id', 'definition', 'height', 'polygon']) || !nonEmpty(item.definition) || !finite(item.height)) {
-        throw new Error('Invalid water properties');
-      }
-      validatePolygon(item.polygon, size);
-    } else {
-      if (!hasOnly(item, ['id', 'name', 'build_areas']) || !nonEmpty(item.name) || !Array.isArray(item.build_areas) || item.build_areas.length === 0) {
-        throw new Error('Invalid settlement properties');
-      }
-      for (const area of item.build_areas) validatePolygon(area, size);
+    if (!hasOnly(item, ['id', 'name', 'build_areas']) || !nonEmpty(item.name) || !Array.isArray(item.build_areas) || item.build_areas.length === 0) {
+      throw new Error('Invalid settlement properties');
     }
+    for (const area of item.build_areas) validatePolygon(area, size);
   }
   return entries;
 }

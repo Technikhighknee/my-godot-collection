@@ -4,6 +4,7 @@
     "io/MapImageLoader.gd",
     "terrain/TerrainHeightField.gd",
     "terrain/TerrainGeometry.gd",
+    "terrain/WaterGeometry.gd",
     "core/GameMap.gd",
     "core/GameMapLoader.gd",
     "rendering/GameMapBuilder.gd",

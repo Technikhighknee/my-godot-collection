@@ -159,33 +159,5 @@
       "rotation": 0
     }
   ],
-  "water": [
-    {
-      "id": "north_pond",
-      "height": 9.5,
-      "polygon": [
-        [
-          158,
-          0
-        ],
-        [
-          212,
-          0
-        ],
-        [
-          216,
-          19
-        ],
-        [
-          190,
-          25
-        ],
-        [
-          160,
-          19
-        ]
-      ],
-      "definition": "water.pond"
-    }
-  ]
+  "water": []
 }

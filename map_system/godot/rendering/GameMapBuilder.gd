@@ -55,7 +55,7 @@ static func build(
 		return null;
 	root.add_child(roads);
 
-	var water := _build_water(map_data["water"], material_provider);
+	var water := _build_water(game_map.water_regions, material_provider);
 	if water == null:
 		root.free();
 		return null;
@@ -454,60 +454,43 @@ static func _emit_road_triangle(
 	return true;
 
 
-static func _build_water(entries: Array, material_provider: Callable) -> Node3D:
+static func _build_water(regions: Array, material_provider: Callable) -> Node3D:
 	var root := Node3D.new();
 	root.name = "Water";
 
-	for value in entries:
-		var entry: Dictionary = value;
-		var polygon := _polygon(entry["polygon"]);
-		var indices := Geometry2D.triangulate_polygon(polygon);
-		if indices.is_empty():
-			push_error("Could not triangulate water geometry: %s" % entry["id"]);
-			root.free();
-			return null;
-
+	for entry_value in regions:
+		var region: Dictionary = entry_value;
+		var vertices: PackedVector3Array = region["vertices"];
+		if vertices.is_empty():
+			continue;
 		var surface := SurfaceTool.new();
 		surface.begin(Mesh.PRIMITIVE_TRIANGLES);
-		var height := float(entry["height"]);
-
-		for index in range(0, indices.size(), 3):
-			var points := [
-				polygon[indices[index]],
-				polygon[indices[index + 1]],
-				polygon[indices[index + 2]],
-			];
-			var vertices := [
-				Vector3(points[0].x, height, points[0].y),
-				Vector3(points[1].x, height, points[1].y),
-				Vector3(points[2].x, height, points[2].y),
-			];
-			var normal: Vector3 = (vertices[1] - vertices[0]).cross(vertices[2] - vertices[0]);
-			if normal.y > 0.0:
-				var swap: Vector3 = vertices[1];
-				vertices[1] = vertices[2];
-				vertices[2] = swap;
-
-			for vertex in vertices:
-				surface.set_uv(Vector2(vertex.x, vertex.z));
+		for index in range(0, vertices.size(), 3):
+			var a := vertices[index];
+			var b := vertices[index + 1];
+			var c := vertices[index + 2];
+			if (b - a).cross(c - a).y > 0.0:
+				var swap := b;
+				b = c;
+				c = swap;
+			for point in [a, b, c]:
+				surface.set_uv(Vector2(point.x, point.z));
 				surface.set_normal(Vector3.UP);
-				surface.add_vertex(vertex);
-
+				surface.add_vertex(point);
+		var mesh := surface.commit();
+		if mesh == null:
+			push_error("Could not build water: %s" % region["id"]);
+			root.free();
+			return null;
 		var mesh_instance := MeshInstance3D.new();
-		mesh_instance.name = String(entry["id"]);
-		mesh_instance.mesh = surface.commit();
-		var material := _resolve_material(
-			"water",
-			String(entry["definition"]),
-			0,
-			material_provider
-		);
+		mesh_instance.name = String(region["id"]);
+		mesh_instance.mesh = mesh;
+		var material := _resolve_material("water", String(region["definition"]), 0, material_provider);
 		if material == null:
 			root.free();
 			return null;
 		mesh_instance.material_override = material;
 		root.add_child(mesh_instance);
-
 	return root;
 
 

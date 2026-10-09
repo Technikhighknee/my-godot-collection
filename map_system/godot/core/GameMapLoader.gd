@@ -6,7 +6,8 @@ const ROOT_KEYS := ["name", "terrain", "roads", "settlements", "water", "buildin
 const TERRAIN_KEYS := ["size", "heightmap", "min_height", "max_height", "surface_map", "surface_palette"];
 const ROAD_KEYS := ["id", "definition", "width", "points"];
 const SETTLEMENT_KEYS := ["id", "name", "build_areas"];
-const WATER_KEYS := ["id", "definition", "height", "polygon"];
+const WATER_SEA_KEYS := ["id", "definition", "height"];
+const WATER_LAKE_KEYS := ["id", "definition", "height", "source"];
 const ENTITY_KEYS := ["id", "definition", "position", "rotation"];
 
 
@@ -64,7 +65,16 @@ static func load_file(path: String) -> GameMap:
 		push_error("Could not load terrain surface map for map: %s" % path);
 		return null;
 
-	return GameMap.new(map_data.duplicate(true), path, height_field, surface_field);
+	var loaded := GameMap.new(map_data.duplicate(true), path, height_field, surface_field);
+	for water_value in map_data["water"]:
+		var water: Dictionary = water_value;
+		if String(water["definition"]) == "water.lake":
+			var source := _vec2(water["source"]);
+			if height_field.height_at(source) >= float(water["height"]):
+				push_error("Lake source must be below its level: %s" % water["id"]);
+				return null;
+	loaded.water_regions = WaterGeometry.generate(map_data["water"], height_field);
+	return loaded;
 
 
 static func validate(map_data: Dictionary) -> PackedStringArray:
@@ -269,46 +279,31 @@ static func _validate_water(
 		errors.append("map.water must be an array.");
 		return;
 
+	var sea_found := false;
 	var entries: Array = value;
 	for index in range(entries.size()):
 		var path := "map.water[%d]" % index;
 		var entry_value: Variant = entries[index];
-
 		if typeof(entry_value) != TYPE_DICTIONARY:
 			errors.append("%s must be an object." % path);
 			continue;
 
 		var entry: Dictionary = entry_value;
-		_check_keys(entry, WATER_KEYS, WATER_KEYS, path, errors);
 		_register_id(entry.get("id"), path, ids, errors);
-
-		if not _is_non_empty_string(entry.get("definition")):
-			errors.append("%s.definition must be a non-empty string." % path);
+		var definition := String(entry.get("definition", ""));
+		if definition == "water.sea":
+			_check_keys(entry, WATER_SEA_KEYS, WATER_SEA_KEYS, path, errors);
+			if sea_found:
+				errors.append("map.water may contain at most one sea.");
+			sea_found = true;
+		elif definition == "water.lake":
+			_check_keys(entry, WATER_LAKE_KEYS, WATER_LAKE_KEYS, path, errors);
+			_validate_map_point(entry.get("source"), map_size, "%s.source" % path, errors);
+		else:
+			errors.append("%s.definition must be water.sea or water.lake." % path);
 
 		if not _is_number(entry.get("height")):
 			errors.append("%s.height must be a number." % path);
-
-		var polygon_value: Variant = entry.get("polygon");
-		if typeof(polygon_value) != TYPE_ARRAY:
-			errors.append("%s.polygon must be an array of points." % path);
-			continue;
-
-		var polygon_points: Array = polygon_value;
-		if polygon_points.size() < 3:
-			errors.append("%s.polygon must contain at least three points." % path);
-			continue;
-
-		var polygon := PackedVector2Array();
-		var valid_points := true;
-		for point_index in range(polygon_points.size()):
-			var point_path := "%s.polygon[%d]" % [path, point_index];
-			if not _validate_map_point(polygon_points[point_index], map_size, point_path, errors):
-				valid_points = false;
-				continue;
-			polygon.append(_vec2(polygon_points[point_index]));
-
-		if valid_points and Geometry2D.triangulate_polygon(polygon).is_empty():
-			errors.append("%s.polygon must be a valid, non-self-intersecting polygon." % path);
 
 
 static func _validate_entities(

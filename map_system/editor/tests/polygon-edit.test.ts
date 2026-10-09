@@ -13,7 +13,7 @@ import { nearestPolygonEdge, newPolygonId, validatePolygon, validatePolygons } f
 const fixture = '../godot/coastal_relief.map.json';
 const size: [number, number] = [480, 360];
 const rect: [number, number][] = [[10, 10], [40, 10], [40, 30], [10, 30]];
-const water = { id: 'pond_1', definition: 'water.pond', height: 5.25, polygon: rect };
+const water = { id: 'pond_1', definition: 'water.lake' as const, height: -6, source: [0, 120] as [number,number] };
 const settlement = { id: 'village_1', name: 'Village', build_areas: [rect] };
 
 test('polygons have strict topology, bounds and ID contracts', () => {
@@ -33,8 +33,8 @@ test('polygons have strict topology, bounds and ID contracts', () => {
     [[10, 10], [40, 10], [null, 20]],
     [[0, 0], [5, 0], [5, 5], [0, 5], [5, 0], [7, 4]],
   ]) assert.throws(() => validatePolygon(invalid as [number,number][], size), /Invalid polygon/);
-  assert.throws(() => validatePolygons('water', [{...water, height: NaN}], size), /Invalid water/);
-  assert.throws(() => validatePolygons('water', [{...water, foo: 1} as typeof water], size), /Invalid water/);
+  assert.throws(() => validatePolygons('water', [{...water, height: NaN}], size), /Invalid (water|lake)/);
+  assert.throws(() => validatePolygons('water', [{...water, foo: 1} as typeof water], size), /Invalid (water|lake)/);
   assert.throws(() => validatePolygons('water', [water], size, ['pond_1']), /duplicate/);
   assert.throws(() => validatePolygons('settlements', [{...settlement, build_areas: []}], size), /Invalid settlement/);
   assert.throws(() => validatePolygons('settlements', [{...settlement, name: '  '}], size), /Invalid settlement/);
@@ -83,7 +83,7 @@ test('polygon saves preserve other fields and reject invalid/stale/disk-modified
     await writeFile(mapFile, JSON.stringify(doc.map));
     const store = await RoadStore.open(mapFile, doc);
     const first = store.getRevision();
-    await assert.rejects(() => store.saveDocument({roads:doc.map.roads,water:[{...water, polygon: [[1,1],[2,2],[3,3]]}]}, first), /zero area/);
+    await assert.rejects(() => store.saveDocument({roads:doc.map.roads,water:[{...water, source: [100000, 200000]}]}, first), /Invalid lake source/);
     await assert.rejects(() => store.saveDocument({roads:doc.map.roads,settlements:[{...settlement, id: doc.map.roads[0].id}]}, first), /duplicates/);
     assert.equal(store.getRevision(), first);
     const second = await store.saveDocument({roads:doc.map.roads,settlements:[settlement], water:[water]}, first);

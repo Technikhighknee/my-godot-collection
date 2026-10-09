@@ -11,7 +11,7 @@ The core rules are intentionally small:
 - Rotation is stored in degrees and applied as Y rotation in Godot.
 - Roads are center-line polylines with a width and a semantic definition ID.
 - Settlements own one or more build-area polygons.
-- Water is represented explicitly as flat polygons with a world-space height and semantic definition ID.
+- Water derives from terrain height and source-connected flooded regions: one sea level and optional lakes.
 - Preplaced buildings are normal game buildings. The map only says which definition exists where at game start.
 - The same `BuildingPlacement` logic is intended for player and AI construction.
 - Definition IDs are semantic IDs for game content such as buildings, objects, and road types. A map never contains `res://` paths.
@@ -68,10 +68,9 @@ The browser editor lives alongside this package at `map_system/editor/` in the r
   ],
   "water": [
     {
-      "id": "river_trave",
-      "definition": "water.river",
-      "height": 2.5,
-      "polygon": [[250, 650], [900, 620], [920, 700], [260, 730]]
+      "id": "sea",
+      "definition": "water.sea",
+      "height": 2.5
     }
   ],
   "buildings": [
@@ -115,7 +114,7 @@ Validation currently rejects:
 - zero/negative road widths;
 - degenerate roads;
 - invalid build-area polygons;
-- malformed water polygons;
+- malformed water sources;
 - malformed building/object placements.
 
 ```gdscript
@@ -139,7 +138,7 @@ var visual_surface_weights := game_map.terrain_surfaces.blend_weights_at(positio
 
 ## Building the initial world
 
-`GameMapBuilder` owns map geometry: heightmap terrain, terrain collision, terrain-conforming road meshes, and explicit water surfaces. Terrain visual geometry and collision are produced from the same height samples. Roads, buildings, and objects query the same `TerrainHeightField` for their Y position.
+`GameMapBuilder` owns map geometry: heightmap terrain, terrain collision, terrain-conforming road meshes, and terrain-derived water surfaces. Terrain visual geometry and collision are produced from the same height samples. Roads, buildings, and objects query the same `TerrainHeightField` for their Y position.
 
 It does **not** own a building registry. Instead, the game supplies two tiny spawner callbacks. That keeps definition lookup and the actual gameplay entities outside the map package.
 
@@ -256,4 +255,17 @@ The format can grow when the game proves it needs another concept.
 
 ## Coastal relief test map
 
-Load `res://packages/MapSystem/coastal_relief.map.json` instead of `example.map.json` using the usual `GameMapLoader` and `GameMapBuilder`. This separate relief-first example is 480 × 360 world meters with a 321 × 241 floating-point EXR, a steep peninsula, asymmetric ridges, two paths, and one hole-free sea polygon. The 320 × 240 indexed PNG still represents categorical grass, dirt and rock; no buildings or objects are spawned. Existing shader and map architecture are unchanged. Inspect silhouette, slopes and the coast before judging materials.
+Load `res://packages/MapSystem/coastal_relief.map.json` instead of `example.map.json` using the usual `GameMapLoader` and `GameMapBuilder`. This separate relief-first example is 480 × 360 world meters with a 321 × 241 floating-point EXR, a steep peninsula, asymmetric ridges, two paths, and a sea level from which the coastline is derived. The 320 × 240 indexed PNG still represents categorical grass, dirt and rock; no buildings or objects are spawned. Existing shader and map architecture are unchanged. Inspect silhouette, slopes and the coast before judging materials.
+
+## Terrain-derived water
+
+The `water` array now stores water **sources**, not polygons:
+
+```json
+"water": [
+  { "id": "sea", "definition": "water.sea", "height": 0 },
+  { "id": "lake", "definition": "water.lake", "height": 12, "source": [120, 60] }
+]
+```
+
+Only one `water.sea` entry is allowed; it fills underwater terrain connected to submerged map boundaries. Each `water.lake` entry fills its own connected basin from a point strictly below its level. Exact coastlines, water mesh, and building collision all derive from the heightmap triangles using `WaterGeometry.gd`. Changing terrain can change shorelines without editing water sources. No fluid dynamics; rivers require a separate system. A map with `"water": []` is dry. **Legacy water polygons are not accepted** and must be migrated explicitly.

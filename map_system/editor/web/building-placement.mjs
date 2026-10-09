@@ -1,3 +1,4 @@
+import { buildWaterRegions, waterOverlapsFootprint } from './water-field.mjs';
 /** Spatial placement preview. Inputs use Godot's [x,z] map coordinates and clockwise degrees. */
 const EPS = 1e-7;
 const finite = n => typeof n === 'number' && Number.isFinite(n);
@@ -149,7 +150,9 @@ export function checkBuildingPlacement(doc, definition, candidate, allBuildings 
     if(!settlement)return {valid:false,reason:'outside_build_area',footprint:rect};
     settlementId=settlement.id;
   }
-  for(const water of map.water)if(overlapConvexPolygon(rect,water.polygon))return {valid:false,reason:'overlaps_water',blocking_id:water.id,footprint:rect};
+  const waterRegions = doc.waterRegions ?? buildWaterRegions(map.terrain, doc.height, map.water);
+  const wet = waterOverlapsFootprint(map.terrain, doc.height, waterRegions, rect);
+  if (wet) return {valid:false,reason:'overlaps_water',blocking_id:wet,footprint:rect};
   for(const road of map.roads)if(intersectsRoad(rect,road))return {valid:false,reason:'overlaps_road',blocking_id:road.id,footprint:rect};
   for(const other of allBuildings){
     if(other.id===candidate.id)continue;
@@ -170,7 +173,7 @@ export function validateBuildingChanges(doc, original, definitions){
   validatePlacementDefinitions(definitions);
   const old=new Map(original.map.buildings.map(b=>[b.id,JSON.stringify(b)]));
   const environment=JSON.stringify(doc.map.roads)!==JSON.stringify(original.map.roads)||JSON.stringify(doc.map.water)!==JSON.stringify(original.map.water)||JSON.stringify(doc.map.settlements)!==JSON.stringify(original.map.settlements)||doc.height.data!==original.height.data||doc.map.terrain.min_height!==original.map.terrain.min_height||doc.map.terrain.max_height!==original.map.terrain.max_height;
-  const context={...doc,definitions};
+  const context={...doc,definitions,waterRegions:buildWaterRegions(doc.map.terrain,doc.height,doc.map.water)};
   for(const b of doc.map.buildings){
     const changed=old.get(b.id)!==JSON.stringify(b);
     const definition=definitions.buildings.find(d=>d.id===b.definition);

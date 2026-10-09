@@ -1,10 +1,11 @@
 import type { FloatImage } from '../formats/exr.ts';
 import type { IndexedSurface } from '../formats/png.ts';
+import { validateWaterSources } from '../../web/water-field.mjs';
 
 export type Point = [number, number];
 export interface Road { id: string; definition: string; width: number; points: Point[]; }
 export interface Settlement { id: string; name: string; build_areas: Point[][]; }
-export interface Water { id: string; definition: string; height: number; polygon: Point[]; }
+export type Water = { id: string; definition: 'water.sea'; height: number } | { id: string; definition: 'water.lake'; height: number; source: Point }; 
 export interface MapEntity { id: string; definition: string; position: Point; rotation: number; }
 export interface MapJson {
   name: string;
@@ -89,9 +90,8 @@ export function validateMap(value: unknown): MapJson {
     const areas=array(s.build_areas,p+'.build_areas');if(areas.length<1)error(p+'.build_areas','is empty');
     areas.forEach((x,j)=>polygon(x,p+`.build_areas[${j}]`,size));
   }
-  for(const [i,v] of array(root.water,'map.water').entries()) {
-    const p=`map.water[${i}]`,w=fields(v,p,['id','definition','height','polygon']);unique(w.id,p+'.id');requiredString(w.definition,p+'.definition');number(w.height,p+'.height');polygon(w.polygon,p+'.polygon',size);
-  }
+  validateWaterSources(root.water, size, [...ids]);
+  for (const entry of root.water as Water[]) unique(entry.id, 'map.water.id');
   for(const kind of ['buildings','objects'] as const)for(const [i,v] of array(root[kind],`map.${kind}`).entries()) {
     const p=`map.${kind}[${i}]`,o=fields(v,p,['id','definition','position','rotation']);unique(o.id,p+'.id');requiredString(o.definition,p+'.definition');point(o.position,p+'.position',size);number(o.rotation,p+'.rotation');
   }
@@ -103,6 +103,7 @@ export function validateDocument(doc: MapDocument): MapDocument {
   if(s.width!==h.width-1||s.height!==h.height-1||s.data.length!==s.width*s.height)error('surface_map','must be heightmap grid minus one cell per axis');
   for(let i=0;i<s.data.length;i++)if(s.data[i]>=map.terrain.surface_palette.length)error(`surface_map.pixel[${i}]`,'outside palette');
   for(let i=0;i<h.data.length;i++)if(!Number.isFinite(h.data[i]))error(`heightmap.pixel[${i}]`,'is not finite');
+  for(const entry of map.water) if(entry.definition === 'water.lake' && !(heightAt(doc,...entry.source)<entry.height)) error('map.water', `lake ${entry.id} source must be below its water level`);
   return doc;
 }
 /** Matches Godot's two-triangle terrain interpolation, NOT generic bilinear height blending. */

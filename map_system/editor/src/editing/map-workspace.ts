@@ -146,7 +146,7 @@ export class MapWorkspace {
       const heightmap = `assets/${slug}.height.exr`, surface_map = `assets/${slug}.surface.png`;
       const map: MapJson = {
         name, terrain: { size: [...worldSize] as [number, number], heightmap, surface_map, min_height: minHeight, max_height: maxHeight, surface_palette: [...surfacePalette] },
-        roads: [], settlements: [], water: [], buildings: [], objects: [],
+        roads: [], settlements: [], water: [{ id: 'sea', definition: 'water.sea', height: 0 }], buildings: [], objects: [],
       };
       const [width, height] = heightSamples as number[];
       const normalizedZero = Math.max(0, Math.min(1, -minHeight / (maxHeight - minHeight)));
