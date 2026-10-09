@@ -3,7 +3,7 @@
 This directory contains two distinct tools sharing one on-disk map format:
 
 - [godot/](godot/) — deployable Godot 4 runtime library, map files and assets.
-- [editor/](editor/) — local Node.js / TypeScript browser tool (M0 interchange core and M1 read-only 3D preview).
+- [editor/](editor/) — local Node.js / TypeScript browser tool (M0 interchange core and M2 road editing with guarded JSON saves).
 
 The two directories have separate responsibilities. The Godot deploy manifest
 is `godot/manifest.json`; deploying `map_system` still installs the *contents*

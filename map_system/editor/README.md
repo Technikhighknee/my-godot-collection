@@ -1,70 +1,47 @@
 # 1400 Map Editor
 
-Local browser-based map viewer/editor foundation for the Godot map system. 
+Local Node.js / TypeScript browser editor for the Godot map format in `../godot/`.
 
 ## Run
 
-Requirements: Node.js >= 22.10.0, npm, modern browser with WebGL2.
+Requires Node.js >= 22.10, npm, and a WebGL2 browser.
 
 ```sh
 cd map_system/editor
-npm install
+npm ci
 npm test
 npm run typecheck
 npm start
 ```
 
-Open `http://127.0.0.1:4371/`. The default map is
-`../godot/coastal_relief.map.json`. To inspect another map:
+Open <http://127.0.0.1:4371/>. Choose a map on startup:
 
 ```sh
 npm start -- ../godot/example.map.json --port 4372
 ```
 
-The server listens on **127.0.0.1 only**. It loads and validates the selected
-map once at startup; refresh the process if the map changed on disk. It does not
-expose file selection or write APIs. Browser requests can access only the
-snapshot metadata, decoded terrain/surface buffers, application assets and
-Three.js modules explicitly allowlisted by the server.
+## Roads (M2)
 
-**Controls:** left-drag orbit, right-drag pan, scroll zoom, `F` or Reset camera
-to frame the terrain. The sidebar toggles wireframe, semantic surface color
-preview, roads, water, build areas and entity markers. Hover to see X/Z/elevation
-and the exact surface definition at the cursor.
+- **Navigate:** left-drag orbit, right-drag pan, wheel zoom, `F` reset.
+- **Edit roads:** select a road in the sidebar or click its ribbon. Drag highlighted points over terrain.
+- **New road:** click the beginning and end on terrain; edit handles to refine it.
+- **Append / Insert:** add a point at the click position (Insert requires a nearby segment).
+- **Remove point / Delete road / Width:** edit the selected road.
+- **Undo/Redo:** `Ctrl+Z`, `Ctrl+Shift+Z` (or `Ctrl+Y`). Up to 100 undo steps.
+- **Save roads:** button or `Ctrl+S`; changes remain in memory until saved.
 
-## Accuracy and limits
+Saving validates the complete map and replaces **only the selected map JSON** using
+an atomic same-directory rename. `.exr` and `.png` assets remain untouched.
+An external change to the JSON produces a conflict instead of silently overwriting
+it. Saving is available only on the loopback interface, with same-origin checks;
+there is no generic file API. The map is selected only at server startup.
 
-- Preserves Godot's world X/Z coordinates, triangle split, normalized FLOAT32
-  heights, world min/max height scaling and categorical surface cells.
-- Uses the original JSON definitions and exact loaded EXR/PNG samples; it never
-  re-encodes or modifies source files for viewing.
-- Supports ZIP/ZIPS/uncompressed single-channel FLOAT32 EXR (R/Y) and
-  noninterlaced 8-bit grayscale PNG. Other formats fail explicitly.
-- Terrain surface colors are **diagnostic previews**, not Godot's procedural
-  tile textures or fragment shader blending. Roads use an approximate terrain-
-  conforming ribbon; water uses flat polygon shapes. Buildings and objects are
-  markers, not runtime meshes. These are visualization boundaries, not changes
-  to the map semantics.
-- The first viewport deliberately limits heightmaps to 1.5 million samples,
-  rather than allocating an unbounded GPU mesh.
+The terrain preview preserves Godot's mesh sample positions and triangle split;
+its colors and road ribbons are approximations, not Godot's material shader or
+road geometry. Object meshes are markers. EXR/PNG decoding and validation come
+from the existing M0 core.
 
-## Core API
+**Next:** terrain sculpting and categorical surface painting, followed by
+multi-file export safety checks before allowing those assets to be saved.
 
-`src/core/map.ts` and `src/io/map-io.ts` contain the unchanged-format M0
-foundation: `validateMap`, `validateDocument`, `heightAt`, `loadMap`, and
-`serializeMap`. The serializer operates in memory and **does not publish**.
-No editing or persistence feature should bypass document validation. Original
-Godot runtime remains the final authority for map compatibility.
-
-## Next milestones
-
-- **M2:** sculpting and surface painting with deterministic stroke sampling,
-  localized updates, bounded undo/redo, and explicit dirty state.
-- **M3:** controlled file writes, multi-asset publication/recovery, and a verified
-  Godot load/export roundtrip. No "Save" button before this is correct.
-
-## Licensing
-
-Copyright © 2026 Jason Posch. All rights reserved. Source is publicly visible
-for inspection, but is not open source. See [NOTICE.md](NOTICE.md) for rights
-and third-party licenses.
+Copyright © 2026 Jason Posch. All rights reserved. See [NOTICE.md](NOTICE.md).

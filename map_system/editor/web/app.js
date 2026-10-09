@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildTerrainGeometry, makeVertexColors, paletteColor, sampleHeight, surfaceAt } from './mesh-data.mjs';
+import { RoadEdits, nearestSegment, validateRoads } from './road-edit.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -20,6 +21,14 @@ let settlementGroup;
 let entitiesGroup;
 let wireMaterial;
 let currentDoc;
+let edits;
+let selectedRoadId = null;
+let selectedPointIndex = -1;
+let editMode = 'navigate';
+let draftStart = null;
+let dragging = null;
+let savePending = false;
+let handleGroup;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 
@@ -41,11 +50,11 @@ async function getDocument() {
     fetchResource('/api/heights').then(r => r.arrayBuffer()),
     fetchResource('/api/surfaces').then(r => r.arrayBuffer()),
   ]);
-  if (meta.readOnly !== true) throw new Error('Expected a read-only map server');
+  if (typeof meta.readOnly !== 'boolean') throw new Error('Map server lacks edit capabilities');
   if (meta.height.width * meta.height.height * 4 !== heights.byteLength) throw new Error('Heightmap byte length mismatch');
   if (meta.surface.width * meta.surface.height !== surfaces.byteLength) throw new Error('Surface map byte length mismatch');
   if (meta.surface.width !== meta.height.width - 1 || meta.surface.height !== meta.height.height - 1) throw new Error('Surface grid does not match height grid');
-  return { map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
+  return { readOnly: meta.readOnly, revision: meta.revision, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
 }
 
 function createMeshGeometry(geo) {
@@ -213,8 +222,14 @@ function initScene(doc) {
   wireMesh.renderOrder = 2;
   scene.add(wireMesh);
   roadGroup = new THREE.Group();
-  for (const road of map.roads) roadGroup.add(createRoadMesh(road, map, height));
+  for (const road of map.roads) {
+    const mesh = createRoadMesh(road, map, height);
+    mesh.userData.roadId = road.id;
+    roadGroup.add(mesh);
+  }
   scene.add(roadGroup);
+  handleGroup = new THREE.Group();
+  scene.add(handleGroup);
   waterGroup = new THREE.Group();
   for (const water of map.water) waterGroup.add(buildWater(water));
   scene.add(waterGroup);
@@ -237,6 +252,7 @@ function initScene(doc) {
   resize();
   let last = 0;
   renderer.domElement.addEventListener('pointermove', ev => {
+    if (dragging) return;
     const now = performance.now(); if (now - last < 45) return; last = now;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set((ev.clientX - rect.left) / rect.width * 2 - 1, -((ev.clientY - rect.top) / rect.height * 2 - 1));
@@ -255,10 +271,309 @@ function initScene(doc) {
   requestAnimationFrame(frame);
 }
 
+function currentRoad() {
+  return edits.roads.find(road => road.id === selectedRoadId) ?? null;
+}
+function setMessage(text, error = false) {
+  el('editorMessage').textContent = text;
+  el('editorMessage').classList.toggle('error', error);
+}
+function disposeRoadMeshes(group) {
+  for (const mesh of [...group.children]) {
+    group.remove(mesh);
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+  }
+}
+function drawRoads(roads = edits.roads, changedId = null) {
+  if (changedId) {
+    for (const mesh of [...roadGroup.children]) {
+      if (mesh.userData.roadId === changedId) {
+        roadGroup.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose();
+      }
+    }
+  } else disposeRoadMeshes(roadGroup);
+  for (const road of roads) {
+    if (changedId && road.id !== changedId) continue;
+    const mesh = createRoadMesh(road, currentDoc.map, currentDoc.height);
+    mesh.userData.roadId = road.id;
+    if (road.id === selectedRoadId) {
+      mesh.material.color.set(0xe6ae68);
+      mesh.renderOrder = 1;
+    }
+    roadGroup.add(mesh);
+  }
+}
+function drawHandles(roads = edits.roads) {
+  disposeRoadMeshes(handleGroup);
+  const road = roads.find(r => r.id === selectedRoadId);
+  if (editMode === 'create' && draftStart) {
+    const [x,z] = draftStart;
+    const marker = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 8), new THREE.MeshBasicMaterial({ color: 0x93e0ce, depthTest: false }));
+    marker.position.set(x, sampleHeight(currentDoc.map.terrain, currentDoc.height, x, z) + 0.65, z);
+    marker.renderOrder = 5;
+    handleGroup.add(marker);
+  }
+  if (!road || editMode === 'navigate') return;
+  road.points.forEach(([x, z], index) => {
+    const selected = index === selectedPointIndex;
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(selected ? 1.5 : 1.12, 12, 8),
+      new THREE.MeshBasicMaterial({ color: selected ? 0xffdf9c : 0xf8c27d, depthTest: false })
+    );
+    marker.position.set(x, sampleHeight(currentDoc.map.terrain, currentDoc.height, x, z) + 0.65, z);
+    marker.renderOrder = 5;
+    marker.userData.pointIndex = index;
+    handleGroup.add(marker);
+  });
+}
+function updateRoadUI() {
+  if (!edits) return;
+  const roads = edits.roads;
+  if (!roads.some(road => road.id === selectedRoadId)) { selectedRoadId = roads[0]?.id ?? null; selectedPointIndex = -1; }
+  const road = currentRoad();
+  if (road && selectedPointIndex >= road.points.length) selectedPointIndex = -1;
+  const select = el('roadSelect');
+  select.replaceChildren();
+  for (const item of roads) {
+    const option = document.createElement('option');
+    option.value = item.id; option.textContent = `${item.id} (${item.points.length} points)`;
+    select.append(option);
+  }
+  if (selectedRoadId) select.value = selectedRoadId;
+  select.disabled = !roads.length || currentDoc.readOnly || savePending;
+  if (document.activeElement !== el('roadWidth')) el('roadWidth').value = road ? String(road.width) : '';
+  el('roadWidth').disabled = !road || currentDoc.readOnly || savePending;
+  el('pointInfo').textContent = road && selectedPointIndex >= 0 && selectedPointIndex < road.points.length
+    ? `Point ${selectedPointIndex + 1} / ${road.points.length} · X ${road.points[selectedPointIndex][0].toFixed(2)} · Z ${road.points[selectedPointIndex][1].toFixed(2)}`
+    : road ? `${road.points.length} points · Click a handle to select and drag` : 'No road selected';
+  el('roadsCount').textContent = String(roads.length);
+  for (const id of ['modeEdit','newRoad','deleteRoad','appendPoint','insertPoint','deletePoint']) el(id).disabled = currentDoc.readOnly || savePending || (['deleteRoad','appendPoint','insertPoint','deletePoint'].includes(id) && !road) || (id === 'deletePoint' && (selectedPointIndex < 0 || !road || road.points.length <= 2));
+  el('modeNavigate').disabled = savePending;
+  el('deleteRoad').disabled = el('deleteRoad').disabled || !road;
+  el('undo').disabled = savePending || !edits.canUndo;
+  el('redo').disabled = savePending || !edits.canRedo;
+  el('saveRoads').disabled = savePending || !edits.isDirty || currentDoc.readOnly;
+  el('saveRoads').textContent = savePending ? 'Saving…' : 'Save roads';
+  el('modeNavigate').classList.toggle('active', editMode === 'navigate');
+  el('modeEdit').classList.toggle('active', editMode !== 'navigate');
+  el('mapName').textContent = `${currentDoc.map.name}${edits.isDirty ? ' •' : ''}`;
+  document.querySelector('.status-dot').classList.toggle('dirty', edits.isDirty);
+  document.querySelector('.quiet').textContent = currentDoc.readOnly ? 'READ ONLY' : edits.isDirty ? 'UNSAVED CHANGES' : 'ROADS · SAVED';
+  document.querySelector('.side-footer span').textContent = edits.isDirty ? 'Unsaved road edits · terrain unchanged.' : 'Road edits write only the map JSON.';
+}
+function repaintRoads(roads = edits.roads, preview = false) {
+  currentDoc.map.roads = roads;
+  if (!preview) updateRoadUI();
+  drawRoads(roads, preview ? dragging?.roadId : null);
+  drawHandles(roads);
+}
+function commitRoads(roads, message = 'Roads updated. Remember to save.') {
+  try {
+    if (edits.commit(roads)) {
+      repaintRoads();
+      setMessage(message);
+    }
+  } catch (error) { setMessage(error.message, true); }
+}
+function selectRoad(id) {
+  selectedRoadId = id;
+  selectedPointIndex = -1;
+  drawRoads(); drawHandles(); updateRoadUI();
+}
+function setEditMode(next) {
+  if (currentDoc.readOnly && next !== 'navigate') return;
+  if (dragging) cancelDrag();
+  editMode = next;
+  draftStart = null;
+  controls.enableRotate = next === 'navigate';
+  viewport.classList.toggle('edit-cursor', next !== 'navigate');
+  if (next !== 'navigate') { el('roads').checked = true; setLayerVisibility(); }
+  const hints = {
+    navigate: 'Navigate mode: left-drag to orbit; right-drag to pan.',
+    edit: 'Drag a highlighted road handle. Click another road to select.',
+    create: 'Click the terrain to set the first point of the new road.',
+    append: 'Click the terrain to append a point to the selected road.',
+    insert: 'Click near a road segment to insert a point.',
+  };
+  setMessage(hints[next]);
+  drawHandles(); updateRoadUI();
+}
+function makeRay(ev) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.set((ev.clientX - rect.left) / rect.width * 2 - 1, -((ev.clientY - rect.top) / rect.height * 2 - 1));
+  raycaster.setFromCamera(pointer, camera);
+}
+function terrainPoint(ev) {
+  makeRay(ev);
+  const hit = raycaster.intersectObject(terrainMesh, false)[0];
+  return hit ? [Number(hit.point.x.toFixed(4)), Number(hit.point.z.toFixed(4))] : null;
+}
+function cancelDrag() {
+  if (!dragging) return;
+  dragging = null;
+  repaintRoads();
+}
+function editorPointerDown(ev) {
+  if (ev.button !== 0 || editMode === 'navigate' || currentDoc.readOnly || savePending) return;
+  makeRay(ev);
+  if (editMode === 'edit') {
+    const handle = raycaster.intersectObjects(handleGroup.children, false)[0];
+    if (handle) {
+      selectedPointIndex = handle.object.userData.pointIndex;
+      dragging = { roadId: selectedRoadId, pointIndex: selectedPointIndex, original: edits.roads, preview: null };
+      renderer.domElement.setPointerCapture(ev.pointerId);
+      updateRoadUI();
+      ev.preventDefault();
+      return;
+    }
+    const road = raycaster.intersectObjects(roadGroup.children, false)[0];
+    if (road) selectRoad(road.object.userData.roadId);
+    else { selectedPointIndex = -1; drawHandles(); updateRoadUI(); }
+    return;
+  }
+  const pos = terrainPoint(ev);
+  if (!pos) return;
+  if (editMode === 'create') {
+    if (!draftStart) {
+      draftStart = pos;
+      drawHandles();
+      setMessage(`First point (${pos[0]}, ${pos[1]}) set. Click the end point. Esc to cancel.`);
+    } else {
+      const allIDs = new Set([...currentDoc.map.roads, ...currentDoc.map.water, ...currentDoc.map.settlements, ...currentDoc.map.buildings, ...currentDoc.map.objects].map(x => x.id));
+      let i = 1;
+      while (allIDs.has(`road_${String(i).padStart(2, '0')}`)) i++;
+      const id = `road_${String(i).padStart(2, '0')}`;
+      commitRoads([...edits.roads, { id, definition: 'road.path', width: 3, points: [draftStart, pos] }], 'New road added. Drag its handles to shape the path.');
+      if (edits.roads.some(x => x.id === id)) selectRoad(id);
+      setEditMode('edit');
+    }
+  } else {
+    const road = currentRoad();
+    if (!road) return;
+    const roads = edits.roads;
+    const candidate = roads.find(x => x.id === road.id);
+    if (editMode === 'append') {
+      candidate.points.push(pos);
+      commitRoads(roads, 'Point appended.');
+      selectedPointIndex = candidate.points.length - 1;
+      setEditMode('edit');
+    } else if (editMode === 'insert') {
+      const nearest = nearestSegment(candidate.points, pos);
+      if (nearest.distance > Math.max(7, candidate.width * 2)) { setMessage('Click closer to the selected road to insert.', true); return; }
+      candidate.points.splice(nearest.index + 1, 0, pos);
+      commitRoads(roads, 'Point inserted.');
+      selectedPointIndex = nearest.index + 1;
+      setEditMode('edit');
+    }
+  }
+}
+function editorPointerMove(ev) {
+  if (!dragging) return;
+  const point = terrainPoint(ev);
+  if (!point) return;
+  const roads = structuredClone(dragging.original);
+  const road = roads.find(x => x.id === dragging.roadId);
+  if (!road) return;
+  road.points[dragging.pointIndex] = point;
+  try {
+    // No invalid adjacent point or off-map preview is ever committed.
+    validateRoads(roads, currentDoc.map.terrain.size);
+    dragging.preview = roads;
+    repaintRoads(roads, true);
+  } catch { /* Keep last valid preview. */ }
+}
+function editorPointerUp(ev) {
+  if (!dragging) return;
+  const value = dragging.preview;
+  dragging = null;
+  if (renderer.domElement.hasPointerCapture(ev.pointerId)) renderer.domElement.releasePointerCapture(ev.pointerId);
+  if (value) commitRoads(value, 'Point moved. Ctrl+Z to undo.');
+  repaintRoads();
+}
+async function saveRoadEdits() {
+  if (savePending || !edits.isDirty || currentDoc.readOnly) return;
+  if (dragging) { setMessage('Finish the point drag before saving.', true); return; }
+  const saved = edits.roads;
+  savePending = true;
+  updateRoadUI();
+  setMessage('Saving road JSON atomically…');
+  try {
+    const response = await fetch('/api/roads', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: currentDoc.revision, roads: saved }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(response.status === 409 ? `Save conflict: ${result.error}. Your browser edits are preserved.` : `Save failed: ${result.error}`);
+    currentDoc.revision = result.revision;
+    edits.markSaved(saved);
+    setMessage('Road changes saved to map JSON. Terrain assets were not modified.');
+  } catch (error) { setMessage(error.message, true); }
+  finally { savePending = false; updateRoadUI(); }
+}
+function initializeRoadEditing() {
+  if (currentDoc.readOnly) { setMessage('Read-only server: saving and road editing are disabled.'); }
+  el('modeNavigate').addEventListener('click', () => setEditMode('navigate'));
+  el('modeEdit').addEventListener('click', () => setEditMode('edit'));
+  el('newRoad').addEventListener('click', () => setEditMode('create'));
+  el('appendPoint').addEventListener('click', () => setEditMode('append'));
+  el('insertPoint').addEventListener('click', () => setEditMode('insert'));
+  el('roadSelect').addEventListener('change', ev => selectRoad(ev.target.value));
+  el('roadWidth').addEventListener('change', ev => {
+    if (!currentRoad() || currentDoc.readOnly || savePending) return;
+    const width = Number(ev.target.value);
+    const roads = edits.roads;
+    roads.find(x => x.id === selectedRoadId).width = width;
+    commitRoads(roads, 'Road width updated.');
+    if (!edits.roads.some(r => r.id === selectedRoadId && r.width === width)) ev.target.value = String(currentRoad()?.width ?? 3);
+    updateRoadUI();
+  });
+  el('deletePoint').addEventListener('click', () => {
+    if (!currentRoad() || selectedPointIndex < 0 || currentRoad().points.length <= 2 || savePending) return;
+    const roads = edits.roads;
+    roads.find(x => x.id === selectedRoadId).points.splice(selectedPointIndex, 1);
+    selectedPointIndex = -1;
+    commitRoads(roads, 'Road point removed.');
+  });
+  el('deleteRoad').addEventListener('click', () => {
+    if (!currentRoad() || savePending || !window.confirm(`Delete road "${selectedRoadId}"? You can undo this.`)) return;
+    commitRoads(edits.roads.filter(x => x.id !== selectedRoadId), 'Road removed. Ctrl+Z to undo.');
+  });
+  el('undo').addEventListener('click', () => { if (edits.undo()) { repaintRoads(); setMessage('Undid road edit.'); } });
+  el('redo').addEventListener('click', () => { if (edits.redo()) { repaintRoads(); setMessage('Redid road edit.'); } });
+  el('saveRoads').addEventListener('click', saveRoadEdits);
+  renderer.domElement.addEventListener('pointerdown', editorPointerDown);
+  renderer.domElement.addEventListener('pointermove', editorPointerMove);
+  renderer.domElement.addEventListener('pointerup', editorPointerUp);
+  renderer.domElement.addEventListener('pointercancel', cancelDrag);
+  window.addEventListener('blur', cancelDrag);
+  window.addEventListener('beforeunload', event => { if (edits.isDirty) event.preventDefault(); });
+  document.addEventListener('keydown', event => {
+    if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea,[contenteditable=true]')) return;
+    const key = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 'z') {
+      event.preventDefault();
+      if (!savePending && (event.shiftKey ? edits.redo() : edits.undo())) repaintRoads();
+    } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 'y') {
+      event.preventDefault();
+      if (!savePending && edits.redo()) repaintRoads();
+    } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 's') {
+      event.preventDefault(); saveRoadEdits();
+    } else if (key === 'escape') {
+      if (dragging) cancelDrag();
+      else setEditMode('edit');
+    } else if ((key === 'delete' || key === 'backspace') && selectedPointIndex >= 0 && editMode === 'edit') {
+      event.preventDefault(); el('deletePoint').click();
+    }
+  });
+  updateRoadUI();
+}
+
+
 try {
   currentDoc = await getDocument();
+  edits = new RoadEdits(currentDoc.map.roads, currentDoc.map.terrain.size);
+  selectedRoadId = currentDoc.map.roads[0]?.id ?? null;
   configureDetails(currentDoc);
   initScene(currentDoc);
+  initializeRoadEditing();
   layerNames.forEach(id => el(id).addEventListener('change', setLayerVisibility));
   el('resetCamera').addEventListener('click', resetCamera);
   document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey) resetCamera(); });

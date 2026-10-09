@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
 import { loadMap } from './io/map-io.ts';
 import { createEditorServer } from './server.ts';
+import { RoadStore } from './editing/road-store.ts';
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
-  console.log('Usage: npm start -- [map.json] [--port 4371]\nDefault map: ../godot/coastal_relief.map.json\nBinds to 127.0.0.1 only; read-only.');
+  console.log('Usage: npm start -- [map.json] [--port 4371]\nDefault map: ../godot/coastal_relief.map.json\nBinds to 127.0.0.1 only. Saves only roads to the selected map JSON.');
 } else {
   try {
     const index = args.indexOf('--port');
@@ -15,10 +16,11 @@ if (args.includes('--help') || args.includes('-h')) {
     if (paths.length > 1 || paths.some(s => s.startsWith('--'))) throw new Error('Expected one map path and optional --port');
     const file = resolve(paths[0] ?? '../godot/coastal_relief.map.json');
     const doc = await loadMap(file);
-    const server = createEditorServer(doc);
+    const store = await RoadStore.open(file, doc);
+    const server = createEditorServer(doc, store);
     server.on('error', error => { console.error(error); process.exitCode = 1; });
     server.listen(port, '127.0.0.1', () => {
-      console.log(`1400 Map Editor (read-only) — ${doc.map.name}`);
+      console.log(`1400 Map Editor (roads editable) — ${doc.map.name}`);
       console.log(`http://127.0.0.1:${port}/`);
     });
   } catch (error) {
