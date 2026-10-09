@@ -5,7 +5,7 @@ import { meshWood,meshFoliage } from './meshing.mjs';
 export const RECIPE_SCHEMA='1400.asset.recipe';
 export const GENERATOR='oak';
 // The number is recipe metadata, never part of class or generator names.
-export const GENERATOR_REVISION=1;
+export const GENERATOR_REVISION=2;
 export const DEFAULT_RECIPE=Object.freeze({
   schema:RECIPE_SCHEMA,generator:GENERATOR,revision:GENERATOR_REVISION,
   name:'Oak 01',seed:147241,
@@ -45,10 +45,10 @@ export function variantSeeds(seed){
 export function generateSkeleton(recipe){
   return growOak(validateRecipe(recipe));
 }
-export function generateTree(recipe){
+export function generateTree(recipe,{detail='full'}={}){
   const r=validateRecipe(recipe);
   const skeleton=growOak(r);
-  const wood=meshWood(skeleton);
+  const wood=meshWood(skeleton,r,detail);
   const foliage=meshFoliage(skeleton,r);
   const triangles=(wood.indices.length+foliage.mesh.indices.length)/3;
   if(triangles>200000)throw new Error('Geometry complexity limit exceeded');

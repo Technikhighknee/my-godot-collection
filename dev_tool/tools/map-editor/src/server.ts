@@ -23,6 +23,7 @@ const responses: Record<string, [string, string]> = {
   '/tools/asset-procgen/oak.mjs': ['../../tools/asset-procgen/web/oak.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/growth.mjs': ['../../tools/asset-procgen/web/growth.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/meshing.mjs': ['../../tools/asset-procgen/web/meshing.mjs', 'text/javascript; charset=utf-8'],
+  '/tools/asset-procgen/wood-surface.mjs': ['../../tools/asset-procgen/web/wood-surface.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/glb.mjs': ['../../tools/asset-procgen/web/glb.mjs', 'text/javascript; charset=utf-8'],
   '/app.js': ['web/app.js', 'text/javascript; charset=utf-8'],
   '/road-edit.mjs': ['web/road-edit.mjs', 'text/javascript; charset=utf-8'],

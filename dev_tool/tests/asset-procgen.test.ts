@@ -16,11 +16,11 @@ test('oak recipe contract is strict, bounded and canonical', () => {
   const recipe = validateRecipe(fresh());
   assert.equal(recipe.schema, '1400.asset.recipe');
   assert.equal(recipe.generator, 'oak');
-  assert.equal(recipe.revision, 1);
+  assert.equal(recipe.revision, 2);
   assert.equal(recipe.name, 'Oak 01');
   assert.deepEqual(validateRecipe(JSON.parse(JSON.stringify(recipe))), recipe);
   for (const bad of [
-    { ...recipe, revision: 9 }, { ...recipe, generator: 'birch' },
+    { ...recipe, revision: 1 }, { ...recipe, revision: 9 }, { ...recipe, generator: 'birch' },
     { ...recipe, name: '' }, { ...recipe, name: 'x'.repeat(61) },
     { ...recipe, seed: -1 }, { ...recipe, seed: 0x100000000 },
     { ...recipe, seed: 0.1 }, { ...recipe, unknown: 'surprise' },
@@ -148,6 +148,65 @@ test('bark and foliage triangle winding agrees with outward vertex normals', () 
   }
 });
 
+test('wood is one closed, consistently oriented surface across branch junctions', () => {
+  // Every undirected edge of an oriented, closed two-manifold is used exactly
+  // twice and in opposite directions. This catches open intersections and
+  // broken caps that triangle-count and GLB tests cannot detect.
+  const cases = [
+    fresh(),
+    { ...fresh(), seed: 0, parameters: {
+      height: 3, crownRadius: 1, trunkRadius: .12,
+      branchDensity: .2, leafDensity: .15, asymmetry: 0
+    }},
+    { ...fresh(), seed: 0xffffffff, parameters: {
+      height: 24, crownRadius: 11, trunkRadius: 1.1,
+      branchDensity: 1, leafDensity: 1, asymmetry: 1
+    }}
+  ];
+  for (const recipe of cases) {
+    const { model: { wood } } = generateTree(recipe);
+    const edges = new Map<string, { count: number, winding: number }>();
+    const P = wood.positions, I = wood.indices;
+    let smallestArea = Infinity;
+    for (let i = 0; i < I.length; i += 3) {
+      const [a,b,c] = [I[i],I[i+1],I[i+2]];
+      const ux=P[b*3]-P[a*3],uy=P[b*3+1]-P[a*3+1],uz=P[b*3+2]-P[a*3+2];
+      const vx=P[c*3]-P[a*3],vy=P[c*3+1]-P[a*3+1],vz=P[c*3+2]-P[a*3+2];
+      smallestArea = Math.min(smallestArea,Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx));
+      for(const [x,y] of [[a,b],[b,c],[c,a]]) {
+        const k=Math.min(x,y)+':'+Math.max(x,y);
+        const entry=edges.get(k)??{count:0,winding:0};
+        entry.count++;entry.winding+=x<y?1:-1;edges.set(k,entry);
+      }
+    }
+    assert.ok(smallestArea>1e-10, 'No collapsed or nearly degenerate faces');
+    // A collection of sealed but disconnected limbs is not one tree.
+    const count=P.length/3,parents=new Int32Array(count),used=new Uint8Array(count);
+    for(let i=0;i<count;i++)parents[i]=i;
+    const root=(index:number):number=>{
+      while(parents[index]!==index){
+        parents[index]=parents[parents[index]];
+        index=parents[index];
+      }
+      return index;
+    };
+    for(let i=0;i<I.length;i+=3){
+      const [a,b,c]=[I[i],I[i+1],I[i+2]];
+      used[a]=used[b]=used[c]=1;
+      parents[root(a)]=root(b);
+      parents[root(b)]=root(c);
+    }
+    assert.ok(used.every(Boolean),'No orphaned geometry vertices');
+    assert.equal(new Set(Array.from({length:count},(_,i)=>root(i))).size,1,
+      'Wood must be a single connected component');
+    assert.ok(edges.size>1000);
+    for(const edge of edges.values()){
+      assert.equal(edge.count,2, 'No exposed seams or non-manifold intersections');
+      assert.equal(edge.winding,0, 'Consistent surface orientation');
+    }
+  }
+});
+
 test('identical seeds reproduce geometry and variants really change it', () => {
   const a = fresh(), one = generateTree(a), same = generateTree(a);
   for (const key of ['wood', 'foliage'] as const) {
@@ -214,7 +273,7 @@ test('GLB export is deterministic, self-contained and binary attributes round-tr
 });
 
 test('Asset ProcGen web modules pass node syntax checking', () => {
-  for (const moduleName of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'meshing.mjs', 'glb.mjs']) {
+  for (const moduleName of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'meshing.mjs', 'wood-surface.mjs', 'glb.mjs']) {
     const path = new URL('../tools/asset-procgen/web/' + moduleName, import.meta.url);
     assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', fileURLToPath(path)], { stdio: 'pipe' }));
   }
@@ -233,7 +292,7 @@ test('local HTTP serves ProcGen without exposing source files or changing Map Ed
       assert.match(page.headers.get('content-type') ?? '', /text\/html/);
       assert.match(await page.text(), /1400 · Asset ProcGen/);
     }
-    for (const suffix of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'meshing.mjs', 'glb.mjs', 'style.css']) {
+    for (const suffix of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'meshing.mjs', 'wood-surface.mjs', 'glb.mjs', 'style.css']) {
       const path = '/tools/asset-procgen/' + suffix;
       const response = await fetch(base + path);
       assert.equal(response.status, 200, path);

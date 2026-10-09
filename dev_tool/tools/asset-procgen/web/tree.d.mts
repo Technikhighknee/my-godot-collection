@@ -5,7 +5,7 @@ export interface TreeParameters {
 export interface TreeRecipe {
   schema:'1400.asset.recipe';
   generator:'oak';
-  revision:1;
+  revision:2;
   name:string;seed:number;parameters:TreeParameters;
 }
 export type Vec3=[number,number,number];
@@ -29,9 +29,9 @@ export interface GeneratedTree {
 }
 export const RECIPE_SCHEMA:'1400.asset.recipe';
 export const GENERATOR:'oak';
-export const GENERATOR_REVISION:1;
+export const GENERATOR_REVISION:2;
 export const DEFAULT_RECIPE:Readonly<TreeRecipe>;
 export function validateRecipe(value:unknown):TreeRecipe;
 export function variantSeeds(seed:number):number[];
 export function generateSkeleton(recipe:TreeRecipe):TreeSkeleton;
-export function generateTree(recipe:TreeRecipe):GeneratedTree;
+export function generateTree(recipe:TreeRecipe, options?:{detail?:'full'|'thumbnail'}):GeneratedTree;

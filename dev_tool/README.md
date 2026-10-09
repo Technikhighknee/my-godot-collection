@@ -10,15 +10,21 @@
 
 Asset ProcGen builds a tree in three independent stages: an oak growth profile produces a
 hierarchical skeleton (trunk, four generations of branches, terminal shoots and
-leaf anchors); a wood mesher creates curved, outward-facing tubes; and a separate
-foliage mesher places individual lobed leaves along those shoots. Coarse shoot
-competition leaves natural gaps in the crown. There are no visible or hidden
-leaf-volume meshes.
+leaf anchors); a unified wood-surface mesher constructs a closed implicit skin around the
+trunk and structural limbs; and a separate foliage mesher places individual
+lobed leaves along terminal shoots. Parent/child junctions share one
+contiguous mesh instead of intersecting, open-ended tubes. A grid-connected
+interior spine ensures narrow structural limbs remain part of the same solid;
+the finest terminal shoots remain in the skeleton but do not become thick
+volumetric spikes. Coarse shoot competition leaves
+natural gaps in the crown. There are no visible or hidden leaf-volume meshes.
 
 In the viewport, **Full tree** is the default. **Wood only** hides the leaves,
 while **Skeleton** shows generation-colored branch centerlines for inspecting growth.
 The two diagnostic views never change the exported asset. Seed variants share
-the same recipe parameters but derive independent growth shapes.
+the same recipe parameters but derive independent growth shapes. Their small
+preview images use a lower-detail wood mesh; selecting a variant regenerates
+its complete asset at full detail.
 
 The JSON recipe stores the generator name \`oak\`, its internal revision,
 a seed, and six bounded parameters. It can be saved and loaded without creating

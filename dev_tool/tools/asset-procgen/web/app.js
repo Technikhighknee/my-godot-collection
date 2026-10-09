@@ -14,6 +14,7 @@ const status = message => { $('status').textContent=message; };
 let recipe = validateRecipe(structuredClone(DEFAULT_RECIPE));
 let lastSaved = JSON.stringify(recipe);
 let generated = null, treeGroup = null, frameId = null, pendingUpdate = null, variantTimeout = null;
+let variantEpoch = 0;
 let wireframe = false, autoOrbit = false, viewMode = 'full', controls, renderer, scene, camera;
 const materials = () => [
   new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,wireframe}),
@@ -169,51 +170,55 @@ function render() {
   controls.update();
   renderer.render(scene,camera);
 }
-function makeVariants() {
-  if(!renderer||!generated)return;
-  const seeds=variantSeeds(recipe.seed),container=$('variants');
-  const originalSize=new THREE.Vector2();
-  renderer.getSize(originalSize);
-  const originalAspect=camera.aspect;
-  const oldRotation=treeGroup.rotation.y;
-  treeGroup.visible=false;
-  renderer.setSize(220,140,false);
-  camera.aspect=220/140;camera.updateProjectionMatrix();
-  const tiles=[];
-  try {
-    for(let i=0;i<seeds.length;i++) {
-      const candidate=generateTree({...recipe,seed:seeds[i]});
-      const group=modelGroup(candidate);
+async function makeVariants(epoch) {
+  if(!renderer||!generated||epoch!==variantEpoch)return;
+  const source=structuredClone(recipe),seeds=variantSeeds(source.seed),container=$('variants');
+  container.replaceChildren();
+  for(let i=0;i<seeds.length;i++) {
+    // Give the browser time to paint between individual seed generations.
+    await new Promise(resolve=>setTimeout(resolve,0));
+    if(epoch!==variantEpoch)return;
+    const seed=seeds[i];
+    const candidate=generateTree({...source,seed},{detail:'thumbnail'});
+    if(epoch!==variantEpoch)return;
+    const group=modelGroup(candidate),size=new THREE.Vector2();
+    renderer.getSize(size);
+    const aspect=camera.aspect,original=treeGroup,originalVisible=treeGroup?.visible;
+    let url;
+    try {
+      if(original)original.visible=false;
+      renderer.setSize(220,140,false);
+      camera.aspect=220/140;camera.updateProjectionMatrix();
       scene.add(group);
       renderer.render(scene,camera);
-      const url=renderer.domElement.toDataURL('image/png');
+      url=renderer.domElement.toDataURL('image/png');
+    } finally {
       scene.remove(group);
       dispose(group);
-      tiles.push({seed:seeds[i],url});
+      renderer.setSize(size.x,size.y,false);
+      camera.aspect=aspect;camera.updateProjectionMatrix();
+      if(original)original.visible=originalVisible;
     }
-  } finally {
-    renderer.setSize(originalSize.x,originalSize.y,false);
-    camera.aspect=originalAspect;camera.updateProjectionMatrix();
-    treeGroup.visible=true;treeGroup.rotation.y=oldRotation;
-  }
-  container.replaceChildren();
-  for(let i=0;i<tiles.length;i++) {
-    const {seed,url}=tiles[i],button=document.createElement('button');
+    if(epoch!==variantEpoch)return;
+    const button=document.createElement('button');
     button.type='button';button.className='pg-variant';
     button.setAttribute('aria-label','Use variant '+(i+1)+', seed '+seed);
     const img=document.createElement('img');img.src=url;img.alt='';
     const info=document.createElement('span');info.textContent='Variant '+String(i+1);
     const caption=document.createElement('small');caption.textContent='#'+String(seed).slice(-6);
     info.append(caption);button.append(img,info);
-    button.addEventListener('click',()=>setRecipe({...recipe,seed}, {focus:false}));
+    button.addEventListener('click',()=>setRecipe({...recipe,seed},{focus:false}));
     container.append(button);
   }
 }
 function scheduleVariants() {
+  const epoch=++variantEpoch;
   clearTimeout(variantTimeout);
   variantTimeout=setTimeout(()=>{
     variantTimeout=null;
-    try{makeVariants();}catch(error){status('Variant previews: '+error.message);}
+    makeVariants(epoch).catch(error=>{
+      if(epoch===variantEpoch)status('Variant previews: '+error.message);
+    });
   },450);
 }
 function setupScene() {

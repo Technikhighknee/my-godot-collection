@@ -1,4 +1,5 @@
 import { add,sub,scale,unit,dot,cross,clamp,TAU,randomStream,signed } from './math.mjs';
+export { meshWood } from './wood-surface.mjs';
 
 function builder() {
   const positions=[],normals=[],colors=[],indices=[];
@@ -13,50 +14,6 @@ function builder() {
     };}
   };
 }
-function shadeWood(branch,station,side){
-  const tone=.84+.09*Math.sin(side*2.2+station*.41+branch.id*.73);
-  const depth=branch.generation===0?1:(.9+.12*branch.vigor);
-  return [.32,.24,.165].map(x=>clamp(x*tone*depth,0,1));
-}
-function woodTube(builder,branch) {
-  const P=branch.points,R=branch.radii;
-  const sides=branch.generation===0?12:branch.generation===1?9:branch.generation===2?7:5;
-  const rings=[];
-  let tangent=unit(sub(P[1],P[0]));
-  let frame=unit(cross(tangent,Math.abs(tangent[1])>.9?[1,0,0]:[0,1,0]));
-  for(let k=0;k<P.length;k++) {
-    tangent=unit(sub(P[Math.min(P.length-1,k+1)],P[Math.max(0,k-1)]));
-    const projected=sub(frame,scale(tangent,dot(frame,tangent)));
-    frame=unit(projected);
-    if(Math.abs(dot(frame,tangent))>.98)frame=unit(cross(tangent,[0,0,1]));
-    const other=unit(cross(tangent,frame)),ring=[];
-    for(let j=0;j<sides;j++) {
-      const angle=j*TAU/sides,n=unit(add(scale(frame,Math.cos(angle)),scale(other,Math.sin(angle))));
-      const ridge=1+.036*Math.sin(j*2.4+k*.62);
-      ring.push(builder.vertex(add(P[k],scale(n,R[k]*ridge)),n,shadeWood(branch,k,j)));
-    }
-    rings.push(ring);
-  }
-  for(let k=0;k<rings.length-1;k++)
-    for(let j=0;j<sides;j++) {
-      const nxt=(j+1)%sides,a=rings[k][j],b=rings[k][nxt],c=rings[k+1][j],d=rings[k+1][nxt];
-      builder.face(a,b,c);builder.face(b,d,c);
-    }
-  // Joined limbs overlap their parent, so the hidden base is left open.
-  // A terminal cap closes visible endpoints.
-  const end=P.length-1,tip=builder.vertex(P[end],tangent,shadeWood(branch,end,0));
-  for(let j=0;j<sides;j++)builder.face(rings[end][j],rings[end][(j+1)%sides],tip);
-  if(branch.generation===0){
-    const bottom=builder.vertex(P[0],scale(unit(sub(P[1],P[0])),-1),shadeWood(branch,0,0));
-    for(let j=0;j<sides;j++)builder.face(rings[0][j],bottom,rings[0][(j+1)%sides]);
-  }
-}
-export function meshWood(skeleton) {
-  const b=builder();
-  for(const branch of skeleton.branches)woodTube(b,branch);
-  return b.finish();
-}
-
 const stations=[0,.15,.31,.47,.63,.80,1];
 const widths=[.025,.31,.40,.49,.35,.23,.004];
 // A real, lobed leaf silhouette. No opaque ellipsoid or hidden shell.
