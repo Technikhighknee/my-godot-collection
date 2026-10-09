@@ -1,10 +1,12 @@
 # 1400 Dev Tool
 
-## Map Editor
+## Tools
 
-The first tool in this Node.js development package. The server currently opens the Map Editor directly; no new tools or navigation are part of this migration.
+- **Home:** the start page at `/` lists available tools and shows the active map workspace.
+- **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
+- **Asset ProcGen:** shown as planned, but not implemented or selectable yet.
 
-Local Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
+The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
 ## Run
 
@@ -18,7 +20,7 @@ npm run typecheck
 npm start
 ```
 
-Open <http://127.0.0.1:4371/>. The **Maps** button can open or create maps in the startup map’s directory. To choose a different workspace, select its initial map on startup:
+Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Editor** (or open <http://127.0.0.1:4371/tools/map-editor/> directly). The **Maps** button in the editor can open or create maps in the startup map’s directory. To choose a different workspace, select its initial map on startup:
 
 ```sh
 npm start -- ../map_system/example.map.json --port 4372

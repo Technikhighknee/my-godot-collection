@@ -6,7 +6,7 @@ Some Godot bits and bobs.
 
 - [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
 - [Map System](map_system/) — deployable Godot map runtime and portable map format.
-- [Dev Tool](dev_tool/) — local Node.js development tools, currently including the browser-based Map Editor.
+- [Dev Tool](dev_tool/) — local Node.js development tools with a main menu and browser-based Map Editor.
 
 ## Deploy tool
 

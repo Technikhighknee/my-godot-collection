@@ -42,7 +42,7 @@ test('read-only HTTP API serves exact normalized height samples and categorical 
     for (let i = 0; i < doc.heights.data.length; i += 177) assert.equal(array.getFloat32(i * 4, true), doc.heights.data[i]);
     const surfaceResponse = await fetch(`${url}/api/surfaces`);
     assert.deepEqual(new Uint8Array(await surfaceResponse.arrayBuffer()), doc.surfaces.data);
-    const html = await fetch(url);
+    const html = await fetch(`${url}/tools/map-editor/`);
     assert.match(await html.text(), /1400 · Map Editor/);
     assert.match(html.headers.get('content-security-policy') ?? '', /default-src 'none'/);
     assert.equal((await fetch(`${url}/app.js`)).status, 200);

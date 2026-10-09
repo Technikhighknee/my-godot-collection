@@ -9,7 +9,11 @@ import { validatePlacementDefinitions, type PlacementDefinitions } from '../web/
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const responses: Record<string, [string, string]> = {
-  '/': ['web/index.html', 'text/html; charset=utf-8'],
+  '/': ['../../web/index.html', 'text/html; charset=utf-8'],
+  '/dev-tool.css': ['../../web/dev-tool.css', 'text/css; charset=utf-8'],
+  '/dev-tool.js': ['../../web/dev-tool.js', 'text/javascript; charset=utf-8'],
+  '/tools/map-editor': ['web/index.html', 'text/html; charset=utf-8'],
+  '/tools/map-editor/': ['web/index.html', 'text/html; charset=utf-8'],
   '/app.js': ['web/app.js', 'text/javascript; charset=utf-8'],
   '/road-edit.mjs': ['web/road-edit.mjs', 'text/javascript; charset=utf-8'],
   '/terrain-edit.mjs': ['web/terrain-edit.mjs', 'text/javascript; charset=utf-8'],
