@@ -21,7 +21,12 @@ export function dab(doc, kind, x, z, radius, strength, surfaceIndex, flattenHeig
   const minZ = clamp(Math.ceil((z - radius) / dz - (paint ? 0.5 : 0)), 0, height - 1);
   const maxZ = clamp(Math.floor((z + radius) / dz - (paint ? 0.5 : 0)), 0, height - 1);
   const range = terrain.max_height - terrain.min_height;
-  const snapshot = kind === 'smooth' ? new Float32Array(image.data) : null;
+  const snapX = Math.max(0, minX - 1), snapZ = Math.max(0, minZ - 1);
+  const snapWidth = Math.min(width - 1, maxX + 1) - snapX + 1;
+  const snapHeight = Math.min(height - 1, maxZ + 1) - snapZ + 1;
+  const snapshot = kind === 'smooth' ? new Float32Array(snapWidth * snapHeight) : null;
+  if (snapshot) for (let row = 0; row < snapHeight; row++)
+    snapshot.set(image.data.subarray((snapZ + row) * width + snapX, (snapZ + row) * width + snapX + snapWidth), row * snapWidth);
   const nextValue = (value, i, cx, cz, falloff) => {
     if (paint) return surfaceIndex;
     if (kind === 'raise') return clamp(value + strength * falloff / range, 0, 1);
@@ -30,7 +35,7 @@ export function dab(doc, kind, x, z, radius, strength, surfaceIndex, flattenHeig
     // Snapshot, never read a neighbor already modified by this dab.
     let sum = 0, n = 0;
     for (let zz = Math.max(0, cz - 1); zz <= Math.min(height - 1, cz + 1); zz++) {
-      for (let xx = Math.max(0, cx - 1); xx <= Math.min(width - 1, cx + 1); xx++) { sum += snapshot[zz * width + xx]; n++; }
+      for (let xx = Math.max(0, cx - 1); xx <= Math.min(width - 1, cx + 1); xx++) { sum += snapshot[(zz - snapZ) * snapWidth + xx - snapX]; n++; }
     }
     return clamp(value + (sum / n - value) * Math.min(1, strength / 5) * falloff, 0, 1);
   };
@@ -145,7 +150,7 @@ export class MapEdits {
     const { radius, strength, surfaceIndex = 0 } = options;
     const terrain = this.#doc.map.terrain;
     const normalized = (sampleHeight(terrain, this.#doc.height, ...point) - terrain.min_height) / (terrain.max_height - terrain.min_height);
-    this.#stroke = { kind, radius, strength, surfaceIndex, flattenHeight: normalized, changes: new Map(), previous: null };
+    this.#stroke = { kind, radius, strength, surfaceIndex, flattenHeight: normalized, changes: new Map(), previous: null, bounds: null };
     try { return this.strokeTo(point); }
     catch (error) { this.cancelStroke(); throw error; }
   }
@@ -165,10 +170,21 @@ export class MapEdits {
         if (delta) delta.after = after;
         else stroke.changes.set(key, { layer, index, before, after });
         this.#updateDirty(layer, index, after);
+        const width = layer === 'height' ? this.#doc.height.width : this.#doc.surface.width;
+        const ix = index % width, iz = Math.floor(index / width);
+        const b = stroke.bounds ?? (stroke.bounds = { layer, minX: ix, maxX: ix, minZ: iz, maxZ: iz });
+        b.minX = Math.min(b.minX, ix); b.maxX = Math.max(b.maxX, ix);
+        b.minZ = Math.min(b.minZ, iz); b.maxZ = Math.max(b.maxZ, iz);
       }) > 0 || any;
     }
     stroke.previous = [...point];
     return any;
+  }
+  takeStrokeBounds() {
+    if (!this.#stroke || !this.#stroke.bounds) return null;
+    const { layer, minX, maxX, minZ, maxZ } = this.#stroke.bounds;
+    this.#stroke.bounds = null;
+    return layer === 'height' ? { height: { minX, maxX, minZ, maxZ } } : { surface: { minX, maxX, minZ, maxZ } };
   }
   #updateDirty(layer, index, value) {
     const set = layer === 'height' ? this.#heightDirty : this.#surfaceDirty;

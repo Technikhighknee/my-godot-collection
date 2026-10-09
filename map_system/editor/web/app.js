@@ -8,6 +8,8 @@ import { checkBuildingPlacement } from './building-placement.mjs';
 import { newPolygonId, nearestPolygonEdge, validatePolygon, validatePolygons } from './polygon-edit.mjs';
 import { snapPoint, toggleSelection, moveEntities, duplicateEntities, duplicateRoad } from './workflow.mjs';
 import { parsePalette, validateCreate } from './map-management.mjs';
+import { intersectTerrainRay } from './terrain-ray.mjs';
+import { updateTerrainPatch } from './terrain-patch.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -254,6 +256,13 @@ function initScene(doc) {
   const geo = createMeshGeometry(buildTerrainGeometry(map.terrain, height));
   geo.setAttribute('color', new THREE.BufferAttribute(makeVertexColors(map.terrain, height, surface, map.terrain.surface_palette), 3));
   primaryMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, side: THREE.FrontSide });
+  // Conservative fixed height-range sphere: no full-geometry scan on every stroke.
+  const [sx, sz] = map.terrain.size;
+  const halfRange = (map.terrain.max_height - map.terrain.min_height) / 2;
+  geo.boundingSphere = new THREE.Sphere(
+    new THREE.Vector3(sx / 2, map.terrain.min_height + halfRange, sz / 2),
+    Math.hypot(sx / 2, halfRange, sz / 2) + 0.001
+  );
   terrainMesh = new THREE.Mesh(geo, primaryMaterial);
   terrainMesh.name = 'Terrain';
   scene.add(terrainMesh);
@@ -270,7 +279,10 @@ function initScene(doc) {
   scene.add(roadGroup);
   handleGroup = new THREE.Group();
   scene.add(handleGroup);
-  brushRing = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf2daac, transparent: true, opacity: 0.85, depthTest: false }));
+  const brushGeometry = new THREE.BufferGeometry();
+  brushGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(64 * 3), 3));
+  brushRing = new THREE.LineLoop(brushGeometry, new THREE.LineBasicMaterial({ color: 0xf2daac, transparent: true, opacity: 0.85, depthTest: false }));
+  brushRing.frustumCulled = false;
   brushRing.renderOrder = 6; brushRing.visible = false; scene.add(brushRing);
   waterGroup = new THREE.Group();
   scene.add(waterGroup);
@@ -301,7 +313,7 @@ function initScene(doc) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set((ev.clientX - rect.left) / rect.width * 2 - 1, -((ev.clientY - rect.top) / rect.height * 2 - 1));
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObject(terrainMesh, false)[0];
+    const hit = intersectTerrainRay(map.terrain, height, raycaster.ray.origin.toArray(), raycaster.ray.direction.toArray());
     if (!hit) { el('probe').textContent = 'OUTSIDE TERRAIN'; brushRing.visible = false; return; }
     updateTerrainPointerFeedback(hit.point.x, hit.point.z);
   });
@@ -943,7 +955,7 @@ function makeRay(ev) {
 }
 function terrainPoint(ev) {
   makeRay(ev);
-  const hit = raycaster.intersectObject(terrainMesh, false)[0];
+  const hit = intersectTerrainRay(currentDoc.map.terrain, currentDoc.height, raycaster.ray.origin.toArray(), raycaster.ray.direction.toArray());
   return hit ? [Number(hit.point.x.toFixed(4)), Number(hit.point.z.toFixed(4))] : null;
 }
 function spatialPoint(ev) {
@@ -981,7 +993,9 @@ function editorPointerDown(ev) {
       edits.beginStroke(kind, { radius, strength, surfaceIndex: Number(el('brushSurface').value) }, pos);
       renderer.domElement.setPointerCapture(ev.pointerId);
       controls.enabled = false;
-      refreshTerrain(); updateRoadUI();
+      const changed = edits.takeStrokeBounds();
+      if (changed) refreshTerrain(false, changed);
+      updateRoadUI();
       updateTerrainPointerFeedback(pos[0], pos[1]);
       ev.preventDefault();
     } catch (error) { setMessage(error.message, true); }
@@ -1083,7 +1097,11 @@ function editorPointerMove(ev) {
     if (pos) {
       edits.strokeTo(pos);
       const now = performance.now();
-      if (now - lastPreview > 42) { refreshTerrain(); lastPreview = now; }
+      if (now - lastPreview > 42) {
+        const changed = edits.takeStrokeBounds();
+        if (changed) refreshTerrain(false, changed);
+        lastPreview = now;
+      }
       updateTerrainPointerFeedback(pos[0], pos[1]);
     }
     return;
@@ -1135,10 +1153,14 @@ function editorPointerMove(ev) {
 function editorPointerUp(ev) {
   if (polygonDrag) { polygonPointerUp(ev); return; }
   if (edits.painting) {
+    const strokeKind = editMode;
+    const pending = edits.takeStrokeBounds();
     edits.endStroke();
     controls.enabled = true;
     if (renderer.domElement.hasPointerCapture(ev.pointerId)) renderer.domElement.releasePointerCapture(ev.pointerId);
-    refreshTerrain(true); updateRoadUI();
+    if (pending) refreshTerrain(false, pending);
+    if (strokeKind === 'sculpt') { repaintRoads(); drawPolygons(); repaintEntities(); }
+    updateRoadUI();
     setMessage('Brush stroke recorded. Ctrl+Z to undo; Ctrl+S to save.');
     return;
   }
@@ -1171,15 +1193,32 @@ function encodeHeights(heights) {
   for (let i = 0; i < heights.length; i++) view.setFloat32(i * 4, heights[i], true);
   return encodeBytes(bytes);
 }
-function refreshTerrain(decorations = false) {
+function refreshTerrain(decorations = false, changed = null) {
   if (!terrainMesh) return;
-  const pos = terrainMesh.geometry.getAttribute('position');
-  const range = currentDoc.map.terrain.max_height - currentDoc.map.terrain.min_height;
-  for (let i = 0; i < currentDoc.height.data.length; i++) pos.array[i * 3 + 1] = currentDoc.map.terrain.min_height + currentDoc.height.data[i] * range;
-  pos.needsUpdate = true;
-  terrainMesh.geometry.computeVertexNormals();
-  terrainMesh.geometry.computeBoundingSphere();
-  terrainMesh.geometry.setAttribute('color', new THREE.BufferAttribute(makeVertexColors(currentDoc.map.terrain, currentDoc.height, currentDoc.surface, currentDoc.map.terrain.surface_palette), 3));
+  const geo = terrainMesh.geometry;
+  const pos = geo.getAttribute('position');
+  const colors = geo.getAttribute('color');
+  if (changed) {
+    const normals = geo.getAttribute('normal');
+    const result = updateTerrainPatch(currentDoc.map.terrain, currentDoc.height, currentDoc.surface,
+      currentDoc.map.terrain.surface_palette, pos.array, normals.array, colors.array, changed);
+    for (const [attribute, rows] of [[pos, result.positions], [normals, result.normals], [colors, result.colors]]) {
+      if (!rows.length) continue;
+      attribute.clearUpdateRanges();
+      for (const [start, count] of rows) attribute.addUpdateRange(start, count);
+      attribute.needsUpdate = true;
+    }
+
+  } else {
+    // Full refresh for history operations and metadata changes (not on every brush move).
+    const range = currentDoc.map.terrain.max_height - currentDoc.map.terrain.min_height;
+    for (let i = 0; i < currentDoc.height.data.length; i++) pos.array[i * 3 + 1] = currentDoc.map.terrain.min_height + currentDoc.height.data[i] * range;
+    pos.clearUpdateRanges(); pos.needsUpdate = true;
+    geo.getAttribute('normal').clearUpdateRanges();
+    geo.computeVertexNormals(); geo.computeBoundingSphere();
+    colors.array.set(makeVertexColors(currentDoc.map.terrain, currentDoc.height, currentDoc.surface, currentDoc.map.terrain.surface_palette));
+    colors.clearUpdateRanges(); colors.needsUpdate = true;
+  }
   if (decorations) {
     repaintRoads();
     drawPolygons();
@@ -1197,15 +1236,17 @@ function showBrushRing(x, z) {
   if (!brushMode || !brushRing) { if (brushRing) brushRing.visible = false; return; }
   const radius = Number(el('brushRadius').value);
   if (!Number.isFinite(radius) || radius <= 0) { brushRing.visible = false; return; }
-  const points = [];
+  const attribute = brushRing.geometry.getAttribute('position');
+  const positions = attribute.array;
   for (let i = 0; i < 64; i++) {
     const angle = i * Math.PI * 2 / 64;
     const px = Math.max(0, Math.min(currentDoc.map.terrain.size[0], x + radius * Math.cos(angle)));
     const pz = Math.max(0, Math.min(currentDoc.map.terrain.size[1], z + radius * Math.sin(angle)));
-    points.push(new THREE.Vector3(px, sampleHeight(currentDoc.map.terrain, currentDoc.height, px, pz) + 0.2, pz));
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = sampleHeight(currentDoc.map.terrain, currentDoc.height, px, pz) + 0.2;
+    positions[i * 3 + 2] = pz;
   }
-  brushRing.geometry.dispose();
-  brushRing.geometry = new THREE.BufferGeometry().setFromPoints(points);
+  attribute.needsUpdate = true;
   brushRing.visible = true;
 }
 function updateTerrainUI() {

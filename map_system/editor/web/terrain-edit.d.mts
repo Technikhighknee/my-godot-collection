@@ -20,6 +20,7 @@ export declare class MapEdits {
   commitEntities(kind: 'buildings' | 'objects', entries: any[]): boolean;
   beginStroke(kind: string, options: any, point: number[]): boolean;
   strokeTo(point: number[]): boolean;
+  takeStrokeBounds(): { height?: { minX: number; maxX: number; minZ: number; maxZ: number }; surface?: { minX: number; maxX: number; minZ: number; maxZ: number } } | null;
   endStroke(): boolean;
   cancelStroke(): boolean;
   undo(): string | null;
