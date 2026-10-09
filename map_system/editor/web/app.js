@@ -7,6 +7,7 @@ import { newEntityId, validateEntities } from './entity-edit.mjs';
 import { checkBuildingPlacement } from './building-placement.mjs';
 import { newPolygonId, nearestPolygonEdge, validatePolygon, validatePolygons } from './polygon-edit.mjs';
 import { snapPoint, toggleSelection, moveEntities, duplicateEntities, duplicateRoad } from './workflow.mjs';
+import { parsePalette, validateCreate } from './map-management.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -47,6 +48,8 @@ let editMode = 'navigate';
 let draftStart = null;
 let dragging = null;
 let savePending = false;
+let workspacePending = false;
+let intentionalReload = false;
 let handleGroup;
 let brushRing;
 let lastPreview = 0;
@@ -76,7 +79,7 @@ async function getDocument() {
   if (meta.height.width * meta.height.height * 4 !== heights.byteLength) throw new Error('Heightmap byte length mismatch');
   if (meta.surface.width * meta.surface.height !== surfaces.byteLength) throw new Error('Surface map byte length mismatch');
   if (meta.surface.width !== meta.height.width - 1 || meta.surface.height !== meta.height.height - 1) throw new Error('Surface grid does not match height grid');
-  return { readOnly: meta.readOnly, revision: meta.revision, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
+  return { readOnly: meta.readOnly, revision: meta.revision, mapFile: meta.mapFile, workspace: meta.workspace, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
 }
 
 function createMeshGeometry(geo) {
@@ -1218,7 +1221,7 @@ async function saveRoadEdits() {
   updateRoadUI(); updateTerrainUI();
   setMessage('Saving map and immutable terrain assets…');
   try {
-    const body = { revision: currentDoc.revision, roads: edits.roads, buildings: edits.buildings, objects: edits.objects, water: edits.water, settlements: edits.settlements };
+    const body = { revision: currentDoc.revision, mapFile: currentDoc.mapFile, roads: edits.roads, buildings: edits.buildings, objects: edits.objects, water: edits.water, settlements: edits.settlements };
     if (edits.heightDirty) body.heights = encodeHeights(currentDoc.height.data);
     if (edits.surfaceDirty) body.surfaces = encodeBytes(currentDoc.surface.data);
     const response = await fetch('/api/document', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -1310,7 +1313,7 @@ function initializeRoadEditing() {
   renderer.domElement.addEventListener('pointerup', editorPointerUp);
   renderer.domElement.addEventListener('pointercancel', cancelDrag);
   window.addEventListener('blur', cancelDrag);
-  window.addEventListener('beforeunload', event => { if (edits.isDirty) event.preventDefault(); });
+  window.addEventListener('beforeunload', event => { if (edits.isDirty && !intentionalReload) event.preventDefault(); });
   document.addEventListener('keydown', event => {
     if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea,[contenteditable=true]')) return;
     if (event.repeat) return;
@@ -1352,6 +1355,95 @@ function initializeRoadEditing() {
 }
 
 
+function initializeMapManagement() {
+  const section = el('mapManager');
+  if (!currentDoc.workspace) { section.hidden = true; return; }
+  const map = currentDoc.map;
+  el('documentPath').textContent = currentDoc.mapFile;
+  el('settingsName').value = map.name;
+  el('settingsMinHeight').value = map.terrain.min_height;
+  el('settingsMaxHeight').value = map.terrain.max_height;
+  el('settingsPalette').value = map.terrain.surface_palette.join('\n');
+  el('mapAssetPaths').textContent = `Heightmap: ${map.terrain.heightmap}\nSurface map: ${map.terrain.surface_map}\nImmutable terrain revisions are retained on disk.`;
+
+  const number = id => {
+    const input = el(id);
+    if (!input.value.trim()) throw new Error(`Missing value: ${id}`);
+    const value = Number(input.value);
+    if (!Number.isFinite(value)) throw new Error(`Invalid number: ${id}`);
+    return value;
+  };
+  const refresh = async () => {
+    const response = await fetchResource('/api/maps');
+    const { maps } = await response.json();
+    const picker = el('workspaceMaps');
+    picker.replaceChildren();
+    for (const entry of maps) {
+      const option = document.createElement('option');
+      option.value = entry.file;
+      option.textContent = `${entry.name} (${entry.file})${entry.valid ? '' : ' · INVALID'}`;
+      option.disabled = !entry.valid;
+      option.selected = entry.active;
+      picker.append(option);
+    }
+  };
+  const write = async (path, method, data) => {
+    if (workspacePending || savePending) return;
+    if (edits.isDirty && !window.confirm('Discard unsaved editor changes?')) return;
+    if (dragging || draggingEntity || polygonDrag || polygonDraft || edits.painting) throw new Error('Finish the current edit first');
+    workspacePending = true;
+    for (const id of ['openWorkspaceMap','refreshWorkspaceMaps','createWorkspaceMap','applyMapSettings']) el(id).disabled = true;
+    try {
+      const response = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, revision: currentDoc.revision, mapFile: currentDoc.mapFile }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(`Workspace: ${result.error ?? `HTTP ${response.status}`}`);
+      intentionalReload = true;
+      window.location.reload();
+    } finally {
+      workspacePending = false;
+      for (const id of ['openWorkspaceMap','refreshWorkspaceMaps','createWorkspaceMap','applyMapSettings']) el(id).disabled = false;
+    }
+  };
+  const execute = action => async () => {
+    try { await action(); } catch (error) { setMessage(error instanceof Error ? error.message : String(error), true); }
+  };
+  el('refreshWorkspaceMaps').addEventListener('click', execute(refresh));
+  el('openWorkspaceMap').addEventListener('click', execute(async () => {
+    const file = el('workspaceMaps').value;
+    if (!file) throw new Error('Select a map');
+    if (file === currentDoc.mapFile) { setMessage('Already viewing this map.'); return; }
+    await write('/api/maps/active', 'PUT', { file });
+  }));
+  el('createWorkspaceMap').addEventListener('click', execute(async () => {
+    const form = validateCreate({
+      slug: el('newMapSlug').value.trim(), name: el('newMapName').value.trim(),
+      worldSize: [number('newMapWidth'), number('newMapDepth')],
+      heightSamples: [number('newMapSamplesX'), number('newMapSamplesZ')],
+      minHeight: number('newMapMinHeight'), maxHeight: number('newMapMaxHeight'),
+      surfacePalette: parsePalette(el('newMapPalette').value),
+    });
+    await write('/api/maps/create', 'POST', { form });
+  }));
+  el('applyMapSettings').addEventListener('click', execute(async () => {
+    const settings = {
+      name: el('settingsName').value.trim(),
+      min_height: number('settingsMinHeight'), max_height: number('settingsMaxHeight'),
+      surface_palette: parsePalette(el('settingsPalette').value),
+    };
+    if (!settings.name || settings.name.length > 100) throw new Error('Invalid map name');
+    if (settings.min_height >= settings.max_height) throw new Error('Minimum elevation must be below maximum elevation');
+    if (settings.surface_palette.length <= Math.max(...currentDoc.surface.data)) {
+      throw new Error('Palette cannot omit surface IDs still used by terrain');
+    }
+    await write('/api/maps/settings', 'PUT', { settings });
+  }));
+  refresh().catch(e => setMessage(`Unable to list maps: ${e.message}`, true));
+}
+
 try {
   currentDoc = await getDocument();
   edits = new MapEdits(currentDoc);
@@ -1359,6 +1451,7 @@ try {
   configureDetails(currentDoc);
   initScene(currentDoc);
   initializeRoadEditing();
+  initializeMapManagement();
   const choices = el('buildingDefinitionChoices');
   for (const definition of currentDoc.definitions.buildings) {
     const option = document.createElement('option'); option.value = definition.id; choices.append(option);

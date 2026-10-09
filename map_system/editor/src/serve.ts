@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { validatePlacementDefinitions } from '../web/building-placement.mjs';
 import { loadMap } from './io/map-io.ts';
 import { createEditorServer } from './server.ts';
-import { RoadStore } from './editing/road-store.ts';
+import { MapWorkspace } from './editing/map-workspace.ts';
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
@@ -23,8 +23,8 @@ if (args.includes('--help') || args.includes('-h')) {
     const doc = await loadMap(file);
     const definitionsFile = resolve(defsIndex >= 0 ? args[defsIndex + 1]! : fileURLToPath(new URL('../placement-definitions.json', import.meta.url)));
     const definitions = validatePlacementDefinitions(JSON.parse(await readFile(definitionsFile, 'utf8')));
-    const store = await RoadStore.open(file, doc, definitions);
-    const server = createEditorServer(doc, store, definitions);
+    const workspace = await MapWorkspace.open(file, definitions);
+    const server = createEditorServer(doc, workspace.getStore(), definitions, workspace);
     server.on('error', error => { console.error(error); process.exitCode = 1; });
     server.listen(port, '127.0.0.1', () => {
       console.log(`1400 Map Editor — ${doc.map.name}`);

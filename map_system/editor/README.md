@@ -14,11 +14,20 @@ npm run typecheck
 npm start
 ```
 
-Open <http://127.0.0.1:4371/>. Choose a map on startup:
+Open <http://127.0.0.1:4371/>. The Map Workspace panel can open or create maps in the startup map’s directory. To choose a different workspace, select its initial map on startup:
 
 ```sh
 npm start -- ../godot/example.map.json --port 4372
 ```
+
+## Map workspace (M8)
+
+- **Open:** choose an existing `*.map.json` from the active map folder; opening another map reloads the editor. Unsaved changes require confirmation.
+- **Create:** provide a new lowercase filename slug, name, physical dimensions, height-sample grid, height range and surface palette. New maps start with flat terrain at elevation 0 (clamped to the configured range), and the first palette entry across every cell. The editor writes EXR/PNG/JSON without overwriting existing paths and registers all three files in a present Godot deployment manifest.
+- **Settings:** rename a map, adjust its height range or change surface definition IDs. Changing the height range rescales existing normalized heights; changing palette labels changes the meaning of saved surface indices. Both require deliberate confirmation of unsaved edits and a reload. Map width/depth and sample resolution remain fixed after creation.
+- **Active assets:** inspect the current EXR and PNG paths in the panel. Terrain painting and sculpting continue to manage immutable generated revisions. The editor does not automatically delete older asset versions.
+
+The workspace is intentionally limited to one directory and does **not** expose an arbitrary file browser or delete maps. Changes from another process are detected by revision and asset integrity checks. Creating a map uses a final JSON publish point; if interrupted before publication, unused generated assets or manifest entries may remain, but existing maps are not replaced.
 
 ## Controls
 
@@ -40,8 +49,7 @@ published last; the original files stay intact. If `../godot/manifest.json` exis
 new assets are included for deployment. Old generated assets are not removed
 automatically. External file changes cause a save conflict.
 
-The editor is bound to `127.0.0.1`; writes require same-origin requests. The map
-is chosen on startup. Preview colors and road ribbons approximate Godot rendering;
+The editor is bound to `127.0.0.1`; writes require same-origin requests. Preview colors and road ribbons approximate Godot rendering;
 height geometry, triangular interpolation and stored surface indices use its map contract.
 Building/object markers are placeholders, not actual game assets. The editor validates
 known building definitions against footprints, build areas, slopes, roads and water

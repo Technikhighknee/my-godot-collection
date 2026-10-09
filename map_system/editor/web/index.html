@@ -13,7 +13,7 @@
   <div class="shell">
     <header class="header">
       <div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
-      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">MAP EDITOR · M7</span></div>
+      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">MAP EDITOR · M8</span></div>
       <div class="history-controls">
         <button id="undo" type="button" title="Ctrl+Z" disabled>Undo</button>
         <button id="redo" type="button" title="Ctrl+Shift+Z" disabled>Redo</button>
@@ -23,6 +23,46 @@
     </header>
     <aside class="side">
       <div class="side-head">MAP OVERVIEW</div>
+      <section class="map-manager" id="mapManager">
+        <h3>MAP WORKSPACE</h3>
+        <label class="editor-label" for="workspaceMaps">LOCAL MAP FILES</label>
+        <select id="workspaceMaps" aria-label="Maps in the current folder"></select>
+        <div class="tool-row"><button id="openWorkspaceMap" type="button">Open selected</button><button id="refreshWorkspaceMaps" type="button">Refresh</button></div>
+        <details id="newMapDetails">
+          <summary>New map</summary>
+          <label class="editor-label" for="newMapName">NAME</label><input id="newMapName" type="text" maxlength="100" value="New map">
+          <label class="editor-label" for="newMapSlug">FILENAME (NO EXTENSION)</label><input id="newMapSlug" type="text" maxlength="48" pattern="[a-z0-9][a-z0-9_-]*" value="new_map">
+          <div class="coordinate-inputs">
+            <label class="editor-label" for="newMapWidth">WIDTH (M)<input id="newMapWidth" type="number" min="1" max="8192" value="480"></label>
+            <label class="editor-label" for="newMapDepth">DEPTH (M)<input id="newMapDepth" type="number" min="1" max="8192" value="360"></label>
+          </div>
+          <div class="coordinate-inputs">
+            <label class="editor-label" for="newMapSamplesX">HEIGHT SAMPLES X<input id="newMapSamplesX" type="number" min="2" max="1025" step="1" value="257"></label>
+            <label class="editor-label" for="newMapSamplesZ">HEIGHT SAMPLES Z<input id="newMapSamplesZ" type="number" min="2" max="1025" step="1" value="257"></label>
+          </div>
+          <div class="coordinate-inputs">
+            <label class="editor-label" for="newMapMinHeight">MIN HEIGHT (M)<input id="newMapMinHeight" type="number" value="-20"></label>
+            <label class="editor-label" for="newMapMaxHeight">MAX HEIGHT (M)<input id="newMapMaxHeight" type="number" value="80"></label>
+          </div>
+          <label class="editor-label" for="newMapPalette">SURFACE IDS (ONE PER LINE)</label>
+          <textarea id="newMapPalette" rows="3" spellcheck="false">terrain.grass
+terrain.dirt
+terrain.rock</textarea>
+          <button type="button" id="createWorkspaceMap">Create and open map</button>
+        </details>
+        <details id="mapSettingsDetails">
+          <summary>Map settings</summary>
+          <label class="editor-label" for="settingsName">MAP NAME</label><input id="settingsName" type="text" maxlength="100">
+          <div class="coordinate-inputs">
+            <label class="editor-label" for="settingsMinHeight">MIN HEIGHT (M)<input id="settingsMinHeight" type="number"></label>
+            <label class="editor-label" for="settingsMaxHeight">MAX HEIGHT (M)<input id="settingsMaxHeight" type="number"></label>
+          </div>
+          <label class="editor-label" for="settingsPalette">SURFACE IDS (ONE PER LINE)</label><textarea id="settingsPalette" rows="3" spellcheck="false"></textarea>
+          <div class="point-info">World size and pixel resolution cannot be changed after creation. Palette order determines each cell's meaning.</div>
+          <button type="button" id="applyMapSettings">Save map settings</button>
+        </details>
+        <details id="mapAssetsDetails"><summary>Active assets</summary><div class="point-info" id="mapAssetPaths"></div></details>
+      </section>
       <section class="information">
         <div class="thumb-title">CURRENT DOCUMENT</div>
         <h2 id="panelName">—</h2>

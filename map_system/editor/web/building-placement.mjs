@@ -169,7 +169,7 @@ export function checkBuildingPlacement(doc, definition, candidate, allBuildings 
 export function validateBuildingChanges(doc, original, definitions){
   validatePlacementDefinitions(definitions);
   const old=new Map(original.map.buildings.map(b=>[b.id,JSON.stringify(b)]));
-  const environment=JSON.stringify(doc.map.roads)!==JSON.stringify(original.map.roads)||JSON.stringify(doc.map.water)!==JSON.stringify(original.map.water)||JSON.stringify(doc.map.settlements)!==JSON.stringify(original.map.settlements)||doc.height.data!==original.height.data;
+  const environment=JSON.stringify(doc.map.roads)!==JSON.stringify(original.map.roads)||JSON.stringify(doc.map.water)!==JSON.stringify(original.map.water)||JSON.stringify(doc.map.settlements)!==JSON.stringify(original.map.settlements)||doc.height.data!==original.height.data||doc.map.terrain.min_height!==original.map.terrain.min_height||doc.map.terrain.max_height!==original.map.terrain.max_height;
   const context={...doc,definitions};
   for(const b of doc.map.buildings){
     const changed=old.get(b.id)!==JSON.stringify(b);

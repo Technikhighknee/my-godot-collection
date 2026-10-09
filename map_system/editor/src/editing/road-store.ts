@@ -7,6 +7,12 @@ import { encodeSurfacePng } from '../formats/png.ts';
 import { validateBuildingChanges, type PlacementDefinitions } from '../../web/building-placement.mjs';
 
 export class RoadConflict extends Error {}
+export interface MapSettings {
+  name: string;
+  min_height: number;
+  max_height: number;
+  surface_palette: string[];
+}
 const hash = (data: Buffer): string => createHash('sha256').update(data).digest('hex');
 const samePath = (a: string, b: string): boolean => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 const inside = (root: string, path: string): boolean => {
@@ -68,7 +74,7 @@ export class RoadStore {
     return this.saveDocument({ roads }, expectedRevision);
   }
 
-  saveDocument(changes: { roads: unknown; buildings?: unknown; objects?: unknown; water?: unknown; settlements?: unknown; heights?: Float32Array; surfaces?: Uint8Array }, expectedRevision: string): Promise<string> {
+  saveDocument(changes: { roads: unknown; buildings?: unknown; objects?: unknown; water?: unknown; settlements?: unknown; heights?: Float32Array; surfaces?: Uint8Array; settings?: MapSettings }, expectedRevision: string): Promise<string> {
     const run = this.queue.then(() => this.persist(changes, expectedRevision));
     this.queue = run.then(() => {}, () => {});
     return run;
@@ -119,7 +125,7 @@ export class RoadStore {
     return name.split(sep).join('/');
   }
 
-  private async persist(changes: { roads: unknown; buildings?: unknown; objects?: unknown; water?: unknown; settlements?: unknown; heights?: Float32Array; surfaces?: Uint8Array }, expectedRevision: string): Promise<string> {
+  private async persist(changes: { roads: unknown; buildings?: unknown; objects?: unknown; water?: unknown; settlements?: unknown; heights?: Float32Array; surfaces?: Uint8Array; settings?: MapSettings }, expectedRevision: string): Promise<string> {
     if (typeof expectedRevision !== 'string' || !/^[0-9a-f]{64}$/.test(expectedRevision)) throw new Error('Invalid save revision');
     if (expectedRevision !== this.revision) throw new RoadConflict('Map revision is stale; refresh before saving');
     const next = structuredClone(this.doc.map);
@@ -128,6 +134,15 @@ export class RoadStore {
     if (changes.objects !== undefined) next.objects = changes.objects as typeof next.objects;
     if (changes.water !== undefined) next.water = changes.water as typeof next.water;
     if (changes.settlements !== undefined) next.settlements = changes.settlements as typeof next.settlements;
+    if (changes.settings !== undefined) {
+      const settings = changes.settings;
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings) ||
+          Object.keys(settings).sort().join() !== 'max_height,min_height,name,surface_palette') throw new Error('Invalid map settings');
+      next.name = settings.name;
+      next.terrain.min_height = settings.min_height;
+      next.terrain.max_height = settings.max_height;
+      next.terrain.surface_palette = settings.surface_palette;
+    }
     const heights = changes.heights ?? this.doc.heights.data;
     const surfaces = changes.surfaces ?? this.doc.surfaces.data;
     if (!(heights instanceof Float32Array) || heights.length !== this.doc.heights.data.length ||
