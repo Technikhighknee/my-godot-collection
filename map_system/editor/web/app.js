@@ -1627,7 +1627,8 @@ function refreshTerrain(decorations = false, changed = null) {
 }
 function updateTerrainPointerFeedback(x, z) {
   lastPointerWorld = [x, z];
-  const { terrain, surface_palette } = currentDoc.map.terrain;
+  const terrain = currentDoc.map.terrain;
+  const { surface_palette } = terrain;
   const definition = surface_palette[surfaceAt(terrain, currentDoc.surface, x, z)];
   const action = editMode === 'sculpt' ? effectiveSculptMode(el('sculptMode').value, brushPointerModifiers).toUpperCase()
     : editMode === 'paint' ? (paintEyedropper ? 'PICK SURFACE' : 'PAINT') : '';
