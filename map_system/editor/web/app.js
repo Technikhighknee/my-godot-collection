@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildTerrainGeometry, makeVertexColors, paletteColor, sampleHeight, surfaceAt } from './mesh-data.mjs';
-import { RoadEdits, nearestSegment, validateRoads } from './road-edit.mjs';
+import { nearestSegment, validateRoads } from './road-edit.mjs';
+import { MapEdits } from './terrain-edit.mjs';
 
 const el = id => document.getElementById(id);
 const viewport = el('viewport');
@@ -29,6 +30,8 @@ let draftStart = null;
 let dragging = null;
 let savePending = false;
 let handleGroup;
+let brushRing;
+let lastPreview = 0;
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 
@@ -165,6 +168,11 @@ function configureDetails(doc) {
   el('waterCount').textContent = String(map.water.length);
   el('settlementsCount').textContent = String(map.settlements.reduce((n, item) => n + item.build_areas.length, 0));
   el('entitiesCount').textContent = String(map.buildings.length + map.objects.length);
+  const brushSurface = el('brushSurface');
+  map.terrain.surface_palette.forEach((definition, index) => {
+    const option = document.createElement('option'); option.value = String(index); option.textContent = definition;
+    brushSurface.append(option);
+  });
   for (const definition of map.terrain.surface_palette) {
     const label = document.createElement('div'); label.className = 'legend-line';
     const swatch = document.createElement('span'); swatch.className = 'swatch';
@@ -230,6 +238,8 @@ function initScene(doc) {
   scene.add(roadGroup);
   handleGroup = new THREE.Group();
   scene.add(handleGroup);
+  brushRing = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf2daac, transparent: true, opacity: 0.85, depthTest: false }));
+  brushRing.renderOrder = 6; brushRing.visible = false; scene.add(brushRing);
   waterGroup = new THREE.Group();
   for (const water of map.water) waterGroup.add(buildWater(water));
   scene.add(waterGroup);
@@ -252,18 +262,19 @@ function initScene(doc) {
   resize();
   let last = 0;
   renderer.domElement.addEventListener('pointermove', ev => {
-    if (dragging) return;
+    if (dragging || edits?.painting) return;
     const now = performance.now(); if (now - last < 45) return; last = now;
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.set((ev.clientX - rect.left) / rect.width * 2 - 1, -((ev.clientY - rect.top) / rect.height * 2 - 1));
     raycaster.setFromCamera(pointer, camera);
     const hit = raycaster.intersectObject(terrainMesh, false)[0];
-    if (!hit) { el('probe').textContent = 'OUTSIDE TERRAIN'; return; }
+    if (!hit) { el('probe').textContent = 'OUTSIDE TERRAIN'; brushRing.visible = false; return; }
     const { x, z } = hit.point;
     const definition = map.terrain.surface_palette[surfaceAt(map.terrain, surface, x, z)];
     el('probe').textContent = `X ${x.toFixed(1)} · Z ${z.toFixed(1)} · H ${sampleHeight(map.terrain, height, x, z).toFixed(2)} m · ${definition}`;
+    showBrushRing(x, z);
   });
-  renderer.domElement.addEventListener('pointerleave', () => { el('probe').textContent = 'MOVE CURSOR OVER TERRAIN'; });
+  renderer.domElement.addEventListener('pointerleave', () => { el('probe').textContent = 'MOVE CURSOR OVER TERRAIN'; brushRing.visible = false; });
   function frame() {
     controls.update(); updateCompass(); renderer.render(scene, camera);
     requestAnimationFrame(frame);
@@ -314,7 +325,7 @@ function drawHandles(roads = edits.roads) {
     marker.renderOrder = 5;
     handleGroup.add(marker);
   }
-  if (!road || editMode === 'navigate') return;
+  if (!road || editMode === 'navigate' || editMode === 'sculpt' || editMode === 'paint') return;
   road.points.forEach(([x, z], index) => {
     const selected = index === selectedPointIndex;
     const marker = new THREE.Mesh(
@@ -354,13 +365,14 @@ function updateRoadUI() {
   el('undo').disabled = savePending || !edits.canUndo;
   el('redo').disabled = savePending || !edits.canRedo;
   el('saveRoads').disabled = savePending || !edits.isDirty || currentDoc.readOnly;
-  el('saveRoads').textContent = savePending ? 'Saving…' : 'Save roads';
+  el('saveRoads').textContent = savePending ? 'Saving…' : 'Save map';
   el('modeNavigate').classList.toggle('active', editMode === 'navigate');
-  el('modeEdit').classList.toggle('active', editMode !== 'navigate');
+  updateTerrainUI();
+  el('modeEdit').classList.toggle('active', ['edit','create','append','insert'].includes(editMode));
   el('mapName').textContent = `${currentDoc.map.name}${edits.isDirty ? ' •' : ''}`;
   document.querySelector('.status-dot').classList.toggle('dirty', edits.isDirty);
-  document.querySelector('.quiet').textContent = currentDoc.readOnly ? 'READ ONLY' : edits.isDirty ? 'UNSAVED CHANGES' : 'ROADS · SAVED';
-  document.querySelector('.side-footer span').textContent = edits.isDirty ? 'Unsaved road edits · terrain unchanged.' : 'Road edits write only the map JSON.';
+  document.querySelector('.quiet').textContent = currentDoc.readOnly ? 'READ ONLY' : edits.isDirty ? 'UNSAVED CHANGES' : 'MAP · SAVED';
+  document.querySelector('.side-footer span').textContent = edits.isDirty ? 'Unsaved changes in memory.' : 'Map and assets are saved locally.';
 }
 function repaintRoads(roads = edits.roads, preview = false) {
   currentDoc.map.roads = roads;
@@ -383,21 +395,25 @@ function selectRoad(id) {
 }
 function setEditMode(next) {
   if (currentDoc.readOnly && next !== 'navigate') return;
-  if (dragging) cancelDrag();
+  if (dragging || edits.painting) cancelDrag();
   editMode = next;
   draftStart = null;
   controls.enableRotate = next === 'navigate';
+  brushRing.visible = false;
   viewport.classList.toggle('edit-cursor', next !== 'navigate');
-  if (next !== 'navigate') { el('roads').checked = true; setLayerVisibility(); }
+  if (['edit', 'create', 'append', 'insert'].includes(next)) { el('roads').checked = true; setLayerVisibility(); }
   const hints = {
     navigate: 'Navigate mode: left-drag to orbit; right-drag to pan.',
     edit: 'Drag a highlighted road handle. Click another road to select.',
     create: 'Click the terrain to set the first point of the new road.',
     append: 'Click the terrain to append a point to the selected road.',
     insert: 'Click near a road segment to insert a point.',
+    sculpt: 'Left drag to sculpt terrain. Choose Raise, Lower, Smooth or Flatten.',
+    paint: 'Left drag to paint a categorical surface. Select a definition below.',
   };
   setMessage(hints[next]);
   drawHandles(); updateRoadUI();
+  updateTerrainUI();
 }
 function makeRay(ev) {
   const rect = renderer.domElement.getBoundingClientRect();
@@ -410,12 +426,27 @@ function terrainPoint(ev) {
   return hit ? [Number(hit.point.x.toFixed(4)), Number(hit.point.z.toFixed(4))] : null;
 }
 function cancelDrag() {
+  if (edits.painting) { edits.cancelStroke(); controls.enabled = true; refreshTerrain(true); updateRoadUI(); }
   if (!dragging) return;
   dragging = null;
   repaintRoads();
 }
 function editorPointerDown(ev) {
   if (ev.button !== 0 || editMode === 'navigate' || currentDoc.readOnly || savePending) return;
+  if (editMode === 'sculpt' || editMode === 'paint') {
+    const pos = terrainPoint(ev);
+    if (!pos) return;
+    try {
+      const radius = Number(el('brushRadius').value), strength = Number(el('brushStrength').value);
+      const kind = editMode === 'paint' ? 'paint' : el('sculptMode').value;
+      edits.beginStroke(kind, { radius, strength, surfaceIndex: Number(el('brushSurface').value) }, pos);
+      renderer.domElement.setPointerCapture(ev.pointerId);
+      controls.enabled = false;
+      refreshTerrain(); updateRoadUI();
+      ev.preventDefault();
+    } catch (error) { setMessage(error.message, true); }
+    return;
+  }
   makeRay(ev);
   if (editMode === 'edit') {
     const handle = raycaster.intersectObjects(handleGroup.children, false)[0];
@@ -469,6 +500,15 @@ function editorPointerDown(ev) {
   }
 }
 function editorPointerMove(ev) {
+  if (edits.painting) {
+    const pos = terrainPoint(ev);
+    if (pos) {
+      edits.strokeTo(pos);
+      const now = performance.now();
+      if (now - lastPreview > 42) { refreshTerrain(); lastPreview = now; }
+    }
+    return;
+  }
   if (!dragging) return;
   const point = terrainPoint(ev);
   if (!point) return;
@@ -484,6 +524,14 @@ function editorPointerMove(ev) {
   } catch { /* Keep last valid preview. */ }
 }
 function editorPointerUp(ev) {
+  if (edits.painting) {
+    edits.endStroke();
+    controls.enabled = true;
+    if (renderer.domElement.hasPointerCapture(ev.pointerId)) renderer.domElement.releasePointerCapture(ev.pointerId);
+    refreshTerrain(true); updateRoadUI();
+    setMessage('Brush stroke recorded. Ctrl+Z to undo; Ctrl+S to save.');
+    return;
+  }
   if (!dragging) return;
   const value = dragging.preview;
   dragging = null;
@@ -491,22 +539,93 @@ function editorPointerUp(ev) {
   if (value) commitRoads(value, 'Point moved. Ctrl+Z to undo.');
   repaintRoads();
 }
+function encodeBytes(bytes) {
+  let raw = '';
+  for (let offset = 0; offset < bytes.length; offset += 32768) {
+    raw += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+  }
+  return btoa(raw);
+}
+function encodeHeights(heights) {
+  const bytes = new Uint8Array(heights.length * 4), view = new DataView(bytes.buffer);
+  for (let i = 0; i < heights.length; i++) view.setFloat32(i * 4, heights[i], true);
+  return encodeBytes(bytes);
+}
+function refreshTerrain(decorations = false) {
+  if (!terrainMesh) return;
+  const pos = terrainMesh.geometry.getAttribute('position');
+  const range = currentDoc.map.terrain.max_height - currentDoc.map.terrain.min_height;
+  for (let i = 0; i < currentDoc.height.data.length; i++) pos.array[i * 3 + 1] = currentDoc.map.terrain.min_height + currentDoc.height.data[i] * range;
+  pos.needsUpdate = true;
+  terrainMesh.geometry.computeVertexNormals();
+  terrainMesh.geometry.computeBoundingSphere();
+  terrainMesh.geometry.setAttribute('color', new THREE.BufferAttribute(makeVertexColors(currentDoc.map.terrain, currentDoc.height, currentDoc.surface, currentDoc.map.terrain.surface_palette), 3));
+  if (decorations) {
+    repaintRoads();
+    for (const group of [settlementGroup, entitiesGroup]) {
+      for (const child of [...group.children]) {
+        group.remove(child); child.geometry.dispose(); child.material.dispose();
+      }
+    }
+    for (const settlement of currentDoc.map.settlements) for (const area of settlement.build_areas) settlementGroup.add(makeBuildOutline(area, currentDoc.map, currentDoc.height, 0xe9bd74));
+    for (const entity of currentDoc.map.buildings) entitiesGroup.add(buildEntity(entity, currentDoc.map, currentDoc.height, 0xe9ba6c));
+    for (const entity of currentDoc.map.objects) entitiesGroup.add(buildEntity(entity, currentDoc.map, currentDoc.height, 0x82bdc7));
+  }
+}
+function showBrushRing(x, z) {
+  const brushMode = editMode === 'sculpt' || editMode === 'paint';
+  if (!brushMode || !brushRing) { if (brushRing) brushRing.visible = false; return; }
+  const radius = Number(el('brushRadius').value);
+  if (!Number.isFinite(radius) || radius <= 0) { brushRing.visible = false; return; }
+  const points = [];
+  for (let i = 0; i < 64; i++) {
+    const angle = i * Math.PI * 2 / 64;
+    const px = Math.max(0, Math.min(currentDoc.map.terrain.size[0], x + radius * Math.cos(angle)));
+    const pz = Math.max(0, Math.min(currentDoc.map.terrain.size[1], z + radius * Math.sin(angle)));
+    points.push(new THREE.Vector3(px, sampleHeight(currentDoc.map.terrain, currentDoc.height, px, pz) + 0.2, pz));
+  }
+  brushRing.geometry.dispose();
+  brushRing.geometry = new THREE.BufferGeometry().setFromPoints(points);
+  brushRing.visible = true;
+}
+function updateTerrainUI() {
+  for (const id of ['modeSculpt', 'modePaint']) el(id).disabled = currentDoc.readOnly || savePending;
+  for (const id of ['sculptMode', 'brushRadius', 'brushStrength', 'brushSurface']) el(id).disabled = currentDoc.readOnly || savePending;
+  el('sculptMode').disabled ||= editMode !== 'sculpt';
+  el('brushSurface').disabled ||= editMode !== 'paint';
+  el('modeSculpt').classList.toggle('active', editMode === 'sculpt');
+  el('modePaint').classList.toggle('active', editMode === 'paint');
+  el('terrainStatus').textContent = edits.isDirty ?
+    [edits.heightDirty ? 'HEIGHTMAP' : '', edits.surfaceDirty ? 'SURFACE MAP' : ''].filter(Boolean).join(' · ') || 'ROADS ONLY' : 'NO UNSAVED CHANGES';
+}
+function performHistory(redo = false) {
+  if (savePending || edits.painting || dragging) return;
+  const kind = redo ? edits.redo() : edits.undo();
+  if (kind === 'roads') repaintRoads();
+  else if (kind === 'height' || kind === 'surface') refreshTerrain(true);
+  updateRoadUI(); updateTerrainUI();
+  if (kind) setMessage(redo ? 'Change redone.' : 'Change undone.');
+}
 async function saveRoadEdits() {
   if (savePending || !edits.isDirty || currentDoc.readOnly) return;
-  if (dragging) { setMessage('Finish the point drag before saving.', true); return; }
-  const saved = edits.roads;
+  if (dragging || edits.painting) { setMessage('Finish the current action before saving.', true); return; }
   savePending = true;
-  updateRoadUI();
-  setMessage('Saving road JSON atomically…');
+  updateRoadUI(); updateTerrainUI();
+  setMessage('Saving map and immutable terrain assets…');
   try {
-    const response = await fetch('/api/roads', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: currentDoc.revision, roads: saved }) });
+    const body = { revision: currentDoc.revision, roads: edits.roads };
+    if (edits.heightDirty) body.heights = encodeHeights(currentDoc.height.data);
+    if (edits.surfaceDirty) body.surfaces = encodeBytes(currentDoc.surface.data);
+    const response = await fetch('/api/document', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const result = await response.json();
     if (!response.ok) throw new Error(response.status === 409 ? `Save conflict: ${result.error}. Your browser edits are preserved.` : `Save failed: ${result.error}`);
     currentDoc.revision = result.revision;
-    edits.markSaved(saved);
-    setMessage('Road changes saved to map JSON. Terrain assets were not modified.');
+    currentDoc.map.roads = edits.roads;
+    edits.markSaved();
+    currentDoc.map.terrain = result.terrain;
+    setMessage('Map saved. Prior terrain assets remain untouched.');
   } catch (error) { setMessage(error.message, true); }
-  finally { savePending = false; updateRoadUI(); }
+  finally { savePending = false; updateRoadUI(); updateTerrainUI(); }
 }
 function initializeRoadEditing() {
   if (currentDoc.readOnly) { setMessage('Read-only server: saving and road editing are disabled.'); }
@@ -536,9 +655,12 @@ function initializeRoadEditing() {
     if (!currentRoad() || savePending || !window.confirm(`Delete road "${selectedRoadId}"? You can undo this.`)) return;
     commitRoads(edits.roads.filter(x => x.id !== selectedRoadId), 'Road removed. Ctrl+Z to undo.');
   });
-  el('undo').addEventListener('click', () => { if (edits.undo()) { repaintRoads(); setMessage('Undid road edit.'); } });
-  el('redo').addEventListener('click', () => { if (edits.redo()) { repaintRoads(); setMessage('Redid road edit.'); } });
+  el('undo').addEventListener('click', () => performHistory());
+  el('redo').addEventListener('click', () => performHistory(true));
   el('saveRoads').addEventListener('click', saveRoadEdits);
+  el('modeSculpt').addEventListener('click', () => setEditMode('sculpt'));
+  el('modePaint').addEventListener('click', () => setEditMode('paint'));
+  for (const id of ['brushRadius','brushStrength','sculptMode','brushSurface']) el(id).addEventListener('change', updateTerrainUI);
   renderer.domElement.addEventListener('pointerdown', editorPointerDown);
   renderer.domElement.addEventListener('pointermove', editorPointerMove);
   renderer.domElement.addEventListener('pointerup', editorPointerUp);
@@ -550,10 +672,10 @@ function initializeRoadEditing() {
     const key = event.key.toLowerCase();
     if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 'z') {
       event.preventDefault();
-      if (!savePending && (event.shiftKey ? edits.redo() : edits.undo())) repaintRoads();
+      performHistory(event.shiftKey);
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 'y') {
       event.preventDefault();
-      if (!savePending && edits.redo()) repaintRoads();
+      performHistory(true);
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && key === 's') {
       event.preventDefault(); saveRoadEdits();
     } else if (key === 'escape') {
@@ -563,13 +685,13 @@ function initializeRoadEditing() {
       event.preventDefault(); el('deletePoint').click();
     }
   });
-  updateRoadUI();
+  updateRoadUI(); updateTerrainUI();
 }
 
 
 try {
   currentDoc = await getDocument();
-  edits = new RoadEdits(currentDoc.map.roads, currentDoc.map.terrain.size);
+  edits = new MapEdits(currentDoc);
   selectedRoadId = currentDoc.map.roads[0]?.id ?? null;
   configureDetails(currentDoc);
   initScene(currentDoc);

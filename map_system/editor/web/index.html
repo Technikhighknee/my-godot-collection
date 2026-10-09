@@ -13,11 +13,11 @@
   <div class="shell">
     <header class="header">
       <div class="brand"><span class="emblem">14</span><span>1400 <strong>Map Editor</strong><small>WORLD DESIGN TOOLS</small></span></div>
-      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">ROAD EDITOR · M2</span></div>
+      <div class="document"><span id="mapName">Opening map…</span><span class="status-dot"></span><span class="quiet">TERRAIN EDITOR · M3</span></div>
       <div class="history-controls">
         <button id="undo" type="button" title="Ctrl+Z" disabled>Undo</button>
         <button id="redo" type="button" title="Ctrl+Shift+Z" disabled>Redo</button>
-        <button id="saveRoads" type="button" class="save" disabled>Save roads</button>
+        <button id="saveRoads" type="button" class="save" disabled>Save map</button>
       </div>
       <button class="reset" id="resetCamera" type="button">Reset camera <kbd>F</kbd></button>
     </header>
@@ -47,7 +47,20 @@
         <input type="number" id="roadWidth" min="0.1" max="100" step="0.1" value="3">
         <div class="tool-row"><button type="button" id="appendPoint">Append</button><button type="button" id="insertPoint">Insert</button><button type="button" id="deletePoint">Remove point</button></div>
         <div id="pointInfo" class="point-info">Select a point to move it.</div>
-        <div id="editorMessage" class="editor-message" role="status" aria-live="polite">Roads are stored in the map JSON; terrain assets are untouched.</div>
+        <div id="editorMessage" class="editor-message" role="status" aria-live="polite">Edit terrain or roads, then save the map.</div>
+      </section>
+      <section class="terrain-editor">
+        <h3>TERRAIN TOOLS</h3>
+        <div class="tool-row"><button type="button" id="modeSculpt">Sculpt</button><button type="button" id="modePaint">Paint</button></div>
+        <label class="editor-label" for="sculptMode">SCULPT MODE</label>
+        <select id="sculptMode"><option value="raise">Raise</option><option value="lower">Lower</option><option value="smooth">Smooth</option><option value="flatten">Flatten</option></select>
+        <label class="editor-label" for="brushSurface">PAINT SURFACE</label>
+        <select id="brushSurface"></select>
+        <label class="editor-label" for="brushRadius">BRUSH RADIUS (METERS)</label>
+        <input id="brushRadius" type="number" min="0.5" max="100" step="0.5" value="10">
+        <label class="editor-label" for="brushStrength">BRUSH STRENGTH</label>
+        <input id="brushStrength" type="number" min="0.1" max="50" step="0.5" value="2">
+        <div id="terrainStatus" class="point-info">NO UNSAVED CHANGES</div>
       </section>
       <section class="layers">
         <h3>DISPLAY LAYERS</h3>
@@ -59,13 +72,13 @@
         <label class="switch"><input id="entities" type="checkbox" checked><span>Entity markers</span><small id="entitiesCount">—</small></label>
       </section>
       <section class="legend"><h3>SURFACE DEFINITIONS</h3><div id="palette" class="palette"></div></section>
-      <div class="side-footer">LOCAL WORKSPACE<br><span>Edits are local until Save roads.</span></div>
+      <div class="side-footer">LOCAL WORKSPACE<br><span>Edits are local until Save map.</span></div>
     </aside>
     <main class="viewport" id="viewport">
-      <div class="view-badge">PERSPECTIVE / ROAD EDITOR</div>
+      <div class="view-badge">PERSPECTIVE / MAP EDITOR</div>
       <div class="loading" id="loading"><span class="spinner"></span><span id="loadingText">Loading map geometry…</span></div>
       <div class="compass" id="compass">N <span>↑</span></div>
-      <div class="help">Navigate: left drag <b>Orbit</b><span>·</span>Edit: drag <b>Road points</b><span>·</span>Right drag <b>Pan</b><span>·</span>Scroll <b>Zoom</b></div>
+      <div class="help">Navigate: left drag <b>Orbit</b><span>·</span>Edit: drag <b>Road points</b> or <b>Paint terrain</b><span>·</span>Right drag <b>Pan</b><span>·</span>Scroll <b>Zoom</b></div>
       <div class="probe" id="probe">MOVE CURSOR OVER TERRAIN</div>
     </main>
   </div>

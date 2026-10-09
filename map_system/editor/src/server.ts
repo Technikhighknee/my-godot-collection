@@ -10,6 +10,7 @@ const responses: Record<string, [string, string]> = {
   '/': ['web/index.html', 'text/html; charset=utf-8'],
   '/app.js': ['web/app.js', 'text/javascript; charset=utf-8'],
   '/road-edit.mjs': ['web/road-edit.mjs', 'text/javascript; charset=utf-8'],
+  '/terrain-edit.mjs': ['web/terrain-edit.mjs', 'text/javascript; charset=utf-8'],
   '/mesh-data.mjs': ['web/mesh-data.mjs', 'text/javascript; charset=utf-8'],
   '/style.css': ['web/style.css', 'text/css; charset=utf-8'],
   '/vendor/three/build/three.module.js': ['node_modules/three/build/three.module.js', 'text/javascript; charset=utf-8'],
@@ -22,22 +23,29 @@ async function jsonBody(req: IncomingMessage): Promise<unknown> {
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > 2_000_000) throw new RangeError('Road payload exceeds 2 MB');
+    if (size > 12_000_000) throw new RangeError('Map payload exceeds 12 MB');
     chunks.push(chunk as Buffer);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
 }
 
-/** Read-only by default; only an explicitly supplied store enables saving roads. */
+/** Read-only by default; a local store enables guarded document persistence. */
 export function createEditorServer(source: MapDocument, store?: RoadStore): Server {
   const doc = validateDocument(source);
   if (doc.heights.data.length > 1_500_000) throw new Error('Viewport currently supports at most 1,500,000 height samples');
-  const heights = Buffer.allocUnsafe(doc.heights.data.length * 4);
-  for (let i = 0; i < doc.heights.data.length; i++) heights.writeFloatLE(doc.heights.data[i], i * 4);
-  const surfaces = Buffer.from(doc.surfaces.data);
-  const binary: Record<string, [Buffer, string]> = {
-    '/api/heights': [heights, 'application/octet-stream'],
-    '/api/surfaces': [surfaces, 'application/octet-stream'],
+  const binary = (current: MapDocument, path: string): Buffer => {
+    if (path === '/api/surfaces') return Buffer.from(current.surfaces.data);
+    const bytes = Buffer.allocUnsafe(current.heights.data.length * 4);
+    for (let i = 0; i < current.heights.data.length; i++) bytes.writeFloatLE(current.heights.data[i], i * 4);
+    return bytes;
+  };
+  // Canonical base64 only: no coercion, whitespace, partial decoding or oversized buffers.
+  const encoded = (value: unknown, byteLength: number): Buffer => {
+    if (typeof value !== 'string' || value.length !== Math.ceil(byteLength / 3) * 4 ||
+        !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) throw new Error('Invalid asset encoding');
+    const bytes = Buffer.from(value, 'base64');
+    if (bytes.length !== byteLength || bytes.toString('base64') !== value) throw new Error('Invalid asset length');
+    return bytes;
   };
   return createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -48,7 +56,7 @@ export function createEditorServer(source: MapDocument, store?: RoadStore): Serv
     if (!path || !/^\/[A-Za-z0-9/_.-]*$/.test(path) || path.includes('..') || path.includes('//')) {
       res.writeHead(404); res.end(); return;
     }
-    if (path === '/api/roads' && req.method === 'PUT' && store) {
+    if ((path === '/api/roads' || path === '/api/document') && req.method === 'PUT' && store) {
       // Protect local writes from cross-origin browser requests and DNS rebinding.
       const address = res.socket?.localAddress;
       const port = res.socket?.localPort;
@@ -60,12 +68,28 @@ export function createEditorServer(source: MapDocument, store?: RoadStore): Serv
       try {
         const body = await jsonBody(req);
         if (!body || typeof body !== 'object' || Array.isArray(body) ||
-            Object.keys(body).some(key => !['revision', 'roads'].includes(key)) ||
             !Object.hasOwn(body, 'roads') || !Object.hasOwn(body, 'revision')) throw new Error('Expected revision and roads');
         const { revision, roads } = body as Record<string, unknown>;
-        const saved = await store.save(roads, revision as string);
+        let saved: string;
+        if (path === '/api/roads') {
+          if (Object.keys(body).some(key => !['revision', 'roads'].includes(key))) throw new Error('Invalid road payload');
+          saved = await store.save(roads, revision as string);
+        } else {
+          if (Object.keys(body).some(key => !['revision', 'roads', 'heights', 'surfaces'].includes(key))) throw new Error('Invalid map payload');
+          const current = store.getDocument();
+          const changes: { roads: unknown; heights?: Float32Array; surfaces?: Uint8Array } = { roads };
+          if (Object.hasOwn(body, 'heights')) {
+            const bytes = encoded((body as Record<string,unknown>).heights, current.heights.data.length * 4);
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            changes.heights = Float32Array.from({ length: current.heights.data.length }, (_, i) => view.getFloat32(i * 4, true));
+          }
+          if (Object.hasOwn(body, 'surfaces')) {
+            changes.surfaces = new Uint8Array(encoded((body as Record<string,unknown>).surfaces, current.surfaces.data.length));
+          }
+          saved = await store.saveDocument(changes, revision as string);
+        }
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ revision: saved }));
+        res.end(JSON.stringify({ revision: saved, terrain: store.getDocument().map.terrain }));
       } catch (error) {
         const status = error instanceof RoadConflict ? 409 : error instanceof RangeError ? 413 : error instanceof SyntaxError || error instanceof Error && /^(Map:|Expected|Invalid)/.test(error.message) ? 400 : 500;
         res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -74,12 +98,14 @@ export function createEditorServer(source: MapDocument, store?: RoadStore): Serv
       return;
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.writeHead(405, { Allow: store && path === '/api/roads' ? 'PUT' : 'GET, HEAD' }); res.end(); return;
+      res.writeHead(405, { Allow: store && (path === '/api/roads' || path === '/api/document') ? 'PUT' : 'GET, HEAD' }); res.end(); return;
     }
     try {
+      const current = store?.getDocument() ?? doc;
       const item = path === '/api/map'
-        ? [Buffer.from(JSON.stringify({ map: doc.map, height: { width: doc.heights.width, height: doc.heights.height }, surface: { width: doc.surfaces.width, height: doc.surfaces.height }, readOnly: !store, revision: store?.getRevision() ?? null })), 'application/json; charset=utf-8'] as [Buffer, string]
-        : binary[path];
+        ? [Buffer.from(JSON.stringify({ map: current.map, height: { width: current.heights.width, height: current.heights.height }, surface: { width: current.surfaces.width, height: current.surfaces.height }, readOnly: !store, revision: store?.getRevision() ?? null })), 'application/json; charset=utf-8'] as [Buffer, string]
+        : path === '/api/heights' || path === '/api/surfaces'
+          ? [binary(current, path), 'application/octet-stream'] as [Buffer, string] : undefined;
       const file = responses[path];
       if (!item && !file) { res.writeHead(404); res.end(); return; }
       let bytes: Buffer;
