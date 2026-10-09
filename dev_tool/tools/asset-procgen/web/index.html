@@ -26,7 +26,7 @@
 <div class="pg-layout">
   <aside class="pg-sidebar pg-library" aria-label="Generator library">
     <div class="pg-sidebar-head">GENERATORS <span>01</span></div>
-    <button class="pg-generator is-selected" type="button" aria-current="true"><span class="pg-gen-symbol" aria-hidden="true">♣</span><span><strong>Broadleaf tree</strong><small>Oak · Revision 2</small></span><span class="pg-selected-mark" aria-hidden="true">↗</span></button>
+    <button class="pg-generator is-selected" type="button" aria-current="true"><span class="pg-gen-symbol" aria-hidden="true">♣</span><span><strong>Broadleaf tree</strong><small>Oak · Structural growth</small></span><span class="pg-selected-mark" aria-hidden="true">↗</span></button>
     <div class="pg-sidebar-label">COMING LATER</div>
     <div class="pg-generator pg-disabled"><span class="pg-gen-symbol" aria-hidden="true">△</span><span><strong>Conifers</strong><small>New growth rules</small></span></div>
     <div class="pg-generator pg-disabled"><span class="pg-gen-symbol" aria-hidden="true">◈</span><span><strong>Rocks &amp; props</strong><small>Additional generators</small></span></div>
@@ -38,6 +38,8 @@
       <div class="pg-viewport-overline"><span class="pg-viewport-dot"></span> LIVE GENERATION <span class="pg-view-label">PERSPECTIVE / SHADED</span></div>
       <div class="pg-viewport-tools">
         <button id="focus" type="button" title="Frame tree">Focus</button>
+        <button id="woodOnly" type="button" aria-pressed="false" title="Inspect the woody structure without leaves">Wood only</button>
+        <button id="skeletonView" type="button" aria-pressed="false" title="Inspect structural branches without mesh">Skeleton</button>
         <button id="wireframe" type="button" aria-pressed="false" title="Toggle wireframe">Wireframe</button>
         <button id="spin" type="button" aria-pressed="false" title="Rotate preview">Auto orbit</button>
       </div>
@@ -52,7 +54,7 @@
       <div><span>TRIANGLES</span><strong id="triangles">—</strong></div>
       <div><span>BRANCH SEGMENTS</span><strong id="branches">—</strong></div>
       <div><span>LEAVES</span><strong id="leaves">—</strong></div>
-      <div><span>FOLIAGE CLUSTERS</span><strong id="clusters">—</strong></div>
+      <div><span>LEAF ANCHORS</span><strong id="clusters">—</strong></div>
     </section>
   </main>
   <aside class="pg-sidebar pg-properties" aria-label="Generator parameters">
@@ -71,7 +73,7 @@
     </div>
     <div class="pg-properties-section pg-seed-section"><label class="pg-field-label" for="seed">GENERATION SEED</label>
       <div class="pg-seed-entry"><input id="seed" type="number" step="1" min="0" max="4294967295"><button id="randomSeed" type="button" title="Generate a random seed" aria-label="Randomize seed">↻</button></div>
-      <p>The same recipe, revision and seed always create the same geometry.</p>
+      <p>The same recipe and seed always create the same geometry.</p>
     </div>
     <div class="pg-property-footer"><span id="status" role="status">Ready</span><button id="reset" type="button">Reset settings</button></div>
   </aside>

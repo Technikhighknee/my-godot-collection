@@ -8,13 +8,31 @@
 
 ## Asset ProcGen
 
-Select **Asset ProcGen** on the home screen. Edit structure, crown, foliage and seed in the right-hand inspector; orbit/zoom/pan the live 3D preview. Use **Seed variants** to preview and apply alternate growth shapes. **Save recipe** downloads a JSON file containing its name, generator ID and revision, seed and parameters; **Load recipe** accepts exactly that schema. **Export GLB** downloads ready-to-use geometry, materials, vertex colors and embedded recipe metadata. Geometry comes from the saved seed, not from the current camera/lighting.
+Asset ProcGen builds a tree in three independent stages: an oak growth profile produces a
+hierarchical skeleton (trunk, four generations of branches, terminal shoots and
+leaf anchors); a wood mesher creates curved, outward-facing tubes; and a separate
+foliage mesher places individual lobed leaves along those shoots. Coarse shoot
+competition leaves natural gaps in the crown. There are no visible or hidden
+leaf-volume meshes.
 
-Exported GLBs can be imported directly by Godot 4 and glTF-compatible editors/renderers, including Three.js. The recipe is deliberately version-locked: the improved oak algorithm is `tree.oak.v2`, revision `2`. Previous `tree.oak.v1` recipes are rejected rather than silently producing different geometry; existing exported GLBs remain usable. Future generator changes must use a new revision rather than silently changing existing exports. Files remain useful without running Asset ProcGen.
+In the viewport, **Full tree** is the default. **Wood only** hides the leaves,
+while **Skeleton** shows generation-colored branch centerlines for inspecting growth.
+The two diagnostic views never change the exported asset. Seed variants share
+the same recipe parameters but derive independent growth shapes.
 
-The oak generator now has a hierarchical, uneven branch scaffold and overlapping closed foliage lobes with small leaves on their surfaces. The crown silhouette is established by connected volumes rather than isolated leaf cards. Trunks and branches use outward-facing, closed tube meshes. The first generator is oak-style broadleaf geometry, not a botanical simulator or a complete vegetation system. Small leaves are actual double-sided geometry; the preview intentionally uses the same two material primitives as the GLB. No automatic asset deployment, growth animation or LOD generation is implied by this milestone.
+The JSON recipe stores the generator name \`oak\`, its internal revision,
+a seed, and six bounded parameters. It can be saved and loaded without creating
+any assets on disk. GLB export includes separate bark and foliage primitives
+with vertex colors, PBR materials, and the embedded recipe. Both geometry
+meshing stages operate on one deterministic skeleton; the seed and structural
+IDs do not depend on traversal order or on how the 3D preview is rendered.
+Exports are standalone and can be loaded without the generator.
 
-
+This is a stylized structural-growth system, not a biological simulation or
+a finished botanical species library. Trees are intentionally authored for the
+look of the intended game, and leaf geometry is opaque rather than
+texture-atlased. The current foliage budget is intended for individual asset
+review; efficient distant forest rendering will require LODs/instancing.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 

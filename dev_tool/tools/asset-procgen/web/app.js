@@ -14,7 +14,7 @@ const status = message => { $('status').textContent=message; };
 let recipe = validateRecipe(structuredClone(DEFAULT_RECIPE));
 let lastSaved = JSON.stringify(recipe);
 let generated = null, treeGroup = null, frameId = null, pendingUpdate = null, variantTimeout = null;
-let wireframe = false, autoOrbit = false, controls, renderer, scene, camera, stage;
+let wireframe = false, autoOrbit = false, viewMode = 'full', controls, renderer, scene, camera;
 const materials = () => [
   new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,metalness:0,wireframe}),
   new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0,doubleSided:true,wireframe})
@@ -28,6 +28,37 @@ function geometry(data) {
   result.computeBoundingSphere();
   return result;
 }
+function skeletonLines(skeleton) {
+  const pos=[],color=[];
+  const palette=[
+    [0.92,0.77,0.54],[0.84,0.67,0.45],[0.65,0.80,0.60],
+    [0.43,0.73,0.69],[0.35,0.51,0.68]
+  ];
+  for(const branch of skeleton.branches) {
+    const c=palette[Math.min(branch.generation,palette.length-1)];
+    for(let k=0;k<branch.points.length-1;k++) {
+      pos.push(...branch.points[k],...branch.points[k+1]);
+      color.push(...c,...c);
+    }
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  geometry.setAttribute('color',new THREE.Float32BufferAttribute(color,3));
+  return new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({vertexColors:true}));
+}
+function applyDisplayMode(group) {
+  if(!group)return;
+  const [wood,foliage,structure]=group.children;
+  wood.visible=viewMode!=='skeleton';
+  foliage.visible=viewMode==='full';
+  structure.visible=viewMode==='skeleton';
+}
+function setViewMode(mode) {
+  viewMode=viewMode===mode?'full':mode;
+  applyDisplayMode(treeGroup);
+  $('woodOnly').setAttribute('aria-pressed',String(viewMode==='wood'));
+  $('skeletonView').setAttribute('aria-pressed',String(viewMode==='skeleton'));
+}
 function modelGroup(result) {
   const group = new THREE.Group();
   const mats = materials();
@@ -36,11 +67,19 @@ function modelGroup(result) {
     mesh.castShadow=false;
     group.add(mesh);
   }
+  group.add(skeletonLines(result.skeleton));
+  applyDisplayMode(group);
   return group;
 }
 function dispose(group) {
   if(!group)return;
-  group.traverse(obj=>{if(obj.isMesh){obj.geometry.dispose();obj.material.dispose();}});
+  group.traverse(obj=>{
+    if(obj.geometry)obj.geometry.dispose();
+    if(obj.material){
+      const materials=Array.isArray(obj.material)?obj.material:[obj.material];
+      for(const material of materials)material.dispose();
+    }
+  });
 }
 function frameCamera() {
   if(!camera)return;
@@ -230,6 +269,8 @@ $('randomSeed').addEventListener('click',()=>{
   setRecipe({...recipe,seed:array[0]});
 });
 $('focus').addEventListener('click',frameCamera);
+$('woodOnly').addEventListener('click',()=>setViewMode('wood'));
+$('skeletonView').addEventListener('click',()=>setViewMode('skeleton'));
 $('wireframe').addEventListener('click',()=>{
   wireframe=!wireframe;$('wireframe').setAttribute('aria-pressed',String(wireframe));
   if(treeGroup)treeGroup.traverse(obj=>{if(obj.isMesh)obj.material.wireframe=wireframe;});

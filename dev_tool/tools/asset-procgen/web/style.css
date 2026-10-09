@@ -82,3 +82,7 @@ button.pg-generator{cursor:default}
 @media(max-width:880px){.pg-layout{grid-template-columns:minmax(0,1fr) 270px;max-height:none;overflow:visible}.pg-library{display:none}.pg-main{overflow:visible}.pg-canvas-wrap{height:430px}.pg-variant-grid{grid-template-columns:repeat(2,1fr)}.pg-variant img{height:110px}}
 @media(max-width:650px){.pg-header{height:auto;min-height:65px;padding:12px;flex-wrap:wrap}.pg-heading{width:100%}.pg-top-actions{width:100%;justify-content:space-between;gap:5px}.pg-action{padding:8px 9px;font-size:11px!important}.pg-layout{display:flex;flex-direction:column}.pg-canvas-wrap{height:370px}.pg-properties{border-left:0;border-top:1px solid #34464a}.pg-variants{padding:20px 14px}.pg-stats{padding:18px 14px}.pg-secondary{display:none}.pg-viewport-overline{left:14px;top:13px}.pg-viewport-tools{top:44px;right:10px}.pg-preview-hint{left:10px;font-size:8px}}
 @media(prefers-reduced-motion:reduce){.pg-page *{scroll-behavior:auto}}
+
+/* Tree structure inspection modes */
+.pg-viewport-tools{flex-wrap:wrap;justify-content:flex-end;max-width:min(100%,470px)}
+@media(max-width:650px){.pg-viewport-tools{max-width:calc(100% - 16px)}.pg-viewport-tools button{padding:7px 9px}}
