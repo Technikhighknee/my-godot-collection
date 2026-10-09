@@ -15,12 +15,12 @@ const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest(
 test('recipe schema is strictly versioned, bounded and canonical', () => {
   const recipe = validateRecipe(fresh());
   assert.equal(recipe.schema, '1400.asset.recipe.v1');
-  assert.equal(recipe.generator, 'tree.oak.v1');
-  assert.equal(recipe.revision, 1);
+  assert.equal(recipe.generator, 'tree.oak.v2');
+  assert.equal(recipe.revision, 2);
   assert.equal(recipe.name, 'Oak 01');
   assert.deepEqual(validateRecipe(JSON.parse(JSON.stringify(recipe))), recipe);
   for (const bad of [
-    { ...recipe, revision: 2 }, { ...recipe, generator: 'tree.oak.v2' },
+    { ...recipe, revision: 1 }, { ...recipe, generator: 'tree.oak.v1' },
     { ...recipe, name: '' }, { ...recipe, name: 'x'.repeat(61) },
     { ...recipe, seed: -1 }, { ...recipe, seed: 0x100000000 },
     { ...recipe, seed: 0.1 }, { ...recipe, unknown: 'surprise' },
@@ -40,6 +40,7 @@ test('generator produces finite indexed geometry and never mutates the input rec
   assert.deepEqual(result.recipe, recipe);
   assert.ok(result.stats.branches > 40);
   assert.ok(result.stats.leaves > 800);
+  assert.ok(result.stats.clusters > 150, 'Crown is composed of overlapping foliage volumes');
   assert.ok(result.stats.triangles > 3000 && result.stats.triangles < 200000);
   let triangles = 0;
   for (const mesh of Object.values(result.model)) {
@@ -60,6 +61,29 @@ test('generator produces finite indexed geometry and never mutates the input rec
   }
   assert.equal(triangles, result.stats.triangles);
   assert.ok(Math.max(...result.model.wood.positions.filter((_, i) => i % 3 === 1)) > recipe.parameters.height*.7);
+});
+
+
+test('bark and foliage triangle winding agrees with outward vertex normals', () => {
+  const { model } = generateTree(fresh());
+  for (const [part, mesh] of Object.entries(model)) {
+    const { positions: P, normals: N, indices: I } = mesh;
+    let inverted = 0, degenerate = 0;
+    for (let i = 0; i < I.length; i += 3) {
+      const a = I[i], b = I[i + 1], c = I[i + 2];
+      const ux = P[b*3]-P[a*3], uy = P[b*3+1]-P[a*3+1], uz = P[b*3+2]-P[a*3+2];
+      const vx = P[c*3]-P[a*3], vy = P[c*3+1]-P[a*3+1], vz = P[c*3+2]-P[a*3+2];
+      const nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx;
+      const area2 = Math.hypot(nx, ny, nz);
+      if (area2 < 1e-10) { degenerate++; continue; }
+      const facing = nx*(N[a*3]+N[b*3]+N[c*3]) +
+        ny*(N[a*3+1]+N[b*3+1]+N[c*3+1]) +
+        nz*(N[a*3+2]+N[b*3+2]+N[c*3+2]);
+      if (facing < -1e-9) inverted++;
+    }
+    assert.equal(degenerate, 0, part + ' contains degenerate triangles');
+    assert.equal(inverted, 0, part + ' has inward-facing triangles');
+  }
 });
 
 test('identical seeds reproduce geometry and variants really change it', () => {

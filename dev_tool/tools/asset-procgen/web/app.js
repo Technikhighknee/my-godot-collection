@@ -79,6 +79,7 @@ function displayTree(focus=false) {
   $('triangles').textContent=number(next.stats.triangles);
   $('branches').textContent=number(next.stats.branches);
   $('leaves').textContent=number(next.stats.leaves);
+  $('clusters').textContent=number(next.stats.clusters);
   if(focus)frameCamera();
   status('Generated · '+number(next.stats.triangles)+' triangles');
   return next;

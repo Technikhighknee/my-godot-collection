@@ -1,10 +1,10 @@
 // Pure, seeded geometry. No browser, renderer, clock or global randomness dependencies.
 export const RECIPE_SCHEMA = '1400.asset.recipe.v1';
-export const GENERATOR = 'tree.oak.v1';
-export const GENERATOR_REVISION = 1;
+export const GENERATOR = 'tree.oak.v2';
+export const GENERATOR_REVISION = 2;
 export const DEFAULT_RECIPE = Object.freeze({
   schema: RECIPE_SCHEMA, generator: GENERATOR, revision: GENERATOR_REVISION, name: 'Oak 01', seed: 147241,
-  parameters: { height: 12, crownRadius: 4.4, trunkRadius: 0.38, branchDensity: 0.72, leafDensity: 0.76, asymmetry: 0.5 }
+  parameters: { height: 12, crownRadius: 4.4, trunkRadius: 0.43, branchDensity: 0.7, leafDensity: 0.84, asymmetry: 0.62 }
 });
 const ranges = Object.freeze({
   height: [3, 24], crownRadius: [1, 11], trunkRadius: [0.12, 1.1],
@@ -45,135 +45,240 @@ export function variantSeeds(seed) {
   const next=randomGenerator(seed);
   return Array.from({length:4},()=>Math.floor(next()*0x100000000)>>>0);
 }
+
+const TAU = Math.PI*2;
+const length = a => Math.hypot(a[0],a[1],a[2]);
+const mix = (a,b,t) => vadd(vmul(a,1-t),vmul(b,t));
+const jitter = (rng,amount=1) => (rng()*2-1)*amount;
 function meshBuilder() {
   const positions=[],normals=[],colors=[],indices=[];
-  const vertex=(p,n,c)=>{ const i=positions.length/3; positions.push(...p); normals.push(...n);colors.push(...c);return i; };
+  const vertex=(p,n,c)=>{ const i=positions.length/3; positions.push(...p); normals.push(...n); colors.push(...c); return i; };
   const triangle=(a,b,c)=>indices.push(a,b,c);
-  return { vertex,triangle,finish:()=>({
-    positions:new Float32Array(positions),normals:new Float32Array(normals),
-    colors:new Float32Array(colors),indices:new Uint32Array(indices)
-  }) };
+  return {vertex,triangle,finish:()=>({
+    positions:new Float32Array(positions), normals:new Float32Array(normals),
+    colors:new Float32Array(colors), indices:new Uint32Array(indices)
+  })};
 }
-function tube(mesh,points,radii,shade) {
-  const sides=7, rings=[], last=points.length-1;
-  for(let i=0;i<points.length;i++){
-    const tangent=norm(vsub(points[Math.min(i+1,last)],points[Math.max(0,i-1)]));
-    const guide=Math.abs(dot(tangent,[0,1,0]))>.88?[1,0,0]:[0,1,0];
-    const u=norm(cross(tangent,guide)),v=norm(cross(tangent,u));
+// Rings follow a transported frame, so bends cannot flip the tube suddenly.
+function tube(mesh,path,radii,shade,sides=8) {
+  let axis=norm(vsub(path[1],path[0]));
+  let u=norm(cross(axis,Math.abs(axis[1])>.9?[1,0,0]:[0,1,0]));
+  const rings=[];
+  for(let i=0;i<path.length;i++){
+    const tangent=norm(vsub(path[Math.min(i+1,path.length-1)],path[Math.max(i-1,0)]));
+    u=norm(vsub(u,vmul(tangent,dot(u,tangent))));
+    if(length(u)<.01)u=norm(cross(tangent,[0,0,1]));
+    const v=norm(cross(tangent,u));
     const ring=[];
-    for(let j=0;j<sides;j++){
-      const a=Math.PI*2*j/sides, normal=norm(vadd(vmul(u,Math.cos(a)),vmul(v,Math.sin(a))));
-      const ridge=1+.042*Math.sin(j*2.4+i*1.31);
-      const position=vadd(points[i],vmul(normal,radii[i]*ridge));
-      const tonal=1+.10*Math.sin(j*4.1+i*.7);
-      ring.push(mesh.vertex(position,normal,shade.map(k=>clamp(k*tonal,0,1))));
+    for(let k=0;k<sides;k++){
+      const a=k*TAU/sides, normal=norm(vadd(vmul(u,Math.cos(a)),vmul(v,Math.sin(a))));
+      const ridge=1+.055*Math.sin(k*2.4+i*.43);
+      const colorVariation=.90+.15*Math.sin(k*1.4+i*.65);
+      ring.push(mesh.vertex(vadd(path[i],vmul(normal,radii[i]*ridge)),normal,
+        shade.map(x=>clamp(x*colorVariation,0,1))));
     }
-    rings.push(ring);
+    rings.push(ring);axis=tangent;
   }
-  for(let i=0;i<last;i++)for(let j=0;j<sides;j++){
-    const a=rings[i][j],b=rings[i][(j+1)%sides],c=rings[i+1][j],d=rings[i+1][(j+1)%sides];
+  for(let i=0;i<rings.length-1;i++)for(let k=0;k<sides;k++){
+    const next=(k+1)%sides,a=rings[i][k],b=rings[i][next],c=rings[i+1][k],d=rings[i+1][next];
     mesh.triangle(a,b,c);mesh.triangle(b,d,c);
   }
-  const cap=mesh.vertex(points[last],norm(vsub(points[last],points[last-1])),shade);
-  for(let j=0;j<sides;j++)mesh.triangle(rings[last][j],rings[last][(j+1)%sides],cap);
+  // Both ends are capped: exported branch and trunk segments are closed solids.
+  const start=mesh.vertex(path[0],vmul(axis,-1),shade);
+  for(let k=0;k<sides;k++)
+    mesh.triangle(rings[0][k],start,rings[0][(k+1)%sides]);
+  const at=path.length-1;
+  const tip=mesh.vertex(path[at],axis,shade);
+  for(let k=0;k<sides;k++)mesh.triangle(rings[at][k],rings[at][(k+1)%sides],tip);
 }
-function leaf(mesh,center,direction,size,shade,rng) {
-  const facing=norm(direction);
-  const axis=norm(cross(facing,Math.abs(facing[1])>.88?[1,0,0]:[0,1,0]));
-  const across=norm(cross(axis,facing));
-  const width=size*(.39+.16*rng());
-  const base=vadd(center,vmul(facing,-size*.48));
-  const tip=vadd(center,vmul(facing,size*.64));
-  const left=vadd(center,vmul(across,-width));
-  const right=vadd(center,vmul(across,width));
-  const middle=vadd(center,vmul(axis,size*.19));
-  const n=norm(cross(vsub(left,base),vsub(middle,base)));
-  const tonal=clamp(.78+rng()*.4,0,1.25);
-  const col=shade.map(v=>clamp(v*tonal,0,1));
-  const a=mesh.vertex(base,n,col),b=mesh.vertex(left,n,col),c=mesh.vertex(tip,n,col),
-    d=mesh.vertex(right,n,col),e=mesh.vertex(middle,n,col);
+function leafBlade(mesh,at,surfaceNormal,size,rng,color) {
+  // Small curved lanceolate leaves grow *on* a crown lobe, not in empty space.
+  const n=norm(surfaceNormal);
+  const tipDir=norm(vadd(vmul(n,.26),norm([jitter(rng),.3+rng()*.65,jitter(rng)])));
+  const across=norm(cross(n,tipDir));
+  const along=norm(cross(across,n));
+  const center=vadd(at,vmul(n,size*.12));
+  const lo=vadd(vadd(center,vmul(along,-size*.45)),vmul(across,-size*.08));
+  const hi=vadd(vadd(center,vmul(along,size*.55)),vmul(n,size*.30));
+  const left=vadd(center,vmul(across,-size*.28));
+  const right=vadd(center,vmul(across,size*.28));
+  const ridge=vadd(center,vmul(n,size*.21));
+  const normal=norm(cross(vsub(left,lo),vsub(ridge,lo)));
+  const a=mesh.vertex(lo,normal,color),b=mesh.vertex(left,normal,color),c=mesh.vertex(hi,normal,color);
+  const d=mesh.vertex(right,normal,color),e=mesh.vertex(ridge,normal,color);
   mesh.triangle(a,b,e);mesh.triangle(b,c,e);mesh.triangle(e,c,d);mesh.triangle(e,d,a);
 }
+function foliageLobe(mesh,center,extent,rng,base,leafBudget) {
+  // Irregular closed ellipsoid: continuous *volume*, with asymmetric overlapping
+  // lobes. A tiny number of leaves on its surface break up the silhouette.
+  const steps=10,rings=7,shapeSeed=rng()*TAU,vertexRings=[];
+  const wave=[rng(),rng(),rng(),rng()];
+  const cell=(a,b)=>Math.sin(a*2.7+shapeSeed)*.065+Math.cos(b*4.8+wave[0]*TAU)*.073+
+    Math.sin(a*4.4-b*1.8+wave[1]*TAU)*.048;
+  const surface=(theta,phi)=>{
+    const s=Math.sin(phi);
+    const irregular=1+cell(theta,phi)+.052*Math.cos(theta*5+wave[2]*TAU)*s;
+    return [center[0]+Math.cos(theta)*s*extent[0]*irregular,
+      center[1]+Math.cos(phi)*extent[1]*(1+.065*Math.sin(theta*3+wave[3]*TAU)),
+      center[2]+Math.sin(theta)*s*extent[2]*irregular];
+  };
+  const color=()=>{
+    const tonal=.87+rng()*.26;
+    return base.map(v=>clamp(v*tonal,0,1));
+  };
+  // Pole vertices and independently indexed latitude rings: no degenerate faces.
+  const top=mesh.vertex(surface(0,0),[0,1,0],color());
+  for(let row=1;row<rings;row++){
+    const phi=row*Math.PI/rings,ring=[];
+    for(let col=0;col<steps;col++){
+      const theta=col*TAU/steps,p=surface(theta,phi);
+      const normal=norm([(p[0]-center[0])/Math.max(.01,extent[0]**2),
+        (p[1]-center[1])/Math.max(.01,extent[1]**2),
+        (p[2]-center[2])/Math.max(.01,extent[2]**2)]);
+      ring.push(mesh.vertex(p,normal,color()));
+    }
+    vertexRings.push(ring);
+  }
+  const bottom=mesh.vertex(surface(0,Math.PI),[0,-1,0],color());
+  const first=vertexRings[0],last=vertexRings[vertexRings.length-1];
+  for(let col=0;col<steps;col++){
+    const nxt=(col+1)%steps;
+    mesh.triangle(top,first[nxt],first[col]);
+    mesh.triangle(bottom,last[col],last[nxt]);
+  }
+  for(let row=0;row<vertexRings.length-1;row++)
+    for(let col=0;col<steps;col++){
+      const nxt=(col+1)%steps,a=vertexRings[row][col],b=vertexRings[row][nxt],
+        c=vertexRings[row+1][col],d=vertexRings[row+1][nxt];
+      mesh.triangle(a,b,c);mesh.triangle(b,d,c);
+    }
+  for(let k=0;k<leafBudget;k++){
+    const theta=rng()*TAU,phi=.24+rng()*(Math.PI-.48),at=surface(theta,phi);
+    const n=norm(vsub(at,center));
+    const leafSize=Math.min(...extent)*(.14+.12*rng());
+    const palettes=[[.25,.36,.16],[.32,.43,.18],[.34,.42,.18],[.22,.33,.15]];
+    leafBlade(mesh,at,n,leafSize,rng,palettes[Math.floor(rng()*palettes.length)]);
+  }
+}
 export function generateTree(recipe) {
-  const r=validateRecipe(recipe),p=r.parameters,rng=randomGenerator(r.seed);
+  const r=validateRecipe(recipe), p=r.parameters, rng=randomGenerator(r.seed);
   const wood=meshBuilder(),foliage=meshBuilder();
-  const treeHeight=p.height, trunkHeight=p.height*.72;
-  const trunkPoints=[],radii=[];
-  const tilt=rng()*Math.PI*2, crooked=p.asymmetry*(.05+rng()*.11);
-  for(let i=0;i<=13;i++){
-    const t=i/13;
+  const H=p.height,R=p.crownRadius;
+  const shade=[.29,.21,.14];
+  const trunkTop=.81*H, trunkPoints=[],trunkRadii=[];
+  const turn=rng()*TAU,lean=.08+.12*p.asymmetry;
+  // Low-frequency curved trunk with an expanded foot rather than a bare cone.
+  for(let i=0;i<=17;i++){
+    const t=i/17;
     trunkPoints.push([
-      Math.sin(t*5.6+tilt)*crooked*t*t + t*.17*Math.cos(tilt),
-      trunkHeight*t,
-      Math.cos(t*6.4+tilt)*crooked*t*t + t*.17*Math.sin(tilt)
+      Math.sin(turn+t*3.2)*lean*t*t*H*.12,
+      t*trunkTop,
+      Math.cos(turn+t*3.2)*lean*t*t*H*.12
     ]);
-    radii.push(Math.max(.019,p.trunkRadius*Math.pow(1-t,1.3)*(1+.1*Math.sin(i*1.9))));
+    const taper=Math.pow(1-t,.86);
+    const flare=1+.59*Math.exp(-t*21);
+    trunkRadii.push(Math.max(.012,p.trunkRadius*taper*flare));
   }
-  const sampleTrunk=t=>{const at=t*13,i=Math.min(12,Math.floor(at)),f=at-i;return vadd(vmul(trunkPoints[i],1-f),vmul(trunkPoints[i+1],f));};
-  tube(wood,trunkPoints,radii,[.34,.245,.17]);
-  let branches=0,leafCount=0;
-  function leavesAt(point,scale,count) {
-    for(let k=0;k<count;k++){
-      const theta=6.28318530718*rng(),z=rng()*2-1, radial=Math.sqrt(Math.max(0,1-z*z));
-      const spread=scale*Math.cbrt(rng());
-      const offset=[Math.cos(theta)*radial*spread,z*spread*.73,Math.sin(theta)*radial*spread];
-      const center=vadd(point,offset);
-      const facing=norm([rng()-.5,.25+rng()*.8,rng()-.5]);
-      const green=rng();
-      const color=green>.55?[.27,.44,.205]:green>.2?[.34,.48,.24]:[.22,.36,.19];
-      leaf(foliage,center,facing,scale*(.31+.24*rng()),color,rng);
-      leafCount++;
+  tube(wood,trunkPoints,trunkRadii,shade,10);
+  const trunkAt=t=>{
+    const x=clamp(t,0,1)*17,i=Math.min(16,Math.floor(x));
+    return mix(trunkPoints[i],trunkPoints[i+1],x-i);
+  };
+  let branches=0,leaves=0,clusters=0;
+  const crownBias=rng()*TAU;
+  function pod(center,scale,volume=1){
+    const palettes=[[.22,.36,.17],[.265,.40,.19],[.285,.43,.205],[.24,.375,.165],[.31,.445,.215]];
+    const color=palettes[Math.floor(rng()*palettes.length)];
+    const size=scale*(.88+rng()*.23);
+    const extents=[size*(.86+rng()*.36),size*(.61+rng()*.22),size*(.84+rng()*.31)];
+    const count=Math.round((3+5*p.leafDensity)*volume);
+    foliageLobe(foliage,center,extents,rng,color,count);
+    clusters++;leaves+=count;
+  }
+  function limb(start,end,radius,segments=5,curvature=.12){
+    const path=[],radii=[],dis=vsub(end,start),flat=[-dis[2],0,dis[0]];
+    const flatN=norm(flat),bend=jitter(rng,curvature);
+    for(let k=0;k<=segments;k++){
+      const u=k/segments;
+      const point=mix(start,end,u);
+      point[1]+=Math.sin(Math.PI*u)*curvature*H*.33;
+      const p2=vadd(point,vmul(flatN,bend*Math.sin(Math.PI*u)*R*.28));
+      path.push(p2);
+      radii.push(Math.max(.007,radius*Math.pow(1-u,.97)));
     }
+    tube(wood,path,radii,shade,radius>p.trunkRadius*.2?8:6);
+    branches++;
+    return path;
   }
-  const levels=Math.round(lerp(5,9,p.branchDensity));
-  for(let level=0;level<levels;level++){
-    const t=(level+.22)/levels, startT=.28+t*.69, start=sampleTrunk(startT);
-    const perLevel=Math.round(lerp(3,6,p.branchDensity) + (level%2));
-    for(let j=0;j<perLevel;j++){
-      const azimuth=(j+(level%2)*.5)/perLevel*Math.PI*2 + (rng()-.5)*(.38+p.asymmetry*.65);
-      const direction=[Math.cos(azimuth),0,Math.sin(azimuth)];
-      const lower=Math.sin(Math.PI*clamp(startT,.05,.95));
-      const reach=p.crownRadius*(.55+.58*lower)*(.78+rng()*.35);
-      const lift=treeHeight*(.12+.11*rng()+startT*.07);
-      const curl=(rng()-.5)*p.asymmetry*.35;
-      const points=[],rad=[];
-      const r0=p.trunkRadius*(.10+.25*(1-startT))*(.75+rng()*.45);
-      for(let k=0;k<=6;k++){
-        const s=k/6;
-        const horizontal=reach*s;
-        const twist=azimuth+curl*s;
-        points.push([
-          start[0]+Math.cos(twist)*horizontal,
-          start[1]+lift*Math.pow(s,1.55)-Math.sin(s*Math.PI)*reach*.035,
-          start[2]+Math.sin(twist)*horizontal
+  function clusterAt(tip,dir,scale,baseCount=2){
+    // Closely packed crown masses define the silhouette; leaf blades only add detail.
+    const sideways=norm(cross(dir,[0,1,0]));
+    const podCount=baseCount+Math.round(p.leafDensity);
+    for(let j=0;j<podCount;j++){
+      const angle=TAU*j/podCount+jitter(rng,.36);
+      const radial=scale*(.38+.35*rng());
+      const c=vadd(tip,[
+        Math.cos(angle)*radial+jitter(rng,scale*.09),
+        Math.sin(angle*1.7)*scale*.29+jitter(rng,scale*.17),
+        Math.sin(angle)*radial+jitter(rng,scale*.09)
+      ]);
+      pod(c,scale*(.64+.16*rng()));
+    }
+    pod(vadd(tip,[0,scale*.15,0]),scale*.86);
+  }
+  const nMain=Math.round(lerp(8,13,p.branchDensity));
+  for(let i=0;i<nMain;i++){
+    // Golden angle distributes big scaffolding branches without identical rings.
+    const t=(i+.47+jitter(rng,.23))/nMain;
+    const heightAlong=.25+t*.69, start=trunkAt(heightAlong);
+    const angle=crownBias+i*2.39996322972865+jitter(rng,.16+.24*p.asymmetry);
+    const dir=[Math.cos(angle),0,Math.sin(angle)];
+    const reach=(.64+.40*Math.sin((.20+t*.83)*Math.PI))*R*(.86+.22*rng());
+    const lengthH=H*(.115+.095*rng()+.043*t);
+    const end=vadd(start,[dir[0]*reach,Math.min(H*.91-start[1],lengthH),dir[2]*reach]);
+    const radius=p.trunkRadius*(.41-.25*t)*(.8+rng()*.27);
+    const main=limb(start,end,radius,7,.07+.09*p.asymmetry);
+    // Two to four side-branches, each with curved small tips. The network
+    // branches outward and upward; it does not create a radial broom.
+    const forks=Math.round(lerp(2,4,p.branchDensity));
+    for(let j=0;j<forks;j++){
+      const along=.40+(j+.35)/(forks+.65)*.43;
+      const a=along*7,index=Math.min(6,Math.floor(a)),joint=mix(main[index],main[index+1],a-index);
+      const sign=(j%2===0?1:-1),sideAngle=angle+sign*(.42+rng()*.48);
+      const childReach=R*(.23+.18*rng())*(.85+.24*(1-t));
+      const secondaryEnd=vadd(joint,[
+        Math.cos(sideAngle)*childReach, H*(.035+.065*rng()), Math.sin(sideAngle)*childReach
+      ]);
+      const sec=limb(joint,secondaryEnd,radius*(.29+.1*rng()),4,.06);
+      for(let k=0;k<2;k++){
+        const subAngle=sideAngle+(k===0?-1:1)*(.29+rng()*.28);
+        const attach=sec[2+k];
+        const ext=R*(.12+.09*rng());
+        const tertiaryEnd=vadd(attach,[
+          Math.cos(subAngle)*ext, H*(.035+.04*rng()),Math.sin(subAngle)*ext
         ]);
-        rad.push(Math.max(.012,r0*Math.pow(1-s,1.12)));
+        limb(attach,tertiaryEnd,radius*.105,3,.025);
+        clusterAt(tertiaryEnd,dir,R*(.19+.04*rng()),1);
       }
-      tube(wood,points,rad,[.35,.25,.17]);branches++;
-      for(let sub=0;sub<2;sub++){
-        const startIndex=3+sub;
-        const joint=points[startIndex];
-        const side=(sub===0?-1:1)*(Math.PI/3+rng()*.6);
-        const angle=azimuth+side;
-        const reach2=p.crownRadius*(.19+.17*rng());
-        const tip=vadd(joint,[Math.cos(angle)*reach2,treeHeight*(.04+.07*rng()),Math.sin(angle)*reach2]);
-        const midpoint=vadd(joint,vmul(vsub(tip,joint),.52));
-        midpoint[1]+=treeHeight*.018;
-        tube(wood,[joint,midpoint,tip],[r0*.30,r0*.17,.007],[.36,.255,.18]);branches++;
-        leavesAt(tip,p.crownRadius*(.16+.04*rng()),Math.round(lerp(6,16,p.leafDensity)));
-      }
-      leavesAt(points[6],p.crownRadius*(.20+.06*rng()),Math.round(lerp(9,22,p.leafDensity)));
-      leavesAt(points[5],p.crownRadius*.15,Math.round(lerp(4,10,p.leafDensity)));
+      clusterAt(secondaryEnd,dir,R*(.20+.035*rng()),2);
     }
+    clusterAt(end,dir,R*(.23+.03*rng()),3);
   }
-  // Distinct upper crown: the apex is not a leafless trunk sticking through the canopy.
-  for(let i=0;i<9;i++){
-    const a=i/9*Math.PI*2,dis=p.crownRadius*(.07+.2*rng());
-    leavesAt(vadd(trunkPoints[13],[Math.cos(a)*dis,treeHeight*(.04+.14*rng()),Math.sin(a)*dis]),
-      p.crownRadius*.18,Math.round(lerp(7,17,p.leafDensity)));
+  // A rounded upper canopy bridges gaps between separately generated limbs.
+  // It is intentionally lumpy, not a single symmetric sphere.
+  const canopyCenter=trunkAt(.84);
+  for(let i=0;i<13;i++){
+    const phi=TAU*i/13+crownBias*.2;
+    const rr=R*(.15+.20*rng()), lift=H*(.12+.09*rng());
+    pod(vadd(canopyCenter,[
+      Math.cos(phi)*rr,lift+jitter(rng,H*.035),Math.sin(phi)*rr
+    ]),R*(.27+.07*rng()),1.15);
   }
   const model={wood:wood.finish(),foliage:foliage.finish()};
   const triangles=(model.wood.indices.length+model.foliage.indices.length)/3;
   if(triangles>200000)throw new Error('Geometry complexity limit exceeded');
-  return { recipe:r, model, stats:{ branches, leaves:leafCount, triangles, vertices:(model.wood.positions.length+model.foliage.positions.length)/3 } };
+  return {recipe:r,model,stats:{
+    branches,leaves,clusters,triangles,
+    vertices:(model.wood.positions.length+model.foliage.positions.length)/3
+  }};
 }

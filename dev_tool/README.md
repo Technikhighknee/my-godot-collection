@@ -10,9 +10,9 @@
 
 Select **Asset ProcGen** on the home screen. Edit structure, crown, foliage and seed in the right-hand inspector; orbit/zoom/pan the live 3D preview. Use **Seed variants** to preview and apply alternate growth shapes. **Save recipe** downloads a JSON file containing its name, generator ID and revision, seed and parameters; **Load recipe** accepts exactly that schema. **Export GLB** downloads ready-to-use geometry, materials, vertex colors and embedded recipe metadata. Geometry comes from the saved seed, not from the current camera/lighting.
 
-Exported GLBs can be imported directly by Godot 4 and glTF-compatible editors/renderers, including Three.js. The recipe is deliberately version-locked: future generator changes must use a new revision rather than silently changing existing exports. Files remain useful without running Asset ProcGen.
+Exported GLBs can be imported directly by Godot 4 and glTF-compatible editors/renderers, including Three.js. The recipe is deliberately version-locked: the improved oak algorithm is `tree.oak.v2`, revision `2`. Previous `tree.oak.v1` recipes are rejected rather than silently producing different geometry; existing exported GLBs remain usable. Future generator changes must use a new revision rather than silently changing existing exports. Files remain useful without running Asset ProcGen.
 
-The first generator is oak-style broadleaf geometry, not a botanical simulator or a complete vegetation system. All leaves are actual double-sided geometry; the preview intentionally uses the same two material primitives as the GLB. No automatic asset deployment, growth animation or LOD generation is implied by this milestone.
+The oak generator now has a hierarchical, uneven branch scaffold and overlapping closed foliage lobes with small leaves on their surfaces. The crown silhouette is established by connected volumes rather than isolated leaf cards. Trunks and branches use outward-facing, closed tube meshes. The first generator is oak-style broadleaf geometry, not a botanical simulator or a complete vegetation system. Small leaves are actual double-sided geometry; the preview intentionally uses the same two material primitives as the GLB. No automatic asset deployment, growth animation or LOD generation is implied by this milestone.
 
 
 
