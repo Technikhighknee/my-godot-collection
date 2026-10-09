@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, writeFile, mkdtemp, rm, symlink } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { decodeExr, encodeExr } from '../src/formats/exr.ts';
 import { decodeSurfacePng, encodeSurfacePng } from '../src/formats/png.ts';
@@ -91,17 +91,43 @@ test('rejects invalid water sources and nonfinite map numbers', async () => {
   fail(()=>validateMap(doc),/finite/);
 });
 
-test('load is read-only and denies an asset symlink escape',async()=>{
+test('load is read-only', async () => {
   const original=await readFile(fixture);
   await loadMap(fixture);
   assert.deepEqual(await readFile(fixture),original);
+});
+
+test('load denies an asset directory symlink/junction escape', async () => {
+  // Windows can create junctions without the privilege required by file symlinks.
+  // Test an ancestor redirect on every supported platform instead of skipping security coverage.
+  const original=await readFile(fixture);
+  const dir=await mkdtemp(join(tmpdir(),'map-m0-'));
+  try {
+    const data=JSON.parse(original.toString());
+    data.terrain.heightmap='linked-assets/coastal_relief.height.exr';
+    data.terrain.surface_map='linked-assets/coastal_relief.surface.png';
+    await writeFile(join(dir,'map.json'),JSON.stringify(data));
+    await symlink(resolve('../map_system/assets'),join(dir,'linked-assets'),'junction');
+    await assert.rejects(loadMap(join(dir,'map.json')),/symlink escapes/);
+  } finally {await rm(dir,{force:true,recursive:true});}
+});
+
+test('load denies an asset file symlink escape when supported',async t=>{
+  const original=await readFile(fixture);
   const dir=await mkdtemp(join(tmpdir(),'map-m0-'));
   try {
     const data=JSON.parse(original.toString());data.terrain.heightmap='out.exr';data.terrain.surface_map='out.png';
     await writeFile(join(dir,'map.json'),JSON.stringify(data));
-    const {symlink}=await import('node:fs/promises');
-    await symlink(join(process.cwd(),'../map_system/assets/coastal_relief.height.exr'),join(dir,'out.exr'));
-    await symlink(join(process.cwd(),'../map_system/assets/coastal_relief.surface.png'),join(dir,'out.png'));
+    await writeFile(join(dir,'out.png'),await readFile('../map_system/assets/coastal_relief.surface.png'));
+    try {
+      await symlink(resolve('../map_system/assets/coastal_relief.height.exr'),join(dir,'out.exr'),'file');
+    } catch (error) {
+      if (process.platform==='win32' && ['EPERM','EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        t.skip('Windows file symlinks require Developer Mode or symlink privilege');
+        return;
+      }
+      throw error;
+    }
     await assert.rejects(loadMap(join(dir,'map.json')),/symlink escapes/);
   } finally {await rm(dir,{force:true,recursive:true});}
 });
