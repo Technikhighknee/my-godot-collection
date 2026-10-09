@@ -97,14 +97,30 @@ test('workspace applies only safe metadata, preserving existing terrain images',
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('workspace rejects symlinked map files and refuses an externally modified active map', async () => {
+test('workspace rejects symlinked map files when file symlinks are supported', async t => {
   const { dir } = await tempWorkspace();
   try {
     const workspace = await MapWorkspace.open(join(dir, 'first.map.json'));
     const revision = workspace.getRevision();
-    await symlink(join(dir, 'first.map.json'), join(dir, 'alias.map.json'));
+    try {
+      await symlink(join(dir, 'first.map.json'), join(dir, 'alias.map.json'), 'file');
+    } catch (error) {
+      if (process.platform === 'win32' && ['EPERM', 'EACCES'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+        t.skip('Windows file symlinks require Developer Mode or symlink privilege');
+        return;
+      }
+      throw error;
+    }
     assert.deepEqual((await workspace.list()).map(x => x.file), ['first.map.json']);
     await assert.rejects(() => workspace.activate('alias.map.json', 'first.map.json', revision), RoadConflict);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('workspace refuses an externally modified active map', async () => {
+  const { dir } = await tempWorkspace();
+  try {
+    const workspace = await MapWorkspace.open(join(dir, 'first.map.json'));
+    const revision = workspace.getRevision();
     const original = JSON.parse(await readFile(join(dir, 'first.map.json'), 'utf8'));
     await writeFile(join(dir, 'first.map.json'), JSON.stringify({ ...original, name: 'Changed externally' }));
     await assert.rejects(() => workspace.saveSettings(settings('Wrong write'), revision, 'first.map.json'), RoadConflict);
