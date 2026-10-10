@@ -121,7 +121,9 @@ function radialBell(angle, direction, width) {
 
 function radiusProfile(t, params) {
   // The whole shaft participates in taper; there is no terminal pinch.
-  const loss = .48 * t + .33 * t * t + .19 * t * t * t;
+  const shaft = params.shaftHeight * .39;
+  const growth = smooth(clamp((t - shaft) / (1 - shaft), 0, 1));
+  const loss = .19 * t + .81 * growth;
   return Math.max(.10, 1 - params.taper * loss);
 }
 
@@ -146,14 +148,14 @@ function sectionForm(t, angle, params, structure) {
   const lowerShoulder = Math.exp(-.5 * Math.pow((headProgress - .52) / .36, 2));
   const upperShoulder = Math.exp(-.5 * Math.pow((headProgress - .82) / .33, 2));
   const shoulder = params.headMass * (
-    .17 * strength * lowerShoulder *
-      radialBell(angle, first + .12 * drift, .66) +
-    .13 * upperShoulder *
-      radialBell(angle, second - .18 * drift, .60)
+    .40 * strength * lowerShoulder *
+      radialBell(angle, first + .12 * drift, .82) +
+    .30 * upperShoulder *
+      radialBell(angle, second - .18 * drift, .76)
   ) * smooth(clamp(headProgress / .18, 0, 1));
 
   // An uneven flank and a coherent centerline drift make the head asymmetric.
-  const bias = params.asymmetry * (.08 * headProgress) *
+  const bias = params.asymmetry * (.11 * headProgress) *
     Math.cos(angle - first + .25 * drift);
   return broad + fine + shoulder + bias;
 }
