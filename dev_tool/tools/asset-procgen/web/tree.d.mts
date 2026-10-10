@@ -10,8 +10,8 @@ export interface TreeRecipe {
 }
 export type Vec3=[number,number,number];
 export interface StructuralBranch {
-  id:number;parentId:number|null;generation:number;
-  points:Vec3[];radii:number[];vigor:number;
+  id:number;parentId:number|null;parentT:number|null;generation:number;
+  points:Vec3[];radii:number[];vigor:number;structuralLoad:number;
 }
 export interface LeafAnchor {
   id:number;branchId:number;position:Vec3;direction:Vec3;
