@@ -34,7 +34,7 @@
 .pg-control output{font-weight:700;color:#e1c39d;font-variant-numeric:tabular-nums}
 .pg-control input{display:block;width:100%;accent-color:#c1a37c;cursor:pointer}
 .pg-seed{display:flex;justify-content:space-between;align-items:center;margin-top:26px;padding:17px 0;border-top:1px solid #354745;font-size:10px;letter-spacing:.14em;color:#9fb0a7}
-.pg-seed code{font:600 12px "Consolas",monospace;color:#dfc59e;letter-spacing:normal}
+.pg-seed input{width:148px;min-width:0;border:1px solid #51615c;border-radius:5px;background:#122022;color:#dfc59e;padding:8px 9px;font:600 12px "Consolas",monospace;font-variant-numeric:tabular-nums;letter-spacing:normal}
 .pg-settings-bottom{display:flex;flex-direction:column;gap:14px;margin-top:auto;padding-top:30px}
 #status{font-size:11px;color:#9eb5ac}
 #reset{align-self:start;padding:3px 0;color:#c4ad8b;background:none;border:0;text-decoration:underline;text-underline-offset:4px;font-size:11px!important}
