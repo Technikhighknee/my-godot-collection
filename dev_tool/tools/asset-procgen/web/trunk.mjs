@@ -20,13 +20,14 @@ export const DEFAULT_STEM = Object.freeze({
   seed: 55,
   height: 7.9,
   radius: 0.73,
+  taper: 0.78,
   character: 1.18,
   buttress: 0.9,
 });
 
 export function validateStem(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Error('Invalid stem settings');
-  const limits = { height: [5, 16], radius: [.28, 1], character: [0, 1.5], buttress: [0, 1.5] };
+  const limits = { height: [5, 16], radius: [.28, 1], taper: [.35, .88], character: [0, 1.5], buttress: [0, 1.5] };
   if (!Number.isInteger(input.seed) || input.seed < 0 || input.seed > 4294967295) throw Error('Invalid seed');
   for (const [key, [min, max]] of Object.entries(limits)) {
     if (typeof input[key] !== 'number' || !Number.isFinite(input[key]) || input[key] < min || input[key] > max) {
@@ -35,7 +36,7 @@ export function validateStem(input) {
   }
   if (input.radius / input.height > .14) throw Error('Stem is too wide for its height');
   return { seed: input.seed, height: input.height, radius: input.radius,
-    character: input.character, buttress: input.buttress };
+    taper: input.taper, character: input.character, buttress: input.buttress };
 }
 
 function makeSpine(params, rng) {
@@ -115,9 +116,11 @@ function frameAt(spine, t) {
 
 function createStemPoint(t, angle, params, spine, roots, scars, phases) {
   const y = t * params.height, f = frameAt(spine, t);
-  // Older wood is broader at the base. The upper end deliberately retains
-  // substantial radius: it is a continuation boundary, never a pointed tip.
-  const taper = 1 - .38 * Math.pow(t, 1.12);
+  // Growth continues through a progressively thinner leader. The entire
+  // stem participates in tapering; there is NO terminal pinching function.
+  // Derivative grows gradually with height, not abruptly at the last rings.
+  // A small nonzero end section remains for the next growth stage.
+  const taper = 1 - params.taper * (.62 * t + .38 * t * t);
   const broadFoot = params.buttress * .11 * Math.exp(-Math.pow(y / 1.5, 1.7));
   let buttress = 0;
   for (const root of roots) {
@@ -193,12 +196,22 @@ export function generateStem(raw = DEFAULT_STEM) {
     const a = j * stride + i, b = a + stride;
     indices.push(a, b, a + 1, a + 1, b, b + 1);
   }
-  // Modeling boundaries: this is the lower stem, not a finished tree.
+  // The end rings already lie in the planes normal to the growth axis.
+  // Their caps must use the same axis, rather than world-up shading.
+  const baseTangent = (t) => {
+    const a = spine(clamp(t - .001, 0, 1));
+    const b = spine(clamp(t + .001, 0, 1));
+    const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+    const len = Math.hypot(dx, dy, dz) || 1;
+    return [dx / len, dy / len, dz / len];
+  };
+  // Modeling boundaries: the geometry can later be extended with branching.
   const base = (vertical + 1) * stride, end = base + 1;
   positions.set(spine(0), base * 3);
   positions.set(spine(1), end * 3);
-  normals.set([0,-1,0], base * 3);
-  normals.set([0,1,0], end * 3);
+  const bottomDirection = baseTangent(0), topDirection = baseTangent(1);
+  normals.set(bottomDirection.map(v => -v), base * 3);
+  normals.set(topDirection, end * 3);
   for (let i = 0; i < around; i++) {
     indices.push(base, i, i + 1);
     const top = vertical * stride;
