@@ -1,7 +1,5 @@
 import { clamp, randomStream, TAU } from './math.mjs';
 
-const mag=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
-
 // Root buttresses are short, descending growth ridges inside the same wood
 // field. They terminate against the terrain plane, not as exposed cylinders.
 function rootPaths(recipe) {
@@ -98,11 +96,3 @@ export function woodDistance(s,px,py,pz) {
   return d;
 }
 
-export function rootClearance(skeleton,recipe) {
-  const r=recipe.parameters.trunkRadius;
-  return rootPaths(recipe).map(p=>({
-    point:p.points.at(-1),
-    height:mag(p.points[0],p.points.at(-1)),
-    radius:r
-  }));
-}
