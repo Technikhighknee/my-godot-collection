@@ -42,8 +42,9 @@ than being compressed into a needle by an abrupt end modifier. **Inspect tip**
 frames this endpoint for close review. The tree's next growth stage and crown
 will not be addressed until the trunk is accepted visually. The neutral preview is untextured. Parameters currently
 control trunk length, starting thickness, overall taper, growth character,
-root buttresses and seed. Geometry testing checks integrity, but artistic acceptance requires
-looking at the actual result.
+root buttresses and seed. The seed number is editable so the same silhouette
+can be compared across generator revisions. Geometry testing checks integrity,
+but artistic acceptance requires looking at the actual result.
 
 There is no GLB export, material authoring, leaf system, tree placement, or
 recipe saving in this phase. The Map Editor remains independent and unchanged.
