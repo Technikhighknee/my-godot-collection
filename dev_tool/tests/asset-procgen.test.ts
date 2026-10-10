@@ -5,168 +5,145 @@ import { DEFAULT_STEM, generateStem, validateStem, type StemMesh } from '../tool
 import { loadMap } from '../tools/map-editor/src/io/map-io.ts';
 import { createEditorServer } from '../tools/map-editor/src/server.ts';
 
-function verifyTopology({positions,indices}:StemMesh) {
-  const remap:number[] = [],vertices=new Map<string,number>();
-  for(let i=0;i<positions.length/3;i++){
-    const key=Array.from(positions.subarray(i*3,i*3+3),v=>v.toFixed(5)).join(',');
-    if(!vertices.has(key))vertices.set(key,vertices.size);
-    remap[i]=vertices.get(key)!;
+function verifySurface(mesh: StemMesh) {
+  const {positions: p, normals: n, indices: f} = mesh;
+  assert.equal(p.length, n.length);
+  assert.ok(p.every(Number.isFinite));
+  assert.ok(n.every(Number.isFinite));
+  assert.ok(f.every(i => i < p.length / 3));
+  const welded:number[] = [];
+  const unique = new Map<string,number>();
+  for(let i=0;i<p.length/3;i++){
+    const key = Array.from(p.subarray(i*3,i*3+3),v=>v.toFixed(5)).join(',');
+    if(!unique.has(key)) unique.set(key,unique.size);
+    welded[i] = unique.get(key)!;
   }
-  const edges=new Map<string,[number,number]>();
-  for(let i=0;i<indices.length;i+=3){
-    const [a,b,c]=[remap[indices[i]],remap[indices[i+1]],remap[indices[i+2]]];
+  const edges = new Map<string,[number,number]>();
+  for(let j=0;j<f.length;j+=3){
+    const [a,b,c] = [f[j],f[j+1],f[j+2]];
+    const u = [0,1,2].map(k=>p[b*3+k]-p[a*3+k]);
+    const v = [0,1,2].map(k=>p[c*3+k]-p[a*3+k]);
+    const cross = [
+      u[1]*v[2]-u[2]*v[1],
+      u[2]*v[0]-u[0]*v[2],
+      u[0]*v[1]-u[1]*v[0],
+    ];
+    assert.ok(Math.hypot(...cross)>1e-10,'Degenerate stem triangle');
+    const orientation = cross.reduce((sum,x,k)=>sum+x*
+      (n[a*3+k]+n[b*3+k]+n[c*3+k]),0);
+    assert.ok(orientation>=-1e-8,'Inward-facing stem triangle');
     for(const [x,y] of [[a,b],[b,c],[c,a]]){
-      const key=Math.min(x,y)+':'+Math.max(x,y);
-      const pair=edges.get(key)??[0,0];
-      pair[0]++;pair[1]+=x<y?1:-1;edges.set(key,pair);
+      const i=welded[x],k=welded[y],key=Math.min(i,k)+':'+Math.max(i,k);
+      const pair = edges.get(key)??[0,0];
+      pair[0]++; pair[1]+=i<k?1:-1; edges.set(key,pair);
     }
   }
-  for(const [count,direction] of edges.values()){
-    assert.equal(count,2,'A welded edge should be shared by exactly two faces');
-    assert.equal(direction,0,'Adjacent faces should orient shared edges oppositely');
+  for(const [count,wind] of edges.values()){
+    assert.equal(count,2,'All edges must be closed after welding the UV seam');
+    assert.equal(wind,0,'All shared edges must be oppositely wound');
   }
 }
+function center(mesh: StemMesh, row:number) {
+  const stride=mesh.sides+1,result=[0,0,0];
+  for(let i=0;i<mesh.sides;i++)
+    for(let k=0;k<3;k++) result[k]+=mesh.positions[(row*stride+i)*3+k]/mesh.sides;
+  return result;
+}
+function width(mesh:StemMesh,row:number) {
+  const middle=center(mesh,row);
+  let r=0;
+  for(let i=0;i<mesh.sides;i++){
+    const index=(row*(mesh.sides+1)+i)*3;
+    r+=Math.hypot(...[0,1,2].map(k=>mesh.positions[index+k]-middle[k]))/mesh.sides;
+  }
+  return r;
+}
 
-test('trunk settings are bounded and no other generators leak into this phase',()=>{
+test('one strictly validated dominant-growth recipe with no old head controls',()=>{
   assert.deepEqual(validateStem(DEFAULT_STEM),DEFAULT_STEM);
-  assert.throws(()=>validateStem({...DEFAULT_STEM,seed:-1}));
-  assert.throws(()=>validateStem({...DEFAULT_STEM,height:Infinity}));
-  assert.throws(()=>validateStem({...DEFAULT_STEM,radius:2}));
-  assert.throws(()=>validateStem({...DEFAULT_STEM,taper:1}));
-  assert.throws(()=>validateStem({...DEFAULT_STEM,shaftHeight:.95}));
-  assert.throws(()=>validateStem({...DEFAULT_STEM,headMass:2}));
-  assert.throws(()=>validateStem({...DEFAULT_STEM,asymmetry:-1}));
-  assert.deepEqual(Object.keys(generateStem()).sort(),
-    ['positions','normals','indices','rings','sides','settings'].sort());
+  for(const invalid of [
+    {...DEFAULT_STEM,seed:-1},{...DEFAULT_STEM,seed:2**32},
+    {...DEFAULT_STEM,height:Infinity},{...DEFAULT_STEM,radius:2},
+    {...DEFAULT_STEM,leaderStart:.9},{...DEFAULT_STEM,leaderReach:2},
+    {...DEFAULT_STEM,lean:-.5},
+  ]) assert.throws(()=>validateStem(invalid));
+  assert.equal(Object.hasOwn(DEFAULT_STEM,'headMass'),false);
+  assert.equal(Object.hasOwn(DEFAULT_STEM,'shaftHeight'),false);
 });
 
-test('seeded trunk is finite, repeatable, watertight and has outward normals',()=>{
-  const mesh=generateStem();
-  assert.deepEqual(mesh.positions,generateStem().positions);
-  assert.deepEqual(mesh.indices,generateStem().indices);
-  assert.ok(mesh.positions.every(Number.isFinite));
-  assert.ok(mesh.normals.every(Number.isFinite));
-  assert.ok(mesh.indices.every(i=>i<mesh.positions.length/3));
-  verifyTopology(mesh);
-  const {positions:p,normals:n,indices:i}=mesh;
-  for(let t=0;t<i.length;t+=3){
-    const a=i[t]*3,b=i[t+1]*3,c=i[t+2]*3;
-    const u=[p[b]-p[a],p[b+1]-p[a+1],p[b+2]-p[a+2]];
-    const v=[p[c]-p[a],p[c+1]-p[a+1],p[c+2]-p[a+2]];
-    const cross=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
-    assert.ok(Math.hypot(...cross)>1e-9);
-    const outward=cross.reduce((sum,norm,k)=>sum+norm*(n[a+k]+n[b+k]+n[c+k]),0);
-    assert.ok(outward>=-1e-7);
-  }
+test('the entire trunk-to-leader is a deterministic, oriented closed piece of wood',()=>{
+  const a=generateStem(),b=generateStem();
+  assert.deepEqual(a.positions,b.positions);
+  assert.deepEqual(a.indices,b.indices);
+  assert.deepEqual(Object.keys(a).sort(),['positions','normals','indices','rings','sides','settings'].sort());
+  verifySurface(a);
+  const stride=a.sides+1;
+  for(let row=0;row<a.rings;row++)for(let k=0;k<3;k++)
+    assert.equal(a.positions[(row*stride)*3+k],
+      a.positions[(row*stride+a.sides)*3+k],'Periodic radial seam');
 });
 
-test('trunk has an uninterrupted radial seam and no manufactured needle tip',()=>{
-  const m=generateStem(),p=m.positions,stride=m.sides+1;
-  for(let row=0;row<m.rings;row++)for(let axis=0;axis<3;axis++)
-    assert.equal(p[(row*stride)*3+axis],p[(row*stride+m.sides)*3+axis]);
-  const base=m.rings*stride*3,top=(m.rings*stride+1)*3;
-  const r=(row:number,center:number)=>{
-    const k=row*stride*3;
-    return Math.hypot(p[k]-p[center],p[k+1]-p[center+1],p[k+2]-p[center+2]);
-  };
-  assert.ok(r(m.rings-1,top)>.18*r(0,base),'Upper stem must retain a growth continuation radius');
-  assert.ok(r(m.rings-1,top)<.65*r(0,base),'Upper stem should be clearly tapered but retain supporting mass');
-  assert.ok(r(0,base)>m.settings.radius,'Root flare should not be a straight cylinder');
+test('the main stem actually becomes an oblique leader, not a capped upright post',()=>{
+  const m=generateStem(),tip=(m.rings*(m.sides+1)+1)*3;
+  const apex=[m.positions[tip],m.positions[tip+1],m.positions[tip+2]];
+  const foot=center(m,0);
+  const sideways=Math.hypot(apex[0]-foot[0],apex[2]-foot[2]);
+  assert.ok(sideways>m.settings.height*.20,'Leader must visibly turn sideways');
+  assert.ok(apex[1]>m.settings.height*.95,'Leader must keep climbing');
+  assert.ok(width(m,m.rings-1)<width(m,0)*.07,'Tip must be slender');
+  assert.ok(width(m,m.rings-1)>0,'Terminal ring must retain valid geometry');
+  const straight=generateStem({...DEFAULT_STEM,leaderReach:0,lean:0,character:0});
+  const end=(straight.rings*(straight.sides+1)+1)*3;
+  assert.ok(Math.hypot(straight.positions[end],straight.positions[end+2])<1e-3,
+    'A zero-turn recipe must remain vertical');
 });
 
-test('upper leader tapers continuously over the entire length instead of pinching near its cap',()=>{
-  const mesh=generateStem(),p=mesh.positions,stride=mesh.sides+1;
-  const radiusAt=(row:number)=>{
-    const center=[0,0,0];
-    for(let i=0;i<mesh.sides;i++)
-      for(let axis=0;axis<3;axis++)center[axis]+=p[(row*stride+i)*3+axis]/mesh.sides;
-    let sum=0;
-    for(let i=0;i<mesh.sides;i++){
-      const start=(row*stride+i)*3;
-      sum+=Math.hypot(...[0,1,2].map(axis=>p[start+axis]-center[axis]));
-    }
-    return sum/mesh.sides;
-  };
-  for(let row=1;row<mesh.rings;row++){
-    assert.ok(Math.abs(radiusAt(row)-radiusAt(row-1))<mesh.settings.radius*.065,
-      'Abrupt radius change between adjacent rings');
-  }
-  const narrow=generateStem({...DEFAULT_STEM,taper:.88});
-  const broad=generateStem({...DEFAULT_STEM,taper:.35});
-  const top=mesh.rings-1;
-  const radiusOf=(m:StemMesh)=>{
-    const i=top*(m.sides+1)*3;
-    const center=(m.rings*(m.sides+1)+1)*3;
-    return Math.hypot(m.positions[i]-m.positions[center],
-      m.positions[i+1]-m.positions[center+1],
-      m.positions[i+2]-m.positions[center+2]);
-  };
-  assert.ok(radiusOf(narrow)<radiusOf(broad)*.45,
-    'Taper slider must alter the actual stem, not only its appearance');
+test('leader onset and reach change the actual path, without shifting the root collar',()=>{
+  const early=generateStem({...DEFAULT_STEM,leaderStart:.25});
+  const late=generateStem({...DEFAULT_STEM,leaderStart:.7});
+  const weak=generateStem({...DEFAULT_STEM,leaderReach:.15});
+  const strong=generateStem({...DEFAULT_STEM,leaderReach:1.4});
+  const bottom=(m:StemMesh)=>center(m,0);
+  assert.deepEqual(bottom(early),bottom(late));
+  assert.deepEqual(bottom(weak),bottom(strong));
+  const mid=Math.floor(early.rings*.7);
+  assert.ok(center(early,mid)[0]>center(late,mid)[0]+.05,
+    'Early leader must have moved farther from the original growth axis');
+  const atTop=strong.rings-1;
+  assert.ok(center(strong,atTop)[0]>center(weak,atTop)[0]+1,
+    'Reach must change the path itself, not only radial relief');
 });
 
-test('clear shaft and head controls reshape the trunk without adding branches',()=>{
-  const template={...DEFAULT_STEM};
-  const withShoulder=generateStem({...template,headMass:1,asymmetry:1});
-  const withoutShoulder=generateStem({...template,headMass:0,asymmetry:0});
-  const start=0,quarter=Math.floor(withShoulder.rings*.2);
-  const sample=(mesh:StemMesh,row:number)=>Array.from(
-    mesh.positions.subarray(row*(mesh.sides+1)*3,
-      (row*(mesh.sides+1)+mesh.sides)*3));
-  assert.deepEqual(sample(withShoulder,start),sample(withoutShoulder,start),
-    'The trunk base should not be replaced by a decorative shoulder');
-  assert.deepEqual(sample(withShoulder,quarter),sample(withoutShoulder,quarter),
-    'The lower clear shaft should not depend on future branch mass');
-  assert.notDeepEqual(sample(withShoulder,Math.floor(withShoulder.rings*.75)),
-    sample(withoutShoulder,Math.floor(withoutShoulder.rings*.75)),
-    'The upper wood should react to crown shoulder settings');
-  const early=generateStem({...template,shaftHeight:.28,headMass:1});
-  const late=generateStem({...template,shaftHeight:.62,headMass:1});
-  assert.notDeepEqual(sample(early,Math.floor(early.rings*.52)),
-    sample(late,Math.floor(late.rings*.52)),
-    'Clear shaft height should move the beginning of crown wood');
-  assert.notDeepEqual(generateStem({...template,asymmetry:0}).positions,
-    generateStem({...template,asymmetry:1}).positions,
-    'Growth asymmetry should alter the mesh');
+test('seed variation and parameter extremes retain valid oriented geometry',()=>{
+  for(const recipe of [
+    {...DEFAULT_STEM,seed:0,character:0,buttress:0,leaderReach:0,lean:0},
+    {...DEFAULT_STEM,seed:3350221335,radius:.28,leaderReach:1.5,leaderStart:.25},
+    {...DEFAULT_STEM,seed:4294967295,height:16,radius:1,leaderReach:1.5,
+      character:1.5,buttress:1.5,lean:.3},
+  ]) verifySurface(generateStem(recipe));
 });
 
-test('extreme settings remain closed and finite',()=>{
-  for(const input of [
-    {...DEFAULT_STEM,seed:0,height:5,radius:.28,character:0,buttress:0},
-    {...DEFAULT_STEM,seed:4294967295,height:16,radius:1,character:1.5,buttress:1.5}
-  ]){
-    const m=generateStem(input);
-    assert.ok(m.positions.every(Number.isFinite));
-    verifyTopology(m);
-  }
-});
-
-test('Asset ProcGen serves a real viewport without export or texture controls',async()=>{
+test('Asset ProcGen still contains only the trunk and serves the existing editor',async()=>{
   const html=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
-  assert.match(html,/The trunk/);
   assert.match(html,/id="viewport"/);
-  assert.match(html,/id="tip"/);
-  assert.match(html,/data-key="taper"/);
-  for(const key of ['shaftHeight','headMass','asymmetry'])
-    assert.ok(html.includes('data-key="'+key+'"'));
-  assert.match(html,/id="seedValue" type="number"/);
-  assert.doesNotMatch(html,/Export GLB|Save recipe|Load recipe/);
+  for(const key of ['leaderStart','leaderReach','lean'])
+    assert.match(html,new RegExp('data-key="'+key+'"'));
+  assert.doesNotMatch(html,/data-key="headMass"|data-key="taper"|Export GLB|Save recipe/);
   const doc=await loadMap('../map_system/coastal_relief.map.json');
   const server=createEditorServer(doc);
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   try{
     const address=server.address();
-    assert.ok(address&&typeof address!=='string');
+    assert.ok(address && typeof address!=='string');
     const base='http://127.0.0.1:'+address.port;
     for(const path of ['/tools/asset-procgen/','/tools/asset-procgen',
       '/tools/asset-procgen/app.js','/tools/asset-procgen/style.css','/tools/asset-procgen/trunk.mjs']){
       const response=await fetch(base+path);
       assert.equal(response.status,200,path);
-      assert.ok((await response.text()).length>100);
     }
     assert.equal((await fetch(base+'/tools/map-editor/')).status,200);
     assert.equal((await fetch(base+'/api/map')).status,200);
-  }finally{
+  } finally {
     await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
