@@ -58,7 +58,6 @@ function setupScene() {
   };
   new ResizeObserver(resize).observe(byId('viewport'));
   resize();
-  focus('whole');
   const animate = () => {
     requestAnimationFrame(animate);
     if (spinning && stem) stem.rotation.y += .003;
@@ -83,8 +82,15 @@ function focus(part) {
     controls.target.set(tip.x, tip.y - .65, tip.z);
     camera.position.set(tip.x + 2.25, tip.y + .45, tip.z + 3.5);
   } else {
-    controls.target.set(0, h * .49, 0);
-    camera.position.set(h * .60, h * .57, h * 1.18);
+    // Include the sideways leader in the initial frame, while preserving
+    // the current orbit when tweaking parameters.
+    const tip = stem?.geometry.getAttribute('position');
+    const apexIndex = tip ? tip.count - 1 : -1;
+    const topX = apexIndex >= 0 ? tip.getX(apexIndex) : 0;
+    const topZ = apexIndex >= 0 ? tip.getZ(apexIndex) : 0;
+    controls.target.set(topX * .44, h * .52, topZ * .44);
+    camera.position.set(topX * .44 + h * .25, h * .70,
+      topZ * .44 + h * 1.25);
   }
   controls.update();
 }
@@ -126,7 +132,9 @@ function display() {
     const key = slider.dataset.key;
     slider.value = params[key];
     byId(key + 'Value').textContent = key === 'height' || key === 'radius'
-      ? params[key].toFixed(2) + ' m' : Math.round(params[key] * 100) + '%';
+      ? params[key].toFixed(2) + ' m'
+      : key === 'lean' ? (params[key] >= 0 ? '+' : '') + params[key].toFixed(2)
+      : Math.round(params[key] * 100) + '%';
   }
   byId('seedValue').value = String(params.seed);
 }
@@ -180,7 +188,7 @@ byId('turntable').addEventListener('click', () => {
   spinning = !spinning;
   byId('turntable').setAttribute('aria-pressed', String(spinning));
 });
-try { display(); setupScene(); build(); } catch (e) {
+try { display(); setupScene(); build(); focus('whole'); } catch (e) {
   byId('error').hidden = false;
   byId('error').textContent = e.message;
   byId('status').textContent = 'Viewport initialization failed';
