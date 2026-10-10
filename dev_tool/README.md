@@ -35,16 +35,19 @@ Tool home screen. Orbit with left drag, zoom with the wheel, pan with right
 drag, or focus the trunk base. Silhouette mode and turntable help compare
 shapes from multiple sides.
 
-The shape starts at the root collar and follows a curved growth axis. Its
-upper leader now narrows **gradually across the full stem**, controlled by the
-Stem taper slider. The tip retains a small, nonzero continuation radius rather
-than being compressed into a needle by an abrupt end modifier. **Inspect tip**
-frames this endpoint for close review. The tree's next growth stage and crown
-will not be addressed until the trunk is accepted visually. The neutral preview is untextured. Parameters currently
-control trunk length, starting thickness, overall taper, growth character,
-root buttresses and seed. The seed number is editable so the same silhouette
-can be compared across generator revisions. Geometry testing checks integrity,
-but artistic acceptance requires looking at the actual result.
+The stem has a curved centerline, a clear lower shaft, and an asymmetric
+upper section that begins to carry the mass of later forks. **Clear shaft
+height** controls where this transition begins; **Upper wood mass** changes
+two broad, unequally placed shoulder flutes; **Growth asymmetry** offsets the
+upper centerline and cross-section without distorting the lower shaft.
+The radial profile tapers smoothly along the full length, keeping a nonzero
+upper boundary for future growth. This is still an intentionally incomplete
+stem, not an attempt to represent the entire branch structure.
+
+**Inspect base**, **Inspect tip**, silhouette view and turntable support
+shape review from multiple angles. Enter a seed to compare the same form
+between revisions. All previews use a neutral untextured material. Tests
+check mesh integrity but do not constitute artistic approval.
 
 There is no GLB export, material authoring, leaf system, tree placement, or
 recipe saving in this phase. The Map Editor remains independent and unchanged.
