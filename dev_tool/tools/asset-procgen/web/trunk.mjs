@@ -153,7 +153,7 @@ function sectionForm(t, angle, params, structure) {
   ) * smooth(clamp(headProgress / .18, 0, 1));
 
   // An uneven flank and a coherent centerline drift make the head asymmetric.
-  const bias = params.asymmetry * (.015 + .065 * headProgress) *
+  const bias = params.asymmetry * (.08 * headProgress) *
     Math.cos(angle - first + .25 * drift);
   return broad + fine + shoulder + bias;
 }
