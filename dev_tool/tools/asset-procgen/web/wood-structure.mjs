@@ -36,7 +36,7 @@ export function resolveWoodStructure(skeleton,recipe) {
       const t=i/count;
       let value=self*(1+.22*(1-t));
       for(const entry of descendants){
-        const width=clamp(.38/count,.018,.065);
+        const width=clamp(1.1/count,.045,.15);
         value+=entry.flow*(1-smooth(entry.t-width,entry.t+width,t));
       }
       profile.push(value);
