@@ -142,6 +142,21 @@ test('growth and foliage parameters change the intended parts of the tree', () =
   assert.ok(tall.branches[0].points.at(-1)![1] > generateSkeleton(base).branches[0].points.at(-1)![1]);
 });
 
+test('dense branching stays within the mesh budget without losing generated leaves', () => {
+  const base=fresh();
+  const dense={...base,parameters:{...base.parameters,branchDensity:1}};
+  const original=generateTree(base),grown=generateTree(dense);
+  assert.ok(grown.stats.branches>original.stats.branches);
+  assert.ok(grown.stats.leaves>original.stats.leaves);
+  assert.ok(grown.stats.triangles<=200000);
+  assert.equal(grown.model.foliage.indices.length/3,grown.stats.leaves*10,
+    'Dense foliage keeps all leaf instances, using 10 triangles per leaf instead of 12');
+  assert.equal(original.model.foliage.indices.length/3,original.stats.leaves*12,
+    'Ordinary density retains the full leaf silhouette');
+  assert.deepEqual(generateTree(dense).model.foliage.positions,grown.model.foliage.positions,
+    'Budget-aware foliage remains deterministic');
+});
+
 test('wood inspection controls exist without changing the exported asset', () => {
   const html = readFileSync(new URL('../tools/asset-procgen/web/index.html', import.meta.url), 'utf8');
   const app = readFileSync(new URL('../tools/asset-procgen/web/app.js', import.meta.url), 'utf8');
