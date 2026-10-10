@@ -25,8 +25,8 @@ function trunk(skeleton,recipe) {
       t*H*OAK.trunkTop,
       drift*Math.sin(phase)+Math.cos(t*3.7+phase)*H*.006*t*t
     ]);
-    const flare=1+.57*Math.exp(-t*26);
-    radii.push(Math.max(.008,radius*flare*Math.pow(1-t,.82)));
+    // Final radii, including the root flare, are resolved after growth.
+    radii.push(radius);
   }
   skeleton.branches.push({id:1,parentId:null,parentT:null,generation:0,points,radii,vigor:1});
   return points;
