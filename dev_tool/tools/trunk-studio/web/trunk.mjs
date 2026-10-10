@@ -16,7 +16,7 @@ function noise(u,v,cx,cy,seed) {
 }
 export const DEFAULT_TRUNK=Object.freeze({
   schema:'1400.trunk.study',name:'Oak trunk',seed:147241,
-  height:11.5,radius:.42,taper:.68,flare:.42,character:.38,bark:.8
+  height:11.5,radius:.42,taper:.68,flare:.26,character:.38,bark:.8
 });
 const limits={height:[5,18],radius:[.18,.85],taper:[.38,.82],flare:[.1,.85],character:[0,1],bark:[0,1]};
 export function validateTrunk(raw) {
@@ -65,7 +65,7 @@ function trunkPoint(recipe,frame,theta) {
     const d=deltaAngle(theta,root.angle+char*.075*Math.sin(y*.7+phase));
     const lateral=Math.exp(-.5*(d/root.width)**2);
     // Flared roots become longitudinal buttress ridges and disappear upward.
-    rootForm+=lateral*root.strength*(
+    rootForm+=.32*lateral*root.strength*(
       root.reach*Math.exp(-Math.pow(Math.max(0,y)/(.24+recipe.radius*.45),1.3))+
       .14*Math.exp(-Math.pow(Math.max(0,y)/(1.25+recipe.radius),1.4))
     );
@@ -94,7 +94,7 @@ function createGeometry(recipe) {
     const t=j/(rings-1),y=recipe.height*t;
     const frame=trunkFrame(recipe,y,roots);
     for(let i=0;i<=sides;i++){
-      const theta=TAU*i/sides,idx=j*strip+i,p=trunkPoint(recipe,frame,theta);
+      const theta=i===sides?0:TAU*i/sides,idx=j*strip+i,p=trunkPoint(recipe,frame,theta);
       positions.set(p,idx*3);
       uv.set([i/sides,(y/2.8)],idx*2);
     }
@@ -136,9 +136,9 @@ export function createBarkTextures(recipe,size=512) {
     const warp=.028*noise(u,v,5,11,seed+13)+.008*noise(u,v,21,31,seed+19);
     const track=24*(u+warp)+.16*noise(u,v,15,5,seed+23);
     const crack=Math.pow(Math.max(0,1-Math.abs(Math.sin(Math.PI*track))/.22),2);
-    const fragments=noise(u,v,45,85,seed+31);
-    const grain=noise(u,v,32,125,seed+37);
-    const micro=noise(u,v,91,161,seed+41);
+    const fragments=noise(u,v,45,65,seed+31);
+    const grain=noise(u,v,38,24,seed+37);
+    const micro=noise(u,v,91,46,seed+41);
     const relief=(broad*.15+grain*.16+micro*.045-crack*.41*(.7+.3*fragments))*bark;
     const luminance=(.89+.13*broad+.09*grain+.055*micro-.34*crack*(.7+.3*fragments));
     const k=(y*size+x)*4;
