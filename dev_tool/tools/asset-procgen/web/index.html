@@ -47,7 +47,7 @@
     <label class="pg-control"><span>Stem taper <output id="taperValue"></output></span><input data-key="taper" type="range" min=".35" max=".88" step=".01"></label>
     <label class="pg-control"><span>Growth character <output id="characterValue"></output></span><input data-key="character" type="range" min="0" max="1.5" step=".01"></label>
     <label class="pg-control"><span>Root buttresses <output id="buttressValue"></output></span><input data-key="buttress" type="range" min="0" max="1.5" step=".01"></label>
-    <div class="pg-seed"><span>SEED</span><code id="seedValue"></code></div>
+    <div class="pg-seed"><label for="seedValue">SEED</label><input id="seedValue" type="number" min="0" max="4294967295" step="1" aria-label="Tree seed"></div>
     <div class="pg-settings-bottom"><span id="status" role="status">Generating…</span><button id="reset" type="button">Reset shape</button></div>
   </aside>
 </main>
