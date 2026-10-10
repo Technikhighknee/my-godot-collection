@@ -72,6 +72,16 @@ function focus(part) {
   if (part === 'foot') {
     controls.target.set(0, .85, 0);
     camera.position.set(2.45, 1.9, 3.85);
+  } else if (part === 'tip') {
+    // Frame the generated endpoint, not a guessed world-space vertical axis.
+    const positions = stem?.geometry.getAttribute('position');
+    const last = positions ? positions.count - 1 : -1;
+    const tip = last >= 0
+      ? new THREE.Vector3(positions.getX(last), positions.getY(last), positions.getZ(last))
+        .applyQuaternion(stem.quaternion)
+      : new THREE.Vector3(0, h, 0);
+    controls.target.set(tip.x, tip.y - .65, tip.z);
+    camera.position.set(tip.x + 2.25, tip.y + .45, tip.z + 3.5);
   } else {
     controls.target.set(0, h * .49, 0);
     camera.position.set(h * .60, h * .57, h * 1.18);
@@ -146,6 +156,7 @@ byId('reset').addEventListener('click', () => {
 });
 byId('whole').addEventListener('click', () => focus('whole'));
 byId('foot').addEventListener('click', () => focus('foot'));
+byId('tip').addEventListener('click', () => focus('tip'));
 byId('silhouette').addEventListener('click', () => {
   silhouette = !silhouette;
   byId('silhouette').setAttribute('aria-pressed', String(silhouette));
