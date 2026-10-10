@@ -39,11 +39,12 @@ a continuous radius profile and subtle lengthwise cambial irregularity.
 The leader tapers to a small terminal ring connected to a single apex, so
 the upper end is **not a broad flat capped post**.
 
-Use **Leader begins** to move the start of the bend, **Leader bend** to control
-how strongly the trunk changes direction, and **Lower lean** for a small
-initial inclination. Seed, height, initial radius, surface character and
-root buttresses remain adjustable. Orbit, silhouette, turntable, and
-whole/base/tip camera presets exist for inspecting the shape.
+The workbench deliberately exposes **only the seed**. Enter a value to
+reproduce the same shape or choose **New seed** to generate another. Stem
+length, thickness, growth direction, taper, surface character and buttresses
+are internal decisions of the generator; no shape sliders are exposed.
+Orbit, silhouette, turntable, and whole/base/tip camera presets remain
+available for visual inspection.
 
 There is no branch system, leaf system, texture, material editor, save/load,
 GLB export, or tree placement. The shape must be judged visually before any
