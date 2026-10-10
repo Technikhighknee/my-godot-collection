@@ -109,19 +109,20 @@ function createGeometry(recipe) {
     const up=Math.min(rings-1,j+1)*strip+i,down=Math.max(0,j-1)*strip+i;
     const tu=[positions[r*3]-positions[l*3],positions[r*3+1]-positions[l*3+1],positions[r*3+2]-positions[l*3+2]];
     const tv=[positions[up*3]-positions[down*3],positions[up*3+1]-positions[down*3+1],positions[up*3+2]-positions[down*3+2]];
-    // theta tangent cross height tangent points outward.
-    normals.set(normalize(tu[1]*tv[2]-tu[2]*tv[1],tu[2]*tv[0]-tu[0]*tv[2],tu[0]*tv[1]-tu[1]*tv[0]),k*3);
+    // Height tangent crossed with angular tangent points outward.
+    normals.set(normalize(tv[1]*tu[2]-tv[2]*tu[1],tv[2]*tu[0]-tv[0]*tu[2],tv[0]*tu[1]-tv[1]*tu[0]),k*3);
   }
   const lower=rings*strip,upper=lower+1;
   positions.set([0,-.035,0],lower*3);
   // Slightly recessed underside prevents a visible dark floating base.
-  positions.set([positions[(rings-1)*strip],recipe.height+.005,positions[(rings-1)*strip+2]],upper*3);
+  const topCenter=trunkFrame(recipe,recipe.height,roots).center;
+  positions.set([topCenter[0],recipe.height+.005,topCenter[2]],upper*3);
   normals.set([0,-1,0],lower*3);normals.set([0,1,0],upper*3);
   uv.set([.5,.5],lower*2);uv.set([.5,recipe.height/2.8],upper*2);
   for(let i=0;i<sides;i++){
-    indices.push(lower,i+1,i);
+    indices.push(lower,i,i+1);
     const top=(rings-1)*strip;
-    indices.push(upper,top+i,top+i+1);
+    indices.push(upper,top+i+1,top+i);
   }
   return {positions,normals,uv,indices:new Uint32Array(indices)};
 }
