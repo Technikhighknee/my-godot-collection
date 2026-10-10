@@ -54,7 +54,7 @@ const PROFILE=Object.freeze([
   {segments:3,taper:1,exponent:1.0,drift:.070},
 ]);
 const CHILD_COUNT=[4,2,3];
-const FIRST_CHILD=[.49,.06,.12];
+const FIRST_CHILD=[.49,.16,.12];
 const CHILD_ANGLE=[58,58,32];
 const CHILD_LENGTH=[1.16,2.48,1.80];
 
@@ -105,6 +105,103 @@ function growAxis({id,parentId,level,continuation,seededLength,radius,start,
   }
   return {id,parentId,level,continuation,sections,roots,length:seededLength};
 }
+// Spatially indexed capsules prevent unrelated axes from crossing.
+// Near a genuine fork the child is allowed to start inside its support.
+function segmentDistance(p0,p1,q0,q1){
+  const u=sub(p1,p0),v=sub(q1,q0),w=sub(p0,q0);
+  const a=dot(u,u),b=dot(u,v),c=dot(v,v),d=dot(u,w),e=dot(v,w);
+  const denom=a*c-b*b;
+  let sn=0,sd=denom,tn=0,td=denom;
+  if(denom<1e-12){sn=0;sd=1;tn=e;td=c;}
+  else{
+    sn=b*e-c*d;tn=a*e-b*d;
+    if(sn<0){sn=0;tn=e;td=c;}
+    else if(sn>sd){sn=sd;tn=e+b;td=c;}
+  }
+  if(tn<0){
+    tn=0;
+    if(-d<0)sn=0;
+    else if(-d>a)sn=sd;
+    else{sn=-d;sd=a;}
+  }else if(tn>td){
+    tn=td;
+    if(-d+b<0)sn=0;
+    else if(-d+b>a)sn=sd;
+    else{sn=-d+b;sd=a;}
+  }
+  const t=Math.abs(sn)<1e-12?0:sn/sd;
+  const u2=Math.abs(tn)<1e-12?0:tn/td;
+  return {distance:magnitude(sub(add(p0,mul(u,t)),add(q0,mul(v,u2)))),t,u:u2};
+}
+function woodSpace(){
+  const size=.6,cells=new Map();
+  const key=(i,j,k)=>i+','+j+','+k;
+  const bounds=(a,b,r)=>{
+    const lo=a.map((x,i)=>Math.floor((Math.min(x,b[i])-r)/size));
+    const hi=a.map((x,i)=>Math.floor((Math.max(x,b[i])+r)/size));
+    return [lo,hi];
+  };
+  const visit=(a,b,r,callback)=>{
+    const [low,high]=bounds(a,b,r);
+    for(let i=low[0];i<=high[0];i++)
+      for(let j=low[1];j<=high[1];j++)
+        for(let k=low[2];k<=high[2];k++)
+          callback(key(i,j,k));
+  };
+  function insert(axis){
+    for(let i=1;i<axis.sections.length;i++){
+      const a=axis.sections[i-1],b=axis.sections[i];
+      const capsule={id:axis.id,from:a.position,to:b.position,
+        r0:a.radius,r1:b.radius,index:i-1};
+      visit(capsule.from,capsule.to,Math.max(a.radius,b.radius)+.045,k=>{
+        const bucket=cells.get(k)||[];
+        bucket.push(capsule);
+        cells.set(k,bucket);
+      });
+    }
+  }
+  function assess(axis,ignoreParent){
+    let penalty=0,conflicts=0,maxOverlap=0;
+    for(let i=1;i<axis.sections.length;i++){
+      const a=axis.sections[i-1],b=axis.sections[i],seen=new Set();
+      visit(a.position,b.position,Math.max(a.radius,b.radius)+.045,k=>{
+        for(const other of cells.get(k)||[]){
+          if(seen.has(other))continue;
+          seen.add(other);
+          if(other.id===ignoreParent && i===1)continue;
+          const d=segmentDistance(a.position,b.position,other.from,other.to);
+          const radial=(a.radius+(b.radius-a.radius)*d.t)+
+            other.r0+(other.r1-other.r0)*d.u;
+          const overlap=radial+.014-d.distance;
+          if(overlap<=0)continue;
+          // A legitimate fork starts with shared wood. Later crossings
+          // must still be resolved even when the two axes are related.
+          if(other.id===ignoreParent && i===2 && d.t<.18)continue;
+          penalty+=overlap*overlap;
+          maxOverlap=Math.max(maxOverlap,overlap);
+          conflicts++;
+        }
+      });
+    }
+    return {penalty,conflicts,maxOverlap};
+  }
+  return {insert,assess};
+}
+function chooseAxis(space,create,parentId,variants,extraPenalty=()=>0){
+  let best=null,bestScore=Infinity;
+  for(let attempt=0;attempt<variants;attempt++){
+    const axis=create(attempt);
+    const result=space.assess(axis,parentId);
+    // Prefer the original growth direction when it is already clear.
+    const score=result.penalty+extraPenalty(axis)+(attempt>0?.000025*attempt:0);
+    if(score<bestScore){
+      best=axis;bestScore=score;
+    }
+    if(!result.conflicts && extraPenalty(axis)===0)break;
+  }
+  space.insert(best);
+  return best;
+}
 function growTree(rng){
   const trunkLength=6.15+(rng()-.5)*.55;
   const trunk=growAxis({
@@ -113,7 +210,8 @@ function growTree(rng){
     start:[0,0,0],tangent:unit([(rng()-.5)*.07,1,(rng()-.5)*.07]),
     side:null,rng,roots:rootRidges(rng),
   });
-  const branches=[trunk],queue=[trunk];
+  const branches=[trunk],queue=[trunk],space=woodSpace();
+  space.insert(trunk);
   let nextId=1;
   for(let head=0;head<queue.length;head++){
     const parent=queue[head];
@@ -121,11 +219,12 @@ function growTree(rng){
     const level=parent.level+1,end=parent.sections[parent.sections.length-1];
     // The next growth order continues the same axis from its end, carrying
     // its complete frame and local radius into the next ring.
-    const continuation=growAxis({
-      id:nextId++,parentId:parent.id,level,continuation:true,
+    const continuationId=nextId++;
+    const continuation=chooseAxis(space,()=>growAxis({
+      id:continuationId,parentId:parent.id,level,continuation:true,
       seededLength:CHILD_LENGTH[level-1]*(level===1?.95:1),
       radius:end.radius,start:end.position,tangent:end.tangent,side:end.side,rng,
-    });
+    }),parent.id,7);
     branches.push(continuation);
     queue.push(continuation);
 
@@ -138,20 +237,14 @@ function growTree(rng){
     }
     const phase=rng()*TAU;
     for(let i=0;i<count;i++){
-      const jitter=level===2&&i===0 ? .10+.60*rng() : .15+.70*rng();
+      const jitter=level===2&&i===0 ? .10+.48*rng() : .15+.70*rng();
       const location=start+(i+jitter)*(1-start)/count;
       const attachment=blendSection(parent,location);
       const azimuth=phase+(order[i]+(rng()-.5)*.66)*TAU/count;
       const basis=frame(attachment.tangent,attachment.side);
-      const outward=unit(add(
-        mul(basis.side,Math.cos(azimuth)),
-        mul(basis.across,Math.sin(azimuth))));
       // Young tip shoots do not all follow the same narrow cone.
       const spread=parent.level===2?24:7;
       const tilt=(CHILD_ANGLE[parent.level]+(rng()-.5)*spread)*Math.PI/180;
-      const direction=unit(add(
-        mul(attachment.tangent,Math.cos(tilt)),
-        mul(outward,Math.sin(tilt))));
       const radiusScale=[.94,.72,.78][parent.level];
       const radius=attachment.radius*radiusScale*(.92+.16*rng());
       // Suppress the repeated long, upward-pointing terminal silhouette.
@@ -159,10 +252,38 @@ function growTree(rng){
       const length=parent.level===2
         ? CHILD_LENGTH[2]*(rng()<.23 ? .46+.24*rng() : .76+.40*rng())
         : CHILD_LENGTH[parent.level]*(.92+.16*rng());
-      const child=growAxis({
-        id:nextId++,parentId:parent.id,level,continuation:false,
-        seededLength:length,radius,start:attachment.position,
-        tangent:direction,side:basis.side,rng,
+      const childId=nextId++;
+      const child=chooseAxis(space,attempt=>{
+        const angle=attempt===0?azimuth:
+          azimuth+(level===1
+            ? [0,.08,-.08,.14,-.14,.20,-.20,.27,-.27][attempt]
+            : [0,.38,-.38,.77,-.77,1.17,-1.17,1.57,-1.57,1.96,-1.96,2.35,-2.35,2.74,-2.74,3.1,-3.1][attempt]);
+        const horizontal=unit(add(
+          mul(basis.side,Math.cos(angle)),
+          mul(basis.across,Math.sin(angle))));
+        const inclination=tilt+(attempt===0?0:(attempt%2?.09:-.09));
+        const heading=unit(add(
+          mul(attachment.tangent,Math.cos(inclination)),
+          mul(horizontal,Math.sin(inclination))));
+        return growAxis({
+          id:childId,parentId:parent.id,level,continuation:false,
+          seededLength:length,radius,start:attachment.position,
+          tangent:heading,side:basis.side,rng,
+        });
+      },parent.id,level===1?9:17,axis=>{
+        if(level!==1)return 0;
+        const existing=branches.filter(other=>
+          other.level===1&&!other.continuation&&other.parentId===parent.id);
+        const a=sub(axis.sections.at(-1).position,axis.sections[0].position);
+        const dirA=unit([a[0],0,a[2]]);
+        let overlap=0;
+        for(const other of existing){
+          const b=sub(other.sections.at(-1).position,other.sections[0].position);
+          const dirB=unit([b[0],0,b[2]]);
+          const radians=Math.acos(clamp(dot(dirA,dirB),-1,1));
+          if(radians<.50)overlap+=.06+Math.pow(.50-radians,2);
+        }
+        return overlap;
       });
       branches.push(child);
       queue.push(child);

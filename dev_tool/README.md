@@ -42,6 +42,14 @@ turning back toward its original heading. Lateral attachment heights
 and compass directions are independently distributed across available
 sectors.
 
+The growth planner indexes existing wood segments as capsules. New axes
+try alternate growth directions when their predicted path would cross
+previously placed wood. The main supporting boughs keep their angular
+spacing; finer branches can search a wider range of directions.
+Secondary boughs start after their supporting axes have begun to clear
+the central trunk. Immediate parent-child contact is intentional and
+excluded from collision rejection near the fork.
+
 The lower trunk stays slender, with a restrained asymmetric root flare
 and slight longitudinal variation in its cross-section. The terminal
 shoots have deliberately uneven lengths and a broader range of

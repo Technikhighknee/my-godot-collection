@@ -196,6 +196,103 @@ test('local, seeded growth produces different three-dimensional crowns',()=>{
   assert.ok(kinds.size>=3,'Azimuth assignments must vary between seeds');
 });
 
+test('independent wood axes do not cut through the standing tree',()=>{
+  type Piece={
+    id:number;parentId:number|null;level:number;index:number;
+    a:number[];b:number[];r0:number;r1:number;
+  };
+  const nearest=(a:Piece,b:Piece)=>{
+    const u=a.a.map((x,k)=>a.b[k]-x),v=b.a.map((x,k)=>b.b[k]-x);
+    const w=a.a.map((x,k)=>x-b.a[k]);
+    const A=u.reduce((s,x)=>s+x*x,0),B=u.reduce((s,x,k)=>s+x*v[k],0);
+    const C=v.reduce((s,x)=>s+x*x,0),D=u.reduce((s,x,k)=>s+x*w[k],0);
+    const E=v.reduce((s,x,k)=>s+x*w[k],0),den=A*C-B*B;
+    let sn=0,sd=den,tn=0,td=den;
+    if(den<1e-12){sn=0;sd=1;tn=E;td=C;}
+    else{
+      sn=B*E-C*D;tn=A*E-B*D;
+      if(sn<0){sn=0;tn=E;td=C;}
+      else if(sn>sd){sn=sd;tn=E+B;td=C;}
+    }
+    if(tn<0){
+      tn=0;
+      if(-D<0)sn=0;
+      else if(-D>A)sn=sd;
+      else{sn=-D;sd=A;}
+    }else if(tn>td){
+      tn=td;
+      if(-D+B<0)sn=0;
+      else if(-D+B>A)sn=sd;
+      else{sn=-D+B;sd=A;}
+    }
+    const t=Math.abs(sn)<1e-12?0:sn/sd;
+    const q=Math.abs(tn)<1e-12?0:tn/td;
+    const separation=Math.hypot(...w.map((x,k)=>x+t*u[k]-q*v[k]));
+    return a.r0+(a.r1-a.r0)*t+b.r0+(b.r1-b.r0)*q-separation;
+  };
+  for(const seed of SEEDS){
+    const tree=generateTree({seed}),byId=new Map(tree.branches.map(b=>[b.id,b]));
+    const continuations=new Map(tree.branches.filter(b=>b.continuation)
+      .map(b=>[b.parentId!,b]));
+    const sections:Piece[]=[];
+    let vertex=0;
+    for(const root of tree.branches.filter(b=>!b.continuation)){
+      const sequence=[root];
+      while(continuations.has(sequence[sequence.length-1].id))
+        sequence.push(continuations.get(sequence[sequence.length-1].id)!);
+      const count=sequence.reduce((n,b,i)=>n+b.rings-(i?1:0),0);
+      const ring=(row:number)=>{
+        const middle=[0,0,0];
+        for(let j=0;j<root.sides;j++)
+          for(let axis=0;axis<3;axis++)
+            middle[axis]+=tree.positions[(vertex+row*root.sides+j)*3+axis]/root.sides;
+        let radius=0;
+        for(let j=0;j<root.sides;j++)
+          radius+=Math.hypot(...[0,1,2].map(axis=>
+            tree.positions[(vertex+row*root.sides+j)*3+axis]-middle[axis]))/root.sides;
+        return {middle,radius};
+      };
+      let row=0,previous=ring(0);
+      for(const axis of sequence){
+        for(let i=1;i<axis.rings;i++){
+          const next=ring(++row);
+          sections.push({
+            id:axis.id,parentId:axis.parentId,level:axis.level,index:i-1,
+            a:previous.middle,b:next.middle,r0:previous.radius,r1:next.radius,
+          });
+          previous=next;
+        }
+      }
+      assert.equal(row,count-1);
+      vertex+=count*root.sides+2;
+    }
+    assert.equal(vertex,tree.positions.length/3);
+    for(let i=0;i<sections.length;i++)
+      for(let j=i+1;j<sections.length;j++){
+        const a=sections[i],b=sections[j];
+        if(a.id===b.id)continue;
+        const ma=a.a.map((x,k)=>(x+a.b[k])/2);
+        const mb=b.a.map((x,k)=>(x+b.b[k])/2);
+        if(Math.hypot(...ma.map((x,k)=>x-mb[k]))>1)continue;
+        const direct=a.parentId===b.id||b.parentId===a.id;
+        if(direct){
+          const child=a.parentId===b.id?a:b;
+          if(child.index<3)continue; // A branch grows out of its own support.
+        }
+        if(a.parentId!==null&&a.parentId===b.parentId&&
+          a.index===0&&b.index===0)continue;
+        const pa=a.parentId===null?null:byId.get(a.parentId);
+        const pb=b.parentId===null?null:byId.get(b.parentId);
+        if((pa?.parentId===b.id&&a.index===0)||
+          (pb?.parentId===a.id&&b.index===0))continue;
+        const penetration=nearest(a,b);
+        assert.ok(penetration<.046,
+          'Unrelated wood must not pierce another axis: seed '+seed+
+          ', axes '+a.id+'/'+b.id+', overlap '+penetration.toFixed(3)+' m');
+      }
+  }
+});
+
 test('wood surfaces have consistent topology, normals and bounds',()=>{
   for(const seed of SEEDS)inspectGeometry(generateTree({seed}));
 });
