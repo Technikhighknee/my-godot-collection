@@ -54,7 +54,7 @@ function sampleSection(branch, t) {
 }
 
 function footShape(angle, t, roots) {
-  let amount = .07 * Math.exp(-Math.pow(t / .14, 1.7));
+  let amount = .035 * Math.exp(-Math.pow(t / .14, 1.7));
   for (const root of roots) {
     const offset = Math.atan2(Math.sin(angle-root.angle),Math.cos(angle-root.angle));
     const width = root.width * (1+t*.75);
@@ -72,7 +72,9 @@ function growBranch({position,direction,length,radius,level,rng,roots,id,parentI
   const bendAxis = add(mul(frame[0], Math.cos(azimuth)),mul(frame[1],Math.sin(azimuth)));
   const upturn = [0.025, .35, .26, .20, .13][level];
   const sideways = [0.075, .23, .31, .37, .43][level] * (rng() - .5);
-  const taper = [.64, .49, .59, .64, .84][level];
+  // The load-bearing shaft remains close to its starting diameter.
+  // Strong taper belongs to the finer crown axes, not the base of the tree.
+  const taper = [.18, .35, .59, .64, .84][level];
   let current = position, heading = unit(direction);
   for (let i=0; i<=count; i++) {
     const t = i/count;
@@ -106,11 +108,11 @@ function shootDirection(tangent, angle, tilt, origin, rng) {
 
 function growTree(rng) {
   const trunkLength=4.6+(rng()-.5)*.42;
-  const rootRadius=.57+(rng()-.5)*.07;
+  const rootRadius=.19+(rng()-.5)*.035;
   const roots=[],phase=rng()*TAU;
   for(let i=0;i<5;i++)roots.push({
     angle:phase+i*TAU/5+(rng()-.5)*.22,
-    strength:.10+rng()*.12,
+    strength:.035+rng()*.045,
     width:.25+rng()*.12,
     height:.18+rng()*.075,
   });
@@ -153,7 +155,7 @@ function growTree(rng) {
       const direction=shootDirection(
         anchor.tangent,azimuth,degrees*Math.PI/180,anchor.position,rng);
       const length=[0,3.35,2.25,1.48,.94][level]*(.8+rng()*.40);
-      const scale=level===1?.61+rng()*.13:
+      const scale=level===1?.47+rng()*.11:
         level===2?.49+rng()*.13:level===3?.45+rng()*.14:.41+rng()*.13;
       const child=growBranch({
         position:anchor.position,direction,length,

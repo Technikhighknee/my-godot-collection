@@ -99,6 +99,40 @@ test('tree produces a branched woody crown and thin terminal twigs',()=>{
   assert.ok(oak.bounds.max[2]-oak.bounds.min[2]>5);
 });
 
+test('compact oak keeps a slim lower shaft and gradual, proportionate first limbs',()=>{
+  for(const seed of [0,1,55,101,19641,3350221335,4294967295]){
+    const tree=generateTree({seed}),trunk=tree.branches[0];
+    assert.ok(trunk.baseRadius>=.17&&trunk.baseRadius<=.21,
+      'Lower trunk must be slender relative to the crown');
+    const retained=trunk.tipRadius/trunk.baseRadius;
+    assert.ok(retained>=.79&&retained<=.86,
+      'Supporting trunk must not collapse into a steep cone');
+
+    // The root ring begins the first wood chain, using fourteen segments.
+    const radiusAt=(row:number)=>{
+      const count=14,p=tree.positions,center=[0,0,0];
+      for(let i=0;i<count;i++)
+        for(let axis=0;axis<3;axis++)center[axis]+=p[(row*count+i)*3+axis]/count;
+      const radii=Array.from({length:count},(_,i)=>
+        Math.hypot(...[0,1,2].map(axis=>p[(row*count+i)*3+axis]-center[axis])));
+      return {average:radii.reduce((sum,v)=>sum+v,0)/count,maximum:Math.max(...radii)};
+    };
+    assert.ok(radiusAt(0).maximum<trunk.baseRadius*1.15,
+      'The root flare must not become a broad conical skirt');
+    assert.ok(radiusAt(14).average>trunk.baseRadius*.92,
+      'The lower half of the trunk should lose little thickness');
+    assert.ok(radiusAt(28).average>trunk.baseRadius*.79,
+      'The first shaft section must retain most of its radius');
+
+    const largeLimbs=tree.branches.filter(b=>b.level===1&&!b.continuation);
+    assert.equal(largeLimbs.length,4);
+    for(const limb of largeLimbs) {
+      assert.ok(limb.baseRadius<trunk.baseRadius*.58,
+        'Primary branches must be thinner than the supporting trunk');
+    }
+  }
+});
+
 test('different seeds generate reproducible but distinct trees',()=>{
   const original=generateTree();
   assert.deepEqual(original.positions,generateTree().positions);
