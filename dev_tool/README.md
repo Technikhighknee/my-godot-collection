@@ -4,7 +4,7 @@
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. Currently implements **only an interactive tree trunk geometry preview**: seeded centerline growth, tapered and irregular cross-sections, continuous root buttresses and clay-shaded silhouette inspection. No foliage, branches, textures, recipe storage or exports.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. Currently grows a **small oak wood structure** from a seed: trunk, primary limbs, secondary branches and fine twigs in a neutral 3D preview. No foliage, textures, recipe storage or exports.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -26,36 +26,24 @@ Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Edit
 npm start -- ../map_system/example.map.json --port 4372
 ```
 
-## Asset ProcGen — dominant trunk / leader
+## Asset ProcGen — oak wood structure
 
-The tree generator is developed directly in the Asset ProcGen. At this stage
-it generates exactly **one continuous growth path**: the main lower trunk
-curves upward and becomes its own dominant, oblique leader. No side branches
-are constructed. It is not a full tree or a production export.
+The first implemented asset generator builds a compact deciduous tree from
+one numeric seed. Its trunk grows into five spatially distributed primary
+limbs, followed by finer branches and terminal twigs. Growth uses a branched
+skeleton: the direction, length, attachment point, radius and subsequent
+growth of each segment are computed before mesh construction.
 
-The centerline integrates a seeded growth direction that remains comparatively
-upright through the lower shaft and gradually turns crownward. The turn
-direction varies with the seed in all horizontal directions; no fixed
-rightward growth bias is applied.
+Each wood axis is swept along its own section frames. The root collar has
+broad, uneven ridges; the crown structure spans multiple levels with smaller
+diameters toward the tips. The browser preview shows plain shaded geometry
+so the shape can be judged without surface textures.
 
-The radius now follows a series of **latent branch departures**. Those
-departures do not render any additional geometry, but each removes a
-share of the surviving leader's cross-sectional area. Radius therefore
-changes with the square root of the remaining area, rather than through
-a late, arbitrarily sharpened cone. The leader ends at a small
-tangent-aligned apex. This is a structural approximation, not a botanical
-simulation or a finished tree. Only the main path is rendered.
+Only **Seed** and **New seed** control the generator. Whole tree, Inspect
+base, Inspect crown, Silhouette and Turntable are inspection views. This
+phase does not include leaves, textures, GLB export, placement, recipe
+storage or material authoring. The Map Editor and game assets are unchanged.
 
-The workbench deliberately exposes **only the seed**. Enter a value to
-reproduce the same shape or choose **New seed** to generate another. Stem
-length, thickness, growth direction, taper, surface character and buttresses
-are internal decisions of the generator; no shape sliders are exposed.
-Orbit, silhouette, turntable, and whole/base/tip camera presets remain
-available for visual inspection.
-
-There is no branch system, leaf system, texture, material editor, save/load,
-GLB export, or tree placement. The shape must be judged visually before any
-of those capabilities are introduced. The Map Editor is unchanged.
 
 ## Map workspace
 

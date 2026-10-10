@@ -1,175 +1,121 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { DEFAULT_STEM, generateStem, validateStem, type StemMesh } from '../tools/asset-procgen/web/trunk.mjs';
-import { loadMap } from '../tools/map-editor/src/io/map-io.ts';
-import { createEditorServer } from '../tools/map-editor/src/server.ts';
+import {DEFAULT_TREE,generateTree,validateTree,type TreeMesh} from '../tools/asset-procgen/web/tree.mjs';
+import {loadMap} from '../tools/map-editor/src/io/map-io.ts';
+import {createEditorServer} from '../tools/map-editor/src/server.ts';
 
-function verifySurface(mesh: StemMesh) {
-  const {positions: p, normals: n, indices: f} = mesh;
-  assert.equal(p.length, n.length);
-  assert.ok(p.every(Number.isFinite));
-  assert.ok(n.every(Number.isFinite));
-  assert.ok(f.every(i => i < p.length / 3));
-  const welded:number[] = [];
-  const unique = new Map<string,number>();
-  for(let i=0;i<p.length/3;i++){
-    const key = Array.from(p.subarray(i*3,i*3+3),v=>v.toFixed(5)).join(',');
-    if(!unique.has(key)) unique.set(key,unique.size);
-    welded[i] = unique.get(key)!;
+function checkGeometry(tree:TreeMesh) {
+  assert.equal(tree.positions.length,tree.normals.length);
+  assert.ok(tree.positions.every(Number.isFinite));
+  assert.ok(tree.normals.every(Number.isFinite));
+  assert.ok(tree.indices.every(i=>i<tree.positions.length/3));
+  assert.ok(tree.indices.length/3<200000);
+  assert.equal(tree.branches[0].parentId,null);
+  assert.equal(tree.branches[0].level,0);
+  const present=new Map(tree.branches.map(b=>[b.id,b]));
+  const levels=new Set<number>();
+  for(const branch of tree.branches){
+    levels.add(branch.level);
+    assert.ok(branch.baseRadius>0 && branch.tipRadius>0);
+    assert.ok(branch.tipRadius<branch.baseRadius);
+    assert.ok(branch.length>0);
+    if(branch.parentId!==null){
+      const parent=present.get(branch.parentId);
+      assert.ok(parent);
+      assert.equal(parent!.level,branch.level-1);
+      assert.ok(branch.baseRadius<parent!.baseRadius);
+    }
+    for(const value of [...branch.from,...branch.to])assert.ok(Number.isFinite(value));
   }
-  const edges = new Map<string,[number,number]>();
-  for(let j=0;j<f.length;j+=3){
-    const [a,b,c] = [f[j],f[j+1],f[j+2]];
-    const u = [0,1,2].map(k=>p[b*3+k]-p[a*3+k]);
-    const v = [0,1,2].map(k=>p[c*3+k]-p[a*3+k]);
-    const cross = [
-      u[1]*v[2]-u[2]*v[1],
-      u[2]*v[0]-u[0]*v[2],
-      u[0]*v[1]-u[1]*v[0],
-    ];
-    assert.ok(Math.hypot(...cross)>1e-10,'Degenerate stem triangle');
-    const orientation = cross.reduce((sum,x,k)=>sum+x*
-      (n[a*3+k]+n[b*3+k]+n[c*3+k]),0);
-    assert.ok(orientation>=-1e-8,'Inward-facing stem triangle');
-    for(const [x,y] of [[a,b],[b,c],[c,a]]){
-      const i=welded[x],k=welded[y],key=Math.min(i,k)+':'+Math.max(i,k);
-      const pair = edges.get(key)??[0,0];
-      pair[0]++; pair[1]+=i<k?1:-1; edges.set(key,pair);
+  assert.deepEqual([...levels].sort(),[0,1,2,3,4]);
+  const edges=new Map<string,[number,number]>();
+  const positions=tree.positions,indices=tree.indices,normals=tree.normals;
+  for(let i=0;i<indices.length;i+=3){
+    const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3;
+    const u=[0,1,2].map(k=>positions[b+k]-positions[a+k]);
+    const v=[0,1,2].map(k=>positions[c+k]-positions[a+k]);
+    const face=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+    assert.ok(Math.hypot(...face)>1e-11,'Degenerate wood face');
+    const outward=face.reduce((sum,x,k)=>sum+x*
+      (normals[a+k]+normals[b+k]+normals[c+k]),0);
+    assert.ok(outward>=-1e-8,'Inverted face');
+    const vertices=[indices[i],indices[i+1],indices[i+2]];
+    for(const [j,k] of [[0,1],[1,2],[2,0]]){
+      const lo=Math.min(vertices[j],vertices[k]),hi=Math.max(vertices[j],vertices[k]);
+      const key=lo+':'+hi;
+      const entry=edges.get(key)??[0,0];
+      entry[0]++; entry[1]+=vertices[j]<vertices[k]?1:-1;
+      edges.set(key,entry);
     }
   }
-  for(const [count,wind] of edges.values()){
-    assert.equal(count,2,'All edges must be closed after welding the UV seam');
-    assert.equal(wind,0,'All shared edges must be oppositely wound');
+  for(const [count,winding] of edges.values()){
+    assert.equal(count,2,'Each wood shell must be closed');
+    assert.equal(winding,0,'Shared edges must have opposite winding');
+  }
+  for(let axis=0;axis<3;axis++){
+    assert.ok(tree.bounds.max[axis]>tree.bounds.min[axis]);
+    for(let i=axis;i<positions.length;i+=3){
+      assert.ok(positions[i]>=tree.bounds.min[axis]-1e-4);
+      assert.ok(positions[i]<=tree.bounds.max[axis]+1e-4);
+    }
   }
 }
-function center(mesh: StemMesh, row:number) {
-  const stride=mesh.sides+1,result=[0,0,0];
-  for(let i=0;i<mesh.sides;i++)
-    for(let k=0;k<3;k++) result[k]+=mesh.positions[(row*stride+i)*3+k]/mesh.sides;
-  return result;
-}
-function width(mesh:StemMesh,row:number) {
-  const middle=center(mesh,row);
-  let r=0;
-  for(let i=0;i<mesh.sides;i++){
-    const index=(row*(mesh.sides+1)+i)*3;
-    r+=Math.hypot(...[0,1,2].map(k=>mesh.positions[index+k]-middle[k]))/mesh.sides;
+
+test('seed is the only public shape setting',()=>{
+  assert.deepEqual(validateTree(DEFAULT_TREE),DEFAULT_TREE);
+  for(const bad of [null,{},[],{seed:-1},{seed:2**32},{seed:1.1},
+    {seed:NaN},{seed:0,height:10}])assert.throws(()=>validateTree(bad));
+});
+
+test('tree produces a branched woody crown and thin terminal twigs',()=>{
+  const oak=generateTree();
+  checkGeometry(oak);
+  assert.equal(oak.branches.filter(b=>b.level===1).length,5);
+  assert.ok(oak.branches.filter(b=>b.level===4).length>=25);
+  assert.ok(oak.branches.some(b=>b.level===4&&b.tipRadius<.01));
+  assert.ok(oak.bounds.max[1]>7);
+  assert.ok(oak.bounds.max[0]-oak.bounds.min[0]>5);
+  assert.ok(oak.bounds.max[2]-oak.bounds.min[2]>5);
+});
+
+test('different seeds generate reproducible but distinct trees',()=>{
+  const original=generateTree();
+  assert.deepEqual(original.positions,generateTree().positions);
+  assert.deepEqual(original.indices,generateTree().indices);
+  for(const seed of [0,1,55,101,3350221335,4294967295]){
+    const wood=generateTree({seed});
+    checkGeometry(wood);
+    assert.notDeepEqual(wood.positions,original.positions);
   }
-  return r;
-}
-
-test('one strictly validated dominant-growth recipe with no old head controls',()=>{
-  assert.deepEqual(validateStem(DEFAULT_STEM),DEFAULT_STEM);
-  for(const invalid of [
-    {...DEFAULT_STEM,seed:-1},{...DEFAULT_STEM,seed:2**32},
-    {...DEFAULT_STEM,height:Infinity},{...DEFAULT_STEM,radius:2},
-    {...DEFAULT_STEM,leaderStart:.9},{...DEFAULT_STEM,leaderReach:2},
-    {...DEFAULT_STEM,lean:-.5},
-  ]) assert.throws(()=>validateStem(invalid));
-  assert.equal(Object.hasOwn(DEFAULT_STEM,'headMass'),false);
-  assert.equal(Object.hasOwn(DEFAULT_STEM,'shaftHeight'),false);
 });
 
-test('the entire trunk-to-leader is a deterministic, oriented closed piece of wood',()=>{
-  const a=generateStem(),b=generateStem();
-  assert.deepEqual(a.positions,b.positions);
-  assert.deepEqual(a.indices,b.indices);
-  assert.deepEqual(Object.keys(a).sort(),['positions','normals','indices','rings','sides','settings'].sort());
-  verifySurface(a);
-  const stride=a.sides+1;
-  for(let row=0;row<a.rings;row++)for(let k=0;k<3;k++)
-    assert.equal(a.positions[(row*stride)*3+k],
-      a.positions[(row*stride+a.sides)*3+k],'Periodic radial seam');
-});
-
-test('the main stem actually becomes an oblique leader, not a capped upright post',()=>{
-  const m=generateStem(),tip=(m.rings*(m.sides+1)+1)*3;
-  const apex=[m.positions[tip],m.positions[tip+1],m.positions[tip+2]];
-  const foot=center(m,0);
-  const sideways=Math.hypot(apex[0]-foot[0],apex[2]-foot[2]);
-  assert.ok(sideways>m.settings.height*.075,'The leader must bend, but not into a sideways horn');
-  assert.ok(apex[1]>m.settings.height*.95,'Leader must keep climbing');
-  assert.ok(width(m,m.rings-1)<width(m,0)*.35,'The remaining branch load must substantially thin the leader');
-  assert.ok(width(m,Math.floor(m.rings*.2))>width(m,0)*.75,
-    'The lower load-bearing shaft should remain relatively thick');
-  assert.ok(width(m,Math.floor(m.rings*.7))<width(m,Math.floor(m.rings*.4))*.88,
-    'Several latent branch departures should reduce the remaining area');
-  assert.ok(width(m,m.rings-1)>0,'Terminal ring must retain valid geometry');
-  const straight=generateStem({...DEFAULT_STEM,leaderReach:0,lean:0,character:0});
-  const end=(straight.rings*(straight.sides+1)+1)*3;
-  assert.ok(Math.hypot(straight.positions[end],straight.positions[end+2])<1e-3,
-    'A zero-turn recipe must remain vertical');
-});
-
-test('seeded branch-load events reduce leader thickness while the bend remains localized',()=>{
-  const m=generateStem(),stride=m.sides+1;
-  const early=generateStem({...DEFAULT_STEM,leaderStart:.25});
-  const late=generateStem({...DEFAULT_STEM,leaderStart:.7});
-  const weak=generateStem({...DEFAULT_STEM,leaderReach:.15});
-  const strong=generateStem({...DEFAULT_STEM,leaderReach:1.4});
-  const base=(mesh:StemMesh)=>center(mesh,0);
-  assert.deepEqual(base(early),base(late));
-  assert.deepEqual(base(weak),base(strong));
-  const offset=(mesh:StemMesh,row:number)=>Math.hypot(...[0,2].map(k=>
-    center(mesh,row)[k]-center(mesh,0)[k]));
-  const mid=Math.floor(early.rings*.7);
-  assert.ok(offset(early,mid)>offset(late,mid)+.05,
-    'Earlier leader emergence must bend earlier');
-  const last=strong.rings-1;
-  assert.ok(offset(strong,last)>offset(weak,last)+.7,
-    'Reach must alter the spine itself');
-  for(const fraction of [.25,.45,.65,.85,.99]){
-    const row=Math.round((m.rings-1)*fraction);
-    assert.ok(width(m,row)>0);
-  }
-  assert.equal(m.indices.length/3,2*(m.rings-1)*m.sides+2*m.sides);
-});
-
-test('seeds vary leader direction instead of forcing every tree towards +X',()=>{
-  const stems=[0,55,101,1234].map(seed=>generateStem({...DEFAULT_STEM,seed}));
-  const tips=stems.map(m=>center(m,m.rings-1));
-  assert.ok(tips.some(p=>p[0]<-.2),'Some seeded leaders must head toward -X');
-  assert.ok(tips.some(p=>p[2]<-.2),'Some seeded leaders must head toward -Z');
-  assert.ok(tips.some(p=>p[0]>.2),'Some seeded leaders must head toward +X');
-  assert.notDeepEqual(stems[0].positions,stems[1].positions);
-});
-
-test('seed variation and parameter extremes retain valid oriented geometry',()=>{
-  for(const recipe of [
-    {...DEFAULT_STEM,seed:0,character:0,buttress:0,leaderReach:0,lean:0},
-    {...DEFAULT_STEM,seed:3350221335,radius:.28,leaderReach:1.5,leaderStart:.25},
-    {...DEFAULT_STEM,seed:4294967295,height:16,radius:1,leaderReach:1.5,
-      character:1.5,buttress:1.5,lean:.3},
-  ]) verifySurface(generateStem(recipe));
-});
-
-test('Asset ProcGen still contains only the trunk and serves the existing editor',async()=>{
+test('Asset ProcGen exposes seed-only preview and does not break Map Editor',async()=>{
   const html=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
   assert.match(html,/id="viewport"/);
   assert.match(html,/id="seedValue" type="number"/);
-  assert.match(html,/id="reseed"/);
-  for(const id of ['whole','foot','tip','silhouette','turntable'])
-    assert.ok(html.includes('id="'+id+'"'), 'Missing camera control: '+id);
-  assert.doesNotMatch(html,/data-key=|type="range"|id="reset"|Export GLB|Save recipe/);
+  for(const id of ['reseed','whole','foot','crown','silhouette','turntable'])
+    assert.ok(html.includes('id="'+id+'"'));
+  assert.doesNotMatch(html,/data-key=|type="range"|Export GLB|Save recipe/);
   const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
-  assert.doesNotMatch(app,/\bsliders\b|data-key|id="reset"/);
-  assert.match(app,/generateStem\(params\)/);
-  const doc=await loadMap('../map_system/coastal_relief.map.json');
-  const server=createEditorServer(doc);
+  assert.match(app,/generateTree\(settings\)/);
+  assert.doesNotMatch(app,/trunk\.mjs|export GLB/i);
+  const map=await loadMap('../map_system/coastal_relief.map.json');
+  const server=createEditorServer(map);
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   try{
     const address=server.address();
-    assert.ok(address && typeof address!=='string');
-    const base='http://127.0.0.1:'+address.port;
-    for(const path of ['/tools/asset-procgen/','/tools/asset-procgen',
-      '/tools/asset-procgen/app.js','/tools/asset-procgen/style.css','/tools/asset-procgen/trunk.mjs']){
-      const response=await fetch(base+path);
-      assert.equal(response.status,200,path);
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    for(const url of ['/tools/asset-procgen/','/tools/asset-procgen/app.js',
+      '/tools/asset-procgen/style.css','/tools/asset-procgen/tree.mjs']){
+      assert.equal((await fetch(origin+url)).status,200,url);
     }
-    assert.equal((await fetch(base+'/tools/map-editor/')).status,200);
-    assert.equal((await fetch(base+'/api/map')).status,200);
+    assert.equal((await fetch(origin+'/tools/asset-procgen/trunk.mjs')).status,404);
+    assert.equal((await fetch(origin+'/tools/map-editor/')).status,200);
+    assert.equal((await fetch(origin+'/api/map')).status,200);
   } finally {
-    await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise<void>((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
   }
 });

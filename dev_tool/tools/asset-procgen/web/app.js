@@ -1,167 +1,166 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEFAULT_STEM, generateStem } from './trunk.mjs';
+import { DEFAULT_TREE, generateTree } from './tree.mjs';
 
 const byId = id => document.getElementById(id);
-const params = { ...DEFAULT_STEM };
-let renderer, camera, scene, controls, stem, spinning = false, silhouette = false;
+const settings = { ...DEFAULT_TREE };
+let renderer, camera, scene, controls, wood, extents;
+let spinning = false, silhouette = false;
 
 function setupScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x18272a);
-  scene.fog = new THREE.Fog(0x18272a, 24, 70);
-  camera = new THREE.PerspectiveCamera(38, 1, .04, 130);
-  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  scene.fog = new THREE.Fog(0x18272a, 28, 85);
+  camera = new THREE.PerspectiveCamera(38, 1, .05, 160);
+  renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.55;
+  renderer.toneMappingExposure = 1.5;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   byId('viewport').append(renderer.domElement);
-  scene.add(new THREE.HemisphereLight(0xc9d3cc, 0x6c6254, 2.1));
-  const sun = new THREE.DirectionalLight(0xf8e4c8, 3);
-  sun.position.set(-6, 12, 7); sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
-  sun.shadow.camera.top = 13; sun.shadow.camera.bottom = -10;
-  sun.shadow.camera.near = .1; sun.shadow.camera.far = 40;
-  sun.shadow.bias = -.0003;
-  scene.add(sun);
-  const side = new THREE.DirectionalLight(0xa8b9cd, 1.0);
-  side.position.set(7, 4, -8); scene.add(side);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(65, 65),
-    new THREE.MeshStandardMaterial({ color: 0x26342e, roughness: 1 }));
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -.065;
+  scene.add(new THREE.HemisphereLight(0xd7ded5, 0x666257, 2.0));
+  const light = new THREE.DirectionalLight(0xffe8cd, 2.9);
+  light.position.set(-6, 14, 8);
+  light.castShadow = true;
+  light.shadow.mapSize.set(2048, 2048);
+  light.shadow.camera.left = -12;
+  light.shadow.camera.right = 12;
+  light.shadow.camera.top = 15;
+  light.shadow.camera.bottom = -12;
+  light.shadow.camera.near = .1;
+  light.shadow.camera.far = 40;
+  light.shadow.bias = -.0004;
+  scene.add(light);
+  const fill = new THREE.DirectionalLight(0xc1ccd5, 1.4);
+  fill.position.set(7, 6, -8);
+  scene.add(fill);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(65,65),
+    new THREE.MeshStandardMaterial({color:0x26342e,roughness:1}));
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -.07;
   ground.receiveShadow = true;
   scene.add(ground);
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = .075;
   controls.screenSpacePanning = true;
+  controls.minDistance = 1;
+  controls.maxDistance = 65;
   controls.maxPolarAngle = Math.PI * .87;
-  controls.minDistance = .6;
-  controls.maxDistance = 55;
-  controls.addEventListener('start', () => {
+  controls.addEventListener('start',()=>{
     spinning = false;
-    byId('turntable').setAttribute('aria-pressed', 'false');
+    byId('turntable').setAttribute('aria-pressed','false');
   });
-  const resize = () => {
-    const el = byId('viewport');
-    const w = Math.max(1, el.clientWidth), h = Math.max(1, el.clientHeight);
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
+  new ResizeObserver(()=>{
+    const el=byId('viewport');
+    const w=Math.max(1,el.clientWidth),h=Math.max(1,el.clientHeight);
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h;
     camera.updateProjectionMatrix();
-  };
-  new ResizeObserver(resize).observe(byId('viewport'));
-  resize();
-  const animate = () => {
-    requestAnimationFrame(animate);
-    if (spinning && stem) stem.rotation.y += .003;
+  }).observe(byId('viewport'));
+  const tick=()=>{
+    requestAnimationFrame(tick);
+    if (spinning && wood) wood.rotation.y += .003;
     controls.update();
-    renderer.render(scene, camera);
+    renderer.render(scene,camera);
   };
-  animate();
+  tick();
 }
-function focus(part) {
-  const h = params.height;
-  if (part === 'foot') {
-    controls.target.set(0, .85, 0);
-    camera.position.set(2.45, 1.9, 3.85);
-  } else if (part === 'tip') {
-    // Frame the generated endpoint, not a guessed world-space vertical axis.
-    const positions = stem?.geometry.getAttribute('position');
-    const last = positions ? positions.count - 1 : -1;
-    const tip = last >= 0
-      ? new THREE.Vector3(positions.getX(last), positions.getY(last), positions.getZ(last))
-        .applyQuaternion(stem.quaternion)
-      : new THREE.Vector3(0, h, 0);
-    controls.target.set(tip.x, tip.y - .65, tip.z);
-    camera.position.set(tip.x + 2.25, tip.y + .45, tip.z + 3.5);
+
+function focus(mode) {
+  if (!extents) return;
+  const lo=extents.min, hi=extents.max;
+  const center=new THREE.Vector3((lo[0]+hi[0])*.5,(lo[1]+hi[1])*.5,(lo[2]+hi[2])*.5);
+  const size=Math.max(...hi.map((v,i)=>v-lo[i]));
+  if (mode==='foot') {
+    controls.target.set(0,.65,0);
+    camera.position.set(2.25,1.65,3.4);
+  } else if (mode==='crown') {
+    controls.target.set(center.x,lo[1]+(hi[1]-lo[1])*.72,center.z);
+    camera.position.set(center.x+size*.52,hi[1]+size*.27,center.z+size*.85);
   } else {
-    // Include the sideways leader in the initial frame, while preserving
-    // the current orbit when tweaking parameters.
-    const tip = stem?.geometry.getAttribute('position');
-    const apexIndex = tip ? tip.count - 1 : -1;
-    const topX = apexIndex >= 0 ? tip.getX(apexIndex) : 0;
-    const topZ = apexIndex >= 0 ? tip.getZ(apexIndex) : 0;
-    controls.target.set(topX * .44, h * .52, topZ * .44);
-    camera.position.set(topX * .44 + h * .25, h * .70,
-      topZ * .44 + h * 1.25);
+    controls.target.copy(center);
+    camera.position.set(center.x+size*.69,center.y+size*.25,center.z+size*1.65);
   }
   controls.update();
 }
+
 function build() {
   try {
-    const t0 = performance.now(), generated = generateStem(params);
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(generated.positions, 3));
-    geometry.setAttribute('normal', new THREE.BufferAttribute(generated.normals, 3));
-    geometry.setIndex(new THREE.BufferAttribute(generated.indices, 1));
+    const started=performance.now();
+    const result=generateTree(settings);
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.BufferAttribute(result.positions,3));
+    geometry.setAttribute('normal',new THREE.BufferAttribute(result.normals,3));
+    geometry.setIndex(new THREE.BufferAttribute(result.indices,1));
     geometry.computeBoundingSphere();
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xa49c8e, roughness: .93, metalness: 0, side: THREE.FrontSide,
+    const material=new THREE.MeshStandardMaterial({
+      color:silhouette?0x050909:0xa49c8e,roughness:.96,metalness:0,
+      side:THREE.FrontSide,
     });
-    const model = new THREE.Mesh(geometry, material);
-    model.castShadow = true;
-    model.receiveShadow = true;
-    model.material.color.setHex(silhouette ? 0x050909 : 0xa49c8e);
-    if (stem) {
-      scene.remove(stem);
-      stem.geometry.dispose();
-      stem.material.dispose();
+    const mesh=new THREE.Mesh(geometry,material);
+    mesh.castShadow=true;
+    mesh.receiveShadow=true;
+    if (wood) {
+      scene.remove(wood);
+      wood.geometry.dispose();
+      wood.material.dispose();
     }
-    stem = model;
-    scene.add(stem);
-    byId('seedValue').value = String(params.seed);
-    byId('meshStats').textContent = (generated.indices.length / 3).toLocaleString() + ' TRIS';
-    byId('status').textContent = 'Geometry ready · ' + Math.round(performance.now() - t0) + ' ms';
-    byId('error').hidden = true;
-  } catch (e) {
-    byId('status').textContent = 'Generation failed';
-    byId('error').hidden = false;
-    byId('error').textContent = e.message;
-    console.error(e);
+    wood=mesh;
+    extents=result.bounds;
+    scene.add(wood);
+    byId('meshStats').textContent =
+      result.branches.length+' WOOD AXES · '+(result.indices.length/3).toLocaleString()+' TRIS';
+    byId('status').textContent='Geometry ready · '+Math.round(performance.now()-started)+' ms';
+    byId('seedValue').value=String(settings.seed);
+    byId('error').hidden=true;
+  } catch(error) {
+    byId('status').textContent='Generation failed';
+    byId('error').hidden=false;
+    byId('error').textContent=error.message;
+    console.error(error);
   }
 }
-function displaySeed() {
-  byId('seedValue').value = String(params.seed);
-}
-byId('seedValue').addEventListener('change', () => {
-  const value = Number(byId('seedValue').value);
-  if (!Number.isInteger(value) || value < 0 || value > 0xffffffff ||
-      byId('seedValue').value.trim() === '') {
-    byId('status').textContent = 'Seed must be an integer between 0 and 4294967295';
-    byId('seedValue').value = String(params.seed);
+byId('seedValue').addEventListener('change',()=>{
+  const field=byId('seedValue'),value=Number(field.value);
+  if (!Number.isInteger(value)||value<0||value>0xffffffff||field.value.trim()==='') {
+    byId('status').textContent='Seed must be an integer between 0 and 4294967295';
+    field.value=String(settings.seed);
     return;
   }
-  params.seed = value;
-  displaySeed();
+  settings.seed=value;
   build();
+  focus('whole');
 });
-byId('reseed').addEventListener('click', () => {
-  params.seed = crypto.getRandomValues(new Uint32Array(1))[0];
-  displaySeed();
+byId('reseed').addEventListener('click',()=>{
+  settings.seed=crypto.getRandomValues(new Uint32Array(1))[0];
   build();
+  focus('whole');
 });
-byId('whole').addEventListener('click', () => focus('whole'));
-byId('foot').addEventListener('click', () => focus('foot'));
-byId('tip').addEventListener('click', () => focus('tip'));
-byId('silhouette').addEventListener('click', () => {
-  silhouette = !silhouette;
-  byId('silhouette').setAttribute('aria-pressed', String(silhouette));
-  if (stem) stem.material.color.setHex(silhouette ? 0x050909 : 0xa49c8e);
-  scene.background.setHex(silhouette ? 0xaab9b0 : 0x18272a);
-  scene.fog.color.setHex(silhouette ? 0xaab9b0 : 0x18272a);
+byId('whole').addEventListener('click',()=>focus('whole'));
+byId('foot').addEventListener('click',()=>focus('foot'));
+byId('crown').addEventListener('click',()=>focus('crown'));
+byId('silhouette').addEventListener('click',()=>{
+  silhouette=!silhouette;
+  byId('silhouette').setAttribute('aria-pressed',String(silhouette));
+  if(wood)wood.material.color.setHex(silhouette?0x050909:0xa49c8e);
+  scene.background.setHex(silhouette?0xaab9b0:0x18272a);
+  scene.fog.color.setHex(silhouette?0xaab9b0:0x18272a);
 });
-byId('turntable').addEventListener('click', () => {
-  spinning = !spinning;
-  byId('turntable').setAttribute('aria-pressed', String(spinning));
+byId('turntable').addEventListener('click',()=>{
+  spinning=!spinning;
+  byId('turntable').setAttribute('aria-pressed',String(spinning));
 });
-try { displaySeed(); setupScene(); build(); focus('whole'); } catch (e) {
-  byId('error').hidden = false;
-  byId('error').textContent = e.message;
-  byId('status').textContent = 'Viewport initialization failed';
-  console.error(e);
+try {
+  byId('seedValue').value=String(settings.seed);
+  setupScene();
+  build();
+  focus('whole');
+} catch(error) {
+  byId('error').hidden=false;
+  byId('error').textContent=error.message;
+  byId('status').textContent='Preview unavailable';
+  console.error(error);
 }

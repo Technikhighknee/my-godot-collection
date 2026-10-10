@@ -20,17 +20,17 @@
   <nav class="pg-library" aria-label="Asset generators">
     <div class="pg-overline">GENERATORS</div>
     <div class="pg-generator" aria-current="page">
-      <span class="pg-symbol">♠</span><span><strong>Broadleaf tree</strong><small>Trunk geometry in progress</small></span>
+      <span class="pg-symbol">♠</span><span><strong>Broadleaf tree</strong><small>Oak wood geometry</small></span>
     </div>
-    <div class="pg-library-foot">Tree geometry is being built from the trunk outward.</div>
+    <div class="pg-library-foot">A seeded tree architecture. Wood first; surface and foliage later.</div>
   </nav>
   <section class="pg-stage" aria-label="3D asset preview">
-    <div class="pg-stage-label"><span class="pg-dot"></span> LIVE GEOMETRY <span class="pg-stage-separator">/</span> <span>TRUNK ONLY</span></div>
-    <div id="viewport" aria-label="Interactive shaded 3D tree trunk"></div>
+    <div class="pg-stage-label"><span class="pg-dot"></span> LIVE GEOMETRY <span class="pg-stage-separator">/</span> <span>WOOD ONLY</span></div>
+    <div id="viewport" aria-label="Interactive 3D oak tree wood preview"></div>
     <div class="pg-camera-tools">
-      <button id="whole" type="button">Whole trunk</button>
+      <button id="whole" type="button">Whole tree</button>
       <button id="foot" type="button">Inspect base</button>
-      <button id="tip" type="button">Inspect tip</button>
+      <button id="crown" type="button">Inspect crown</button>
       <button id="silhouette" type="button" aria-pressed="false">Silhouette</button>
       <button id="turntable" type="button" aria-pressed="false">Turntable</button>
     </div>
@@ -38,9 +38,9 @@
     <div id="error" role="alert" hidden></div>
   </section>
   <aside class="pg-settings" aria-label="Asset preview">
-    <span class="pg-overline">BROADLEAF TREE / GEOMETRY</span>
-    <h1>Dominant leader.</h1>
-    <p>The tree generator decides the shape. For now, every seed produces one continuous trunk-to-leader path, without branches or materials.</p>
+    <span class="pg-overline">OAK / WOOD GEOMETRY</span>
+    <h1>Oak wood.</h1>
+    <p>A small oak grown from a seed: trunk, major limbs, finer branches and twigs. No foliage, bark texture or export.</p>
     <div class="pg-settings-title"><span>VARIATION</span></div>
     <label class="pg-seed" for="seedValue"><span>SEED</span>
       <input id="seedValue" type="number" min="0" max="4294967295" step="1" aria-label="Tree seed">
