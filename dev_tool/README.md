@@ -28,34 +28,29 @@ npm start -- ../map_system/example.map.json --port 4372
 
 ## Asset ProcGen — oak wood structure
 
-The first implemented asset generator builds a compact deciduous tree from
-one numeric seed. The tree starts with a slim supporting trunk and four primary supports
-distributed through the upper half of the first shaft. These supports are
-short and comparatively substantial: the next generation emerges early
-along them and carries most of the crown's outward reach. Attachment
-height and compass direction vary independently, avoiding a repeated
-spiral or a fixed arrangement of low versus high limbs.
+The oak is generated from one numeric seed. Its wood skeleton has four
+growth orders, including the main trunk. Each nonterminal wood axis
+continues from its endpoint and develops a small number of lateral
+offspring. The shorter supporting boughs divide into longer secondary
+axes, while the final generation tapers into fine terminal shoots.
 
-Each branch now grows through successive short sections. Persistent,
-seeded changes in local direction accumulate into irregular wood paths;
-the sections are not sampled from a predefined bend or wave. The growth
-frame is transported continuously along the changing tangent, and child
-shoots inherit that local frame and direction before opening away from
-the supporting wood. Thickness-scaled upward growth lets small shoots
-react more strongly than the larger, load-bearing limbs. Branching
-angles and offspring numbers still vary across the crown.
+Each woody section preserves its local tangent and cross-sectional
+orientation. Successive sections change direction through seeded,
+radius-scaled angular deviations and a weak upward growth response.
+A branch retains its newly grown direction rather than repeatedly
+turning back toward its original heading. Lateral attachment heights
+and compass directions are independently distributed across available
+sectors.
 
-Continuation sections are joined into continuous meshed tubes for each
-wood lineage. Lateral junctions still use overlapping shells and are not
-a unified manifold at the forks. The lower trunk remains about
-0.17–0.21 m in radius across seeds, with a subtle root flare and the
-same restrained shaft taper. Geometry remains plain shaded wood for
-inspection; leaf and bark materials are not generated.
+The lower trunk stays slender, with gradually decreasing diameter and
+subtle root ridges. Continuing axes become one continuous meshed
+wood tube. Side-branch junctions remain intersecting tubes rather
+than a fully fused surface. This phase intentionally contains no
+foliage, bark texture, exported assets or additional authoring options.
 
-Only **Seed** and **New seed** control the generator. Whole tree, Inspect
-base, Inspect crown, Silhouette and Turntable are inspection views. This
-phase does not include leaves, textures, GLB export, placement, recipe
-storage or material authoring. The Map Editor and game assets are unchanged.
+Only **Seed** and **New seed** control the generator. Whole tree,
+Inspect base, Inspect crown, Silhouette and Turntable are inspection
+views. The Map Editor and game assets remain unchanged.
 
 
 ## Map workspace

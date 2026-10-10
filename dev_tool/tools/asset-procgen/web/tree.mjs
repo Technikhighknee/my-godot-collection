@@ -1,351 +1,247 @@
-// Procedural wood architecture for a compact deciduous tree.
-// This phase generates wood geometry only: no leaves, materials or exporters.
-const TAU = Math.PI * 2;
-const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
-const lerp = (a, b, t) => a + (b - a) * t;
-const smooth = t => t * t * (3 - 2 * t);
-const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a, b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-const unit = a => mul(a, 1 / (Math.hypot(...a) || 1));
-const UP = [0, 1, 0];
+// Seeded wood growth for a compact deciduous oak.
+// Only the growth skeleton and its bare, shaded wood are generated.
+const TAU=Math.PI*2;
+const UP=[0,1,0];
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const magnitude=a=>Math.hypot(a[0],a[1],a[2]);
+const unit=a=>mul(a,1/(magnitude(a)||1));
 
-function random(seed) {
-  let state = seed >>> 0;
-  return () => {
-    state += 0x6d2b79f5;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+function random(seed){
+  let state=seed>>>0;
+  return ()=>{
+    state+=0x6d2b79f5;
+    let n=state;
+    n=Math.imul(n^(n>>>15),n|1);
+    n^=n+Math.imul(n^(n>>>7),n|61);
+    return ((n^(n>>>14))>>>0)/4294967296;
   };
 }
-
-export const DEFAULT_TREE = Object.freeze({ seed: 19641 });
-
-export function validateTree(input) {
-  if (!input || typeof input !== 'object' || Array.isArray(input) ||
-    !Number.isInteger(input.seed) || input.seed < 0 || input.seed > 0xffffffff ||
-    Object.keys(input).some(key => key !== 'seed')) {
+export const DEFAULT_TREE=Object.freeze({seed:19641});
+export function validateTree(settings){
+  if(!settings||typeof settings!=='object'||Array.isArray(settings)||
+    !Number.isInteger(settings.seed)||settings.seed<0||settings.seed>0xffffffff||
+    Object.keys(settings).some(key=>key!=='seed'))
     throw Error('Invalid tree seed');
-  }
-  return { seed: input.seed };
+  return {seed:settings.seed};
 }
 
-function axisFrame(direction) {
-  const reference = Math.abs(direction[1]) < .86 ? UP : [0, 0, 1];
-  const u = unit(cross(reference, direction));
-  return [u, unit(cross(direction, u))];
+function frame(tangent,previous){
+  const candidate=previous||cross(Math.abs(tangent[1])<.89?UP:[0,0,1],tangent);
+  const side=unit(sub(candidate,mul(tangent,dot(candidate,tangent))));
+  return {side,across:unit(cross(tangent,side))};
 }
-
-function sampleSection(branch, t) {
-  const n = branch.sections.length - 1;
-  const value = clamp(t, 0, 1) * n;
-  const i = Math.min(n - 1, Math.floor(value));
-  const f = value - i;
-  const a = branch.sections[i], b = branch.sections[i + 1];
-  const tangent=unit(add(mul(a.tangent,1-f),mul(b.tangent,f)));
-  const side=add(mul(a.side,1-f),mul(b.side,f));
+function blendSection(branch,t){
+  const n=branch.sections.length-1,x=clamp(t,0,1)*n,i=Math.min(n-1,Math.floor(x)),s=x-i;
+  const a=branch.sections[i],b=branch.sections[i+1];
+  const tangent=unit(add(mul(a.tangent,1-s),mul(b.tangent,s)));
+  const basis=frame(tangent,add(mul(a.side,1-s),mul(b.side,s)));
   return {
-    position:add(a.position,mul(sub(b.position,a.position),f)),
-    tangent,
-    side:unit(sub(side,mul(tangent,dot(side,tangent)))),
-    radius:lerp(a.radius,b.radius,f),
+    position:add(a.position,mul(sub(b.position,a.position),s)),
+    tangent,side:basis.side,
+    radius:lerp(a.radius,b.radius,s),
   };
 }
+const PROFILE=Object.freeze([
+  {segments:25,taper:.59,exponent:1.5,drift:.010},
+  {segments:10,taper:.42,exponent:1.0,drift:.063},
+  {segments:9,taper:.69,exponent:1.0,drift:.110},
+  {segments:3,taper:1,exponent:1.0,drift:.070},
+]);
+const CHILD_COUNT=[4,2,3];
+const FIRST_CHILD=[.49,.06,.12];
+const CHILD_ANGLE=[58,58,32];
+const CHILD_LENGTH=[1.16,2.48,1.80];
 
-function footShape(angle, t, roots) {
-  let amount = .035 * Math.exp(-Math.pow(t / .14, 1.7));
-  for (const root of roots) {
-    const offset = Math.atan2(Math.sin(angle-root.angle),Math.cos(angle-root.angle));
-    const width = root.width * (1+t*.75);
-    amount += root.strength * Math.exp(-Math.pow(t/root.height,1.45)) *
-      Math.exp(-.5 * Math.pow(offset/width,2));
+function rootRidges(rng){
+  const phase=rng()*TAU;
+  return Array.from({length:5},(_,i)=>({
+    angle:phase+i*TAU/5+(rng()-.5)*.24,
+    weight:.045+rng()*.045,
+    spread:.19+rng()*.13,
+  }));
+}
+function initialDeviation(rng,level){
+  return (rng()-.5)*(level===0?.015:.085);
+}
+function growAxis({id,parentId,level,continuation,seededLength,radius,start,
+  tangent,side,rng,roots=[]}){
+  const rule=PROFILE[level];
+  const sections=[];
+  let origin=start,heading=unit(tangent),transverse=frame(heading,side).side;
+  const stepLength=seededLength/rule.segments;
+  const leanBias=initialDeviation(rng,level);
+  for(let i=0;i<=rule.segments;i++){
+    const t=i/rule.segments;
+    const r=level===3
+      ? Math.max(.0009,radius*(1-.999*t))
+      : radius*(1-rule.taper*Math.pow(t,rule.exponent));
+    transverse=frame(heading,transverse).side;
+    sections.push({position:origin,tangent:heading,side:transverse,radius:r});
+    if(i===rule.segments)break;
+
+    // Orientation is inherited and then changed incrementally. No heading
+    // is pulled back toward a preset destination during subsequent steps.
+    const basis=frame(heading,transverse);
+    const sensitivity=Math.sqrt(.17/Math.max(r,.006));
+    const randomTurn=(rng()-.5)*2*rule.drift*sensitivity;
+    const randomBend=(rng()-.5)*2*rule.drift*sensitivity;
+    const drift=add(
+      mul(basis.side,randomTurn+leanBias*.3),
+      mul(basis.across,randomBend));
+    const sky=level===0?0:clamp(.006/Math.max(r,.008),0,.095);
+    const towardSky=sub(UP,mul(heading,dot(UP,heading)));
+    heading=unit(add(add(heading,drift),mul(towardSky,sky)));
+    origin=add(origin,mul(heading,stepLength));
+  }
+  return {id,parentId,level,continuation,sections,roots,length:seededLength};
+}
+function growTree(rng){
+  const trunkLength=6.15+(rng()-.5)*.55;
+  const trunk=growAxis({
+    id:0,parentId:null,level:0,continuation:false,
+    seededLength:trunkLength,radius:.19+(rng()-.5)*.035,
+    start:[0,0,0],tangent:unit([(rng()-.5)*.07,1,(rng()-.5)*.07]),
+    side:null,rng,roots:rootRidges(rng),
+  });
+  const branches=[trunk],queue=[trunk];
+  let nextId=1;
+  for(let head=0;head<queue.length;head++){
+    const parent=queue[head];
+    if(parent.level===3)continue;
+    const level=parent.level+1,end=parent.sections[parent.sections.length-1];
+    // The next growth order continues the same axis from its end, carrying
+    // its complete frame and local radius into the next ring.
+    const continuation=growAxis({
+      id:nextId++,parentId:parent.id,level,continuation:true,
+      seededLength:CHILD_LENGTH[level-1]*(level===1?.95:1),
+      radius:end.radius,start:end.position,tangent:end.tangent,side:end.side,rng,
+    });
+    branches.push(continuation);
+    queue.push(continuation);
+
+    // Height strata and angular strata are sampled independently.
+    const count=CHILD_COUNT[parent.level],start=FIRST_CHILD[parent.level];
+    const order=Array.from({length:count},(_,i)=>i);
+    for(let i=count-1;i>0;i--){
+      const j=Math.floor(rng()*(i+1));
+      [order[i],order[j]]=[order[j],order[i]];
+    }
+    const phase=rng()*TAU;
+    for(let i=0;i<count;i++){
+      const jitter=level===2&&i===0 ? .10+.60*rng() : .15+.70*rng();
+      const location=start+(i+jitter)*(1-start)/count;
+      const attachment=blendSection(parent,location);
+      const azimuth=phase+(order[i]+(rng()-.5)*.66)*TAU/count;
+      const basis=frame(attachment.tangent,attachment.side);
+      const outward=unit(add(
+        mul(basis.side,Math.cos(azimuth)),
+        mul(basis.across,Math.sin(azimuth))));
+      const tilt=(CHILD_ANGLE[parent.level]+(rng()-.5)*7)*Math.PI/180;
+      const direction=unit(add(
+        mul(attachment.tangent,Math.cos(tilt)),
+        mul(outward,Math.sin(tilt))));
+      const radiusScale=[.94,.72,.78][parent.level];
+      const radius=attachment.radius*radiusScale*(.92+.16*rng());
+      const length=CHILD_LENGTH[parent.level]*(.92+.16*rng());
+      const child=growAxis({
+        id:nextId++,parentId:parent.id,level,continuation:false,
+        seededLength:length,radius,start:attachment.position,
+        tangent:direction,side:basis.side,rng,
+      });
+      branches.push(child);
+      queue.push(child);
+    }
+  }
+  return branches;
+}
+function chainsFrom(axes){
+  const continuations=new Map(axes.filter(x=>x.continuation)
+    .map(x=>[x.parentId,x]));
+  return axes.filter(x=>!x.continuation).map(root=>{
+    const sections=root.sections.slice();
+    let active=root;
+    while(continuations.has(active.id)){
+      active=continuations.get(active.id);
+      sections.push(...active.sections.slice(1));
+    }
+    return {...root,sections};
+  });
+}
+function flare(angle,height,roots){
+  if(height>.48)return 0;
+  let amount=.020*Math.exp(-Math.pow(height/.25,2));
+  for(const root of roots){
+    const d=Math.atan2(Math.sin(angle-root.angle),Math.cos(angle-root.angle));
+    amount+=root.weight*Math.exp(-.5*Math.pow(d/root.spread,2))*
+      Math.exp(-Math.pow(height/.36,1.5));
   }
   return amount;
 }
-
-function growBranch({position,direction,length,radius,level,rng,roots,id,parentId,
-  continuation=false,attachment=null,joinedTangent=null,central=false,initialSide=null}) {
-  const count=[28,20,15,11,8][level];
-  const taper=[.18,.43,.64,.70,.84][level];
-  const target=unit(direction);
-  const initial=joinedTangent?unit(joinedTangent):
-    attachment?unit(add(mul(unit(attachment),.46),mul(target,.54))):target;
-  const sections=[];
-  let current=position,heading=initial;
-  let frameU=initialSide
-    ? unit(sub(initialSide,mul(initial,dot(initialSide,initial))))
-    : axisFrame(initial)[0];
-  const segmentLength=length/count;
-
-  // Directional impulses persist across several increments. They model
-  // uneven growth without imposing a prescribed sinusoidal centerline.
-  let driftU=(rng()-.5)*.8,driftV=(rng()-.5)*.8;
-  const personality=(rng()-.5)*2;
-  const phase=rng()*TAU;
-  const [biasU,biasV]=axisFrame(target);
-  const biasDirection=unit(add(mul(biasU,Math.cos(phase)),
-    mul(biasV,Math.sin(phase))));
-
-  for(let i=0;i<=count;i++){
-    const age=i/count;
-    const profile=1-taper*(.22*age+.78*age*age);
-    const sectionRadius=radius*profile;
-    frameU=unit(sub(frameU,mul(heading,dot(frameU,heading))));
-    sections.push({
-      position:current,tangent:heading,side:frameU,
-      radius:sectionRadius,t:age,
-    });
-    if(i===count)break;
-
-    // Inherited tangent controls the beginning of a lateral shoot or a
-    // continuous leader. The intended branch heading emerges gradually.
-    const ageMid=(i+.5)/count;
-    const turnout=joinedTangent?.38:attachment?.16:0;
-    const blend=turnout?smooth(clamp(ageMid/turnout,0,1)):1;
-    const desired=unit(add(mul(initial,1-blend),mul(target,blend)));
-
-    // Disturbance grows as the wood becomes thinner. Correlated angular
-    // motion produces bends and occasional reversals, never sharp kinks.
-    driftU=clamp(.72*driftU+.28*(2*rng()-1),-.85,.85);
-    driftV=clamp(.72*driftV+.28*(2*rng()-1),-.85,.85);
-    // Parallel-transport the transverse direction; rebuilding a frame
-    // from a fixed world axis can flip it mid-branch.
-    const u=frameU;
-    const v=unit(cross(heading,u));
-    const noise=Math.min(.105,
-      [.005,.034,.054,.072,.082][level]*
-      Math.sqrt(.16/Math.max(sectionRadius,.008)));
-    const irregular=add(mul(u,driftU),mul(v,driftV));
-    const longArc=mul(biasDirection,
-      personality*[.008,.030,.033,.028,.022][level]*Math.sin(Math.PI*ageMid));
-
-    // Heavy supports are allowed to spread sideways; fine shoots respond
-    // more strongly to upward growth pressure.
-    const lift=[0,-.009,.007,.009,.011][level];
-    const sky=clamp((.008+lift)*segmentLength/
-      Math.max(sectionRadius,.009),0,.067);
-    const upward=sub(UP,mul(heading,dot(UP,heading)));
-    const crownTurn=(level===1?.003+.012*ageMid*ageMid:0);
-    const steer=add(
-      add(mul(irregular,noise),longArc),
-      mul(upward,level===0?0:sky+crownTurn));
-    const aimStrength=joinedTangent?.20:attachment?.60:.055;
-    heading=unit(add(add(heading,mul(sub(desired,heading),aimStrength)),steer));
-    current=add(current,mul(heading,segmentLength));
-  }
-  return {id,parentId,continuation,level,sections,
-    roots:level===0?roots:[],phase,length,central};
-}
-function shootDirection(tangent, side, angle, tilt, origin, rng) {
-  // Branches share their parent's growth orientation, but occupy distinct
-  // azimuths around the parent rather than falling into a single 2D plane.
-  const radial=add(mul(side,Math.cos(angle)),
-    mul(unit(cross(tangent,side)),Math.sin(angle)));
-  const initial=unit(add(mul(tangent,Math.cos(tilt)),mul(radial,Math.sin(tilt))));
-  // Side branches keep their own outward direction while gradually lifting.
-  const away=unit([origin[0],0,origin[2]]);
-  return unit(add(initial,mul(away,.05+.09*rng())));
-}
-
-function growTree(rng) {
-  const trunkLength=4.6+(rng()-.5)*.42;
-  const rootRadius=.19+(rng()-.5)*.035;
-  const roots=[],phase=rng()*TAU;
-  // The trunk's terminal lineage changes direction within the crown.
-  // Different seeds choose different crownward headings.
-  const crownward=[Math.cos(phase+.72),0,Math.sin(phase+.72)];
-  for(let i=0;i<5;i++)roots.push({
-    angle:phase+i*TAU/5+(rng()-.5)*.22,
-    strength:.035+rng()*.045,
-    width:.25+rng()*.12,
-    height:.18+rng()*.075,
-  });
-  let id=0;
-  const trunk=growBranch({
-    position:[0,0,0],
-    direction:unit([(rng()-.5)*.08,1,(rng()-.5)*.08]),
-    length:trunkLength,radius:rootRadius,level:0,
-    rng,roots,id:id++,parentId:null,central:true,
-  });
-  const branches=[trunk];
-  const growChildren=(parent)=>{
-    if(parent.level===4)return;
-    const level=parent.level+1;
-    const atEnd=parent.sections[parent.sections.length-1];
-
-    // A continuation preserves its wood axis, but the crown leader is not
-    // privileged to remain upright. Its later sections arc toward a seeded
-    // crownward direction while secondary axes compete for canopy space.
-    const primaryExtension=level===2 && !parent.continuation;
-    const crownBend=[0,.20,.36,.43,.32][level];
-    const heading=parent.central ?
-      unit(add(atEnd.tangent,mul(crownward,crownBend))) : atEnd.tangent;
-    const lengthFactor=parent.central ?
-      [0,.84,.77,.82,.84][level] :
-      primaryExtension ? .79 : 1;
-    const continuationLength=[0,1.85,1.55,1.10,.69][level]*
-      lengthFactor*(.85+rng()*.30);
-    const continueAxis=growBranch({
-      position:atEnd.position,direction:heading,
-      joinedTangent:parent.central?atEnd.tangent:null,
-      initialSide:atEnd.side,
-      length:continuationLength,radius:atEnd.radius,level,
-      rng,roots:[],id:id++,parentId:parent.id,continuation:true,
-      central:parent.central,
-    });
-    branches.push(continueAxis);
-
-    // Seeded density varies per lineage. Central and exterior branches
-    // have different growing space rather than repeated identical forks.
-    const lateralCount=level===1?4:
-      level===2?(parent.central?2:1+(rng()<.70?1:0)+(rng()<.22?1:0)):
-      level===3?(parent.central?1+(rng()<.65?1:0):
-        1+(rng()<.67?1:0)+(rng()<.18?1:0)):
-      parent.central?(rng()<.82?1:0):
-        (rng()<.67?1+(rng()<.16?1:0):0);
-    // Decouple attachment height from compass direction. Distribute the
-    // available azimuth sectors without tying them to height order.
-    const radialOffset=rng()*TAU;
-    const sectors=Array.from({length:lateralCount},(_,i)=>i);
-    for(let i=sectors.length-1;i>0;i--){
-      const j=Math.floor(rng()*(i+1));
-      [sectors[i],sectors[j]]=[sectors[j],sectors[i]];
-    }
-    const children=[];
-    for(let k=0;k<lateralCount;k++){
-      const start=level===1?.49:level===2?.06:level===3?.12:.16;
-      const jitter=level===2 && k===0 ? .10+.25*rng() : .12+.76*rng();
-      const fraction=start+(k+jitter)*(.985-start)/lateralCount;
-      const anchor=sampleSection(parent,clamp(fraction,.05,.985));
-      const azimuth=radialOffset+
-        (sectors[k]+(rng()-.5)*.65)*TAU/lateralCount;
-      const degrees=level===1?54+rng()*10:
-        level===2?52+rng()*12:level===3?29+rng()*10:24+rng()*13;
-      const direction=shootDirection(
-        anchor.tangent,anchor.side,azimuth,degrees*Math.PI/180,
-        anchor.position,rng);
-      // Short primary supports split early into longer, finer boughs.
-      // The crown comes from their descendants, not four long arms.
-      const length=[0,1.27,2.52,1.72,.88][level]*
-        (level===1 ? (.88+rng()*.22) : (.84+rng()*.32));
-      const scale=level===1?.73+rng()*.10:
-        level===2?.53+rng()*.12:level===3?.47+rng()*.12:.42+rng()*.11;
-      const child=growBranch({
-        position:anchor.position,direction,length,attachment:anchor.tangent,
-        initialSide:anchor.side,
-        radius:anchor.radius*scale,level,rng,roots:[],
-        id:id++,parentId:parent.id,continuation:false,central:false,
-      });
-      branches.push(child);
-      children.push(child);
-    }
-    // Expand the continuing axis and the lateral children independently.
-    growChildren(continueAxis);
-    for(const child of children)growChildren(child);
-  };
-  growChildren(trunk);
-  return branches;
-}
-
-// Terminal continuations belong to one cambial tube. Build their mesh as
-// a single longitudinal surface instead of hiding two capped cylinders at
-// every change of growth level. Side shoots still emerge separately.
-function woodChains(branches) {
-  const continued=new Map();
-  for(const branch of branches)if(branch.continuation)
-    continued.set(branch.parentId,branch);
-  const chains=[];
-  for(const root of branches){
-    if(root.continuation)continue;
-    const sections=root.sections.slice();
-    let terminal=root;
-    while(continued.has(terminal.id)){
-      terminal=continued.get(terminal.id);
-      sections.push(...terminal.sections.slice(1));
-    }
-    chains.push({...root,sections});
-  }
-  return chains;
-}
-
-function emitWood(branch, output) {
-  const rings=branch.sections.length;
-  const sides=[14,11,8,6,5][branch.level];
+function meshChain(chain,output){
+  const sides=[14,10,7,4][chain.level],sections=chain.sections;
   const offset=output.positions.length/3;
-  for(let j=0;j<rings;j++){
-    const section=branch.sections[j],tangent=section.tangent;
-    const u=section.side;
-    const v=unit(cross(u,tangent));
-    for(let i=0;i<sides;i++){
-      const angle=i*TAU/sides;
-      const radial=add(mul(u,Math.cos(angle)),mul(v,Math.sin(angle)));
-      // Root features depend on physical distance from the ground, not the
-      // normalized section progress of later continuation segments.
-      const trunkProgress=section.position[1]/Math.max(branch.length,.001);
-      const flare=branch.level===0?
-        footShape(angle,Math.max(0,trunkProgress),branch.roots):0;
-      const grain=branch.level===0?
-        .013*Math.cos(3*angle+branch.phase+.2*trunkProgress):0;
-      const r=section.radius*(1+flare+grain);
-      output.positions.push(...add(section.position,mul(radial,r)));
+  for(const section of sections){
+    const tangent=section.tangent,basis=frame(tangent,section.side);
+    const ringAcross=mul(basis.across,-1);
+    for(let j=0;j<sides;j++){
+      const angle=TAU*j/sides;
+      const radial=add(mul(basis.side,Math.cos(angle)),mul(ringAcross,Math.sin(angle)));
+      const radius=section.radius*(1+(chain.level===0?
+        flare(angle,section.position[1],chain.roots):0));
+      output.positions.push(...add(section.position,mul(radial,radius)));
       output.normals.push(...radial);
     }
   }
-  for(let j=0;j<rings-1;j++)for(let i=0;i<sides;i++){
-    const a=offset+j*sides+i,b=offset+(j+1)*sides+i;
-    const next=(i+1)%sides;
-    const c=offset+j*sides+next,d=offset+(j+1)*sides+next;
-    output.indices.push(a,b,c,c,b,d);
+  for(let ring=0;ring<sections.length-1;ring++){
+    for(let j=0;j<sides;j++){
+      const a=offset+ring*sides+j,c=offset+ring*sides+(j+1)%sides;
+      const b=a+sides,d=c+sides;
+      output.indices.push(a,b,c,c,b,d);
+    }
   }
-  const start=branch.sections[0],end=branch.sections[rings-1];
-  const baseIndex=output.positions.length/3;
-  output.positions.push(...start.position);
-  output.normals.push(...mul(start.tangent,-1));
-  for(let i=0;i<sides;i++)output.indices.push(baseIndex,offset+i,offset+(i+1)%sides);
-  // The continuation at each nonterminal tier covers the parent's end;
-  // the apex on fine tips follows their local growth axis.
-  const apexIndex=output.positions.length/3;
-  output.positions.push(...add(end.position,mul(end.tangent,Math.min(end.radius*.8,.04))));
-  output.normals.push(...end.tangent);
-  for(let i=0;i<sides;i++){
-    output.indices.push(apexIndex,offset+(rings-1)*sides+(i+1)%sides,
-      offset+(rings-1)*sides+i);
-  }
-
+  const first=sections[0],last=sections[sections.length-1];
+  const base=output.positions.length/3;
+  output.positions.push(...first.position);
+  output.normals.push(...mul(first.tangent,-1));
+  for(let j=0;j<sides;j++)
+    output.indices.push(base,offset+j,offset+(j+1)%sides);
+  const tip=output.positions.length/3;
+  output.positions.push(...add(last.position,mul(last.tangent,last.radius*.9)));
+  output.normals.push(...last.tangent);
+  const ring=offset+(sections.length-1)*sides;
+  for(let j=0;j<sides;j++)
+    output.indices.push(tip,ring+(j+1)%sides,ring+j);
 }
-
-export function generateTree(raw=DEFAULT_TREE) {
-  const settings=validateTree(raw);
-  const skeleton=growTree(random(settings.seed));
-  const buffer={positions:[],normals:[],indices:[],branches:[]};
-  for(const branch of woodChains(skeleton))emitWood(branch,buffer);
-  buffer.branches=skeleton.map(branch=>({
-    id:branch.id,parentId:branch.parentId,level:branch.level,
-    continuation:branch.continuation,length:branch.length,
-    baseRadius:branch.sections[0].radius,
-    tipRadius:branch.sections[branch.sections.length-1].radius,
-    from:branch.sections[0].position,
-    to:branch.sections[branch.sections.length-1].position,
-    rings:branch.sections.length,
-    sides:[14,11,8,6,5][branch.level],
-  }));
+export function generateTree(raw=DEFAULT_TREE){
+  const {seed}=validateTree(raw);
+  const axes=growTree(random(seed));
+  const buffer={positions:[],normals:[],indices:[]};
+  for(const chain of chainsFrom(axes))meshChain(chain,buffer);
   if(buffer.indices.length>600000)throw Error('Geometry budget exceeded');
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
-  for(let i=0;i<buffer.positions.length;i+=3)for(let axis=0;axis<3;axis++){
-    const v=buffer.positions[i+axis];
-    bounds.min[axis]=Math.min(bounds.min[axis],v);
-    bounds.max[axis]=Math.max(bounds.max[axis],v);
+  for(let i=0;i<buffer.positions.length;i+=3){
+    for(let j=0;j<3;j++){
+      bounds.min[j]=Math.min(bounds.min[j],buffer.positions[i+j]);
+      bounds.max[j]=Math.max(bounds.max[j],buffer.positions[i+j]);
+    }
   }
   return {
-    seed:settings.seed,
-    positions:Float32Array.from(buffer.positions),
+    seed,positions:Float32Array.from(buffer.positions),
     normals:Float32Array.from(buffer.normals),
     indices:Uint32Array.from(buffer.indices),
-    branches:buffer.branches,
+    branches:axes.map(axis=>({
+      id:axis.id,parentId:axis.parentId,level:axis.level,
+      continuation:axis.continuation,length:axis.length,
+      baseRadius:axis.sections[0].radius,tipRadius:axis.sections.at(-1).radius,
+      from:axis.sections[0].position,to:axis.sections.at(-1).position,
+      rings:axis.sections.length,sides:[14,10,7,4][axis.level],
+    })),
     bounds,
   };
 }

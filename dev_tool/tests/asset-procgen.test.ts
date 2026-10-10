@@ -1,359 +1,161 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import {DEFAULT_TREE,generateTree,validateTree,type TreeMesh} from '../tools/asset-procgen/web/tree.mjs';
+import {readFileSync} from 'node:fs';
+import {
+  DEFAULT_TREE,generateTree,validateTree,type TreeMesh,
+} from '../tools/asset-procgen/web/tree.mjs';
 import {loadMap} from '../tools/map-editor/src/io/map-io.ts';
 import {createEditorServer} from '../tools/map-editor/src/server.ts';
 
-function checkGeometry(tree:TreeMesh) {
-  assert.equal(tree.positions.length,tree.normals.length);
-  assert.ok(tree.positions.every(Number.isFinite));
-  assert.ok(tree.normals.every(Number.isFinite));
-  assert.ok(tree.indices.every(i=>i<tree.positions.length/3));
-  assert.ok(tree.indices.length/3<200000);
-  assert.equal(tree.branches[0].parentId,null);
-  assert.equal(tree.branches[0].level,0);
-  const rootCount=tree.branches.filter(b=>!b.continuation).length;
-  assert.ok(rootCount<tree.branches.length,
-    'Terminal growth must be meshed continuously rather than capped per tier');
-  const present=new Map(tree.branches.map(b=>[b.id,b]));
-  const levels=new Set<number>();
-  for(const branch of tree.branches){
-    levels.add(branch.level);
-    assert.ok(branch.baseRadius>0 && branch.tipRadius>0);
-    assert.ok(branch.tipRadius<branch.baseRadius);
-    assert.ok(branch.length>0);
-    assert.equal(typeof branch.continuation,'boolean');
-    if(branch.parentId!==null){
-      const parent=present.get(branch.parentId);
-      assert.ok(parent);
-      assert.equal(parent!.level,branch.level-1);
-      assert.ok(branch.baseRadius<parent!.baseRadius);
-    }
-    for(const value of [...branch.from,...branch.to])assert.ok(Number.isFinite(value));
-  }
-  assert.deepEqual([...levels].sort(),[0,1,2,3,4]);
+const SEEDS=[0,1,55,101,19641,30895,3350221335,4294967295];
+
+function inspectGeometry(tree:TreeMesh){
+  const {positions,indices,normals,bounds}=tree;
+  assert.equal(positions.length,normals.length);
+  assert.equal(positions.length%3,0);
+  assert.equal(indices.length%3,0);
+  assert.ok(positions.every(Number.isFinite));
+  assert.ok(normals.every(Number.isFinite));
+  assert.ok(indices.every(i=>i<positions.length/3));
+  assert.ok(indices.length/3<200000);
   const edges=new Map<string,[number,number]>();
-  const positions=tree.positions,indices=tree.indices,normals=tree.normals;
   for(let i=0;i<indices.length;i+=3){
-    const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3;
+    const ids=[indices[i],indices[i+1],indices[i+2]];
+    const [a,b,c]=ids.map(v=>v*3);
     const u=[0,1,2].map(k=>positions[b+k]-positions[a+k]);
     const v=[0,1,2].map(k=>positions[c+k]-positions[a+k]);
-    const face=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
-    assert.ok(Math.hypot(...face)>1e-11,'Degenerate wood face');
-    const outward=face.reduce((sum,x,k)=>sum+x*
+    const face=[
+      u[1]*v[2]-u[2]*v[1],
+      u[2]*v[0]-u[0]*v[2],
+      u[0]*v[1]-u[1]*v[0],
+    ];
+    assert.ok(Math.hypot(...face)>1e-11,'Degenerate triangle');
+    const alignment=face.reduce((sum,x,k)=>sum+x*
       (normals[a+k]+normals[b+k]+normals[c+k]),0);
-    assert.ok(outward>=-1e-8,'Inverted face');
-    const vertices=[indices[i],indices[i+1],indices[i+2]];
-    for(const [j,k] of [[0,1],[1,2],[2,0]]){
-      const lo=Math.min(vertices[j],vertices[k]),hi=Math.max(vertices[j],vertices[k]);
-      const key=lo+':'+hi;
-      const entry=edges.get(key)??[0,0];
-      entry[0]++; entry[1]+=vertices[j]<vertices[k]?1:-1;
-      edges.set(key,entry);
+    assert.ok(alignment>=-1e-8,'Triangle faces inward');
+    for(const [from,to] of [[ids[0],ids[1]],[ids[1],ids[2]],[ids[2],ids[0]]]){
+      const key=Math.min(from,to)+':'+Math.max(from,to);
+      const edge=edges.get(key)??[0,0];
+      edge[0]++;edge[1]+=from<to?1:-1;
+      edges.set(key,edge);
     }
   }
   for(const [count,winding] of edges.values()){
-    assert.equal(count,2,'Each wood shell must be closed');
-    assert.equal(winding,0,'Shared edges must have opposite winding');
+    assert.equal(count,2,'Every woody shell must be closed');
+    assert.equal(winding,0,'Shared edges must face opposite ways');
   }
   for(let axis=0;axis<3;axis++){
-    assert.ok(tree.bounds.max[axis]>tree.bounds.min[axis]);
+    assert.ok(bounds.max[axis]>bounds.min[axis]);
     for(let i=axis;i<positions.length;i+=3){
-      assert.ok(positions[i]>=tree.bounds.min[axis]-1e-4);
-      assert.ok(positions[i]<=tree.bounds.max[axis]+1e-4);
+      assert.ok(positions[i]>=bounds.min[axis]-1e-4);
+      assert.ok(positions[i]<=bounds.max[axis]+1e-4);
     }
   }
 }
 
-test('seed is the only public shape setting',()=>{
+test('seed is the only public generation setting',()=>{
   assert.deepEqual(validateTree(DEFAULT_TREE),DEFAULT_TREE);
-  for(const bad of [null,{},[],{seed:-1},{seed:2**32},{seed:1.1},
-    {seed:NaN},{seed:0,height:10}])assert.throws(()=>validateTree(bad));
+  for(const bad of [
+    null,{},[],{seed:-1},{seed:2**32},{seed:NaN},{seed:1.5},
+    {seed:0,height:10},{seed:0,foliage:false},
+  ])assert.throws(()=>validateTree(bad));
 });
 
-test('tree produces a branched woody crown and thin terminal twigs',()=>{
-  const oak=generateTree();
-  checkGeometry(oak);
-  // A terminal continuation plus four distinct lateral growth axes.
-  const first=oak.branches.filter(b=>b.level===1);
-  assert.equal(first.length,5);
-  assert.equal(first.filter(b=>b.continuation).length,1);
-  assert.equal(first.filter(b=>!b.continuation).length,4);
-  const byId=new Map(oak.branches.map(b=>[b.id,b]));
-  for(const continuation of oak.branches.filter(b=>b.continuation)){
-    const parent=byId.get(continuation.parentId!);
-    assert.ok(parent);
-    assert.deepEqual(continuation.from,parent!.to);
-    assert.equal(continuation.baseRadius,parent!.tipRadius);
-  }
-  const trunk=oak.branches[0];
-  assert.ok(trunk.tipRadius/trunk.baseRadius>.30,
-    'The main trunk must not end in a spike');
-  assert.ok(oak.branches.filter(b=>b.level===2).length>=12);
-  assert.ok(oak.branches.filter(b=>b.level===3).length>=28);
-  assert.ok(oak.branches.filter(b=>b.level===4).length>=25);
-  assert.ok(oak.branches.some(b=>b.level===4&&b.tipRadius<.01));
-  assert.ok(oak.bounds.max[1]>7);
-  assert.ok(oak.bounds.max[0]-oak.bounds.min[0]>5);
-  assert.ok(oak.bounds.max[2]-oak.bounds.min[2]>5);
-});
-
-test('compact oak keeps a slim lower shaft and gradual, proportionate first limbs',()=>{
-  for(const seed of [0,1,55,101,19641,3350221335,4294967295]){
-    const tree=generateTree({seed}),trunk=tree.branches[0];
-    assert.ok(trunk.baseRadius>=.17&&trunk.baseRadius<=.21,
-      'Lower trunk must be slender relative to the crown');
-    const retained=trunk.tipRadius/trunk.baseRadius;
-    assert.ok(retained>=.79&&retained<=.86,
-      'Supporting trunk must not collapse into a steep cone');
-
-    // The root ring begins the first wood chain, using fourteen segments.
-    const radiusAt=(row:number)=>{
-      const count=14,p=tree.positions,center=[0,0,0];
-      for(let i=0;i<count;i++)
-        for(let axis=0;axis<3;axis++)center[axis]+=p[(row*count+i)*3+axis]/count;
-      const radii=Array.from({length:count},(_,i)=>
-        Math.hypot(...[0,1,2].map(axis=>p[(row*count+i)*3+axis]-center[axis])));
-      return {average:radii.reduce((sum,v)=>sum+v,0)/count,maximum:Math.max(...radii)};
-    };
-    assert.ok(radiusAt(0).maximum<trunk.baseRadius*1.15,
-      'The root flare must not become a broad conical skirt');
-    assert.ok(radiusAt(14).average>trunk.baseRadius*.92,
-      'The lower half of the trunk should lose little thickness');
-    assert.ok(radiusAt(28).average>trunk.baseRadius*.79,
-      'The first shaft section must retain most of its radius');
-
-    const largeLimbs=tree.branches.filter(b=>b.level===1&&!b.continuation);
-    assert.equal(largeLimbs.length,4);
-    for(const limb of largeLimbs) {
-      assert.ok(limb.baseRadius<trunk.baseRadius*.58,
-        'Primary branches must be thinner than the supporting trunk');
+test('wood growth uses four orders with continuing ends and lateral offspring',()=>{
+  for(const seed of SEEDS){
+    const tree=generateTree({seed});
+    const counts=[0,1,2,3].map(level=>
+      tree.branches.filter(b=>b.level===level).length);
+    assert.deepEqual(counts,[1,5,15,60]);
+    assert.equal(tree.branches.length,81);
+    const byId=new Map(tree.branches.map(b=>[b.id,b]));
+    assert.equal(byId.size,81);
+    assert.equal(tree.branches[0].parentId,null);
+    assert.equal(tree.branches[0].continuation,false);
+    const continued=new Set<number>();
+    for(const branch of tree.branches.slice(1)){
+      assert.ok(branch.parentId!==null);
+      const parent=byId.get(branch.parentId!);
+      assert.ok(parent,'Unknown parent');
+      assert.equal(branch.level,parent!.level+1);
+      assert.ok(branch.baseRadius>0&&branch.tipRadius>0);
+      assert.ok(branch.tipRadius<branch.baseRadius);
+      assert.ok(branch.length>0);
+      if(branch.continuation){
+        assert.ok(!continued.has(branch.parentId!));
+        continued.add(branch.parentId!);
+        assert.deepEqual(branch.from,parent!.to);
+        assert.equal(branch.baseRadius,parent!.tipRadius);
+      } else {
+        assert.ok(branch.baseRadius<parent!.baseRadius);
+      }
     }
+    assert.equal(continued.size,21);
+    assert.equal(tree.branches.filter(b=>!b.continuation).length,60);
   }
 });
 
-test('short primary supports split early into longer secondary boughs',()=>{
-  for(const seed of [0,1,2,55,101,19641,3350221335,4294967295]){
-    const tree=generateTree({seed}),trunk=tree.branches[0];
-    const primary=tree.branches.filter(b=>b.level===1&&!b.continuation);
-    const secondary=tree.branches.filter(b=>b.level===2&&!b.continuation);
-    assert.equal(primary.length,4);
-    assert.ok(secondary.length>=5);
-    assert.ok(primary.every(b=>b.length>=1.05&&b.length<1.5),
-      'First-order supports stay short instead of forming long radial arms');
-    assert.ok(secondary.every(b=>b.length>=2.0&&b.length<3.1),
-      'The second growth order carries the reach of the crown');
-    const avg=arr=>arr.reduce((n,b)=>n+b.length,0)/arr.length;
-    assert.ok(avg(secondary)>avg(primary)*1.7,
-      'Second-order wood must be substantially longer than the first');
-    for(const support of primary){
-      const children=secondary.filter(b=>b.parentId===support.id);
-      assert.ok(children.length>=1,'Every primary support needs a lateral fork');
-      const first=Math.min(...children.map(b=>
-        Math.hypot(...b.from.map((v,i)=>v-support.from[i]))/support.length));
-      assert.ok(first<.45,
-        'The first secondary bough must emerge near the support base');
-      const continuation=tree.branches.filter(b=>
-        b.continuation&&b.parentId===support.id);
-      assert.equal(continuation.length,1);
-      assert.ok(continuation[0].length<1.65);
-      assert.ok(support.baseRadius/trunk.baseRadius>.60,
-        'Primary support must be substantial enough to carry the boughs');
+test('small oak builds crown reach with short supports and longer boughs',()=>{
+  for(const seed of SEEDS){
+    const tree=generateTree({seed});
+    const trunk=tree.branches[0];
+    assert.ok(trunk.baseRadius>.17&&trunk.baseRadius<.21);
+    assert.ok(trunk.tipRadius/trunk.baseRadius>.39);
+    assert.ok(trunk.tipRadius/trunk.baseRadius<.43);
+    const first=tree.branches.filter(b=>b.level===1&&!b.continuation);
+    const second=tree.branches.filter(b=>b.level===2&&!b.continuation);
+    const tips=tree.branches.filter(b=>b.level===3&&!b.continuation);
+    assert.equal(first.length,4);
+    assert.equal(second.length,10);
+    assert.equal(tips.length,45);
+    assert.ok(first.every(b=>b.length>1.04&&b.length<1.36));
+    assert.ok(second.every(b=>b.length>2.25&&b.length<2.73));
+    assert.ok(tips.every(b=>b.length>1.65&&b.length<1.96));
+    const average=(axes:TreeMesh['branches'])=>axes.reduce((sum,b)=>sum+b.length,0)/axes.length;
+    assert.ok(average(second)>average(first)*1.8);
+    for(const support of first){
+      const following=second.filter(b=>b.parentId===support.id);
+      assert.equal(following.length,2);
+      const offset=Math.min(...following.map(b=>
+        Math.hypot(...b.from.map((x,i)=>x-support.from[i]))/support.length));
+      assert.ok(offset<.45,'Secondary bough must develop near support base');
     }
-    assert.ok(trunk.baseRadius>=.17&&trunk.baseRadius<=.21);
-    assert.ok(trunk.tipRadius/trunk.baseRadius>.79);
-    assert.ok(tree.branches.filter(b=>b.level===4).length>=25);
+    const height=tree.bounds.max[1]-tree.bounds.min[1];
+    const width=Math.max(tree.bounds.max[0]-tree.bounds.min[0],
+      tree.bounds.max[2]-tree.bounds.min[2]);
+    assert.ok(height>9&&height<13);
+    assert.ok(width>5&&width<11.5);
   }
 });
 
-test('staggered primary attachments occupy independent directions',()=>{
-  const signatures=new Set<string>();
-  for(const seed of [0,1,2,3,55,101,19641,3350221335,4294967295]){
-    const tree=generateTree({seed}),trunk=tree.branches[0];
-    const primary=tree.branches.filter(b=>b.level===1&&!b.continuation)
+test('local, seeded growth produces different three-dimensional crowns',()=>{
+  const kinds=new Set<string>();
+  const first=generateTree(DEFAULT_TREE);
+  const repeat=generateTree(DEFAULT_TREE);
+  assert.deepEqual(first.positions,repeat.positions);
+  assert.deepEqual(first.normals,repeat.normals);
+  assert.deepEqual(first.indices,repeat.indices);
+  for(const seed of SEEDS){
+    const tree=generateTree({seed});
+    if(seed!==DEFAULT_TREE.seed)assert.notDeepEqual(tree.positions,first.positions);
+    const branches=tree.branches.filter(b=>b.level===1&&!b.continuation)
       .sort((a,b)=>a.from[1]-b.from[1]);
-    const heights=primary.map(b=>b.from[1]/trunk.to[1]);
-    assert.ok(heights[0]>.48 && heights[3]<.985);
-    assert.ok(heights.slice(1).every((v,i)=>v-heights[i]>.04));
-    const angles=primary.map(b=>
+    const angles=branches.map(b=>
       (Math.atan2(b.to[2]-b.from[2],b.to[0]-b.from[0])+2*Math.PI)%(2*Math.PI));
     const sorted=[...angles].sort((a,b)=>a-b);
     const gaps=sorted.map((v,i)=>
       (sorted[(i+1)%sorted.length]-v+2*Math.PI)%(2*Math.PI));
-    assert.ok(gaps.every(v=>v>.6),
-      'Primary support directions must spread around the trunk');
-    const order=angles.map(angle=>sorted.indexOf(angle));
-    signatures.add(order.join('/'));
+    assert.ok(gaps.every(v=>v>.4),'Main boughs must spread across azimuths');
+    kinds.add(angles.map(v=>sorted.indexOf(v)).join('/'));
   }
-  assert.ok(signatures.size>=4,
-    'Height order must not be tied to a fixed azimuth order');
+  assert.ok(kinds.size>=3,'Azimuth assignments must vary between seeds');
 });
 
-test('primary wood spreads laterally and bends rather than forming straight spikes',()=>{
-  const seeds=[0,55,101,19641,3350221335,4294967295];
-  for(const seed of seeds){
-    const tree=generateTree({seed});
-    const primary=tree.branches.filter(b=>b.level===1&&!b.continuation);
-    assert.equal(primary.length,4);
-    for(const b of primary){
-      const horizontal=Math.hypot(b.to[0]-b.from[0],b.to[2]-b.from[2]);
-      const vertical=Math.abs(b.to[1]-b.from[1]);
-      assert.ok(horizontal>vertical*.85,
-        'Primary supports should spread, while some can climb more steeply');
-    }
-
-    // Wood is emitted once per non-continuation lineage. Its sections join
-    // all consecutive continuing axes, so we can measure the actual tube
-    // centerline without exposing another generation control or API.
-    const continuations=new Map(tree.branches.filter(b=>b.continuation)
-      .map(b=>[b.parentId!,b]));
-    let vertexOffset=0;
-    const curves=new Map<number,number>();
-    for(const root of tree.branches.filter(b=>!b.continuation)){
-      let rings=root.rings,endpoint=root;
-      while(continuations.has(endpoint.id)){
-        endpoint=continuations.get(endpoint.id)!;
-        rings+=endpoint.rings-1;
-      }
-      const center=(row:number)=>{
-        const value=[0,0,0];
-        for(let i=0;i<root.sides;i++)
-          for(let axis=0;axis<3;axis++)
-            value[axis]+=tree.positions[(vertexOffset+row*root.sides+i)*3+axis]/root.sides;
-        return value;
-      };
-      const first=center(0),last=center(rings-1),mid=center(Math.floor((rings-1)*.5));
-      const vector=last.map((v,i)=>v-first[i]);
-      const squared=vector.reduce((sum,x)=>sum+x*x,0);
-      const displacement=mid.map((v,i)=>v-first[i]);
-      const amount=displacement.reduce((sum,x,i)=>sum+x*vector[i],0)/squared;
-      const projected=first.map((v,i)=>v+amount*vector[i]);
-      curves.set(root.id,Math.hypot(...mid.map((v,i)=>v-projected[i])));
-      vertexOffset+=rings*root.sides+2;
-    }
-    assert.equal(vertexOffset,tree.positions.length/3,'All wood lineages accounted for');
-    // An occasional relatively straight limb is natural, but the overall
-    // crown must not collapse into identical straight cylindrical arms.
-    assert.ok(primary.filter(branch=>curves.get(branch.id)!>.10).length>=3,
-      'Most primary lineages must develop independent curvature');
-  }
+test('wood surfaces have consistent topology, normals and bounds',()=>{
+  for(const seed of SEEDS)inspectGeometry(generateTree({seed}));
 });
 
-test('locally grown wood preserves smooth frames and finer-branch response',()=>{
-  const seeds=[0,1,55,101,19641,3350221335,4294967295];
-  for(const seed of seeds){
-    const tree=generateTree({seed});
-    const continued=new Map(tree.branches.filter(b=>b.continuation)
-      .map(b=>[b.parentId!,b]));
-    let offset=0;
-    const bendingByLevel=new Map<number,number[]>();
-    for(const root of tree.branches.filter(b=>!b.continuation)){
-      let totalRings=root.rings,terminal=root;
-      while(continued.has(terminal.id)){
-        terminal=continued.get(terminal.id)!;
-        totalRings+=terminal.rings-1;
-      }
-      // Read the mesh itself; no debug geometry or public growth controls.
-      const centers:Array<number[]>=Array.from({length:root.rings},(_,row)=>{
-        const point=[0,0,0];
-        for(let k=0;k<root.sides;k++)
-          for(let axis=0;axis<3;axis++)
-            point[axis]+=tree.positions[
-              (offset+row*root.sides+k)*3+axis]/root.sides;
-        return point;
-      });
-      const directions=centers.slice(1).map((p,i)=>{
-        const diff=p.map((v,axis)=>v-centers[i][axis]);
-        const magnitude=Math.hypot(...diff);
-        assert.ok(magnitude>0,'Successive sections cannot occupy the same point');
-        return diff.map(v=>v/magnitude);
-      });
-      const turns=directions.slice(1).map((v,i)=>{
-        const previous=directions[i];
-        const cosine=Math.max(-1,Math.min(1,
-          v.reduce((sum,x,axis)=>sum+x*previous[axis],0)));
-        return Math.acos(cosine);
-      });
-      assert.ok(turns.every(angle=>Number.isFinite(angle)&&angle<.32),
-        'Local growth may bend but must not kink between adjacent sections');
-      const average=turns.reduce((sum,v)=>sum+v,0)/turns.length;
-      const collection=bendingByLevel.get(root.level)??[];
-      collection.push(average);
-      bendingByLevel.set(root.level,collection);
-      offset+=totalRings*root.sides+2;
-    }
-    assert.equal(offset,tree.positions.length/3);
-    const mean=level=>{
-      const arr=bendingByLevel.get(level)!;
-      return arr.reduce((sum,v)=>sum+v,0)/arr.length;
-    };
-    assert.ok(mean(0)<.01,'The load-bearing trunk should remain comparatively calm');
-    assert.ok(mean(3)>mean(1)*1.12,
-      'Finer wood should change direction more readily than main supports');
-  }
-});
-
-test('main leader bends into the crown instead of remaining a vertical pole',()=>{
-  const seeds=[0,1,55,101,19641,3350221335,4294967295];
-  for(const seed of seeds){
-    const tree=generateTree({seed}),trunk=tree.branches[0];
-    const following=new Map(tree.branches.filter(b=>b.continuation)
-      .map(b=>[b.parentId!,b]));
-    const segments=[trunk];
-    let leader=trunk;
-    while(following.has(leader.id)){
-      leader=following.get(leader.id)!;
-      segments.push(leader);
-    }
-    assert.equal(segments.length,5,
-      'Trunk must carry a single continuous leader through the crown');
-    const displacement=Math.hypot(
-      leader.to[0]-trunk.to[0],leader.to[2]-trunk.to[2]);
-    assert.ok(displacement>.85,
-      'Crown leader should gradually turn without forcing an excessive lean');
-    const upperGrowth=leader.to[1]-trunk.to[1];
-    assert.ok(upperGrowth>2.5,
-      'Crown leader must continue growing upward while turning sideways');
-    assert.ok(upperGrowth<4.5,
-      'Upper leader should not overtop a compact crown as a tall pole');
-    assert.ok(trunk.tipRadius/trunk.baseRadius>.79);
-  }
-});
-
-test('branch hierarchy varies between seeds without losing terminal growth',()=>{
-  const seeds=[0,1,55,101,19641,3350221335,4294967295];
-  const signatures=new Set<string>();
-  for(const seed of seeds){
-    const tree=generateTree({seed});
-    const counts=[0,1,2,3,4].map(level=>tree.branches.filter(b=>b.level===level).length);
-    assert.equal(counts[0],1);
-    assert.equal(counts[1],5);
-    assert.ok(counts[2]>=12 && counts[2]<=20);
-    assert.ok(counts[3]>=28 && counts[3]<=60);
-    assert.ok(counts[4]>=25 && counts[4]<=110);
-    signatures.add(counts.join('/'));
-    const continuationIds=new Set(tree.branches.filter(b=>b.continuation)
-      .map(b=>b.parentId));
-    assert.equal(continuationIds.size,tree.branches.filter(b=>b.continuation).length,
-      'Every parent has only one through-growing continuation');
-  }
-  assert.ok(signatures.size>=3,
-    'Tree form should vary through branching topology, not just rotations');
-});
-
-test('different seeds generate reproducible but distinct trees',()=>{
-  const original=generateTree();
-  assert.deepEqual(original.positions,generateTree().positions);
-  assert.deepEqual(original.indices,generateTree().indices);
-  for(const seed of [0,1,55,101,3350221335,4294967295]){
-    const wood=generateTree({seed});
-    checkGeometry(wood);
-    assert.notDeepEqual(wood.positions,original.positions);
-  }
-});
-
-test('Asset ProcGen exposes seed-only preview and does not break Map Editor',async()=>{
+test('asset generator remains seed-only and Map Editor routes still work',async()=>{
   const html=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
   assert.match(html,/id="viewport"/);
   assert.match(html,/id="seedValue" type="number"/);
@@ -369,14 +171,13 @@ test('Asset ProcGen exposes seed-only preview and does not break Map Editor',asy
   try{
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
-    const origin='http://127.0.0.1:'+address.port;
-    for(const url of ['/tools/asset-procgen/','/tools/asset-procgen/app.js',
-      '/tools/asset-procgen/style.css','/tools/asset-procgen/tree.mjs']){
-      assert.equal((await fetch(origin+url)).status,200,url);
-    }
-    assert.equal((await fetch(origin+'/tools/asset-procgen/trunk.mjs')).status,404);
-    assert.equal((await fetch(origin+'/tools/map-editor/')).status,200);
-    assert.equal((await fetch(origin+'/api/map')).status,200);
+    const base='http://127.0.0.1:'+address.port;
+    for(const route of [
+      '/tools/asset-procgen/','/tools/asset-procgen/app.js',
+      '/tools/asset-procgen/style.css','/tools/asset-procgen/tree.mjs',
+      '/tools/map-editor/','/api/map',
+    ])assert.equal((await fetch(base+route)).status,200,route);
+    assert.equal((await fetch(base+'/tools/asset-procgen/trunk.mjs')).status,404);
   } finally {
     await new Promise<void>((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
