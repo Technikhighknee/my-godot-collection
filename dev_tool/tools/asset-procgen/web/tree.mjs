@@ -70,12 +70,16 @@ function initialDeviation(rng,level){
   return (rng()-.5)*(level===0?.015:.085);
 }
 function growAxis({id,parentId,level,continuation,seededLength,radius,start,
-  tangent,side,rng,roots=[]}){
+  tangent,side,rng,roots=[],crownSupportY=null}){
   const rule=PROFILE[level];
   const sections=[];
   let origin=start,heading=unit(tangent),transverse=frame(heading,side).side;
   const stepLength=seededLength/rule.segments;
   const leanBias=initialDeviation(rng,level);
+  const weight=level>=2?lowerCrownWeight(crownSupportY):0;
+  const allowedRadius=4.45-1.25*weight;
+  const allowedHeight=crownSupportY===null?0:
+    crownSupportY-(.74-.43*weight);
   for(let i=0;i<=rule.segments;i++){
     const t=i/rule.segments;
     const r=level===3
@@ -101,6 +105,23 @@ function growAxis({id,parentId,level,continuation,seededLength,radius,start,
       clamp(.006/Math.max(r,.008),0,.095);
     const towardSky=sub(UP,mul(heading,dot(UP,heading)));
     heading=unit(add(add(heading,drift),mul(towardSky,sky)));
+    if(weight>0){
+      // Approach the lower crown's envelope gradually, without bending
+      // every shoot upward or cutting a branch at an arbitrary endpoint.
+      const radialDistance=Math.hypot(origin[0],origin[2]);
+      if(radialDistance>.001){
+        const radial=[origin[0]/radialDistance,0,origin[2]/radialDistance];
+        const outward=dot(heading,radial);
+        const close=clamp((radialDistance-(allowedRadius-.75))/.75,0,1);
+        if(outward>.06&&close>0)
+          heading=unit(sub(heading,mul(radial,
+            Math.min(.25,(outward-.06)*close*weight*1.15))));
+      }
+      const nearFloor=clamp((allowedHeight+.72-origin[1])/.72,0,1);
+      if(nearFloor>0&&heading[1]<.10)
+        heading=unit(add(heading,mul(UP,
+          Math.min(.27,(.10-heading[1])*nearFloor*weight*1.25))));
+    }
     origin=add(origin,mul(heading,stepLength));
   }
   return {id,parentId,level,continuation,sections,roots,length:seededLength};
@@ -202,6 +223,29 @@ function chooseAxis(space,create,parentId,variants,extraPenalty=()=>0){
   space.insert(best);
   return best;
 }
+// Lower supports carry compact lateral groups, not unrestricted outward
+// descendants. The constraint fades out higher in the crown.
+function lowerCrownWeight(supportY){
+  if(supportY===null)return 0;
+  const t=clamp((4.85-supportY)/1.75,0,1);
+  return t*t*(3-2*t);
+}
+function descendantExtentPenalty(axis,supportY){
+  const weight=lowerCrownWeight(supportY);
+  if(weight===0)return 0;
+  const maxRadius=4.45-1.25*weight;
+  const minHeight=supportY-(.74-.43*weight);
+  let penalty=0;
+  // Evaluate every segment, not only the endpoint: a curved shoot may
+  // leave the permitted area and return before its last section.
+  for(let i=1;i<axis.sections.length;i++){
+    const p=axis.sections[i].position;
+    const excess=Math.max(0,Math.hypot(p[0],p[2])-maxRadius);
+    const drop=Math.max(0,minHeight-p[1]);
+    penalty+=weight*(.20*excess*excess+.42*drop*drop);
+  }
+  return penalty;
+}
 function growTree(rng){
   const trunkLength=6.15+(rng()-.5)*.55;
   const trunk=growAxis({
@@ -210,6 +254,7 @@ function growTree(rng){
     start:[0,0,0],tangent:unit([(rng()-.5)*.07,1,(rng()-.5)*.07]),
     side:null,rng,roots:rootRidges(rng),
   });
+  trunk.supportY=null;
   const branches=[trunk],queue=[trunk],space=woodSpace();
   space.insert(trunk);
   let nextId=1;
@@ -220,11 +265,16 @@ function growTree(rng){
     // The next growth order continues the same axis from its end, carrying
     // its complete frame and local radius into the next ring.
     const continuationId=nextId++;
-    const continuation=chooseAxis(space,()=>growAxis({
+    const supportY=parent.supportY;
+    const lowerWeight=lowerCrownWeight(supportY);
+    const continuation=chooseAxis(space,attempt=>growAxis({
       id:continuationId,parentId:parent.id,level,continuation:true,
-      seededLength:CHILD_LENGTH[level-1]*(level===1?.95:1),
+      seededLength:CHILD_LENGTH[level-1]*(level===1?.95:1)*
+        (1-.12*lowerWeight),
       radius:end.radius,start:end.position,tangent:end.tangent,side:end.side,rng,
-    }),parent.id,7);
+      crownSupportY:supportY,
+    }),parent.id,7,axis=>descendantExtentPenalty(axis,supportY));
+    continuation.supportY=supportY;
     branches.push(continuation);
     queue.push(continuation);
 
@@ -249,9 +299,11 @@ function growTree(rng){
       const radius=attachment.radius*radiusScale*(.92+.16*rng());
       // Suppress the repeated long, upward-pointing terminal silhouette.
       // Keep the number of shoots, but let some finish much sooner.
-      const length=parent.level===2
+      const length=(parent.level===2
         ? CHILD_LENGTH[2]*(rng()<.23 ? .46+.24*rng() : .76+.40*rng())
-        : CHILD_LENGTH[parent.level]*(.92+.16*rng());
+        : CHILD_LENGTH[parent.level]*(.92+.16*rng()))*
+        (1-.15*lowerWeight);
+      const childSupportY=level===1?attachment.position[1]:supportY;
       const childId=nextId++;
       const child=chooseAxis(space,attempt=>{
         const angle=attempt===0?azimuth:
@@ -262,13 +314,19 @@ function growTree(rng){
           mul(basis.side,Math.cos(angle)),
           mul(basis.across,Math.sin(angle))));
         const inclination=tilt+(attempt===0?0:(attempt%2?.09:-.09));
-        const heading=unit(add(
+        let heading=unit(add(
           mul(attachment.tangent,Math.cos(inclination)),
           mul(horizontal,Math.sin(inclination))));
+        // Only low descendants receive a gentle lift when initially
+        // heading downward. Horizontal growth stays possible.
+        if(level>=2&&lowerWeight>0&&heading[1]<.10)
+          heading=unit(add(heading,mul(UP,
+            (.10-heading[1])*.52*lowerWeight)));
         return growAxis({
           id:childId,parentId:parent.id,level,continuation:false,
           seededLength:length,radius,start:attachment.position,
           tangent:heading,side:basis.side,rng,
+          crownSupportY:childSupportY,
         });
       },parent.id,level===1?9:17,axis=>{
         if(level!==1)return 0;
@@ -283,8 +341,9 @@ function growTree(rng){
           const radians=Math.acos(clamp(dot(dirA,dirB),-1,1));
           if(radians<.50)overlap+=.06+Math.pow(.50-radians,2);
         }
-        return overlap;
+        return overlap+(level>=2?descendantExtentPenalty(axis,childSupportY):0);
       });
+      child.supportY=childSupportY;
       branches.push(child);
       queue.push(child);
     }

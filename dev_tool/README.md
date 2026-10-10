@@ -50,6 +50,14 @@ Secondary boughs start after their supporting axes have begun to clear
 the central trunk. Immediate parent-child contact is intentional and
 excluded from collision rejection near the fork.
 
+Descendants of low primary supports grow within a gently constrained
+lower-crown envelope. Their entire paths, including continued segments,
+respond to available lateral space and groundward clearance. Lower
+secondary shoots are moderately shorter and turn gradually away from
+crowded or downward-reaching regions. The constraint fades with the
+attachment height, retaining the broader upper crown and the original
+short primary supports.
+
 The lower trunk stays slender, with a restrained asymmetric root flare
 and slight longitudinal variation in its cross-section. The terminal
 shoots have deliberately uneven lengths and a broader range of

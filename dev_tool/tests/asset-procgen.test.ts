@@ -109,8 +109,8 @@ test('small oak builds crown reach with short supports and longer boughs',()=>{
     assert.equal(second.length,10);
     assert.equal(tips.length,45);
     assert.ok(first.every(b=>b.length>1.04&&b.length<1.36));
-    assert.ok(second.every(b=>b.length>2.25&&b.length<2.73));
-    assert.ok(tips.every(b=>b.length>.82&&b.length<2.10));
+    assert.ok(second.every(b=>b.length>1.88&&b.length<2.73));
+    assert.ok(tips.every(b=>b.length>.68&&b.length<2.10));
     assert.ok(tips.filter(b=>b.length<1.3).length>=3,
       'Some fine shoots should finish early');
     assert.ok(tips.filter(b=>b.length>1.7).length>=10,
@@ -194,6 +194,70 @@ test('local, seeded growth produces different three-dimensional crowns',()=>{
     kinds.add(angles.map(v=>sorted.indexOf(v)).join('/'));
   }
   assert.ok(kinds.size>=3,'Azimuth assignments must vary between seeds');
+});
+
+test('lower limbs do not grow long, descending descendant lines',()=>{
+  // Check the full connected lineage, including each continuation's
+  // intermediate rings, rather than only the first primary branch.
+  for(const seed of [...SEEDS,2,3,17,902,922480359,2084311110,1992887243]){
+    const tree=generateTree({seed});
+    const branches=new Map(tree.branches.map(branch=>[branch.id,branch]));
+    const continuation=new Map(tree.branches.filter(b=>b.continuation)
+      .map(b=>[b.parentId!,b]));
+    const positions=new Map<number,number[][]>();
+    let vertexOffset=0;
+
+    for(const root of tree.branches.filter(b=>!b.continuation)){
+      const lineage=[root];
+      while(continuation.has(lineage[lineage.length-1].id))
+        lineage.push(continuation.get(lineage[lineage.length-1].id)!);
+
+      let rowOffset=0;
+      for(const axis of lineage){
+        const centers:number[][]=[];
+        for(let row=0;row<axis.rings;row++){
+          const center=[0,0,0];
+          for(let side=0;side<root.sides;side++)
+            for(let k=0;k<3;k++)
+              center[k]+=tree.positions[
+                (vertexOffset+(rowOffset+row)*root.sides+side)*3+k
+              ]/root.sides;
+          centers.push(center);
+        }
+        positions.set(axis.id,centers);
+        rowOffset+=axis.rings-1;
+      }
+      vertexOffset+=(rowOffset+1)*root.sides+2;
+    }
+    assert.equal(vertexOffset,tree.positions.length/3);
+
+    const supports=tree.branches.filter(b=>b.level===1&&!b.continuation)
+      .sort((a,b)=>a.from[1]-b.from[1]);
+    for(const [index,support] of supports.slice(0,2).entries()){
+      const members=tree.branches.filter(branch=>{
+        let current=branch;
+        while(current.level>1){
+          const parent=branches.get(current.parentId!);
+          assert.ok(parent);
+          current=parent;
+        }
+        return current.id===support.id;
+      });
+      const points=members.flatMap(branch=>positions.get(branch.id)??[]);
+      assert.ok(points.length>10,'Expected a complete branching lineage');
+      const lowest=Math.min(...points.map(p=>p[1]));
+      const reach=Math.max(...points.map(p=>Math.hypot(p[0],p[2])));
+      if(index===0){
+        assert.ok(reach<4.2,
+          'Lowest support must not produce an isolated outer-reaching limb');
+        assert.ok(lowest>support.from[1]-.55,
+          'Lowest descendants must not droop well below their support');
+      } else if(support.from[1]<4.6){
+        assert.ok(lowest>support.from[1]-.85,
+          'Lower-middle descendants must not hang excessively');
+      }
+    }
+  }
 });
 
 test('independent wood axes do not cut through the standing tree',()=>{
