@@ -39,13 +39,17 @@ Continuation segments are fused into a single meshed tube for each wood
 lineage, rather than stacked capped cylinders. Side branches emerge from
 the interior of their parent's volume; their junctions are approximate
 overlapping surfaces, not yet a single Boolean-union manifold.
-The lower trunk is deliberately slim for a compact oak (roughly 0.17–0.21 m
-radius across seeds), with only a restrained root flare. The main shaft
-retains about 82% of its starting radius through its first long section;
-large lateral limbs take a smaller share of that diameter. The crown
-structure is unchanged while its branch thickness follows the slimmer
-supporting trunk. All geometry uses a neutral material to keep the
-silhouette and junctions visible for inspection.
+The lower trunk remains slim for a compact oak (roughly 0.17–0.21 m
+radius across seeds), with a restrained root flare. The first trunk section
+retains about 82% of its starting radius. Lower primary limbs spread
+outward, develop gentle arcs, and turn upward further from the trunk.
+Lateral shoots initially follow part of the parent's growth direction,
+then gradually diverge. Their attachment surfaces remain overlapping
+shells, not a unified junction mesh.
+
+These proportions and the curvature of the four primary wood lineages are
+checked across multiple deterministic seeds. All geometry uses a neutral
+material so the silhouette and remaining junction defects stay visible.
 
 Only **Seed** and **New seed** control the generator. Whole tree, Inspect
 base, Inspect crown, Silhouette and Turntable are inspection views. This

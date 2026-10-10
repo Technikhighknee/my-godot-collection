@@ -133,6 +133,55 @@ test('compact oak keeps a slim lower shaft and gradual, proportionate first limb
   }
 });
 
+test('primary wood spreads laterally and bends rather than forming straight spikes',()=>{
+  const seeds=[0,55,101,19641,3350221335,4294967295];
+  for(const seed of seeds){
+    const tree=generateTree({seed});
+    const primary=tree.branches.filter(b=>b.level===1&&!b.continuation);
+    assert.equal(primary.length,4);
+    for(const b of primary){
+      const horizontal=Math.hypot(b.to[0]-b.from[0],b.to[2]-b.from[2]);
+      const vertical=Math.abs(b.to[1]-b.from[1]);
+      assert.ok(horizontal>vertical,
+        'Major limbs must spread outwards rather than all pointing straight up');
+    }
+
+    // Wood is emitted once per non-continuation lineage. Its sections join
+    // all consecutive continuing axes, so we can measure the actual tube
+    // centerline without exposing another generation control or API.
+    const continuations=new Map(tree.branches.filter(b=>b.continuation)
+      .map(b=>[b.parentId!,b]));
+    let vertexOffset=0;
+    const curves=new Map<number,number>();
+    for(const root of tree.branches.filter(b=>!b.continuation)){
+      let rings=root.rings,endpoint=root;
+      while(continuations.has(endpoint.id)){
+        endpoint=continuations.get(endpoint.id)!;
+        rings+=endpoint.rings-1;
+      }
+      const center=(row:number)=>{
+        const value=[0,0,0];
+        for(let i=0;i<root.sides;i++)
+          for(let axis=0;axis<3;axis++)
+            value[axis]+=tree.positions[(vertexOffset+row*root.sides+i)*3+axis]/root.sides;
+        return value;
+      };
+      const first=center(0),last=center(rings-1),mid=center(Math.floor((rings-1)*.5));
+      const vector=last.map((v,i)=>v-first[i]);
+      const squared=vector.reduce((sum,x)=>sum+x*x,0);
+      const displacement=mid.map((v,i)=>v-first[i]);
+      const amount=displacement.reduce((sum,x,i)=>sum+x*vector[i],0)/squared;
+      const projected=first.map((v,i)=>v+amount*vector[i]);
+      curves.set(root.id,Math.hypot(...mid.map((v,i)=>v-projected[i])));
+      vertexOffset+=rings*root.sides+2;
+    }
+    assert.equal(vertexOffset,tree.positions.length/3,'All wood lineages accounted for');
+    for(const branch of primary)
+      assert.ok(curves.get(branch.id)!>.10,
+        'Each primary lineage must have visible curvature rather than a straight tube');
+  }
+});
+
 test('different seeds generate reproducible but distinct trees',()=>{
   const original=generateTree();
   assert.deepEqual(original.positions,generateTree().positions);
