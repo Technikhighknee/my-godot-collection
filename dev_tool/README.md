@@ -4,7 +4,7 @@
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** shown as planned, but not implemented or selectable yet.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. Currently implements **only an interactive tree trunk geometry preview**: seeded centerline growth, tapered and irregular cross-sections, continuous root buttresses and clay-shaded silhouette inspection. No foliage, branches, textures, recipe storage or exports.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -25,6 +25,26 @@ Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Edit
 ```sh
 npm start -- ../map_system/example.map.json --port 4372
 ```
+
+## Asset ProcGen — trunk phase
+
+The tree generator is being developed **in place** in the Asset ProcGen. This
+phase provides one continuous trunk mesh for visual inspection, not a
+standalone tree or an exportable production asset. Open the tool from the Dev
+Tool home screen. Orbit with left drag, zoom with the wheel, pan with right
+drag, or focus the trunk base. Silhouette mode and turntable help compare
+shapes from multiple sides.
+
+The shape starts at the root collar and continues to a full-width upper
+growth boundary. Its upper end is deliberately **not** pinched into a point:
+branches and crown development will be addressed only after the trunk is
+accepted visually. The neutral preview is untextured. Parameters currently
+control trunk length, starting thickness, growth character, root buttresses
+and seed. Geometry testing checks integrity, but artistic acceptance requires
+looking at the actual result.
+
+There is no GLB export, material authoring, leaf system, tree placement, or
+recipe saving in this phase. The Map Editor remains independent and unchanged.
 
 ## Map workspace
 
