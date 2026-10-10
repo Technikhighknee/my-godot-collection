@@ -119,6 +119,7 @@ test('Asset ProcGen serves a real viewport without export or texture controls',a
   assert.match(html,/id="viewport"/);
   assert.match(html,/id="tip"/);
   assert.match(html,/data-key="taper"/);
+  assert.match(html,/id="seedValue" type="number"/);
   assert.doesNotMatch(html,/Export GLB|Save recipe|Load recipe/);
   const doc=await loadMap('../map_system/coastal_relief.map.json');
   const server=createEditorServer(doc);
