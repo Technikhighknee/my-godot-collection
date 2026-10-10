@@ -100,14 +100,27 @@ export function growOak(recipe) {
     const baseR=parent.radii[0],rnd=randomStream(recipe.seed,parent.id,43);
     const range=generation===2?OAK.secondaryCount:generation===3?OAK.tertiaryCount:OAK.twigCount;
     const count=Math.max(1,choose(rnd,range,p.branchDensity));
+    const azimuthOffset=rnd()*TAU;
     for(let j=0;j<count;j++){
       if(tree.branches.length>=OAK.maxBranches)return;
       const id=parent.id*16+j+1,r=randomStream(recipe.seed,id,47);
       const t=clamp(.28+(j+.35+r()*.45)/count*.61,.2,.91);
       const origin=at(parent.points,t),tangent=directionAt(parent.points,t);
-      const left=unit([-tangent[2],0,tangent[0]]);
-      const side=scale(left,(j%2===0?1:-1));
-      const n=unit(add(side,scale(tangent,.18+signed(r,.25))));
+      // Stable local frame around the parent growth direction. Unlike a
+      // horizontal cross vector, this never collapses on vertical shoots.
+      const reference=Math.abs(tangent[1])>.91?[1,0,0]:[0,1,0];
+      const side=unit([
+        tangent[1]*reference[2]-tangent[2]*reference[1],
+        tangent[2]*reference[0]-tangent[0]*reference[2],
+        tangent[0]*reference[1]-tangent[1]*reference[0]
+      ]);
+      const other=unit([
+        tangent[1]*side[2]-tangent[2]*side[1],
+        tangent[2]*side[0]-tangent[0]*side[2],
+        tangent[0]*side[1]-tangent[1]*side[0]
+      ]);
+      const azimuth=azimuthOffset+j*2.399963229728653+signed(r,.26);
+      const n=unit(add(scale(side,Math.cos(azimuth)),scale(other,Math.sin(azimuth))));
       const spread=(generation===2?.74:generation===3?.53:.42)+r()*.29;
       const lift=[0,.34,.28,.39,.24][generation];
       const heading=unit(add(add(scale(tangent,.34),scale(n,spread)),[0,lift+signed(r,.07),0]));
