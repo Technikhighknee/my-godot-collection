@@ -46,10 +46,13 @@ The lower trunk remains slim for a compact oak (roughly 0.17–0.21 m
 radius across seeds), with a restrained root flare. The first trunk section
 retains about 82% of its starting radius. Lower primary limbs spread
 outward, develop gentle arcs, and turn upward further from the trunk.
-Their initial length is now around 2.0–2.7 m, followed by a shorter
-continuation, so the complete crown remains compact rather than extending
-four long arms. Secondary and terminal branches retain their detail and
-independent seed-driven variation. Lateral shoots initially follow part
+Primary limbs attach to the middle and upper carrying shaft, rather than
+growing as four equally dominant lower arms. Their positions are staggered;
+the lowest carries less radius, reaches less far and lifts sooner. Its
+continuation and immediate secondary growth are restrained as well. The
+primary lengths consequently span roughly 1.6–2.7 m across seeds, while
+the outer branches still carry the woody crown's detail and independent
+seed-driven variation. Lateral shoots initially follow part
 of the parent's growth direction, then gradually diverge. Their
 attachment surfaces remain overlapping shells, not a unified junction mesh.
 

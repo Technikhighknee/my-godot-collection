@@ -140,8 +140,8 @@ test('compact crown shortens primary limb lineages without shrinking finer wood'
     const parentMap=new Map(tree.branches.map(b=>[b.id,b]));
     assert.equal(primary.length,4);
     for(const limb of primary) {
-      assert.ok(limb.length>=2.0&&limb.length<2.70,
-        'Compact small-oak primary limbs must remain short');
+      assert.ok(limb.length>=1.5&&limb.length<2.70,
+        'Compact primary limbs must remain short, especially at low heights');
       assert.ok(limb.length<trunk.length*.67,
         'Major lateral limb must remain shorter than the supporting trunk');
       const continuation=tree.branches.filter(b=>
@@ -157,6 +157,33 @@ test('compact crown shortens primary limb lineages without shrinking finer wood'
     assert.ok(tree.branches.filter(b=>b.level===4).length>=25);
     assert.ok(trunk.baseRadius>=.17&&trunk.baseRadius<=.21);
     assert.ok(trunk.tipRadius/trunk.baseRadius>.79);
+  }
+});
+
+test('lower primary limbs start higher and carry less mass and reach',()=>{
+  for(const seed of [0,1,55,101,19641,3350221335,4294967295]){
+    const tree=generateTree({seed}),trunk=tree.branches[0];
+    const limbs=tree.branches.filter(b=>b.level===1&&!b.continuation)
+      .sort((a,b)=>a.from[1]-b.from[1]);
+    assert.equal(limbs.length,4);
+    const height=trunk.to[1]-trunk.from[1];
+    const anchors=limbs.map(b=>(b.from[1]-trunk.from[1])/height);
+    assert.ok(anchors[0]>.57,
+      'Lowest primary branch must not grow from the lower half of the clear stem');
+    assert.ok(anchors[3]<.86,
+      'Primary branch positions must remain within the carrying trunk');
+    for(let i=1;i<anchors.length;i++)
+      assert.ok(anchors[i]-anchors[i-1]>.02,
+        'Major attachments must remain vertically staggered');
+    assert.ok(limbs[0].length<2.15,
+      'Lowest primary branch needs reduced lateral reach');
+    assert.ok(limbs[0].baseRadius/trunk.baseRadius<.47,
+      'Lowest limb should carry less visual mass');
+    const continuation=tree.branches.filter(b=>
+      b.continuation&&b.parentId===limbs[0].id);
+    assert.equal(continuation.length,1);
+    assert.ok(continuation[0].length<1.17,
+      'The lowest branch continuation must not restore the excessive reach');
   }
 });
 

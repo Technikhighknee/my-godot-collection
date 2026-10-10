@@ -65,7 +65,7 @@ function footShape(angle, t, roots) {
 }
 
 function growBranch({position,direction,length,radius,level,rng,roots,id,parentId,
-  continuation=false,attachment=null,joinedTangent=null,central=false}) {
+  continuation=false,attachment=null,joinedTangent=null,central=false,lowerCrown=0}) {
   const count = [28,20,15,11,8][level];
   const sections = [];
   const phase = rng()*TAU, azimuth = rng()*TAU;
@@ -118,7 +118,7 @@ function growBranch({position,direction,length,radius,level,rng,roots,id,parentI
     current=add(current,mul(heading,length/count));
   }
   return {id,parentId,continuation,level,sections,
-    roots:level===0?roots:[],phase,length,central};
+    roots:level===0?roots:[],phase,length,central,lowerCrown};
 }
 
 function shootDirection(tangent, angle, tilt, origin, rng) {
@@ -153,6 +153,12 @@ function growTree(rng) {
     rng,roots,id:id++,parentId:null,central:true,
   });
   const branches=[trunk];
+  const trunkBaseY=trunk.sections[0].position[1];
+  const trunkHeight=trunk.sections[trunk.sections.length-1].position[1]-trunkBaseY;
+  // Restrict the strongest primary support to the middle/upper clear shaft.
+  // Low limbs, when present, remain smaller than high supporting limbs.
+  const lowLimbInfluence=height =>
+    smooth(clamp((.76-height)/.20,0,1));
   const growChildren=(parent)=>{
     if(parent.level===4)return;
     const level=parent.level+1;
@@ -166,7 +172,8 @@ function growTree(rng) {
     const heading=parent.central ?
       unit(add(atEnd.tangent,mul(crownward,crownBend))) : atEnd.tangent;
     const lengthFactor=parent.central ?
-      [0,.84,.77,.82,.84][level] : (primaryExtension?.77:1);
+      [0,.84,.77,.82,.84][level] :
+      primaryExtension ? .77*(1-.19*parent.lowerCrown) : 1;
     const continuationLength=[0,1.85,1.55,1.10,.69][level]*
       lengthFactor*(.85+rng()*.30);
     const continueAxis=growBranch({
@@ -174,7 +181,7 @@ function growTree(rng) {
       joinedTangent:parent.central?atEnd.tangent:null,
       length:continuationLength,radius:atEnd.radius,level,
       rng,roots:[],id:id++,parentId:parent.id,continuation:true,
-      central:parent.central,
+      central:parent.central,lowerCrown:parent.lowerCrown,
     });
     branches.push(continueAxis);
 
@@ -190,24 +197,28 @@ function growTree(rng) {
     const children=[];
     for(let k=0;k<lateralCount;k++){
       const fraction=level===1?
-        .40+.45*(k+.16+.62*rng())/lateralCount:
+        .57+.26*(k+.12+.58*rng())/lateralCount:
         .17+.65*(k+.10+.70*rng())/lateralCount;
       const anchor=sampleSection(parent,clamp(fraction,.10,.91));
+      const height=(anchor.position[1]-trunkBaseY)/trunkHeight;
+      const lowInfluence=level===1?lowLimbInfluence(height):parent.lowerCrown;
       const azimuth=radialOffset+(k+(rng()-.5)*.22)*TAU/lateralCount;
-      const degrees=level===1?60+rng()*19:
+      const degrees=level===1?60+rng()*19-9*lowInfluence:
         level===2?45+rng()*26:level===3?39+rng()*30:32+rng()*33;
       const direction=shootDirection(
         anchor.tangent,azimuth,degrees*Math.PI/180,anchor.position,rng);
       // Compact primary limbs preserve a dense, rounded small-oak crown.
       // More distal branches keep their established lengths and detail.
       const length=[0,2.35,2.25,1.48,.94][level]*
-        (level===1 ? (.86+rng()*.28) : (.8+rng()*.40));
-      const scale=level===1?.47+rng()*.11:
+        (level===1 ? (.86+rng()*.28)*(1-.24*lowInfluence) :
+          (.8+rng()*.40)*(level===2?(1-.11*lowInfluence):1));
+      const scale=level===1?(.47+rng()*.11)*(1-.14*lowInfluence):
         level===2?.49+rng()*.13:level===3?.45+rng()*.14:.41+rng()*.13;
       const child=growBranch({
         position:anchor.position,direction,length,attachment:anchor.tangent,
         radius:anchor.radius*scale,level,rng,roots:[],
         id:id++,parentId:parent.id,continuation:false,central:false,
+        lowerCrown:lowInfluence,
       });
       branches.push(child);
       children.push(child);
