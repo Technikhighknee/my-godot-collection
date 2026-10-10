@@ -8,6 +8,7 @@ import { loadMap } from '../tools/map-editor/src/io/map-io.ts';
 import { createEditorServer } from '../tools/map-editor/src/server.ts';
 import { DEFAULT_RECIPE, generateTree, generateSkeleton, validateRecipe, variantSeeds } from '../tools/asset-procgen/web/tree.mjs';
 import { exportGlb, inspectGlb } from '../tools/asset-procgen/web/glb.mjs';
+import { buildWoodPrimitives } from '../tools/asset-procgen/web/wood-shape.mjs';
 
 const fresh = () => structuredClone(DEFAULT_RECIPE);
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -63,6 +64,61 @@ test('oak develops a hierarchical branch skeleton before meshing', () => {
   }
   assert.ok(structure.leafAnchors.length > 150);
   assert.deepEqual(generateSkeleton(recipe), structure, 'Meshing must not control structural randomness');
+});
+
+test('oak wood loads and branch collars follow the growth hierarchy', () => {
+  for (const seed of [0, 147241, 0xffffffff]) {
+    const recipe={...fresh(),seed};
+    const tree=generateSkeleton(recipe);
+    const byId=new Map(tree.branches.map(b=>[b.id,b]));
+    const trunk=byId.get(1)!;
+    assert.ok(Math.abs(trunk.radii[0]-recipe.parameters.trunkRadius)<1e-10);
+    for (const branch of tree.branches) {
+      assert.ok(branch.structuralLoad>0 && Number.isFinite(branch.structuralLoad));
+      if (branch.parentId===null)continue;
+      const parent=byId.get(branch.parentId)!;
+      assert.ok(parent);
+      assert.ok(branch.parentT>=0 && branch.parentT<=1);
+      const x=branch.parentT*(parent.points.length-1);
+      const i=Math.min(parent.points.length-2,Math.floor(x));
+      const alpha=x-i;
+      const expected=parent.points[i].map((v,k)=>v+(parent.points[i+1][k]-v)*alpha);
+      assert.ok(Math.hypot(...branch.points[0].map((v,k)=>v-expected[k]))<1e-7,
+        'Child axis begins exactly on parent axis');
+      const radius=parent.radii[i]+(parent.radii[i+1]-parent.radii[i])*alpha;
+      assert.ok(branch.radii[0]<=radius*1.001,
+        'Child base cannot exceed the supporting parent cross section');
+    }
+  }
+});
+
+test('wood has asymmetric ground-reaching root buttresses', () => {
+  const recipe=fresh(),skeleton=generateSkeleton(recipe);
+  const structural=buildWoodPrimitives(skeleton,recipe,.09);
+  const roots=structural.filter(segment=>segment.isRoot);
+  assert.ok(new Set(roots.map(segment=>segment.id)).size>=5);
+  assert.ok(roots.some(segment=>segment.b[1]<0));
+  const wood=generateTree(recipe).model.wood;
+  let spreadAtGround=0,spreadAbove=0;
+  const radius=recipe.parameters.trunkRadius;
+  for(let i=0;i<wood.positions.length;i+=3){
+    const x=wood.positions[i],y=wood.positions[i+1],z=wood.positions[i+2];
+    const horizontal=Math.hypot(x,z);
+    if(y>=-.03&&y<radius*.20)spreadAtGround=Math.max(spreadAtGround,horizontal);
+    if(y>radius*3&&y<radius*4)spreadAbove=Math.max(spreadAbove,horizontal);
+  }
+  assert.ok(spreadAbove>0);
+  assert.ok(spreadAtGround>spreadAbove*1.15,
+    'The foot should flare outward rather than ending as a cylindrical post');
+});
+
+test('narrow-band wood retains its principal connected body across varied seeds', () => {
+  for(const seed of [1,101,4294967295]) {
+    const recipe={...fresh(),seed};
+    const wood=generateTree(recipe,{detail:'thumbnail'}).model.wood;
+    assert.ok(wood.positions.every(Number.isFinite));
+    assert.ok(wood.indices.length>1000);
+  }
 });
 
 test('growth and foliage parameters change the intended parts of the tree', () => {
@@ -273,7 +329,7 @@ test('GLB export is deterministic, self-contained and binary attributes round-tr
 });
 
 test('Asset ProcGen web modules pass node syntax checking', () => {
-  for (const moduleName of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'meshing.mjs', 'wood-surface.mjs', 'glb.mjs']) {
+  for (const moduleName of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'wood-structure.mjs', 'wood-shape.mjs', 'meshing.mjs', 'wood-surface.mjs', 'glb.mjs']) {
     const path = new URL('../tools/asset-procgen/web/' + moduleName, import.meta.url);
     assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', fileURLToPath(path)], { stdio: 'pipe' }));
   }
@@ -292,7 +348,7 @@ test('local HTTP serves ProcGen without exposing source files or changing Map Ed
       assert.match(page.headers.get('content-type') ?? '', /text\/html/);
       assert.match(await page.text(), /1400 · Asset ProcGen/);
     }
-    for (const suffix of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'meshing.mjs', 'wood-surface.mjs', 'glb.mjs', 'style.css']) {
+    for (const suffix of ['app.js', 'tree.mjs', 'math.mjs', 'oak.mjs', 'growth.mjs', 'wood-structure.mjs', 'wood-shape.mjs', 'meshing.mjs', 'wood-surface.mjs', 'glb.mjs', 'style.css']) {
       const path = '/tools/asset-procgen/' + suffix;
       const response = await fetch(base + path);
       assert.equal(response.status, 200, path);
