@@ -51,9 +51,13 @@ export function resolveWoodStructure(skeleton,recipe) {
   const scale=recipe.parameters.trunkRadius/Math.pow(main.base,1/POWER);
   for(const b of branches){
     const profile=flux.get(b.id).profile;
-    b.radii=profile.map((flow)=>{
+    b.radii=profile.map((flow,i)=>{
+      const t=i/(profile.length-1);
+      // The buttressed basal flare belongs to the final load-derived trunk,
+      // not the provisional radii used during skeleton construction.
+      const flare=b.parentId===null?1+.55*Math.exp(-t*26):1;
       // The swept implicit field naturally rounds off the terminal tip.
-      return Math.max(.0018,scale*Math.pow(flow,1/POWER));
+      return Math.max(.0018,scale*Math.pow(flow,1/POWER)*flare);
     });
     b.structuralLoad=flux.get(b.id).base;
   }
