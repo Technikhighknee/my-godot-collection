@@ -13,7 +13,8 @@ test('home lists tools honestly and editor can return to it', () => {
   assert.match(home, /href="\/tools\/map-editor\/"/);
   assert.match(home, /id="dt-map-name"/);
   assert.match(home, /href="\/tools\/asset-procgen\/"/);
-  assert.match(home, /02 AVAILABLE/);
+  assert.match(home, /03 AVAILABLE/);
+  assert.match(home, /href="\/tools\/trunk-studio\/"/);
   assert.match(editor, /href="\/" aria-label="Return to Dev Tool home"/);
   assert.match(editor, /\/dev-tool\.css/);
   assert.match(homeJs, /fetch\('\/api\/map'/);
