@@ -33,6 +33,9 @@ test('trunk settings are bounded and no other generators leak into this phase',(
   assert.throws(()=>validateStem({...DEFAULT_STEM,height:Infinity}));
   assert.throws(()=>validateStem({...DEFAULT_STEM,radius:2}));
   assert.throws(()=>validateStem({...DEFAULT_STEM,taper:1}));
+  assert.throws(()=>validateStem({...DEFAULT_STEM,shaftHeight:.95}));
+  assert.throws(()=>validateStem({...DEFAULT_STEM,headMass:2}));
+  assert.throws(()=>validateStem({...DEFAULT_STEM,asymmetry:-1}));
   assert.deepEqual(Object.keys(generateStem()).sort(),
     ['positions','normals','indices','rings','sides','settings'].sort());
 });
@@ -66,8 +69,8 @@ test('trunk has an uninterrupted radial seam and no manufactured needle tip',()=
     const k=row*stride*3;
     return Math.hypot(p[k]-p[center],p[k+1]-p[center+1],p[k+2]-p[center+2]);
   };
-  assert.ok(r(m.rings-1,top)>.1*r(0,base),'Upper stem must retain a growth continuation radius');
-  assert.ok(r(m.rings-1,top)<.3*r(0,base),'Upper leader should not terminate as a broad sawn-off post');
+  assert.ok(r(m.rings-1,top)>.18*r(0,base),'Upper stem must retain a growth continuation radius');
+  assert.ok(r(m.rings-1,top)<.65*r(0,base),'Upper stem should be clearly tapered but retain supporting mass');
   assert.ok(r(0,base)>m.settings.radius,'Root flare should not be a straight cylinder');
 });
 
@@ -102,6 +105,31 @@ test('upper leader tapers continuously over the entire length instead of pinchin
     'Taper slider must alter the actual stem, not only its appearance');
 });
 
+test('clear shaft and head controls reshape the trunk without adding branches',()=>{
+  const template={...DEFAULT_STEM};
+  const withShoulder=generateStem({...template,headMass:1,asymmetry:1});
+  const withoutShoulder=generateStem({...template,headMass:0,asymmetry:0});
+  const start=0,quarter=Math.floor(withShoulder.rings*.2);
+  const sample=(mesh:StemMesh,row:number)=>Array.from(
+    mesh.positions.subarray(row*(mesh.sides+1)*3,
+      (row*(mesh.sides+1)+mesh.sides)*3));
+  assert.deepEqual(sample(withShoulder,start),sample(withoutShoulder,start),
+    'The trunk base should not be replaced by a decorative shoulder');
+  assert.deepEqual(sample(withShoulder,quarter),sample(withoutShoulder,quarter),
+    'The lower clear shaft should not depend on future branch mass');
+  assert.notDeepEqual(sample(withShoulder,Math.floor(withShoulder.rings*.75)),
+    sample(withoutShoulder,Math.floor(withoutShoulder.rings*.75)),
+    'The upper wood should react to crown shoulder settings');
+  const early=generateStem({...template,shaftHeight:.28,headMass:1});
+  const late=generateStem({...template,shaftHeight:.62,headMass:1});
+  assert.notDeepEqual(sample(early,Math.floor(early.rings*.52)),
+    sample(late,Math.floor(late.rings*.52)),
+    'Clear shaft height should move the beginning of crown wood');
+  assert.notDeepEqual(generateStem({...template,asymmetry:0}).positions,
+    generateStem({...template,asymmetry:1}).positions,
+    'Growth asymmetry should alter the mesh');
+});
+
 test('extreme settings remain closed and finite',()=>{
   for(const input of [
     {...DEFAULT_STEM,seed:0,height:5,radius:.28,character:0,buttress:0},
@@ -119,6 +147,8 @@ test('Asset ProcGen serves a real viewport without export or texture controls',a
   assert.match(html,/id="viewport"/);
   assert.match(html,/id="tip"/);
   assert.match(html,/data-key="taper"/);
+  for(const key of ['shaftHeight','headMass','asymmetry'])
+    assert.ok(html.includes('data-key="'+key+'"'));
   assert.match(html,/id="seedValue" type="number"/);
   assert.doesNotMatch(html,/Export GLB|Save recipe|Load recipe/);
   const doc=await loadMap('../map_system/coastal_relief.map.json');
