@@ -2,6 +2,7 @@ export interface StemSettings {
   seed: number;
   height: number;
   radius: number;
+  taper: number;
   character: number;
   buttress: number;
 }
