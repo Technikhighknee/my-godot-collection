@@ -156,8 +156,11 @@ function growTree(rng) {
 
     // Every wooden axis continues into a slimmer growth stage. This is not
     // another lateral child: it inherits the parent's endpoint and tangent.
+    // The direct continuation of a primary lateral limb must not undo
+    // its compact length. Do not shorten the upright central leader.
+    const primaryExtension=level===2 && !parent.continuation;
     const continuationLength=[0,1.85,1.55,1.10,.69][level]*
-      (.85+rng()*.30);
+      (primaryExtension ? .77 : 1)*(.85+rng()*.30);
     const continueAxis=growBranch({
       position:atEnd.position,direction:atEnd.tangent,
       length:continuationLength,radius:atEnd.radius,level,
@@ -179,7 +182,10 @@ function growTree(rng) {
         level===2?45+rng()*26:level===3?39+rng()*30:32+rng()*33;
       const direction=shootDirection(
         anchor.tangent,azimuth,degrees*Math.PI/180,anchor.position,rng);
-      const length=[0,3.35,2.25,1.48,.94][level]*(.8+rng()*.40);
+      // Compact primary limbs preserve a dense, rounded small-oak crown.
+      // More distal branches keep their established lengths and detail.
+      const length=[0,2.35,2.25,1.48,.94][level]*
+        (level===1 ? (.86+rng()*.28) : (.8+rng()*.40));
       const scale=level===1?.47+rng()*.11:
         level===2?.49+rng()*.13:level===3?.45+rng()*.14:.41+rng()*.13;
       const child=growBranch({

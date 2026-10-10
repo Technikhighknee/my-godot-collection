@@ -133,6 +133,33 @@ test('compact oak keeps a slim lower shaft and gradual, proportionate first limb
   }
 });
 
+test('compact crown shortens primary limb lineages without shrinking finer wood',()=>{
+  for(const seed of [0,1,55,101,19641,3350221335,4294967295]){
+    const tree=generateTree({seed}),trunk=tree.branches[0];
+    const primary=tree.branches.filter(b=>b.level===1&&!b.continuation);
+    const parentMap=new Map(tree.branches.map(b=>[b.id,b]));
+    assert.equal(primary.length,4);
+    for(const limb of primary) {
+      assert.ok(limb.length>=2.0&&limb.length<2.70,
+        'Compact small-oak primary limbs must remain short');
+      assert.ok(limb.length<trunk.length*.67,
+        'Major lateral limb must remain shorter than the supporting trunk');
+      const continuation=tree.branches.filter(b=>
+        b.continuation&&b.parentId===limb.id);
+      assert.equal(continuation.length,1);
+      assert.ok(continuation[0].length<1.45,
+        'The next continuation should not undo the compact primary limb');
+      assert.equal(parentMap.get(continuation[0].parentId!)?.id,limb.id);
+    }
+    const secondary=tree.branches.filter(b=>b.level===2&&!b.continuation);
+    assert.ok(secondary.every(b=>b.length>=1.75&&b.length<=2.75),
+      'Fine crown branching stays developed rather than being cut down');
+    assert.ok(tree.branches.filter(b=>b.level===4).length>=25);
+    assert.ok(trunk.baseRadius>=.17&&trunk.baseRadius<=.21);
+    assert.ok(trunk.tipRadius/trunk.baseRadius>.79);
+  }
+});
+
 test('primary wood spreads laterally and bends rather than forming straight spikes',()=>{
   const seeds=[0,55,101,19641,3350221335,4294967295];
   for(const seed of seeds){
