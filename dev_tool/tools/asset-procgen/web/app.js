@@ -110,7 +110,7 @@ function build() {
     }
     stem = model;
     scene.add(stem);
-    byId('seedValue').textContent = String(params.seed);
+    byId('seedValue').value = String(params.seed);
     byId('meshStats').textContent = (generated.indices.length / 3).toLocaleString() + ' TRIS';
     byId('status').textContent = 'Geometry ready · ' + Math.round(performance.now() - t0) + ' ms';
     byId('error').hidden = true;
@@ -128,7 +128,7 @@ function display() {
     byId(key + 'Value').textContent = key === 'height' || key === 'radius'
       ? params[key].toFixed(2) + ' m' : Math.round(params[key] * 100) + '%';
   }
-  byId('seedValue').textContent = String(params.seed);
+  byId('seedValue').value = String(params.seed);
 }
 function queue() {
   clearTimeout(pending);
@@ -140,6 +140,18 @@ for (const slider of sliders) slider.addEventListener('input', () => {
   if (params.radius / params.height > .14) {
     params.radius = Math.min(params.radius, params.height * .14);
   }
+  display();
+  queue();
+});
+byId('seedValue').addEventListener('change', () => {
+  const value = Number(byId('seedValue').value);
+  if (!Number.isInteger(value) || value < 0 || value > 0xffffffff ||
+      byId('seedValue').value.trim() === '') {
+    byId('status').textContent = 'Seed must be an integer between 0 and 4294967295';
+    byId('seedValue').value = String(params.seed);
+    return;
+  }
+  params.seed = value;
   display();
   queue();
 });
