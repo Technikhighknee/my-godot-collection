@@ -37,20 +37,16 @@
     <div class="pg-viewport-footer"><span>DRAG TO ORBIT <b>·</b> SCROLL TO ZOOM <b>·</b> RIGHT-DRAG TO PAN</span><span id="meshStats"></span></div>
     <div id="error" role="alert" hidden></div>
   </section>
-  <aside class="pg-settings" aria-label="Asset parameters">
+  <aside class="pg-settings" aria-label="Asset preview">
     <span class="pg-overline">BROADLEAF TREE / GEOMETRY</span>
-    <h1>The trunk.</h1>
-    <p>One continuous trunk that bends into its dominant upper leader. No side branches or materials.</p>
-    <div class="pg-settings-title"><span>GROWTH</span><button id="reseed" type="button">New seed ↻</button></div>
-    <label class="pg-control"><span>Trunk length <output id="heightValue"></output></span><input data-key="height" type="range" min="5" max="16" step=".1"></label>
-    <label class="pg-control"><span>Base girth <output id="radiusValue"></output></span><input data-key="radius" type="range" min=".28" max="1" step=".01"></label>
-    <label class="pg-control"><span>Growth character <output id="characterValue"></output></span><input data-key="character" type="range" min="0" max="1.5" step=".01"></label>
-    <label class="pg-control"><span>Root buttresses <output id="buttressValue"></output></span><input data-key="buttress" type="range" min="0" max="1.5" step=".01"></label>
-    <label class="pg-control"><span>Leader begins <output id="leaderStartValue"></output></span><input data-key="leaderStart" type="range" min=".25" max=".7" step=".01"></label>
-    <label class="pg-control"><span>Leader bend <output id="leaderReachValue"></output></span><input data-key="leaderReach" type="range" min="0" max="1.5" step=".01"></label>
-    <label class="pg-control"><span>Lower lean <output id="leanValue"></output></span><input data-key="lean" type="range" min="-.3" max=".3" step=".01"></label>
-    <div class="pg-seed"><label for="seedValue">SEED</label><input id="seedValue" type="number" min="0" max="4294967295" step="1" aria-label="Tree seed"></div>
-    <div class="pg-settings-bottom"><span id="status" role="status">Generating…</span><button id="reset" type="button">Reset shape</button></div>
+    <h1>Dominant leader.</h1>
+    <p>The tree generator decides the shape. For now, every seed produces one continuous trunk-to-leader path, without branches or materials.</p>
+    <div class="pg-settings-title"><span>VARIATION</span></div>
+    <label class="pg-seed" for="seedValue"><span>SEED</span>
+      <input id="seedValue" type="number" min="0" max="4294967295" step="1" aria-label="Tree seed">
+    </label>
+    <button id="reseed" class="pg-generate" type="button">New seed ↻</button>
+    <div class="pg-settings-bottom"><span id="status" role="status">Generating…</span></div>
   </aside>
 </main>
 </body>
