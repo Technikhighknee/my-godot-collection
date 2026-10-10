@@ -5,6 +5,9 @@ export interface StemSettings {
   taper: number;
   character: number;
   buttress: number;
+  shaftHeight: number;
+  headMass: number;
+  asymmetry: number;
 }
 export interface StemMesh {
   settings: StemSettings;
