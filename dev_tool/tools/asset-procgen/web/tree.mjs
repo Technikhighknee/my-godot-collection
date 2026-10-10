@@ -65,7 +65,7 @@ function footShape(angle, t, roots) {
 }
 
 function growBranch({position,direction,length,radius,level,rng,roots,id,parentId,
-  continuation=false,attachment=null,joinedTangent=null,central=false,lowerCrown=0}) {
+  continuation=false,attachment=null,joinedTangent=null,central=false}) {
   const count = [28,20,15,11,8][level];
   const sections = [];
   const phase = rng()*TAU, azimuth = rng()*TAU;
@@ -83,7 +83,7 @@ function growBranch({position,direction,length,radius,level,rng,roots,id,parentI
     level===1?.23:level===2?.20:.16;
   const sideways = [0,.17,.22,.25,.24][level]*(rng()-.5);
   const bendPhase = rng()*TAU;
-  const taper = [.18,.35,.59,.64,.84][level];
+  const taper = [.18,.43,.64,.70,.84][level];
   let current=position,heading=initial;
 
   for(let i=0;i<=count;i++){
@@ -110,15 +110,21 @@ function growBranch({position,direction,length,radius,level,rng,roots,id,parentI
     const lateral=sideways+.075*Math.sin(age*4.3+bendPhase)*
       Math.sin(Math.PI*age)+[.006,.035,.058,.083,.10][level]*wave;
     const steer=add(mul(UP,lift),mul(bendAxis,lateral));
-    // Subdivide the turn into changes in the local growth tangent.
+    // Thin wood turns toward the sky faster than load-bearing limbs.
+    // Remove the tangent component so the force changes direction only.
+    const segmentLength=length/count;
+    const upward=clamp(.008*segmentLength/Math.max(radius*profile,.008),0,.055);
+    const vertical=sub(UP,mul(heading,dot(UP,heading)));
     heading=unit(add(
-      add(heading,mul(sub(aim,heading),joinedTangent?.34:attachment?.67:.16)),
-      mul(steer,1.9/count)
+      add(
+        add(heading,mul(sub(aim,heading),joinedTangent?.34:attachment?.67:.16)),
+        mul(steer,1.6/count)),
+      mul(vertical,level===0?0:upward)
     ));
     current=add(current,mul(heading,length/count));
   }
   return {id,parentId,continuation,level,sections,
-    roots:level===0?roots:[],phase,length,central,lowerCrown};
+    roots:level===0?roots:[],phase,length,central};
 }
 
 function shootDirection(tangent, angle, tilt, origin, rng) {
@@ -153,12 +159,6 @@ function growTree(rng) {
     rng,roots,id:id++,parentId:null,central:true,
   });
   const branches=[trunk];
-  const trunkBaseY=trunk.sections[0].position[1];
-  const trunkHeight=trunk.sections[trunk.sections.length-1].position[1]-trunkBaseY;
-  // Restrict the strongest primary support to the middle/upper clear shaft.
-  // Low limbs, when present, remain smaller than high supporting limbs.
-  const lowLimbInfluence=height =>
-    smooth(clamp((.76-height)/.20,0,1));
   const growChildren=(parent)=>{
     if(parent.level===4)return;
     const level=parent.level+1;
@@ -173,7 +173,7 @@ function growTree(rng) {
       unit(add(atEnd.tangent,mul(crownward,crownBend))) : atEnd.tangent;
     const lengthFactor=parent.central ?
       [0,.84,.77,.82,.84][level] :
-      primaryExtension ? .77*(1-.19*parent.lowerCrown) : 1;
+      primaryExtension ? .79 : 1;
     const continuationLength=[0,1.85,1.55,1.10,.69][level]*
       lengthFactor*(.85+rng()*.30);
     const continueAxis=growBranch({
@@ -181,7 +181,7 @@ function growTree(rng) {
       joinedTangent:parent.central?atEnd.tangent:null,
       length:continuationLength,radius:atEnd.radius,level,
       rng,roots:[],id:id++,parentId:parent.id,continuation:true,
-      central:parent.central,lowerCrown:parent.lowerCrown,
+      central:parent.central,
     });
     branches.push(continueAxis);
 
@@ -193,32 +193,36 @@ function growTree(rng) {
         1+(rng()<.67?1:0)+(rng()<.18?1:0)):
       parent.central?(rng()<.82?1:0):
         (rng()<.67?1+(rng()<.16?1:0):0);
+    // Decouple attachment height from compass direction. Distribute the
+    // available azimuth sectors without tying them to height order.
     const radialOffset=rng()*TAU;
+    const sectors=Array.from({length:lateralCount},(_,i)=>i);
+    for(let i=sectors.length-1;i>0;i--){
+      const j=Math.floor(rng()*(i+1));
+      [sectors[i],sectors[j]]=[sectors[j],sectors[i]];
+    }
     const children=[];
     for(let k=0;k<lateralCount;k++){
-      const fraction=level===1?
-        .57+.26*(k+.12+.58*rng())/lateralCount:
-        .17+.65*(k+.10+.70*rng())/lateralCount;
-      const anchor=sampleSection(parent,clamp(fraction,.10,.91));
-      const height=(anchor.position[1]-trunkBaseY)/trunkHeight;
-      const lowInfluence=level===1?lowLimbInfluence(height):parent.lowerCrown;
-      const azimuth=radialOffset+(k+(rng()-.5)*.22)*TAU/lateralCount;
-      const degrees=level===1?60+rng()*19-9*lowInfluence:
-        level===2?45+rng()*26:level===3?39+rng()*30:32+rng()*33;
+      const start=level===1?.49:level===2?.06:level===3?.12:.16;
+      const jitter=level===2 && k===0 ? .10+.25*rng() : .12+.76*rng();
+      const fraction=start+(k+jitter)*(.985-start)/lateralCount;
+      const anchor=sampleSection(parent,clamp(fraction,.05,.985));
+      const azimuth=radialOffset+
+        (sectors[k]+(rng()-.5)*.65)*TAU/lateralCount;
+      const degrees=level===1?50+rng()*8:
+        level===2?52+rng()*12:level===3?29+rng()*10:24+rng()*13;
       const direction=shootDirection(
         anchor.tangent,azimuth,degrees*Math.PI/180,anchor.position,rng);
-      // Compact primary limbs preserve a dense, rounded small-oak crown.
-      // More distal branches keep their established lengths and detail.
-      const length=[0,2.35,2.25,1.48,.94][level]*
-        (level===1 ? (.86+rng()*.28)*(1-.24*lowInfluence) :
-          (.8+rng()*.40)*(level===2?(1-.11*lowInfluence):1));
-      const scale=level===1?(.47+rng()*.11)*(1-.14*lowInfluence):
-        level===2?.49+rng()*.13:level===3?.45+rng()*.14:.41+rng()*.13;
+      // Short primary supports split early into longer, finer boughs.
+      // The crown comes from their descendants, not four long arms.
+      const length=[0,1.27,2.52,1.72,.88][level]*
+        (level===1 ? (.88+rng()*.22) : (.84+rng()*.32));
+      const scale=level===1?.73+rng()*.10:
+        level===2?.53+rng()*.12:level===3?.47+rng()*.12:.42+rng()*.11;
       const child=growBranch({
         position:anchor.position,direction,length,attachment:anchor.tangent,
         radius:anchor.radius*scale,level,rng,roots:[],
         id:id++,parentId:parent.id,continuation:false,central:false,
-        lowerCrown:lowInfluence,
       });
       branches.push(child);
       children.push(child);

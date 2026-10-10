@@ -29,39 +29,26 @@ npm start -- ../map_system/example.map.json --port 4372
 ## Asset ProcGen — oak wood structure
 
 The first implemented asset generator builds a compact deciduous tree from
-one numeric seed. The tree begins with one supporting trunk, which continues into a tapering
-leader while four large lateral limbs grow from staggered attachment heights.
-The main axis progressively arcs away from the vertical in the upper
-crown, rather than growing as a solitary tall pole. Its change of heading
-is gradual and seeded. Further growth tiers preserve a continuous main
-axis while making uneven numbers of lateral shoots according to their
-position in the crown. This creates a multi-level, asymmetric woody
-canopy instead of uniformly repeated forks.
+one numeric seed. The tree starts with a slim supporting trunk and four primary supports
+distributed through the upper half of the first shaft. These supports are
+short and comparatively substantial: the next generation emerges early
+along them and carries most of the crown's outward reach. Attachment
+height and compass direction vary independently, avoiding a repeated
+spiral or a fixed arrangement of low versus high limbs.
 
-Continuation segments are fused into a single meshed tube for each wood
-lineage, rather than stacked capped cylinders. Side branches emerge from
-the interior of their parent's volume; their junctions are approximate
-overlapping surfaces, not yet a single Boolean-union manifold.
-The lower trunk remains slim for a compact oak (roughly 0.17–0.21 m
-radius across seeds), with a restrained root flare. The first trunk section
-retains about 82% of its starting radius. Lower primary limbs spread
-outward, develop gentle arcs, and turn upward further from the trunk.
-Primary limbs attach to the middle and upper carrying shaft, rather than
-growing as four equally dominant lower arms. Their positions are staggered;
-the lowest carries less radius, reaches less far and lifts sooner. Its
-continuation and immediate secondary growth are restrained as well. The
-primary lengths consequently span roughly 1.6–2.7 m across seeds, while
-the outer branches still carry the woody crown's detail and independent
-seed-driven variation. Lateral shoots initially follow part
-of the parent's growth direction, then gradually diverge. Their
-attachment surfaces remain overlapping shells, not a unified junction mesh.
+Each growth level can produce a different number of offspring. Narrower
+branching angles toward the outer crown and a radius-dependent upward
+steering force give thin shoots a stronger upward response while allowing
+heavier wood to remain more horizontal. The center leader continues
+through the crown with gradual lateral curvature rather than ending as
+a straight pointed pole.
 
-The supporting trunk proportions and the curved primary wood lineages
-are preserved. Tests additionally check that the central leader turns
-crownward and that the branching topology differs between seeds.
-All geometry uses a neutral material so the silhouette and remaining
-junction defects stay visible.
-
+Continuation sections are joined into continuous meshed tubes for each
+wood lineage. Lateral junctions still use overlapping shells and are not
+a unified manifold at the forks. The lower trunk remains about
+0.17–0.21 m in radius across seeds, with a subtle root flare and the
+same restrained shaft taper. Geometry remains plain shaded wood for
+inspection; leaf and bark materials are not generated.
 Only **Seed** and **New seed** control the generator. Whole tree, Inspect
 base, Inspect crown, Silhouette and Turntable are inspection views. This
 phase does not include leaves, textures, GLB export, placement, recipe

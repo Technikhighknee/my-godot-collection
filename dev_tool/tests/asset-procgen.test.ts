@@ -133,58 +133,61 @@ test('compact oak keeps a slim lower shaft and gradual, proportionate first limb
   }
 });
 
-test('compact crown shortens primary limb lineages without shrinking finer wood',()=>{
-  for(const seed of [0,1,55,101,19641,3350221335,4294967295]){
+test('short primary supports split early into longer secondary boughs',()=>{
+  for(const seed of [0,1,2,55,101,19641,3350221335,4294967295]){
     const tree=generateTree({seed}),trunk=tree.branches[0];
     const primary=tree.branches.filter(b=>b.level===1&&!b.continuation);
-    const parentMap=new Map(tree.branches.map(b=>[b.id,b]));
-    assert.equal(primary.length,4);
-    for(const limb of primary) {
-      assert.ok(limb.length>=1.5&&limb.length<2.70,
-        'Compact primary limbs must remain short, especially at low heights');
-      assert.ok(limb.length<trunk.length*.67,
-        'Major lateral limb must remain shorter than the supporting trunk');
-      const continuation=tree.branches.filter(b=>
-        b.continuation&&b.parentId===limb.id);
-      assert.equal(continuation.length,1);
-      assert.ok(continuation[0].length<1.45,
-        'The next continuation should not undo the compact primary limb');
-      assert.equal(parentMap.get(continuation[0].parentId!)?.id,limb.id);
-    }
     const secondary=tree.branches.filter(b=>b.level===2&&!b.continuation);
-    assert.ok(secondary.every(b=>b.length>=1.75&&b.length<=2.75),
-      'Fine crown branching stays developed rather than being cut down');
-    assert.ok(tree.branches.filter(b=>b.level===4).length>=25);
+    assert.equal(primary.length,4);
+    assert.ok(secondary.length>=5);
+    assert.ok(primary.every(b=>b.length>=1.05&&b.length<1.5),
+      'First-order supports stay short instead of forming long radial arms');
+    assert.ok(secondary.every(b=>b.length>=2.0&&b.length<3.1),
+      'The second growth order carries the reach of the crown');
+    const avg=arr=>arr.reduce((n,b)=>n+b.length,0)/arr.length;
+    assert.ok(avg(secondary)>avg(primary)*1.7,
+      'Second-order wood must be substantially longer than the first');
+    for(const support of primary){
+      const children=secondary.filter(b=>b.parentId===support.id);
+      assert.ok(children.length>=1,'Every primary support needs a lateral fork');
+      const first=Math.min(...children.map(b=>
+        Math.hypot(...b.from.map((v,i)=>v-support.from[i]))/support.length));
+      assert.ok(first<.45,
+        'The first secondary bough must emerge near the support base');
+      const continuation=tree.branches.filter(b=>
+        b.continuation&&b.parentId===support.id);
+      assert.equal(continuation.length,1);
+      assert.ok(continuation[0].length<1.65);
+      assert.ok(support.baseRadius/trunk.baseRadius>.60,
+        'Primary support must be substantial enough to carry the boughs');
+    }
     assert.ok(trunk.baseRadius>=.17&&trunk.baseRadius<=.21);
     assert.ok(trunk.tipRadius/trunk.baseRadius>.79);
+    assert.ok(tree.branches.filter(b=>b.level===4).length>=25);
   }
 });
 
-test('lower primary limbs start higher and carry less mass and reach',()=>{
-  for(const seed of [0,1,55,101,19641,3350221335,4294967295]){
+test('staggered primary attachments occupy independent directions',()=>{
+  const signatures=new Set<string>();
+  for(const seed of [0,1,2,3,55,101,19641,3350221335,4294967295]){
     const tree=generateTree({seed}),trunk=tree.branches[0];
-    const limbs=tree.branches.filter(b=>b.level===1&&!b.continuation)
+    const primary=tree.branches.filter(b=>b.level===1&&!b.continuation)
       .sort((a,b)=>a.from[1]-b.from[1]);
-    assert.equal(limbs.length,4);
-    const height=trunk.to[1]-trunk.from[1];
-    const anchors=limbs.map(b=>(b.from[1]-trunk.from[1])/height);
-    assert.ok(anchors[0]>.57,
-      'Lowest primary branch must not grow from the lower half of the clear stem');
-    assert.ok(anchors[3]<.86,
-      'Primary branch positions must remain within the carrying trunk');
-    for(let i=1;i<anchors.length;i++)
-      assert.ok(anchors[i]-anchors[i-1]>.02,
-        'Major attachments must remain vertically staggered');
-    assert.ok(limbs[0].length<2.15,
-      'Lowest primary branch needs reduced lateral reach');
-    assert.ok(limbs[0].baseRadius/trunk.baseRadius<.47,
-      'Lowest limb should carry less visual mass');
-    const continuation=tree.branches.filter(b=>
-      b.continuation&&b.parentId===limbs[0].id);
-    assert.equal(continuation.length,1);
-    assert.ok(continuation[0].length<1.17,
-      'The lowest branch continuation must not restore the excessive reach');
+    const heights=primary.map(b=>b.from[1]/trunk.to[1]);
+    assert.ok(heights[0]>.48 && heights[3]<.985);
+    assert.ok(heights.slice(1).every((v,i)=>v-heights[i]>.04));
+    const angles=primary.map(b=>
+      (Math.atan2(b.to[2]-b.from[2],b.to[0]-b.from[0])+2*Math.PI)%(2*Math.PI));
+    const sorted=[...angles].sort((a,b)=>a-b);
+    const gaps=sorted.map((v,i)=>
+      (sorted[(i+1)%sorted.length]-v+2*Math.PI)%(2*Math.PI));
+    assert.ok(gaps.every(v=>v>.6),
+      'Primary support directions must spread around the trunk');
+    const order=angles.map(angle=>sorted.indexOf(angle));
+    signatures.add(order.join('/'));
   }
+  assert.ok(signatures.size>=4,
+    'Height order must not be tied to a fixed azimuth order');
 });
 
 test('primary wood spreads laterally and bends rather than forming straight spikes',()=>{
@@ -196,8 +199,8 @@ test('primary wood spreads laterally and bends rather than forming straight spik
     for(const b of primary){
       const horizontal=Math.hypot(b.to[0]-b.from[0],b.to[2]-b.from[2]);
       const vertical=Math.abs(b.to[1]-b.from[1]);
-      assert.ok(horizontal>vertical,
-        'Major limbs must spread outwards rather than all pointing straight up');
+      assert.ok(horizontal>vertical*.85,
+        'Primary supports should spread, while some can climb more steeply');
     }
 
     // Wood is emitted once per non-continuation lineage. Its sections join
