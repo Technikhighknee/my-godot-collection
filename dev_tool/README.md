@@ -35,12 +35,14 @@ Tool home screen. Orbit with left drag, zoom with the wheel, pan with right
 drag, or focus the trunk base. Silhouette mode and turntable help compare
 shapes from multiple sides.
 
-The shape starts at the root collar and continues to a full-width upper
-growth boundary. Its upper end is deliberately **not** pinched into a point:
-branches and crown development will be addressed only after the trunk is
-accepted visually. The neutral preview is untextured. Parameters currently
-control trunk length, starting thickness, growth character, root buttresses
-and seed. Geometry testing checks integrity, but artistic acceptance requires
+The shape starts at the root collar and follows a curved growth axis. Its
+upper leader now narrows **gradually across the full stem**, controlled by the
+Stem taper slider. The tip retains a small, nonzero continuation radius rather
+than being compressed into a needle by an abrupt end modifier. **Inspect tip**
+frames this endpoint for close review. The tree's next growth stage and crown
+will not be addressed until the trunk is accepted visually. The neutral preview is untextured. Parameters currently
+control trunk length, starting thickness, overall taper, growth character,
+root buttresses and seed. Geometry testing checks integrity, but artistic acceptance requires
 looking at the actual result.
 
 There is no GLB export, material authoring, leaf system, tree placement, or
