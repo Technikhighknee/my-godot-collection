@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>1400 · Trunk Studio</title>
+<link rel="stylesheet" href="/dev-tool.css">
+<link rel="stylesheet" href="/tools/trunk-studio/style.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+<script type="module" src="/tools/trunk-studio/app.js"></script>
+</head>
+<body class="tr-page">
+<header class="tr-header">
+  <a class="dt-brand" href="/" aria-label="Return to Dev Tool home"><span class="dt-mark">14</span><span class="dt-brand-copy">1400 <strong>Dev Tool</strong><small>WORLD CREATION WORKSPACE</small></span></a>
+  <span class="tr-divider">/</span><span class="tr-title">Trunk Studio</span><span class="tr-purpose">WOOD STRUCTURE STUDY</span>
+  <div class="tr-header-actions">
+    <button id="load" type="button">Load recipe</button>
+    <button id="save" type="button">Save recipe</button>
+    <button id="export" class="tr-primary" type="button">Export GLB ↗</button>
+    <input id="recipeFile" type="file" accept=".json,application/json" hidden>
+  </div>
+</header>
+<main class="tr-layout">
+  <section class="tr-stage" aria-label="Interactive trunk preview">
+    <div class="tr-stage-head"><span class="tr-eyebrow">SINGLE SUBJECT / NO BRANCHES / NO FOLIAGE</span><strong id="viewName">Bark &amp; form</strong></div>
+    <div id="viewport" aria-label="3D oak trunk inspection viewport"></div>
+    <div class="tr-view-tools" aria-label="Rendering and camera controls">
+      <button type="button" data-look="bark" aria-pressed="true">Bark</button>
+      <button type="button" data-look="clay" aria-pressed="false">Clay</button>
+      <button type="button" data-look="wire" aria-pressed="false">Wire</button>
+      <span class="tr-tool-divider" aria-hidden="true"></span>
+      <button type="button" id="whole">Whole trunk</button>
+      <button type="button" id="base">Inspect base</button>
+      <button type="button" id="orbit" aria-pressed="false">Turntable</button>
+    </div>
+    <div class="tr-stage-bottom"><span>DRAG TO ORBIT · WHEEL TO ZOOM · RIGHT-DRAG TO PAN</span><span id="meshCount">—</span></div>
+    <div id="viewportError" role="alert" hidden></div>
+  </section>
+  <aside class="tr-controls">
+    <div class="tr-control-heading"><span class="tr-eyebrow">ONE THING, DONE WELL</span>
+      <h1>Just the trunk.</h1>
+      <p>No crown to hide the silhouette. No branches to disguise a poor transition. Inspect the wood itself.</p>
+    </div>
+    <label class="tr-field" for="name">ASSET NAME</label>
+    <input type="text" id="name" maxlength="60" spellcheck="false">
+    <div class="tr-seed-row"><label class="tr-field" for="seed">SEED</label><button id="random" type="button">Reseed ↻</button></div>
+    <input type="number" id="seed" min="0" max="4294967295" step="1">
+    <div class="tr-section"><span class="tr-eyebrow">PROPORTIONS</span>
+      <label class="tr-slider"><span>Height <output id="heightValue"></output></span><input data-param="height" type="range" min="5" max="18" step=".1"></label>
+      <label class="tr-slider"><span>Trunk radius <output id="radiusValue"></output></span><input data-param="radius" type="range" min=".18" max=".85" step=".01"></label>
+      <label class="tr-slider"><span>Taper <output id="taperValue"></output></span><input data-param="taper" type="range" min=".38" max=".82" step=".01"></label>
+      <label class="tr-slider"><span>Root flare <output id="flareValue"></output></span><input data-param="flare" type="range" min=".1" max=".85" step=".01"></label>
+    </div>
+    <div class="tr-section"><span class="tr-eyebrow">CHARACTER</span>
+      <label class="tr-slider"><span>Natural asymmetry <output id="characterValue"></output></span><input data-param="character" type="range" min="0" max="1" step=".01"></label>
+      <label class="tr-slider"><span>Bark depth <output id="barkValue"></output></span><input data-param="bark" type="range" min="0" max="1" step=".01"></label>
+    </div>
+    <div class="tr-bottom"><div id="status" role="status" aria-live="polite">Preparing trunk…</div><button id="reset" type="button">Restore defaults</button></div>
+  </aside>
+</main>
+</body>
+</html>
