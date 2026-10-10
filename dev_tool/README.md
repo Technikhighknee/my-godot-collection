@@ -42,11 +42,18 @@ turning back toward its original heading. Lateral attachment heights
 and compass directions are independently distributed across available
 sectors.
 
-The lower trunk stays slender, with gradually decreasing diameter and
-subtle root ridges. Continuing axes become one continuous meshed
-wood tube. Side-branch junctions remain intersecting tubes rather
-than a fully fused surface. This phase intentionally contains no
-foliage, bark texture, exported assets or additional authoring options.
+The lower trunk stays slender, with a restrained asymmetric root flare
+and slight longitudinal variation in its cross-section. The terminal
+shoots have deliberately uneven lengths and a broader range of
+departure angles; some end early instead of filling the crown with
+parallel upright tips.
+
+Continuing axes become one continuous meshed wood tube. The beginning
+of larger lateral shoots sits inside the supporting wood and gradually
+reaches its full section radius. Side-branch junctions remain intersecting
+surfaces rather than a fully fused wood volume. This phase intentionally
+contains no foliage, bark texture, exported assets or additional
+authoring options.
 
 Only **Seed** and **New seed** control the generator. Whole tree,
 Inspect base, Inspect crown, Silhouette and Turntable are inspection

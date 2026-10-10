@@ -62,8 +62,8 @@ function rootRidges(rng){
   const phase=rng()*TAU;
   return Array.from({length:5},(_,i)=>({
     angle:phase+i*TAU/5+(rng()-.5)*.24,
-    weight:.045+rng()*.045,
-    spread:.19+rng()*.13,
+    weight:.055+rng()*.055,
+    spread:.23+rng()*.13,
   }));
 }
 function initialDeviation(rng,level){
@@ -94,7 +94,11 @@ function growAxis({id,parentId,level,continuation,seededLength,radius,start,
     const drift=add(
       mul(basis.side,randomTurn+leanBias*.3),
       mul(basis.across,randomBend));
-    const sky=level===0?0:clamp(.006/Math.max(r,.008),0,.095);
+    // The youngest shoots can fan sideways; otherwise they all converge
+    // upward into parallel, brush-like tips at the crown top.
+    const sky=level===0?0:
+      level===3?clamp(.0025/Math.max(r,.008),0,.048):
+      clamp(.006/Math.max(r,.008),0,.095);
     const towardSky=sub(UP,mul(heading,dot(UP,heading)));
     heading=unit(add(add(heading,drift),mul(towardSky,sky)));
     origin=add(origin,mul(heading,stepLength));
@@ -142,13 +146,19 @@ function growTree(rng){
       const outward=unit(add(
         mul(basis.side,Math.cos(azimuth)),
         mul(basis.across,Math.sin(azimuth))));
-      const tilt=(CHILD_ANGLE[parent.level]+(rng()-.5)*7)*Math.PI/180;
+      // Young tip shoots do not all follow the same narrow cone.
+      const spread=parent.level===2?24:7;
+      const tilt=(CHILD_ANGLE[parent.level]+(rng()-.5)*spread)*Math.PI/180;
       const direction=unit(add(
         mul(attachment.tangent,Math.cos(tilt)),
         mul(outward,Math.sin(tilt))));
       const radiusScale=[.94,.72,.78][parent.level];
       const radius=attachment.radius*radiusScale*(.92+.16*rng());
-      const length=CHILD_LENGTH[parent.level]*(.92+.16*rng());
+      // Suppress the repeated long, upward-pointing terminal silhouette.
+      // Keep the number of shoots, but let some finish much sooner.
+      const length=parent.level===2
+        ? CHILD_LENGTH[2]*(rng()<.23 ? .46+.24*rng() : .76+.40*rng())
+        : CHILD_LENGTH[parent.level]*(.92+.16*rng());
       const child=growAxis({
         id:nextId++,parentId:parent.id,level,continuation:false,
         seededLength:length,radius,start:attachment.position,
@@ -174,26 +184,39 @@ function chainsFrom(axes){
   });
 }
 function flare(angle,height,roots){
-  if(height>.48)return 0;
-  let amount=.020*Math.exp(-Math.pow(height/.25,2));
+  if(height>.72)return 0;
+  // A low, uneven basal swelling: broad enough to read in silhouette, but
+  // not an exposed set of radial spikes.
+  let amount=.075*Math.exp(-Math.pow(height/.38,1.75));
   for(const root of roots){
     const d=Math.atan2(Math.sin(angle-root.angle),Math.cos(angle-root.angle));
     amount+=root.weight*Math.exp(-.5*Math.pow(d/root.spread,2))*
-      Math.exp(-Math.pow(height/.36,1.5));
+      Math.exp(-Math.pow(height/.44,1.65));
   }
   return amount;
 }
 function meshChain(chain,output){
   const sides=[14,10,7,4][chain.level],sections=chain.sections;
   const offset=output.positions.length/3;
-  for(const section of sections){
+  for(let sectionIndex=0;sectionIndex<sections.length;sectionIndex++){
+    const section=sections[sectionIndex];
     const tangent=section.tangent,basis=frame(tangent,section.side);
     const ringAcross=mul(basis.across,-1);
     for(let j=0;j<sides;j++){
       const angle=TAU*j/sides;
       const radial=add(mul(basis.side,Math.cos(angle)),mul(ringAcross,Math.sin(angle)));
-      const radius=section.radius*(1+(chain.level===0?
-        flare(angle,section.position[1],chain.roots):0));
+      // Bury the narrowest part of a lateral attachment within its
+      // supporting axis, then recover full diameter smoothly along the
+      // emerging wood. This avoids an exposed blunt cylinder end.
+      const collar=chain.level>0&&chain.level<3
+        ? .71+.29*Math.min(1,sectionIndex/3)
+        : 1;
+      const irregular=chain.level===0
+        ? .022*Math.sin(3*angle+section.position[1]*.42)+
+          .011*Math.sin(5*angle-section.position[1]*.31)
+        : 0;
+      const radius=section.radius*collar*(1+irregular+
+        (chain.level===0?flare(angle,section.position[1],chain.roots):0));
       output.positions.push(...add(section.position,mul(radial,radius)));
       output.normals.push(...radial);
     }

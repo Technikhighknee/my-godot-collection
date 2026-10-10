@@ -110,7 +110,11 @@ test('small oak builds crown reach with short supports and longer boughs',()=>{
     assert.equal(tips.length,45);
     assert.ok(first.every(b=>b.length>1.04&&b.length<1.36));
     assert.ok(second.every(b=>b.length>2.25&&b.length<2.73));
-    assert.ok(tips.every(b=>b.length>1.65&&b.length<1.96));
+    assert.ok(tips.every(b=>b.length>.82&&b.length<2.10));
+    assert.ok(tips.filter(b=>b.length<1.3).length>=3,
+      'Some fine shoots should finish early');
+    assert.ok(tips.filter(b=>b.length>1.7).length>=10,
+      'The crown should also contain longer fine shoots');
     const average=(axes:TreeMesh['branches'])=>axes.reduce((sum,b)=>sum+b.length,0)/axes.length;
     assert.ok(average(second)>average(first)*1.8);
     for(const support of first){
@@ -125,6 +129,47 @@ test('small oak builds crown reach with short supports and longer boughs',()=>{
       tree.bounds.max[2]-tree.bounds.min[2]);
     assert.ok(height>9&&height<13);
     assert.ok(width>5&&width<11.5);
+  }
+});
+
+test('basal flare and the first rings of emerging wood remain smooth',()=>{
+  for(const seed of SEEDS){
+    const tree=generateTree({seed}),p=tree.positions;
+    const children=new Map(tree.branches.filter(b=>b.continuation)
+      .map(b=>[b.parentId!,b]));
+    let vertex=0,checked=0;
+    for(const root of tree.branches.filter(b=>!b.continuation)){
+      let rings=root.rings,endpoint=root;
+      while(children.has(endpoint.id)){
+        endpoint=children.get(endpoint.id)!;
+        rings+=endpoint.rings-1;
+      }
+      const radius=(row:number)=>{
+        const center=[0,0,0];
+        for(let i=0;i<root.sides;i++)
+          for(let k=0;k<3;k++)
+            center[k]+=p[(vertex+row*root.sides+i)*3+k]/root.sides;
+        let sum=0;
+        for(let i=0;i<root.sides;i++)
+          sum+=Math.hypot(...[0,1,2].map(k=>
+            p[(vertex+row*root.sides+i)*3+k]-center[k]));
+        return sum/root.sides;
+      };
+      if(root.level===0){
+        const foot=radius(0),above=radius(5);
+        assert.ok(foot/root.baseRadius>1.08&&foot/root.baseRadius<1.20);
+        assert.ok(above<foot*.95,'Root swelling should stay near ground level');
+      } else if(root.level===1||root.level===2){
+        const samples=[0,1,2,3].map(radius);
+        assert.ok(samples[0]<root.baseRadius*.76);
+        assert.ok(samples.slice(1).every((r,i)=>r>samples[i]),
+          'Lateral wood must emerge without a sudden collar ring');
+        checked++;
+      }
+      vertex+=rings*root.sides+2;
+    }
+    assert.equal(checked,14);
+    assert.equal(vertex,p.length/3);
   }
 });
 
