@@ -37,7 +37,7 @@ export function resolveWoodStructure(skeleton,recipe) {
       let value=self*(1+.22*(1-t));
       for(const entry of descendants){
         const width=clamp(1.1/count,.045,.15);
-        value+=entry.flow*(1-smooth(entry.t-width,entry.t+width,t));
+        value+=entry.flow*(1-smooth(entry.t,entry.t+width,t));
       }
       profile.push(value);
     }
@@ -54,11 +54,28 @@ export function resolveWoodStructure(skeleton,recipe) {
     const last=b.points.length-1;
     b.radii=profile.map((flow,i)=>{
       const t=i/last;
-      // Close every axis organically without a hard cylindrical end cap.
-      const tip=1-.995*Math.pow(t,9);
-      return Math.max(.0018,scale*Math.pow(flow,1/POWER)*tip);
+      // The swept implicit field naturally rounds off the terminal tip.
+      return Math.max(.0018,scale*Math.pow(flow,1/POWER));
     });
     b.structuralLoad=flux.get(b.id).base;
+  }
+  // A child's woody tissue must join a parent cross section at least as
+  // substantial as the child's base. Correct sampling-scale undershoots with
+  // a short, smoothly shouldered collar around each attachment.
+  for(const child of [...branches].sort((a,b)=>b.generation-a.generation)){
+    if(child.parentId===null)continue;
+    const parent=byId.get(child.parentId);
+    const x=child.parentT*(parent.radii.length-1);
+    const first=Math.min(parent.radii.length-2,Math.floor(x));
+    const alpha=x-first;
+    const at=parent.radii[first]*(1-alpha)+parent.radii[first+1]*alpha;
+    const target=child.radii[0]*1.035;
+    if(at>=target)continue;
+    for(let i=Math.max(0,first-2);i<=Math.min(parent.radii.length-1,first+3);i++){
+      const distance=Math.abs(i-x);
+      const influence=distance<=1?1:Math.max(0,2.25-distance)/1.25;
+      parent.radii[i]=Math.max(parent.radii[i],target*influence);
+    }
   }
   return skeleton;
 }
