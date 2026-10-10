@@ -2,12 +2,11 @@ export interface StemSettings {
   seed: number;
   height: number;
   radius: number;
-  taper: number;
   character: number;
   buttress: number;
-  shaftHeight: number;
-  headMass: number;
-  asymmetry: number;
+  leaderStart: number;
+  leaderReach: number;
+  lean: number;
 }
 export interface StemMesh {
   settings: StemSettings;
