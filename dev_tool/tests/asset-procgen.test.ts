@@ -88,9 +88,13 @@ test('the main stem actually becomes an oblique leader, not a capped upright pos
   const apex=[m.positions[tip],m.positions[tip+1],m.positions[tip+2]];
   const foot=center(m,0);
   const sideways=Math.hypot(apex[0]-foot[0],apex[2]-foot[2]);
-  assert.ok(sideways>m.settings.height*.20,'Leader must visibly turn sideways');
+  assert.ok(sideways>m.settings.height*.075,'The leader must bend, but not into a sideways horn');
   assert.ok(apex[1]>m.settings.height*.95,'Leader must keep climbing');
-  assert.ok(width(m,m.rings-1)<width(m,0)*.07,'Tip must be slender');
+  assert.ok(width(m,m.rings-1)<width(m,0)*.35,'The remaining branch load must substantially thin the leader');
+  assert.ok(width(m,Math.floor(m.rings*.2))>width(m,0)*.75,
+    'The lower load-bearing shaft should remain relatively thick');
+  assert.ok(width(m,Math.floor(m.rings*.7))<width(m,Math.floor(m.rings*.4))*.88,
+    'Several latent branch departures should reduce the remaining area');
   assert.ok(width(m,m.rings-1)>0,'Terminal ring must retain valid geometry');
   const straight=generateStem({...DEFAULT_STEM,leaderReach:0,lean:0,character:0});
   const end=(straight.rings*(straight.sides+1)+1)*3;
@@ -98,20 +102,37 @@ test('the main stem actually becomes an oblique leader, not a capped upright pos
     'A zero-turn recipe must remain vertical');
 });
 
-test('leader onset and reach change the actual path, without shifting the root collar',()=>{
+test('seeded branch-load events reduce leader thickness while the bend remains localized',()=>{
+  const m=generateStem(),stride=m.sides+1;
   const early=generateStem({...DEFAULT_STEM,leaderStart:.25});
   const late=generateStem({...DEFAULT_STEM,leaderStart:.7});
   const weak=generateStem({...DEFAULT_STEM,leaderReach:.15});
   const strong=generateStem({...DEFAULT_STEM,leaderReach:1.4});
-  const bottom=(m:StemMesh)=>center(m,0);
-  assert.deepEqual(bottom(early),bottom(late));
-  assert.deepEqual(bottom(weak),bottom(strong));
+  const base=(mesh:StemMesh)=>center(mesh,0);
+  assert.deepEqual(base(early),base(late));
+  assert.deepEqual(base(weak),base(strong));
+  const offset=(mesh:StemMesh,row:number)=>Math.hypot(...[0,2].map(k=>
+    center(mesh,row)[k]-center(mesh,0)[k]));
   const mid=Math.floor(early.rings*.7);
-  assert.ok(center(early,mid)[0]>center(late,mid)[0]+.05,
-    'Early leader must have moved farther from the original growth axis');
-  const atTop=strong.rings-1;
-  assert.ok(center(strong,atTop)[0]>center(weak,atTop)[0]+1,
-    'Reach must change the path itself, not only radial relief');
+  assert.ok(offset(early,mid)>offset(late,mid)+.05,
+    'Earlier leader emergence must bend earlier');
+  const last=strong.rings-1;
+  assert.ok(offset(strong,last)>offset(weak,last)+.7,
+    'Reach must alter the spine itself');
+  for(const fraction of [.25,.45,.65,.85,.99]){
+    const row=Math.round((m.rings-1)*fraction);
+    assert.ok(width(m,row)>0);
+  }
+  assert.equal(m.indices.length/3,2*(m.rings-1)*m.sides+2*m.sides);
+});
+
+test('seeds vary leader direction instead of forcing every tree towards +X',()=>{
+  const stems=[0,55,101,1234].map(seed=>generateStem({...DEFAULT_STEM,seed}));
+  const tips=stems.map(m=>center(m,m.rings-1));
+  assert.ok(tips.some(p=>p[0]<-.2),'Some seeded leaders must head toward -X');
+  assert.ok(tips.some(p=>p[2]<-.2),'Some seeded leaders must head toward -Z');
+  assert.ok(tips.some(p=>p[0]>.2),'Some seeded leaders must head toward +X');
+  assert.notDeepEqual(stems[0].positions,stems[1].positions);
 });
 
 test('seed variation and parameter extremes retain valid oriented geometry',()=>{
