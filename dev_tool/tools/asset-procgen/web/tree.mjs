@@ -49,9 +49,12 @@ export function generateTree(recipe,{detail='full'}={}){
   const r=validateRecipe(recipe);
   const skeleton=growOak(r);
   const wood=meshWood(skeleton,r,detail);
-  const foliage=meshFoliage(skeleton,r);
+  const triangleBudget=200000;
+  // Keep the structural silhouette intact; spend the remaining triangle
+  // budget on foliage without rejecting valid, densely branched recipes.
+  const foliage=meshFoliage(skeleton,r,triangleBudget-wood.indices.length/3);
   const triangles=(wood.indices.length+foliage.mesh.indices.length)/3;
-  if(triangles>200000)throw new Error('Geometry complexity limit exceeded');
+  if(triangles>triangleBudget)throw new Error('Geometry budget invariant violated');
   return {recipe:r,skeleton,model:{wood,foliage:foliage.mesh},
     stats:{
       branches:skeleton.branches.length,
