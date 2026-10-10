@@ -3,10 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DEFAULT_STEM, generateStem } from './trunk.mjs';
 
 const byId = id => document.getElementById(id);
-const sliders = [...document.querySelectorAll('[data-key]')];
 const params = { ...DEFAULT_STEM };
 let renderer, camera, scene, controls, stem, spinning = false, silhouette = false;
-let pending = 0;
 
 function setupScene() {
   scene = new THREE.Scene();
@@ -127,30 +125,9 @@ function build() {
     console.error(e);
   }
 }
-function display() {
-  for (const slider of sliders) {
-    const key = slider.dataset.key;
-    slider.value = params[key];
-    byId(key + 'Value').textContent = key === 'height' || key === 'radius'
-      ? params[key].toFixed(2) + ' m'
-      : key === 'lean' ? (params[key] >= 0 ? '+' : '') + params[key].toFixed(2)
-      : Math.round(params[key] * 100) + '%';
-  }
+function displaySeed() {
   byId('seedValue').value = String(params.seed);
 }
-function queue() {
-  clearTimeout(pending);
-  pending = setTimeout(() => { pending = 0; build(); }, 90);
-}
-for (const slider of sliders) slider.addEventListener('input', () => {
-  const key = slider.dataset.key;
-  params[key] = Number(slider.value);
-  if (params.radius / params.height > .14) {
-    params.radius = Math.min(params.radius, params.height * .14);
-  }
-  display();
-  queue();
-});
 byId('seedValue').addEventListener('change', () => {
   const value = Number(byId('seedValue').value);
   if (!Number.isInteger(value) || value < 0 || value > 0xffffffff ||
@@ -160,19 +137,13 @@ byId('seedValue').addEventListener('change', () => {
     return;
   }
   params.seed = value;
-  display();
-  queue();
+  displaySeed();
+  build();
 });
 byId('reseed').addEventListener('click', () => {
   params.seed = crypto.getRandomValues(new Uint32Array(1))[0];
-  display();
-  queue();
-});
-byId('reset').addEventListener('click', () => {
-  Object.assign(params, DEFAULT_STEM);
-  display();
+  displaySeed();
   build();
-  focus('whole');
 });
 byId('whole').addEventListener('click', () => focus('whole'));
 byId('foot').addEventListener('click', () => focus('foot'));
@@ -188,7 +159,7 @@ byId('turntable').addEventListener('click', () => {
   spinning = !spinning;
   byId('turntable').setAttribute('aria-pressed', String(spinning));
 });
-try { display(); setupScene(); build(); focus('whole'); } catch (e) {
+try { displaySeed(); setupScene(); build(); focus('whole'); } catch (e) {
   byId('error').hidden = false;
   byId('error').textContent = e.message;
   byId('status').textContent = 'Viewport initialization failed';
