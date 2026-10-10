@@ -18,16 +18,23 @@ function random(seed) {
 
 export const DEFAULT_STEM = Object.freeze({
   seed: 55,
-  height: 7.9,
-  radius: 0.73,
-  taper: 0.78,
-  character: 1.18,
-  buttress: 0.9,
+  height: 6.3,
+  radius: 0.76,
+  taper: 0.62,
+  character: 1.1,
+  buttress: 0.78,
+  shaftHeight: 0.43,
+  headMass: 0.58,
+  asymmetry: 0.47,
 });
 
 export function validateStem(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw Error('Invalid stem settings');
-  const limits = { height: [5, 16], radius: [.28, 1], taper: [.35, .88], character: [0, 1.5], buttress: [0, 1.5] };
+  const limits = {
+    height: [5, 16], radius: [.28, 1], taper: [.35, .88],
+    character: [0, 1.5], buttress: [0, 1.5],
+    shaftHeight: [.28, .62], headMass: [0, 1], asymmetry: [0, 1],
+  };
   if (!Number.isInteger(input.seed) || input.seed < 0 || input.seed > 4294967295) throw Error('Invalid seed');
   for (const [key, [min, max]] of Object.entries(limits)) {
     if (typeof input[key] !== 'number' || !Number.isFinite(input[key]) || input[key] < min || input[key] > max) {
@@ -36,10 +43,21 @@ export function validateStem(input) {
   }
   if (input.radius / input.height > .14) throw Error('Stem is too wide for its height');
   return { seed: input.seed, height: input.height, radius: input.radius,
-    taper: input.taper, character: input.character, buttress: input.buttress };
+    taper: input.taper, character: input.character, buttress: input.buttress,
+    shaftHeight: input.shaftHeight, headMass: input.headMass, asymmetry: input.asymmetry };
 }
 
-function makeSpine(params, rng) {
+function growthStructure(rng) {
+  const first = rng() * TAU;
+  return {
+    first,
+    second: first + 2.25 + rng() * .75,
+    strength: .78 + .33 * rng(),
+    phase: Array.from({ length: 6 }, () => rng() * TAU),
+  };
+}
+
+function makeSpine(params, rng, structure) {
   const count = 12;
   const knots = [{ x: 0, y: 0, z: 0 }];
   const azimuth = rng() * TAU;
@@ -71,7 +89,15 @@ function makeSpine(params, rng) {
       h01 = -2*f3 + 3*f2, h11 = f3 - f2;
     const coordinate = k => h00*a[k] + h10*(b[k] - before[k])*.5 +
       h01*b[k] + h11*(after[k] - a[k])*.5;
-    return [coordinate('x'), t * params.height, coordinate('z')];
+    // The upper wood gradually follows its stronger future continuation.
+    const head = smooth(clamp((t - params.shaftHeight) /
+      (1 - params.shaftHeight), 0, 1));
+    const lean = params.radius * .27 * params.headMass * params.asymmetry * head;
+    return [
+      coordinate('x') + lean * Math.cos(structure.first),
+      t * params.height,
+      coordinate('z') + lean * Math.sin(structure.first),
+    ];
   }
   return sample;
 }
@@ -88,18 +114,48 @@ function rootBases(rng) {
   }));
 }
 
-function healedScars(rng, height) {
-  // The stem can carry old healed branch traces without generating any branches.
-  // Most years leave no large scar; keep these sparse and shallow.
-  const scars = [];
-  for (let i = 0; i < 3; i++) scars.push({
-    angle: rng() * TAU,
-    y: height * (.18 + .57 * (i + .24 * rng()) / 3),
-    width: .22 + rng() * .12,
-    length: .24 + rng() * .19,
-    depth: .017 + rng() * .018,
-  });
-  return scars;
+function radialBell(angle, direction, width) {
+  const d = wrap(angle - direction) / width;
+  return Math.exp(-.5 * d * d);
+}
+
+function radiusProfile(t, params) {
+  // The whole shaft participates in taper; there is no terminal pinch.
+  const loss = .48 * t + .33 * t * t + .19 * t * t * t;
+  return Math.max(.10, 1 - params.taper * loss);
+}
+
+function sectionForm(t, angle, params, structure) {
+  const { first, second, strength, phase } = structure;
+  const y = t * params.height;
+  const drift = .075 * Math.sin(y * .39 + phase[0]) +
+    .031 * Math.sin(y * .91 + phase[1]);
+
+  // Broad longitudinal cambial contours, not independent ring noise.
+  const broad = params.character * (
+    .040 * Math.cos(2 * angle + phase[2] + drift) +
+    .024 * Math.cos(3 * angle - phase[3] + drift * .67));
+  const fine = params.character * (
+    .007 * Math.cos(8 * angle + phase[4] + drift * 1.3) +
+    .003 * Math.cos(13 * angle - phase[5] + drift));
+
+  const headProgress = smooth(clamp((t - params.shaftHeight) /
+    (1 - params.shaftHeight), 0, 1));
+  // The shoulder flutes correspond to two prospective load paths. They blend
+  // into the cambium below, without producing any branches or attached lumps.
+  const lowerShoulder = Math.exp(-.5 * Math.pow((headProgress - .52) / .36, 2));
+  const upperShoulder = Math.exp(-.5 * Math.pow((headProgress - .82) / .33, 2));
+  const shoulder = params.headMass * (
+    .17 * strength * lowerShoulder *
+      radialBell(angle, first + .12 * drift, .66) +
+    .13 * upperShoulder *
+      radialBell(angle, second - .18 * drift, .60)
+  ) * smooth(clamp(headProgress / .18, 0, 1));
+
+  // An uneven flank and a coherent centerline drift make the head asymmetric.
+  const bias = params.asymmetry * (.015 + .065 * headProgress) *
+    Math.cos(angle - first + .25 * drift);
+  return broad + fine + shoulder + bias;
 }
 
 function frameAt(spine, t) {
@@ -114,56 +170,43 @@ function frameAt(spine, t) {
   return { center: spine(t), u: [ux, uy, 0], v: [vx / len, vy / len, vz / len] };
 }
 
-function createStemPoint(t, angle, params, spine, roots, scars, phases) {
-  const y = t * params.height, f = frameAt(spine, t);
-  // Growth continues through a progressively thinner leader. The entire
-  // stem participates in tapering; there is NO terminal pinching function.
-  // Derivative grows gradually with height, not abruptly at the last rings.
-  // A small nonzero end section remains for the next growth stage.
-  const taper = 1 - params.taper * (.62 * t + .38 * t * t);
-  const broadFoot = params.buttress * .11 * Math.exp(-Math.pow(y / 1.5, 1.7));
+function createStemPoint(t, angle, params, spine, roots, structure) {
+  const y = t * params.height;
+  const frame = frameAt(spine, t);
+  const baseRadius = params.radius * radiusProfile(t, params);
+  const broadFoot = params.buttress * .11 *
+    Math.exp(-Math.pow(y / 1.3, 1.65));
+
+  // Buttress ribs emerge under the surface and merge back into the shaft.
   let buttress = 0;
   for (const root of roots) {
-    const fade = Math.exp(-Math.pow(y / root.height, 1.4));
-    const width = root.width * (.54 + .46 * Math.exp(-y / .8));
-    const deviation = wrap(angle - root.angle - root.turn * (1 - Math.exp(-y / 1.4)));
-    const rib = Math.exp(-.5 * Math.pow(deviation / width, 2));
-    buttress += params.buttress * root.reach * .29 * fade * rib;
+    const fade = Math.exp(-Math.pow(y / root.height, 1.5));
+    const width = root.width * (.58 + .42 * Math.exp(-y / .85));
+    const deviation = wrap(angle - root.angle -
+      root.turn * (1 - Math.exp(-y / 1.3)));
+    buttress += params.buttress * root.reach * .24 * fade *
+      Math.exp(-.5 * Math.pow(deviation / width, 2));
   }
-  // Coherent longitudinal cambium contours. Frequencies are almost entirely
-  // circumferential; their phase meanders gently over height, never ring by ring.
-  const char = params.character;
-  const drift = .08 * Math.sin(y * .41 + phases[0]) + .033 * Math.sin(y * .93 + phases[1]);
-  const outer = .05 * char * Math.cos(3 * angle + phases[2] + drift) +
-    .027 * char * Math.cos(6 * angle - phases[3] + drift * 1.25);
-  const grainAngle = angle + drift * .36;
-  const relief = .014 * char * Math.cos(13 * grainAngle + phases[4]) +
-    .006 * char * Math.cos(27 * grainAngle - phases[5] + .05 * Math.sin(y * 1.6));
-  let healed = 0;
-  for (const scar of scars) {
-    const dx = wrap(angle - scar.angle) / scar.width;
-    const dy = (y - scar.y) / scar.length;
-    const dist = Math.hypot(dx, dy);
-    // Narrow raised callus around a depressed oval with a soft growth tail.
-    // It stays part of the cambial surface: no stuck-on knot cylinders.
-    const rim = Math.exp(-Math.pow((dist - 1.05) / .30, 2));
-    const eye = Math.exp(-dist * dist * 3);
-    const wake = Math.exp(-dx * dx * 2 - Math.pow((dy + 1.65) / 1.7, 2));
-    healed += scar.depth * (.64 * rim - .42 * eye + .19 * wake);
-  }
-  const r = params.radius * (taper * (1 + broadFoot + outer + relief) + buttress) + healed;
-  return [f.center[0] + r * (Math.cos(angle) * f.u[0] + Math.sin(angle) * f.v[0]),
-    f.center[1] + r * (Math.cos(angle) * f.u[1] + Math.sin(angle) * f.v[1]),
-    f.center[2] + r * (Math.cos(angle) * f.u[2] + Math.sin(angle) * f.v[2])];
+
+  const outline = sectionForm(t, angle, params, structure);
+  const r = baseRadius * (1 + broadFoot + outline) +
+    params.radius * buttress;
+  return [
+    frame.center[0] + r * (Math.cos(angle) * frame.u[0] +
+      Math.sin(angle) * frame.v[0]),
+    frame.center[1] + r * (Math.cos(angle) * frame.u[1] +
+      Math.sin(angle) * frame.v[1]),
+    frame.center[2] + r * (Math.cos(angle) * frame.u[2] +
+      Math.sin(angle) * frame.v[2]),
+  ];
 }
 
 export function generateStem(raw = DEFAULT_STEM) {
   const settings = validateStem(raw);
   const rng = random(settings.seed);
-  const spine = makeSpine(settings, rng);
   const roots = rootBases(rng);
-  const scars = healedScars(rng, settings.height);
-  const phases = Array.from({ length: 6 }, () => rng() * TAU);
+  const structure = growthStructure(rng);
+  const spine = makeSpine(settings, rng, structure);
   const vertical = 180, around = 104, stride = around + 1;
   const positions = new Float32Array(((vertical + 1) * stride + 2) * 3);
   const normals = new Float32Array(positions.length);
@@ -172,7 +215,7 @@ export function generateStem(raw = DEFAULT_STEM) {
     const t = j / vertical;
     for (let i = 0; i <= around; i++) {
       const angle = i === around ? 0 : TAU * i / around;
-      positions.set(createStemPoint(t, angle, settings, spine, roots, scars, phases), (j * stride + i) * 3);
+      positions.set(createStemPoint(t, angle, settings, spine, roots, structure), (j * stride + i) * 3);
     }
   }
   // Derivative normals follow both the axial wood sweep and real radial relief.
