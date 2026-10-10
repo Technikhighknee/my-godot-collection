@@ -92,7 +92,7 @@ function build() {
     const model = new THREE.Mesh(geometry, material);
     model.castShadow = true;
     model.receiveShadow = true;
-    model.material.color.setHex(silhouette ? 0x111f22 : 0xa49c8e);
+    model.material.color.setHex(silhouette ? 0x050909 : 0xa49c8e);
     if (stem) {
       scene.remove(stem);
       stem.geometry.dispose();
@@ -149,7 +149,9 @@ byId('foot').addEventListener('click', () => focus('foot'));
 byId('silhouette').addEventListener('click', () => {
   silhouette = !silhouette;
   byId('silhouette').setAttribute('aria-pressed', String(silhouette));
-  if (stem) stem.material.color.setHex(silhouette ? 0x111f22 : 0xa49c8e);
+  if (stem) stem.material.color.setHex(silhouette ? 0x050909 : 0xa49c8e);
+  scene.background.setHex(silhouette ? 0xaab9b0 : 0x18272a);
+  scene.fog.color.setHex(silhouette ? 0xaab9b0 : 0x18272a);
 });
 byId('turntable').addEventListener('click', () => {
   spinning = !spinning;
