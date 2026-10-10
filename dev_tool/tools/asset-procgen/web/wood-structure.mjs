@@ -28,7 +28,7 @@ export function resolveWoodStructure(skeleton,recipe) {
     const self=(b.generation===4?.50:.10)+b.vigor*(b.generation===4?.43:.12)+
       length/recipe.parameters.height*.16;
     const descendants=children.get(b.id).map(child=>({
-      child,t:child.parentT,flow:solve(child)
+      child,t:child.parentT,flow:solve(child).base
     }));
     const profile=[];
     const count=b.points.length-1;
