@@ -2,6 +2,7 @@
 // Independent intersecting cylinders cannot produce clean branch junctions.
 // A sparse narrow band keeps detail local to wood without voxelizing empty space.
 import { clamp } from './math.mjs';
+import { buildWoodPrimitives, woodDistance } from './wood-shape.mjs';
 
 const TETS=[
   [0,5,1,6],[0,1,2,6],[0,2,3,6],
@@ -17,34 +18,12 @@ const smoothUnion=(a,b,k)=>{
   return Math.min(a,b)-h*h*k*.25;
 };
 const vdist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
-function segmentsOf(skeleton,step) {
-  const segments=[];
-  for(const branch of skeleton.branches) {
-    if(branch.generation>3)continue;
-    const P=branch.points,R=branch.radii;
-    for(let i=0;i<P.length-1;i++){
-      const a=P[i],b=P[i+1];
-      const radiusA=Math.max(step*.47,R[i]),radiusB=Math.max(step*.47,R[i+1]);
-      const dx=b[0]-a[0],dy=b[1]-a[1],dz=b[2]-a[2];
-      const len2=dx*dx+dy*dy+dz*dz;
-      if(len2<1e-10)continue;
-      segments.push({
-        a,b,dx,dy,dz,len2,ra:radiusA,rb:radiusB,
-        id:branch.id,parent:branch.parentId,
-        root:branch.points[0],joinRadius:R[0],
-        min:[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.min(a[2],b[2])],
-        max:[Math.max(a[0],b[0]),Math.max(a[1],b[1]),Math.max(a[2],b[2])]
-      });
-    }
-  }
-  return segments;
-}
 export function meshWood(skeleton,recipe,detail='full') {
   if(!skeleton?.branches?.length)throw new Error('Missing wood skeleton');
   if(detail!=='full'&&detail!=='thumbnail')throw new Error('Unsupported mesh detail');
   const baseStep=clamp(Math.max(.052,recipe.parameters.trunkRadius*.21,recipe.parameters.height/180,recipe.parameters.crownRadius/100),.052,.24);
   const step=detail==='thumbnail'?baseStep*1.75:baseStep;
-  const segments=segmentsOf(skeleton,step);
+  const segments=buildWoodPrimitives(skeleton,recipe,step);
   // A snapped, six-connected interior spine prevents small branches from
   // disappearing between lattice samples and becoming detached wood islands.
   // Terminal shoots remain in the skeleton for leaves; the wood skin stops at
@@ -135,11 +114,7 @@ export function meshWood(skeleton,recipe,detail='full') {
     let d0=1e6,d1=1e6,id0=-1,id1=-1,s0=null,s1=null;
     if(bucket)for(const index of bucket){
       const s=segments[index];
-      const apx=px-s.a[0],apy=py-s.a[1],apz=pz-s.a[2];
-      const t=clamp((apx*s.dx+apy*s.dy+apz*s.dz)/s.len2,0,1);
-      const ox=apx-t*s.dx,oy=apy-t*s.dy,oz=apz-t*s.dz;
-      const radius=s.ra+(s.rb-s.ra)*t;
-      const distance=Math.sqrt(ox*ox+oy*oy+oz*oz)-radius;
+      const distance=woodDistance(s,px,py,pz);
       if(s.id===id0){if(distance<d0){d0=distance;s0=s;}}
       else if(s.id===id1){if(distance<d1){d1=distance;s1=s;}}
       else if(distance<d0){d1=d0;id1=id0;s1=s0;d0=distance;id0=s.id;s0=s;}
@@ -163,7 +138,8 @@ export function meshWood(skeleton,recipe,detail='full') {
     sampleCache.set(k,d);
     return d;
   }
-  const positions=[],indices=[],edgeCache=new Map();
+  let positions=[],indices=[];
+  const edgeCache=new Map();
   const coords=new Map();
   function corner(x,y,z){
     const k=key(x,y,z),found=coords.get(k);
@@ -224,6 +200,49 @@ export function meshWood(skeleton,recipe,detail='full') {
     }
   }
   if(inspected===0||indices.length===0)throw new Error('No wood surface was produced');
+  // Sub-grid tips can occasionally form tiny isolated surface islands where
+  // root ridges meet the ground. Retain the principal wood body, but reject
+  // any significant disconnection instead of silently losing a whole limb.
+  {
+    const count=positions.length/3;
+    const parents=new Int32Array(count);
+    for(let i=0;i<count;i++)parents[i]=i;
+    const find=(start)=>{
+      let i=start;
+      while(parents[i]!==i){parents[i]=parents[parents[i]];i=parents[i];}
+      return i;
+    };
+    for(let i=0;i<indices.length;i+=3){
+      const a=find(indices[i]),b=find(indices[i+1]),c=find(indices[i+2]);
+      parents[b]=a;parents[c]=a;
+    }
+    const counts=new Map();
+    for(let i=0;i<indices.length;i+=3){
+      const root=find(indices[i]);
+      counts.set(root,(counts.get(root)??0)+1);
+    }
+    if(counts.size>1){
+      const biggest=[...counts].sort((a,b)=>b[1]-a[1])[0];
+      const lost=indices.length/3-biggest[1];
+      if(lost>Math.max(100,indices.length/3*.005))
+        throw new Error('Wood surface contains disconnected structural limbs');
+      const remap=new Int32Array(count).fill(-1);
+      const keptPositions=[],keptIndices=[];
+      for(let i=0;i<indices.length;i+=3){
+        if(find(indices[i])!==biggest[0])continue;
+        for(let j=0;j<3;j++){
+          const old=indices[i+j];
+          if(remap[old]<0){
+            remap[old]=keptPositions.length/3;
+            keptPositions.push(positions[old*3],positions[old*3+1],positions[old*3+2]);
+          }
+          keptIndices.push(remap[old]);
+        }
+      }
+      positions=keptPositions;
+      indices=keptIndices;
+    }
+  }
   if(indices.length/3>170000)throw new Error('Wood surface exceeds triangle budget');
   // Area-weighted smooth normals. Every face shares welded intersection
   // vertices, including faces spanning the parent/child junction.
