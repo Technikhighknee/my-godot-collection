@@ -90,8 +90,8 @@ test('tree produces a branched woody crown and thin terminal twigs',()=>{
   const trunk=oak.branches[0];
   assert.ok(trunk.tipRadius/trunk.baseRadius>.30,
     'The main trunk must not end in a spike');
-  assert.equal(oak.branches.filter(b=>b.level===2).length,15);
-  assert.equal(oak.branches.filter(b=>b.level===3).length,45);
+  assert.ok(oak.branches.filter(b=>b.level===2).length>=12);
+  assert.ok(oak.branches.filter(b=>b.level===3).length>=28);
   assert.ok(oak.branches.filter(b=>b.level===4).length>=25);
   assert.ok(oak.branches.some(b=>b.level===4&&b.tipRadius<.01));
   assert.ok(oak.bounds.max[1]>7);
@@ -207,6 +207,54 @@ test('primary wood spreads laterally and bends rather than forming straight spik
       assert.ok(curves.get(branch.id)!>.10,
         'Each primary lineage must have visible curvature rather than a straight tube');
   }
+});
+
+test('main leader bends into the crown instead of remaining a vertical pole',()=>{
+  const seeds=[0,1,55,101,19641,3350221335,4294967295];
+  for(const seed of seeds){
+    const tree=generateTree({seed}),trunk=tree.branches[0];
+    const following=new Map(tree.branches.filter(b=>b.continuation)
+      .map(b=>[b.parentId!,b]));
+    const segments=[trunk];
+    let leader=trunk;
+    while(following.has(leader.id)){
+      leader=following.get(leader.id)!;
+      segments.push(leader);
+    }
+    assert.equal(segments.length,5,
+      'Trunk must carry a single continuous leader through the crown');
+    const displacement=Math.hypot(
+      leader.to[0]-trunk.to[0],leader.to[2]-trunk.to[2]);
+    assert.ok(displacement>1.1,
+      'Crown leader should progressively turn away from the trunk axis');
+    const upperGrowth=leader.to[1]-trunk.to[1];
+    assert.ok(upperGrowth>2.5,
+      'Crown leader must continue growing upward while turning sideways');
+    assert.ok(upperGrowth<4.5,
+      'Upper leader should not overtop a compact crown as a tall pole');
+    assert.ok(trunk.tipRadius/trunk.baseRadius>.79);
+  }
+});
+
+test('branch hierarchy varies between seeds without losing terminal growth',()=>{
+  const seeds=[0,1,55,101,19641,3350221335,4294967295];
+  const signatures=new Set<string>();
+  for(const seed of seeds){
+    const tree=generateTree({seed});
+    const counts=[0,1,2,3,4].map(level=>tree.branches.filter(b=>b.level===level).length);
+    assert.equal(counts[0],1);
+    assert.equal(counts[1],5);
+    assert.ok(counts[2]>=12 && counts[2]<=20);
+    assert.ok(counts[3]>=28 && counts[3]<=60);
+    assert.ok(counts[4]>=25 && counts[4]<=110);
+    signatures.add(counts.join('/'));
+    const continuationIds=new Set(tree.branches.filter(b=>b.continuation)
+      .map(b=>b.parentId));
+    assert.equal(continuationIds.size,tree.branches.filter(b=>b.continuation).length,
+      'Every parent has only one through-growing continuation');
+  }
+  assert.ok(signatures.size>=3,
+    'Tree form should vary through branching topology, not just rotations');
 });
 
 test('different seeds generate reproducible but distinct trees',()=>{

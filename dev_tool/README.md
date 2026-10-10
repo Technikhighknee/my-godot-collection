@@ -31,9 +31,12 @@ npm start -- ../map_system/example.map.json --port 4372
 The first implemented asset generator builds a compact deciduous tree from
 one numeric seed. The tree begins with one supporting trunk, which continues into a tapering
 leader while four large lateral limbs grow from staggered attachment heights.
-At each subsequent growth tier, an axis continues along its own tangent
-and produces smaller lateral shoots. This creates a multi-level crown
-structure rather than a trunk that ends in a spike.
+The main axis progressively arcs away from the vertical in the upper
+crown, rather than growing as a solitary tall pole. Its change of heading
+is gradual and seeded. Further growth tiers preserve a continuous main
+axis while making uneven numbers of lateral shoots according to their
+position in the crown. This creates a multi-level, asymmetric woody
+canopy instead of uniformly repeated forks.
 
 Continuation segments are fused into a single meshed tube for each wood
 lineage, rather than stacked capped cylinders. Side branches emerge from
@@ -50,9 +53,11 @@ independent seed-driven variation. Lateral shoots initially follow part
 of the parent's growth direction, then gradually diverge. Their
 attachment surfaces remain overlapping shells, not a unified junction mesh.
 
-These proportions and the curvature of the four primary wood lineages are
-checked across multiple deterministic seeds. All geometry uses a neutral
-material so the silhouette and remaining junction defects stay visible.
+The supporting trunk proportions and the curved primary wood lineages
+are preserved. Tests additionally check that the central leader turns
+crownward and that the branching topology differs between seeds.
+All geometry uses a neutral material so the silhouette and remaining
+junction defects stay visible.
 
 Only **Seed** and **New seed** control the generator. Whole tree, Inspect
 base, Inspect crown, Silhouette and Turntable are inspection views. This
