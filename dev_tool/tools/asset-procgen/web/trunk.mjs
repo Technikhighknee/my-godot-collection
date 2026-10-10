@@ -62,7 +62,7 @@ function growthPath(settings, rng) {
   const phase = rng() * TAU;
   // A seed can turn in ANY horizontal direction, rather than always +X.
   const azimuth = rng() * TAU;
-  const bendOnset = .53 + rng() * .15;
+  const bendOnset = clamp(settings.leaderStart + .08 + rng() * .15, .34, .85);
   const bendAngle = (.36 + rng() * .38) * settings.leaderReach;
   const count = 96;
   const knots = [[0, 0, 0]];
