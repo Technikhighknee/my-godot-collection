@@ -8,16 +8,27 @@
 
 ## Asset ProcGen
 
-Asset ProcGen builds a tree in three independent stages: an oak growth profile produces a
-hierarchical skeleton (trunk, four generations of branches, terminal shoots and
-leaf anchors); a unified wood-surface mesher constructs a closed implicit skin around the
-trunk and structural limbs; and a separate foliage mesher places individual
-lobed leaves along terminal shoots. Parent/child junctions share one
-contiguous mesh instead of intersecting, open-ended tubes. A grid-connected
-interior spine ensures narrow structural limbs remain part of the same solid;
-the finest terminal shoots remain in the skeleton but do not become thick
-volumetric spikes. Coarse shoot competition leaves
-natural gaps in the crown. There are no visible or hidden leaf-volume meshes.
+Asset ProcGen grows an oak with a deterministic hierarchical skeleton (trunk,
+four generations of branches, terminal shoots and leaf anchors). A separate
+structural pass derives the radius of each woody section from its downstream
+branch load. Branch attachments carry exact positions on their parent axes;
+a local collar correction prevents children from emerging wider than their
+supporting parent. Crown competition still produces natural open spaces.
+
+The wood field incorporates smooth centerlines, asymmetric ground-reaching
+root buttresses, tapered limbs and subtle trunk relief. A narrow-band
+implicit mesher extracts the entire trunk and structural branches as a single
+watertight skin. It preserves a connected interior spine at limited raster
+resolution, discards only small disconnected field artifacts, and rejects
+substantial detached above-ground branches. The finest terminal shoots remain
+in the skeleton for leaf placement rather than being inflated into visible
+voxel spikes. A separate foliage mesh contains individual lobed leaves.
+There are no hidden leaf-volume meshes.
+
+The generator is deterministic, but the current full-resolution implicit
+meshing is intended for authoring individual trees, not generating whole
+forests interactively. Exported GLB meshes can be reused as static assets;
+distant rendering and large forests still need a measured LOD strategy.
 
 In the viewport, **Full tree** is the default. **Wood only** hides the leaves,
 while **Skeleton** shows generation-colored branch centerlines for inspecting growth.
