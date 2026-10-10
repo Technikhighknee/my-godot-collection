@@ -60,29 +60,29 @@ export function validateStem(input) {
 // oblique; it continues in that direction instead of returning to vertical.
 function growthPath(settings, rng) {
   const phase = rng() * TAU;
-  const azimuth = (rng() - .5) * .52;
-  const maxBend = settings.leaderReach * .85;
+  // A seed can turn in ANY horizontal direction, rather than always +X.
+  const azimuth = rng() * TAU;
+  const bendOnset = .53 + rng() * .15;
+  const bendAngle = (.36 + rng() * .38) * settings.leaderReach;
   const count = 96;
-  const step = 1 / count;
   const knots = [[0, 0, 0]];
+
   for (let i = 1; i <= count; i++) {
-    const t = (i - .5) * step;
-    const progress = smooth(clamp((t - settings.leaderStart) /
-      (1 - settings.leaderStart), 0, 1));
-    const drift = settings.character * .032 *
-      (Math.sin(t * 5.1 + phase) - Math.sin(phase)) * t * (1 - .5*t);
-    const angle = settings.lean * .25 + maxBend * progress + drift;
-    const heading = azimuth + settings.character * .045 *
-      Math.sin(t * 2.9 + phase) * t;
-    const previous = knots[i - 1];
+    const t = (i - .5) / count;
+    const progress = smooth(clamp((t - bendOnset) / (.96 - bendOnset), 0, 1));
+    const smallDrift = settings.character * .025 *
+      Math.sin(t * 4.1 + phase) * t * (1 - t);
+    const angle = settings.lean * .08 + bendAngle * progress + smallDrift;
+    const heading = azimuth + settings.character * .05 *
+      Math.sin(t * 2.7 + phase * .7) * progress;
+    const prev = knots[i - 1], step = 1 / count;
     knots.push([
-      previous[0] + Math.sin(angle) * Math.cos(heading) * step,
-      previous[1] + Math.cos(angle) * step,
-      previous[2] + Math.sin(angle) * Math.sin(heading) * step,
+      prev[0] + Math.sin(angle) * Math.cos(heading) * step,
+      prev[1] + Math.cos(angle) * step,
+      prev[2] + Math.sin(angle) * Math.sin(heading) * step,
     ]);
   }
-  // 'height' is the vertical endpoint height. Scale all axes equally so
-  // the natural turn and tangent slopes are preserved.
+
   const scale = settings.height / knots[count][1];
   for (const p of knots) for (let k = 0; k < 3; k++) p[k] *= scale;
 
@@ -93,10 +93,10 @@ function growthPath(settings, rng) {
     const p0 = knots[Math.max(0, i - 1)], p1 = knots[i];
     const p2 = knots[i + 1], p3 = knots[Math.min(count, i + 2)];
     const a = 2*f3 - 3*f2 + 1, b = f3 - 2*f2 + f;
-    const c = -2*f3 + 3*f2, d = f3 - f2;
+    const cc = -2*f3 + 3*f2, d = f3 - f2;
     return [0, 1, 2].map(k =>
       a*p1[k] + .5*b*(p2[k] - p0[k]) +
-      c*p2[k] + .5*d*(p3[k] - p1[k]));
+      cc*p2[k] + .5*d*(p3[k] - p1[k]));
   }
   return { sample, azimuth, phase };
 }
@@ -140,40 +140,76 @@ function rootBases(rng) {
   }));
 }
 
-function trunkRadius(t, settings) {
-  // The trunk carries significant mass into the first half. Its upper half
-  // progressively becomes a slender continuation. This is one smooth
-  // profile, not a conical segment with a last-moment pointed modifier.
-  const grow = smooth(clamp((t - .14) / .86, 0, 1));
-  return settings.radius * (.018 + .982 * (1 - .10*t) * (1 - .985*grow));
+// Virtual branch departures describe where the main leader relinquishes
+// cross-sectional area. They affect geometry only: no branches are rendered.
+function latentBranchPlan(rng) {
+  const count = 11 + Math.floor(rng() * 4);
+  const first = .29 + rng() * .055;
+  const last = .965 + rng() * .015;
+  const events = [];
+  for (let i = 0; i < count; i++) {
+    const fraction = (i + .4*(rng() - .5)) / (count - 1);
+    const t = first + (last - first) * clamp(fraction, 0, 1);
+    const lostArea = .13 + .16*rng();
+    events.push({
+      t,
+      remainingArea: 1 - lostArea,
+      halfWidth: .012 + .008*rng(),
+    });
+  }
+  return events;
 }
 
-function sectionRadius(t, angle, settings, path, roots) {
+// A parent carries the sum of surviving leader and departed branch area.
+// Quasi-Leonardo scaling acts on AREA, hence radius scales with sqrt(area).
+function survivingArea(t, events) {
+  let ratio = 1;
+  for (const event of events) {
+    const progress = smooth(clamp((t - event.t + event.halfWidth) /
+      (2*event.halfWidth), 0, 1));
+    ratio *= 1 - (1 - event.remainingArea) * progress;
+  }
+  return ratio;
+}
+
+function trunkRadius(t, settings, events) {
+  // The low trunk retains its mass. Virtual branch loading becomes
+  // progressively relevant only once the crownward structure develops.
+  const gradualGrowth = 1 - .13*smooth(clamp((t - .12)/.75,0,1));
+  const area = survivingArea(t, events);
+  // No late needle factor: distal scale follows the remaining load.
+  return settings.radius * gradualGrowth * Math.sqrt(area);
+}
+
+function sectionRadius(t, angle, settings, path, roots, events) {
   const axialDistance = t * settings.height;
-  const flow = .09 * Math.sin(1.2 * axialDistance + path.phase) +
-    .04 * Math.sin(.52 * axialDistance + 2*path.phase);
+  const flow = .07*Math.sin(1.05*axialDistance + path.phase) +
+    .03*Math.sin(.46*axialDistance + 1.7*path.phase);
   const ridges = settings.character * (
-    .042 * Math.cos(3*angle + flow) +
-    .019 * Math.cos(5*angle - .6*flow) +
-    .006 * Math.cos(13*angle + .4*flow));
+    .028*Math.cos(3*angle + flow) +
+    .012*Math.cos(5*angle - .55*flow) +
+    .004*Math.cos(11*angle + .3*flow));
+
   let rootLoad = 0;
   for (const root of roots) {
-    const delta = wrap(angle - root.angle - .06*flow);
-    const width = root.width * (.7 + .3*Math.exp(-axialDistance/.75));
-    const footprint = Math.exp(-.5 * Math.pow(delta/width, 2));
-    rootLoad += settings.buttress * root.reach * .23 *
-      Math.exp(-Math.pow(axialDistance/root.height, 1.6)) * footprint;
+    const delta = wrap(angle - root.angle - .05*flow);
+    const width = root.width * (.72 + .28*Math.exp(-axialDistance/.75));
+    const footprint = Math.exp(-.5*Math.pow(delta/width, 2));
+    rootLoad += settings.buttress*root.reach*.22 *
+      Math.exp(-Math.pow(axialDistance/root.height, 1.55))*footprint;
   }
-  const collar = settings.buttress * .08 *
-    Math.exp(-Math.pow(axialDistance/.9, 1.6));
-  return Math.max(.005, trunkRadius(t, settings) * (1 + ridges + collar) +
-    settings.radius * rootLoad);
+  const collar = settings.buttress*.085 *
+    Math.exp(-Math.pow(axialDistance/.95, 1.55));
+  const loadRadius = trunkRadius(t, settings, events);
+  return Math.max(.0015, loadRadius*(1 + ridges + collar) +
+    settings.radius*rootLoad);
 }
 
 export function generateStem(raw = DEFAULT_STEM) {
   const settings = validateStem(raw);
   const rng = random(settings.seed);
   const roots = rootBases(rng);
+  const events = latentBranchPlan(rng);
   const path = growthPath(settings, rng);
 
   const rings = 201, sides = 96, stride = sides + 1;
@@ -187,7 +223,7 @@ export function generateStem(raw = DEFAULT_STEM) {
     const f = frameAt(path, t);
     for (let i = 0; i <= sides; i++) {
       const angle = i === sides ? 0 : TAU*i/sides;
-      const r = sectionRadius(t, angle, settings, path, roots);
+      const r = sectionRadius(t, angle, settings, path, roots, events);
       const co = Math.cos(angle), si = Math.sin(angle);
       const ix = (j*stride + i)*3;
       positions[ix] = f.center[0] + r*(co*f.u[0] + si*f.v[0]);
@@ -224,7 +260,7 @@ export function generateStem(raw = DEFAULT_STEM) {
   // A tiny continuation into the tangent closes the leader naturally.
   // Unlike the previous end cap, this is one apex rather than a cut face.
   positions.set(end.center.map((v,k) =>
-    v + end.tangent[k]*settings.radius*.048), apexIndex*3);
+    v + end.tangent[k]*Math.min(.03, settings.radius*.04)), apexIndex*3);
   normals.set(end.tangent, apexIndex*3);
   const last = (rings-1)*stride;
   for (let i = 0; i < sides; i++) indices.push(apexIndex,last+i+1,last+i);
