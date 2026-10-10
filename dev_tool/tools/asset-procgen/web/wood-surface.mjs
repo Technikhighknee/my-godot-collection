@@ -239,11 +239,16 @@ export function meshWood(skeleton,recipe,detail='full') {
       const lost=indices.length/3-biggest[1];
       if(lost>Math.max(100,indices.length/3*.005))
         throw new Error('Wood surface contains disconnected structural limbs');
-      // Detached micro-islands contain fewer than 60 triangles. They arise
-      // from undersampled field peaks, not from meaningful wood geometry.
-      // Any substantial independent component is a meshing error.
+      // Ignore small field islands and sub-grid root pieces clipped by the
+      // ground plane. A substantial detached piece above ground is a fault.
+      const highest=new Map();
+      for(let i=0;i<count;i++){
+        const id=find(i);
+        if(id===biggest[0])continue;
+        highest.set(id,Math.max(highest.get(id)??-Infinity,positions[i*3+1]));
+      }
       for(const [id,triangles] of counts)
-        if(id!==biggest[0] && triangles>60)
+        if(id!==biggest[0] && triangles>60 && highest.get(id)>step*.75)
           throw new Error('A structural branch became disconnected');
       const remap=new Int32Array(count).fill(-1);
       const keptPositions=[],keptIndices=[];
