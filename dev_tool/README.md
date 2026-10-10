@@ -5,6 +5,33 @@
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
 - **Asset ProcGen:** open from the home screen or at `/tools/asset-procgen/`. Generate a seeded broadleaf/oak mesh, compare four actual 3D-generated seed variants, save/load a versioned JSON recipe and export an independent glTF 2.0 binary (.glb) with bark/foliage primitives. The renderer and exported geometry share a pure deterministic generator. No Node dependencies beyond those already used by the Map Editor.
+- **Trunk Studio:** open from the home screen or `/tools/trunk-studio/`. A deliberately isolated, trunk-only geometry and bark workbench. Orbit the whole trunk or inspect its base, switch between bark, neutral clay and wireframe, reproduce a seed, and export a single-piece textured GLB. No branches or leaves are generated.
+
+## Trunk Studio
+
+The current quality gate is **one believable trunk**. Work on the trunk in
+isolation before extending its geometry to forks, branches or foliage. The
+existing tree generator is not a dependency of this workbench and is not
+changed by trunk edits.
+
+A trunk is constructed from an axial curve and 161 smooth cross sections,
+with 96 radial samples each. Cross-section radii combine continuous taper,
+a restrained flared base, uneven downward buttress ridges, low-frequency
+out-of-roundness and small longitudinal silhouette detail. There is no voxel
+field or grafted root mesh. End caps make the trunk a closed geometric body;
+UV seam vertices duplicate position and normal but not UV coordinates.
+
+Bark color and tangent-space normals come from two seeded repeatable RGBA
+textures using directed ridges, fissures and multi-scale detail. The browser
+uses the generated pixel buffers; GLB embeds the same pixels as PNG images
+together with UVs, normals, mesh indices and the saved recipe. Godot imports
+the exported GLB without a generator script. Appearance should be judged in
+the editor in both **Bark** and **Clay** mode, especially near the ground;
+passing geometry tests does not establish artistic acceptance.
+
+This standalone study does not add a tree species library, branch geometry,
+editor placement functionality, wind animation or a forest runtime. The
+previous tree generator remains separate until the trunk design is approved.
 
 ## Asset ProcGen
 
