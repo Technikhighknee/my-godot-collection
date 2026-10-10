@@ -32,6 +32,7 @@ test('trunk settings are bounded and no other generators leak into this phase',(
   assert.throws(()=>validateStem({...DEFAULT_STEM,seed:-1}));
   assert.throws(()=>validateStem({...DEFAULT_STEM,height:Infinity}));
   assert.throws(()=>validateStem({...DEFAULT_STEM,radius:2}));
+  assert.throws(()=>validateStem({...DEFAULT_STEM,taper:1}));
   assert.deepEqual(Object.keys(generateStem()).sort(),
     ['positions','normals','indices','rings','sides','settings'].sort());
 });
@@ -65,8 +66,40 @@ test('trunk has an uninterrupted radial seam and no manufactured needle tip',()=
     const k=row*stride*3;
     return Math.hypot(p[k]-p[center],p[k+1]-p[center+1],p[k+2]-p[center+2]);
   };
-  assert.ok(r(m.rings-1,top)>.25*r(0,base),'Upper stem must stay open for future growth');
+  assert.ok(r(m.rings-1,top)>.1*r(0,base),'Upper stem must retain a growth continuation radius');
+  assert.ok(r(m.rings-1,top)<.3*r(0,base),'Upper leader should not terminate as a broad sawn-off post');
   assert.ok(r(0,base)>m.settings.radius,'Root flare should not be a straight cylinder');
+});
+
+test('upper leader tapers continuously over the entire length instead of pinching near its cap',()=>{
+  const mesh=generateStem(),p=mesh.positions,stride=mesh.sides+1;
+  const radiusAt=(row:number)=>{
+    const center=[0,0,0];
+    for(let i=0;i<mesh.sides;i++)
+      for(let axis=0;axis<3;axis++)center[axis]+=p[(row*stride+i)*3+axis]/mesh.sides;
+    let sum=0;
+    for(let i=0;i<mesh.sides;i++){
+      const start=(row*stride+i)*3;
+      sum+=Math.hypot(...[0,1,2].map(axis=>p[start+axis]-center[axis]));
+    }
+    return sum/mesh.sides;
+  };
+  for(let row=1;row<mesh.rings;row++){
+    assert.ok(Math.abs(radiusAt(row)-radiusAt(row-1))<mesh.settings.radius*.065,
+      'Abrupt radius change between adjacent rings');
+  }
+  const narrow=generateStem({...DEFAULT_STEM,taper:.88});
+  const broad=generateStem({...DEFAULT_STEM,taper:.35});
+  const top=mesh.rings-1;
+  const radiusOf=(m:StemMesh)=>{
+    const i=top*(m.sides+1)*3;
+    const center=(m.rings*(m.sides+1)+1)*3;
+    return Math.hypot(m.positions[i]-m.positions[center],
+      m.positions[i+1]-m.positions[center+1],
+      m.positions[i+2]-m.positions[center+2]);
+  };
+  assert.ok(radiusOf(narrow)<radiusOf(broad)*.45,
+    'Taper slider must alter the actual stem, not only its appearance');
 });
 
 test('extreme settings remain closed and finite',()=>{
@@ -84,6 +117,8 @@ test('Asset ProcGen serves a real viewport without export or texture controls',a
   const html=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
   assert.match(html,/The trunk/);
   assert.match(html,/id="viewport"/);
+  assert.match(html,/id="tip"/);
+  assert.match(html,/data-key="taper"/);
   assert.doesNotMatch(html,/Export GLB|Save recipe|Load recipe/);
   const doc=await loadMap('../map_system/coastal_relief.map.json');
   const server=createEditorServer(doc);
