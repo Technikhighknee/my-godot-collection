@@ -53,7 +53,10 @@ function trunkFrame(recipe,y,roots) {
     y,
     bend*Math.sin(phase)+character*recipe.height*.0028*(Math.cos(t*4.1+phase)-Math.cos(phase))*t
   ];
-  const shaft=recipe.radius*(1-recipe.taper*Math.pow(t,.88));
+  // The free-standing study needs an actual terminal leader, not a sawn-off
+  // pole. Its final growth tip closes gradually over the upper crownward span.
+  const terminal=1-.93*smooth(clamp((t-.84)/.16,0,1));
+  const shaft=recipe.radius*(1-recipe.taper*Math.pow(t,.88))*terminal;
   const flare=recipe.flare*Math.exp(-Math.pow(Math.max(0,y)/(.72+recipe.radius*1.6),1.65));
   return {t,center,shaft,flare,phase,roots};
 }
