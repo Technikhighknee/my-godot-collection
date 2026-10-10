@@ -28,7 +28,7 @@ export function resolveWoodStructure(skeleton,recipe) {
     const self=(b.generation===4?.50:.10)+b.vigor*(b.generation===4?.43:.12)+
       length/recipe.parameters.height*.16;
     const descendants=children.get(b.id).map(child=>({
-      child,t:child.parentT,flow:solve(child).base
+      t:child.parentT,flow:solve(child).base
     }));
     const profile=[];
     const count=b.points.length-1;
@@ -51,9 +51,7 @@ export function resolveWoodStructure(skeleton,recipe) {
   const scale=recipe.parameters.trunkRadius/Math.pow(main.base,1/POWER);
   for(const b of branches){
     const profile=flux.get(b.id).profile;
-    const last=b.points.length-1;
-    b.radii=profile.map((flow,i)=>{
-      const t=i/last;
+    b.radii=profile.map((flow)=>{
       // The swept implicit field naturally rounds off the terminal tip.
       return Math.max(.0018,scale*Math.pow(flow,1/POWER));
     });
