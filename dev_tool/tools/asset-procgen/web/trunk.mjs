@@ -2,7 +2,6 @@
 // All variation belongs to the stem: its centerline, cambial outline and buttresses.
 const TAU = Math.PI * 2;
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
-const mix = (a, b, t) => a + (b - a) * t;
 const smooth = t => t * t * (3 - 2 * t);
 const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
 
@@ -18,7 +17,7 @@ function random(seed) {
 }
 
 export const DEFAULT_STEM = Object.freeze({
-  seed: 41709,
+  seed: 55,
   height: 7.9,
   radius: 0.73,
   character: 1.18,
