@@ -126,9 +126,14 @@ test('seed variation and parameter extremes retain valid oriented geometry',()=>
 test('Asset ProcGen still contains only the trunk and serves the existing editor',async()=>{
   const html=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
   assert.match(html,/id="viewport"/);
-  for(const key of ['leaderStart','leaderReach','lean'])
-    assert.match(html,new RegExp('data-key="'+key+'"'));
-  assert.doesNotMatch(html,/data-key="headMass"|data-key="taper"|Export GLB|Save recipe/);
+  assert.match(html,/id="seedValue" type="number"/);
+  assert.match(html,/id="reseed"/);
+  for(const id of ['whole','foot','tip','silhouette','turntable'])
+    assert.ok(html.includes('id="'+id+'"'), 'Missing camera control: '+id);
+  assert.doesNotMatch(html,/data-key=|type="range"|id="reset"|Export GLB|Save recipe/);
+  const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
+  assert.doesNotMatch(app,/\bsliders\b|data-key|id="reset"/);
+  assert.match(app,/generateStem\(params\)/);
   const doc=await loadMap('../map_system/coastal_relief.map.json');
   const server=createEditorServer(doc);
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
