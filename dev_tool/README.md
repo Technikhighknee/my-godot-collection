@@ -33,11 +33,18 @@ it generates exactly **one continuous growth path**: the main lower trunk
 curves upward and becomes its own dominant, oblique leader. No side branches
 are constructed. It is not a full tree or a production export.
 
-The centerline is integrated from a seeded, continuously changing growth
-direction. The circumference follows the tangent of that centerline, with
-a continuous radius profile and subtle lengthwise cambial irregularity.
-The leader tapers to a small terminal ring connected to a single apex, so
-the upper end is **not a broad flat capped post**.
+The centerline integrates a seeded growth direction that remains comparatively
+upright through the lower shaft and gradually turns crownward. The turn
+direction varies with the seed in all horizontal directions; no fixed
+rightward growth bias is applied.
+
+The radius now follows a series of **latent branch departures**. Those
+departures do not render any additional geometry, but each removes a
+share of the surviving leader's cross-sectional area. Radius therefore
+changes with the square root of the remaining area, rather than through
+a late, arbitrarily sharpened cone. The leader ends at a small
+tangent-aligned apex. This is a structural approximation, not a botanical
+simulation or a finished tree. Only the main path is rendered.
 
 The workbench deliberately exposes **only the seed**. Enter a value to
 reproduce the same shape or choose **New seed** to generate another. Stem
