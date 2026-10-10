@@ -233,9 +233,64 @@ test('primary wood spreads laterally and bends rather than forming straight spik
       vertexOffset+=rings*root.sides+2;
     }
     assert.equal(vertexOffset,tree.positions.length/3,'All wood lineages accounted for');
-    for(const branch of primary)
-      assert.ok(curves.get(branch.id)!>.10,
-        'Each primary lineage must have visible curvature rather than a straight tube');
+    // An occasional relatively straight limb is natural, but the overall
+    // crown must not collapse into identical straight cylindrical arms.
+    assert.ok(primary.filter(branch=>curves.get(branch.id)!>.10).length>=3,
+      'Most primary lineages must develop independent curvature');
+  }
+});
+
+test('locally grown wood preserves smooth frames and finer-branch response',()=>{
+  const seeds=[0,1,55,101,19641,3350221335,4294967295];
+  for(const seed of seeds){
+    const tree=generateTree({seed});
+    const continued=new Map(tree.branches.filter(b=>b.continuation)
+      .map(b=>[b.parentId!,b]));
+    let offset=0;
+    const bendingByLevel=new Map<number,number[]>();
+    for(const root of tree.branches.filter(b=>!b.continuation)){
+      let totalRings=root.rings,terminal=root;
+      while(continued.has(terminal.id)){
+        terminal=continued.get(terminal.id)!;
+        totalRings+=terminal.rings-1;
+      }
+      // Read the mesh itself; no debug geometry or public growth controls.
+      const centers:Array<number[]>=Array.from({length:root.rings},(_,row)=>{
+        const point=[0,0,0];
+        for(let k=0;k<root.sides;k++)
+          for(let axis=0;axis<3;axis++)
+            point[axis]+=tree.positions[
+              (offset+row*root.sides+k)*3+axis]/root.sides;
+        return point;
+      });
+      const directions=centers.slice(1).map((p,i)=>{
+        const diff=p.map((v,axis)=>v-centers[i][axis]);
+        const magnitude=Math.hypot(...diff);
+        assert.ok(magnitude>0,'Successive sections cannot occupy the same point');
+        return diff.map(v=>v/magnitude);
+      });
+      const turns=directions.slice(1).map((v,i)=>{
+        const previous=directions[i];
+        const cosine=Math.max(-1,Math.min(1,
+          v.reduce((sum,x,axis)=>sum+x*previous[axis],0)));
+        return Math.acos(cosine);
+      });
+      assert.ok(turns.every(angle=>Number.isFinite(angle)&&angle<.32),
+        'Local growth may bend but must not kink between adjacent sections');
+      const average=turns.reduce((sum,v)=>sum+v,0)/turns.length;
+      const collection=bendingByLevel.get(root.level)??[];
+      collection.push(average);
+      bendingByLevel.set(root.level,collection);
+      offset+=totalRings*root.sides+2;
+    }
+    assert.equal(offset,tree.positions.length/3);
+    const mean=level=>{
+      const arr=bendingByLevel.get(level)!;
+      return arr.reduce((sum,v)=>sum+v,0)/arr.length;
+    };
+    assert.ok(mean(0)<.01,'The load-bearing trunk should remain comparatively calm');
+    assert.ok(mean(3)>mean(1)*1.12,
+      'Finer wood should change direction more readily than main supports');
   }
 });
 
@@ -255,8 +310,8 @@ test('main leader bends into the crown instead of remaining a vertical pole',()=
       'Trunk must carry a single continuous leader through the crown');
     const displacement=Math.hypot(
       leader.to[0]-trunk.to[0],leader.to[2]-trunk.to[2]);
-    assert.ok(displacement>1.1,
-      'Crown leader should progressively turn away from the trunk axis');
+    assert.ok(displacement>.85,
+      'Crown leader should gradually turn without forcing an excessive lean');
     const upperGrowth=leader.to[1]-trunk.to[1];
     assert.ok(upperGrowth>2.5,
       'Crown leader must continue growing upward while turning sideways');

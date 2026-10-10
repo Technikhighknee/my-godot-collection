@@ -46,10 +46,13 @@ function sampleSection(branch, t) {
   const i = Math.min(n - 1, Math.floor(value));
   const f = value - i;
   const a = branch.sections[i], b = branch.sections[i + 1];
+  const tangent=unit(add(mul(a.tangent,1-f),mul(b.tangent,f)));
+  const side=add(mul(a.side,1-f),mul(b.side,f));
   return {
-    position: add(a.position, mul(sub(b.position, a.position), f)),
-    tangent: unit(add(mul(a.tangent, 1-f), mul(b.tangent, f))),
-    radius: lerp(a.radius, b.radius, f),
+    position:add(a.position,mul(sub(b.position,a.position),f)),
+    tangent,
+    side:unit(sub(side,mul(tangent,dot(side,tangent)))),
+    radius:lerp(a.radius,b.radius,f),
   };
 }
 
@@ -65,73 +68,83 @@ function footShape(angle, t, roots) {
 }
 
 function growBranch({position,direction,length,radius,level,rng,roots,id,parentId,
-  continuation=false,attachment=null,joinedTangent=null,central=false}) {
-  const count = [28,20,15,11,8][level];
-  const sections = [];
-  const phase = rng()*TAU, azimuth = rng()*TAU;
-  const target = unit(direction);
-  const frame = axisFrame(target);
-  const bendAxis = add(mul(frame[0],Math.cos(azimuth)),
-    mul(frame[1],Math.sin(azimuth)));
-
-  // A lateral shoot begins by following its parent's wood for a short
-  // distance. It emerges progressively rather than forming a straight
-  // cylinder that cuts across the supporting trunk.
-  const initial = joinedTangent ? unit(joinedTangent) :
-    attachment ? unit(add(mul(unit(attachment),.54),mul(target,.46))) : target;
-  const turnout = joinedTangent ? .52 :
-    level===1?.23:level===2?.20:.16;
-  const sideways = [0,.17,.22,.25,.24][level]*(rng()-.5);
-  const bendPhase = rng()*TAU;
-  const taper = [.18,.43,.64,.70,.84][level];
+  continuation=false,attachment=null,joinedTangent=null,central=false,initialSide=null}) {
+  const count=[28,20,15,11,8][level];
+  const taper=[.18,.43,.64,.70,.84][level];
+  const target=unit(direction);
+  const initial=joinedTangent?unit(joinedTangent):
+    attachment?unit(add(mul(unit(attachment),.46),mul(target,.54))):target;
+  const sections=[];
   let current=position,heading=initial;
+  let frameU=initialSide
+    ? unit(sub(initialSide,mul(initial,dot(initialSide,initial))))
+    : axisFrame(initial)[0];
+  const segmentLength=length/count;
+
+  // Directional impulses persist across several increments. They model
+  // uneven growth without imposing a prescribed sinusoidal centerline.
+  let driftU=(rng()-.5)*.8,driftV=(rng()-.5)*.8;
+  const personality=(rng()-.5)*2;
+  const phase=rng()*TAU;
+  const [biasU,biasV]=axisFrame(target);
+  const biasDirection=unit(add(mul(biasU,Math.cos(phase)),
+    mul(biasV,Math.sin(phase))));
 
   for(let i=0;i<=count;i++){
-    const t=i/count;
-    const profile=1-taper*(.22*t+.78*t*t);
-    sections.push({position:current,tangent:heading,radius:radius*profile,t});
+    const age=i/count;
+    const profile=1-taper*(.22*age+.78*age*age);
+    const sectionRadius=radius*profile;
+    frameU=unit(sub(frameU,mul(heading,dot(frameU,heading))));
+    sections.push({
+      position:current,tangent:heading,side:frameU,
+      radius:sectionRadius,t:age,
+    });
     if(i===count)break;
 
-    const age=(i+.5)/count;
-    const growOut=(attachment||joinedTangent) ?
-      smooth(clamp(age/turnout,0,1)):1;
-    const aim=(attachment||joinedTangent)
-      ? unit(add(mul(initial,1-growOut),mul(target,growOut)))
-      : target;
+    // Inherited tangent controls the beginning of a lateral shoot or a
+    // continuous leader. The intended branch heading emerges gradually.
+    const ageMid=(i+.5)/count;
+    const turnout=joinedTangent?.38:attachment?.16:0;
+    const blend=turnout?smooth(clamp(ageMid/turnout,0,1)):1;
+    const desired=unit(add(mul(initial,1-blend),mul(target,blend)));
 
-    // Older, longer limbs spread first, then lift toward light at their
-    // extremities. Short twigs retain more individual angular variation.
-    const lift=level===0?.018:
-      level===1?(-.12*(1-smooth(clamp(age/.52,0,1)))+
-        .30*smooth(clamp((age-.42)/.58,0,1))):
-      level===2?.08+.20*smooth(clamp((age-.38)/.62,0,1)):
-      .12+.15*smooth(clamp((age-.35)/.65,0,1));
-    const wave=Math.sin(phase+age*5.0) * Math.sin(Math.PI*age);
-    const lateral=sideways+.075*Math.sin(age*4.3+bendPhase)*
-      Math.sin(Math.PI*age)+[.006,.035,.058,.083,.10][level]*wave;
-    const steer=add(mul(UP,lift),mul(bendAxis,lateral));
-    // Thin wood turns toward the sky faster than load-bearing limbs.
-    // Remove the tangent component so the force changes direction only.
-    const segmentLength=length/count;
-    const upward=clamp(.008*segmentLength/Math.max(radius*profile,.008),0,.055);
-    const vertical=sub(UP,mul(heading,dot(UP,heading)));
-    heading=unit(add(
-      add(
-        add(heading,mul(sub(aim,heading),joinedTangent?.34:attachment?.67:.16)),
-        mul(steer,1.6/count)),
-      mul(vertical,level===0?0:upward)
-    ));
-    current=add(current,mul(heading,length/count));
+    // Disturbance grows as the wood becomes thinner. Correlated angular
+    // motion produces bends and occasional reversals, never sharp kinks.
+    driftU=clamp(.72*driftU+.28*(2*rng()-1),-.85,.85);
+    driftV=clamp(.72*driftV+.28*(2*rng()-1),-.85,.85);
+    // Parallel-transport the transverse direction; rebuilding a frame
+    // from a fixed world axis can flip it mid-branch.
+    const u=frameU;
+    const v=unit(cross(heading,u));
+    const noise=Math.min(.105,
+      [.005,.034,.054,.072,.082][level]*
+      Math.sqrt(.16/Math.max(sectionRadius,.008)));
+    const irregular=add(mul(u,driftU),mul(v,driftV));
+    const longArc=mul(biasDirection,
+      personality*[.008,.030,.033,.028,.022][level]*Math.sin(Math.PI*ageMid));
+
+    // Heavy supports are allowed to spread sideways; fine shoots respond
+    // more strongly to upward growth pressure.
+    const lift=[0,-.009,.007,.009,.011][level];
+    const sky=clamp((.008+lift)*segmentLength/
+      Math.max(sectionRadius,.009),0,.067);
+    const upward=sub(UP,mul(heading,dot(UP,heading)));
+    const crownTurn=(level===1?.003+.012*ageMid*ageMid:0);
+    const steer=add(
+      add(mul(irregular,noise),longArc),
+      mul(upward,level===0?0:sky+crownTurn));
+    const aimStrength=joinedTangent?.20:attachment?.60:.055;
+    heading=unit(add(add(heading,mul(sub(desired,heading),aimStrength)),steer));
+    current=add(current,mul(heading,segmentLength));
   }
   return {id,parentId,continuation,level,sections,
     roots:level===0?roots:[],phase,length,central};
 }
-
-function shootDirection(tangent, angle, tilt, origin, rng) {
+function shootDirection(tangent, side, angle, tilt, origin, rng) {
   // Branches share their parent's growth orientation, but occupy distinct
   // azimuths around the parent rather than falling into a single 2D plane.
-  const [u,v] = axisFrame(tangent);
-  const radial=add(mul(u,Math.cos(angle)),mul(v,Math.sin(angle)));
+  const radial=add(mul(side,Math.cos(angle)),
+    mul(unit(cross(tangent,side)),Math.sin(angle)));
   const initial=unit(add(mul(tangent,Math.cos(tilt)),mul(radial,Math.sin(tilt))));
   // Side branches keep their own outward direction while gradually lifting.
   const away=unit([origin[0],0,origin[2]]);
@@ -179,6 +192,7 @@ function growTree(rng) {
     const continueAxis=growBranch({
       position:atEnd.position,direction:heading,
       joinedTangent:parent.central?atEnd.tangent:null,
+      initialSide:atEnd.side,
       length:continuationLength,radius:atEnd.radius,level,
       rng,roots:[],id:id++,parentId:parent.id,continuation:true,
       central:parent.central,
@@ -209,10 +223,11 @@ function growTree(rng) {
       const anchor=sampleSection(parent,clamp(fraction,.05,.985));
       const azimuth=radialOffset+
         (sectors[k]+(rng()-.5)*.65)*TAU/lateralCount;
-      const degrees=level===1?50+rng()*8:
+      const degrees=level===1?54+rng()*10:
         level===2?52+rng()*12:level===3?29+rng()*10:24+rng()*13;
       const direction=shootDirection(
-        anchor.tangent,azimuth,degrees*Math.PI/180,anchor.position,rng);
+        anchor.tangent,anchor.side,azimuth,degrees*Math.PI/180,
+        anchor.position,rng);
       // Short primary supports split early into longer, finer boughs.
       // The crown comes from their descendants, not four long arms.
       const length=[0,1.27,2.52,1.72,.88][level]*
@@ -221,6 +236,7 @@ function growTree(rng) {
         level===2?.53+rng()*.12:level===3?.47+rng()*.12:.42+rng()*.11;
       const child=growBranch({
         position:anchor.position,direction,length,attachment:anchor.tangent,
+        initialSide:anchor.side,
         radius:anchor.radius*scale,level,rng,roots:[],
         id:id++,parentId:parent.id,continuation:false,central:false,
       });
@@ -260,12 +276,10 @@ function emitWood(branch, output) {
   const rings=branch.sections.length;
   const sides=[14,11,8,6,5][branch.level];
   const offset=output.positions.length/3;
-  let previous=axisFrame(branch.sections[0].tangent)[0];
   for(let j=0;j<rings;j++){
     const section=branch.sections[j],tangent=section.tangent;
-    const u=unit(sub(previous,mul(tangent,dot(previous,tangent))));
+    const u=section.side;
     const v=unit(cross(u,tangent));
-    previous=u;
     for(let i=0;i<sides;i++){
       const angle=i*TAU/sides;
       const radial=add(mul(u,Math.cos(angle)),mul(v,Math.sin(angle)));

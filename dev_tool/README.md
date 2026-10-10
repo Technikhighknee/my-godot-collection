@@ -36,12 +36,14 @@ along them and carries most of the crown's outward reach. Attachment
 height and compass direction vary independently, avoiding a repeated
 spiral or a fixed arrangement of low versus high limbs.
 
-Each growth level can produce a different number of offspring. Narrower
-branching angles toward the outer crown and a radius-dependent upward
-steering force give thin shoots a stronger upward response while allowing
-heavier wood to remain more horizontal. The center leader continues
-through the crown with gradual lateral curvature rather than ending as
-a straight pointed pole.
+Each branch now grows through successive short sections. Persistent,
+seeded changes in local direction accumulate into irregular wood paths;
+the sections are not sampled from a predefined bend or wave. The growth
+frame is transported continuously along the changing tangent, and child
+shoots inherit that local frame and direction before opening away from
+the supporting wood. Thickness-scaled upward growth lets small shoots
+react more strongly than the larger, load-bearing limbs. Branching
+angles and offspring numbers still vary across the crown.
 
 Continuation sections are joined into continuous meshed tubes for each
 wood lineage. Lateral junctions still use overlapping shells and are not
@@ -49,6 +51,7 @@ a unified manifold at the forks. The lower trunk remains about
 0.17–0.21 m in radius across seeds, with a subtle root flare and the
 same restrained shaft taper. Geometry remains plain shaded wood for
 inspection; leaf and bark materials are not generated.
+
 Only **Seed** and **New seed** control the generator. Whole tree, Inspect
 base, Inspect crown, Silhouette and Turntable are inspection views. This
 phase does not include leaves, textures, GLB export, placement, recipe
