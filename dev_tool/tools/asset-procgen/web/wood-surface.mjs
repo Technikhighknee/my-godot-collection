@@ -104,6 +104,19 @@ export function meshWood(skeleton,recipe,detail='full') {
     }
     if(active.size>950000)throw new Error('Wood meshing exceeds spatial budget');
   }
+  // Every forced interior spine sample must also be surrounded by extractable
+  // cubes. A branch thinner than one grid cell can otherwise have negative
+  // samples outside the rasterized narrow band and vanish between limbs.
+  for(const cell of occupied){
+    const [x,y,z]=cell.split(',').map(Number);
+    for(let dx=-1;dx<=0;dx++)
+      for(let dy=-1;dy<=0;dy++)
+        for(let dz=-1;dz<=0;dz++){
+          const a=[x+dx,y+dy,z+dz],k=key(...a);
+          if(!active.has(k))active.set(k,a);
+        }
+  }
+  if(active.size>950000)throw new Error('Wood meshing exceeds spatial budget');
   const sampleCache=new Map();
   function sample(x,y,z){
     const k=key(x,y,z);
