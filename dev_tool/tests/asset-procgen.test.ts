@@ -72,7 +72,8 @@ test('oak wood loads and branch collars follow the growth hierarchy', () => {
     const tree=generateSkeleton(recipe);
     const byId=new Map(tree.branches.map(b=>[b.id,b]));
     const trunk=byId.get(1)!;
-    assert.ok(Math.abs(trunk.radii[0]-recipe.parameters.trunkRadius)<1e-10);
+    assert.ok(trunk.radii[0]>recipe.parameters.trunkRadius*1.4);
+    assert.ok(trunk.radii[1]<trunk.radii[0]);
     for (const branch of tree.branches) {
       assert.ok(branch.structuralLoad>0 && Number.isFinite(branch.structuralLoad));
       if (branch.parentId===null)continue;
