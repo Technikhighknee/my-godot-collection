@@ -19,14 +19,17 @@
 <main class="pg-workspace">
   <nav class="pg-library" aria-label="Asset generators">
     <div class="pg-overline">GENERATORS</div>
-    <div class="pg-generator" aria-current="page">
-      <span class="pg-symbol">♠</span><span><strong>Oak tree</strong><small>Oak wood geometry</small></span>
-    </div>
-    <div class="pg-library-foot">A seeded tree architecture. Wood first; surface and foliage later.</div>
+    <button id="oakGenerator" class="pg-generator" type="button" aria-pressed="false">
+      <span class="pg-symbol" aria-hidden="true">♠</span><span><strong>Oak tree</strong><small>Oak wood geometry</small></span>
+    </button>
+    <button id="firGenerator" class="pg-generator" type="button" aria-pressed="true" aria-current="page">
+      <span class="pg-symbol" aria-hidden="true">♣</span><span><strong>Fir tree</strong><small>Fir wood geometry</small></span>
+    </button>
+    <div class="pg-library-foot">Seeded tree architectures. Structure first; surface and foliage later.</div>
   </nav>
   <section class="pg-stage" aria-label="3D asset preview">
     <div class="pg-stage-label"><span class="pg-dot"></span> LIVE GEOMETRY <span class="pg-stage-separator">/</span> <span>WOOD ONLY</span></div>
-    <div id="viewport" aria-label="Interactive 3D oak tree wood preview"></div>
+    <div id="viewport" aria-label="Interactive 3D fir wood preview"></div>
     <div class="pg-camera-tools">
       <button id="whole" type="button">Whole tree</button>
       <button id="foot" type="button">Inspect base</button>
@@ -38,9 +41,15 @@
     <div id="error" role="alert" hidden></div>
   </section>
   <aside class="pg-settings" aria-label="Asset preview">
-    <span class="pg-overline">OAK / WOOD GEOMETRY</span>
-    <h1>Oak wood.</h1>
-    <p>A small oak grown from a seed: trunk, major limbs, finer branches and twigs. No foliage, bark texture or export.</p>
+    <label class="pg-mobile-choice" for="speciesSelect">SPECIES
+      <select id="speciesSelect" aria-label="Tree species">
+        <option value="oak">Oak tree</option>
+        <option value="fir" selected>Fir tree</option>
+      </select>
+    </label>
+    <span id="assetOverline" class="pg-overline">FIR / WOOD GEOMETRY</span>
+    <h1 id="assetTitle">Fir wood.</h1>
+    <p id="assetDescription">A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood only; no needles, bark texture or export.</p>
     <div class="pg-settings-title"><span>VARIATION</span></div>
     <label class="pg-seed" for="seedValue"><span>SEED</span>
       <input id="seedValue" type="number" min="0" max="4294967295" step="1" aria-label="Tree seed">

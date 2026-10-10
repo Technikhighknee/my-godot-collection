@@ -26,7 +26,14 @@ Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Edit
 npm start -- ../map_system/example.map.json --port 4372
 ```
 
-## Asset ProcGen — oak wood structure
+## Asset ProcGen — wood generators
+
+Choose **Oak** or **Fir** in the generator library. The current species
+uses one unsigned integer seed, with no growth-parameter panel. Both
+species are inspected through the same 3D viewport and camera tools.
+The oak's accepted geometry is preserved.
+
+### Oak wood structure
 
 The oak is generated from one numeric seed. Its wood skeleton has four
 growth orders, including the main trunk. Each nonterminal wood axis
@@ -71,7 +78,29 @@ surfaces rather than a fully fused wood volume. This phase intentionally
 contains no foliage, bark texture, exported assets or additional
 authoring options.
 
-Only **Seed** and **New seed** control the generator. Whole tree,
+The oak retains its own seed-only growth algorithm and geometry. No
+leaf or surface generation is enabled yet.
+
+### Young fir wood structure
+
+The fir has a single upright leader and eleven offset annual whorls.
+Longer, mostly horizontal boughs make the lower crown; younger, shorter
+boughs slope more upward toward the top. Branch lengths and attachment
+heights vary within each whorl, so the crown does not consist of
+perfectly repeated rings.
+
+Fine second-order shoots spread sideways from each supporting bough
+in relatively flat sprays. The terminal twigs taper to narrow tips.
+This is an intentionally different architecture, not a resized oak.
+The generator remains deterministic and exports the same in-memory
+wood mesh interface as the oak.
+
+Both meshes currently use closed tubes for individual woody axes;
+parent-child intersections are not fused into one watertight volume.
+Needles, leaf meshes, bark materials, asset exports and extra user
+parameters are deferred.
+
+**Seed** and **New seed** control the selected species. Whole tree,
 Inspect base, Inspect crown, Silhouette and Turntable are inspection
 views. The Map Editor and game assets remain unchanged.
 

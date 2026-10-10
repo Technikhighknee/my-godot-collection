@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DEFAULT_TREE, generateTree } from './tree.mjs';
+import { generateFir } from './fir.mjs';
 
 const byId = id => document.getElementById(id);
 const settings = { ...DEFAULT_TREE };
+let species = 'fir';
 let renderer, camera, scene, controls, wood, extents;
 let spinning = false, silhouette = false;
 
@@ -90,7 +92,7 @@ function focus(mode) {
 function build() {
   try {
     const started=performance.now();
-    const result=generateTree(settings);
+    const result=species==='fir'?generateFir(settings):generateTree(settings);
     const geometry=new THREE.BufferGeometry();
     geometry.setAttribute('position',new THREE.BufferAttribute(result.positions,3));
     geometry.setAttribute('normal',new THREE.BufferAttribute(result.normals,3));
@@ -123,6 +125,31 @@ function build() {
     console.error(error);
   }
 }
+function selectSpecies(next){
+  if(next!=='fir'&&next!=='oak')return;
+  species=next;
+  const isFir=next==='fir';
+  for(const kind of ['oak','fir']){
+    const button=byId(kind+'Generator');
+    const selected=kind===next;
+    button.setAttribute('aria-pressed',String(selected));
+    if(selected)button.setAttribute('aria-current','page');
+    else button.removeAttribute('aria-current');
+  }
+  byId('speciesSelect').value=next;
+  byId('assetOverline').textContent=isFir?'FIR / WOOD GEOMETRY':'OAK / WOOD GEOMETRY';
+  byId('assetTitle').textContent=isFir?'Fir wood.':'Oak wood.';
+  byId('assetDescription').textContent=isFir
+    ?'A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood only; no needles, bark texture or export.'
+    :'A small oak grown from a seed: trunk, major limbs, finer branches and twigs. No foliage, bark texture or export.';
+  byId('viewport').setAttribute('aria-label',
+    isFir?'Interactive 3D fir wood preview':'Interactive 3D oak tree wood preview');
+  build();
+  focus('whole');
+}
+for(const kind of ['oak','fir'])
+  byId(kind+'Generator').addEventListener('click',()=>selectSpecies(kind));
+byId('speciesSelect').addEventListener('change',e=>selectSpecies(e.target.value));
 byId('seedValue').addEventListener('change',()=>{
   const field=byId('seedValue'),value=Number(field.value);
   if (!Number.isInteger(value)||value<0||value>0xffffffff||field.value.trim()==='') {
@@ -156,8 +183,7 @@ byId('turntable').addEventListener('click',()=>{
 try {
   byId('seedValue').value=String(settings.seed);
   setupScene();
-  build();
-  focus('whole');
+  selectSpecies(species);
 } catch(error) {
   byId('error').hidden=false;
   byId('error').textContent=error.message;

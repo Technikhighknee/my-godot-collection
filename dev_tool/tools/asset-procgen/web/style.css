@@ -2,14 +2,16 @@
 :root{color-scheme:dark}
 .pg-page{margin:0;background:#111b1e;color:#e8ece7;font-family:"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 .pg-page button{font:inherit;cursor:pointer}
-.pg-page button:focus-visible,.pg-page a:focus-visible,.pg-page input:focus-visible{outline:2px solid #ddb98a;outline-offset:3px}
+.pg-page button:focus-visible,.pg-page a:focus-visible,.pg-page input:focus-visible,.pg-page select:focus-visible{outline:2px solid #ddb98a;outline-offset:3px}
 .pg-header{height:70px;padding:0 28px;display:flex;align-items:center;gap:18px;background:#152124;border-bottom:1px solid #324347}
 .pg-divider{color:#607477;font-size:22px}.pg-header-title{font-weight:700;font-size:14px}.pg-header-status{margin-left:auto;color:#869c9b;font-weight:700;letter-spacing:.13em;font-size:10px}
 .pg-workspace{display:grid;grid-template-columns:208px minmax(0,1fr) 295px;height:calc(100vh - 70px);min-height:570px}
 .pg-library{background:#172326;border-right:1px solid #344649;padding:30px 12px;display:flex;flex-direction:column;gap:19px}
 .pg-overline{font-weight:750;letter-spacing:.16em;font-size:10px;color:#b4a17f}
 .pg-library>.pg-overline{padding:0 10px}
-.pg-generator{padding:13px 10px;background:#2c3937;border:1px solid #6c7460;border-radius:8px;display:flex;align-items:center;gap:11px}
+.pg-generator{width:100%;padding:13px 10px;background:transparent;color:inherit;text-align:left;border:1px solid transparent;border-radius:8px;display:flex;align-items:center;gap:11px}
+.pg-generator[aria-current="page"]{background:#2c3937;border-color:#6c7460}
+.pg-generator:hover{background:#293735;border-color:#52645b}
 .pg-generator strong{display:block;font-size:12px;color:#ecebdd}.pg-generator small{display:block;font-size:10px;line-height:1.45;color:#a6b5ae;margin-top:5px}
 .pg-symbol{display:grid;place-items:center;flex:none;height:34px;width:34px;border:1px solid #75826b;border-radius:7px;background:#364638;color:#dfca9a;font-size:20px}
 .pg-library-foot{margin-top:auto;padding:14px 10px 0;border-top:1px solid #344649;font-size:11px;line-height:1.8;color:#819697}
@@ -25,6 +27,8 @@
 .pg-viewport-footer b{padding:0 8px;color:#c6aa83}
 #error{position:absolute;z-index:4;bottom:52px;left:20px;padding:14px;background:#502d2b;color:#ffebe6;border:1px solid #a46e67}
 .pg-settings{background:#1b292b;border-left:1px solid #3b4d4e;padding:30px 23px;overflow-y:auto;display:flex;flex-direction:column}
+.pg-mobile-choice{display:none;align-items:center;justify-content:space-between;gap:12px;margin:0 0 22px;font-size:10px;letter-spacing:.14em;color:#b4a17f;font-weight:750}
+.pg-mobile-choice select{min-width:0;max-width:165px;border:1px solid #536760;background:#122022;color:#e8ddca;padding:9px 12px;border-radius:6px;font:600 12px "Segoe UI",system-ui,sans-serif;letter-spacing:normal}
 .pg-settings h1{font:500 34px/1.1 Georgia,serif;color:#e9ddc9;margin:16px 0 12px;letter-spacing:-.04em}
 .pg-settings p{margin:0 0 27px;font-size:12px;color:#9caeaa;line-height:1.8}
 .pg-settings-title{border-top:1px solid #394b4b;padding-top:21px;color:#c3b69d;font-size:10px;font-weight:750;letter-spacing:.14em}
@@ -35,5 +39,5 @@
 .pg-settings-bottom{display:flex;flex-direction:column;gap:14px;margin-top:auto;padding-top:30px}
 #status{font-size:11px;color:#9eb5ac}
 @media(max-width:1120px){.pg-workspace{grid-template-columns:165px minmax(0,1fr) 265px}.pg-library{padding:24px 7px}.pg-settings{padding:24px 17px}}
-@media(max-width:830px){.pg-workspace{grid-template-columns:minmax(0,1fr) 265px}.pg-library{display:none}.pg-stage{min-height:530px}.pg-header-status{display:none}}
+@media(max-width:830px){.pg-workspace{grid-template-columns:minmax(0,1fr) 265px}.pg-library{display:none}.pg-mobile-choice{display:flex}.pg-stage{min-height:530px}.pg-header-status{display:none}}
 @media(max-width:610px){.pg-header{height:60px;padding:0 13px;gap:10px}.pg-header-title{font-size:12px}.pg-workspace{display:block;height:auto;min-height:0}.pg-stage{height:62vh;min-height:420px}.pg-settings{border:0;border-top:1px solid #3b4d4e}.pg-camera-tools{top:46px;right:8px}.pg-camera-tools button{padding:7px;font-size:10px}.pg-stage-label{left:13px;top:17px;font-size:9px}.pg-viewport-footer{left:12px;right:12px;font-size:8px}.pg-viewport-footer span:first-child{max-width:66%}}
