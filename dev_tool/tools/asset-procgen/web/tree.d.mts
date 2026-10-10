@@ -4,6 +4,7 @@ export interface TreeSettings {
 export interface WoodAxis {
   id: number;
   parentId: number | null;
+  continuation: boolean;
   level: number;
   length: number;
   baseRadius: number;

@@ -13,6 +13,9 @@ function checkGeometry(tree:TreeMesh) {
   assert.ok(tree.indices.length/3<200000);
   assert.equal(tree.branches[0].parentId,null);
   assert.equal(tree.branches[0].level,0);
+  const rootCount=tree.branches.filter(b=>!b.continuation).length;
+  assert.ok(rootCount<tree.branches.length,
+    'Terminal growth must be meshed continuously rather than capped per tier');
   const present=new Map(tree.branches.map(b=>[b.id,b]));
   const levels=new Set<number>();
   for(const branch of tree.branches){
@@ -20,6 +23,7 @@ function checkGeometry(tree:TreeMesh) {
     assert.ok(branch.baseRadius>0 && branch.tipRadius>0);
     assert.ok(branch.tipRadius<branch.baseRadius);
     assert.ok(branch.length>0);
+    assert.equal(typeof branch.continuation,'boolean');
     if(branch.parentId!==null){
       const parent=present.get(branch.parentId);
       assert.ok(parent);
@@ -71,7 +75,23 @@ test('seed is the only public shape setting',()=>{
 test('tree produces a branched woody crown and thin terminal twigs',()=>{
   const oak=generateTree();
   checkGeometry(oak);
-  assert.equal(oak.branches.filter(b=>b.level===1).length,5);
+  // A terminal continuation plus four distinct lateral growth axes.
+  const first=oak.branches.filter(b=>b.level===1);
+  assert.equal(first.length,5);
+  assert.equal(first.filter(b=>b.continuation).length,1);
+  assert.equal(first.filter(b=>!b.continuation).length,4);
+  const byId=new Map(oak.branches.map(b=>[b.id,b]));
+  for(const continuation of oak.branches.filter(b=>b.continuation)){
+    const parent=byId.get(continuation.parentId!);
+    assert.ok(parent);
+    assert.deepEqual(continuation.from,parent!.to);
+    assert.equal(continuation.baseRadius,parent!.tipRadius);
+  }
+  const trunk=oak.branches[0];
+  assert.ok(trunk.tipRadius/trunk.baseRadius>.30,
+    'The main trunk must not end in a spike');
+  assert.equal(oak.branches.filter(b=>b.level===2).length,15);
+  assert.equal(oak.branches.filter(b=>b.level===3).length,45);
   assert.ok(oak.branches.filter(b=>b.level===4).length>=25);
   assert.ok(oak.branches.some(b=>b.level===4&&b.tipRadius<.01));
   assert.ok(oak.bounds.max[1]>7);

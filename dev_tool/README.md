@@ -29,15 +29,18 @@ npm start -- ../map_system/example.map.json --port 4372
 ## Asset ProcGen — oak wood structure
 
 The first implemented asset generator builds a compact deciduous tree from
-one numeric seed. Its trunk grows into five spatially distributed primary
-limbs, followed by finer branches and terminal twigs. Growth uses a branched
-skeleton: the direction, length, attachment point, radius and subsequent
-growth of each segment are computed before mesh construction.
+one numeric seed. The tree begins with one supporting trunk, which continues into a tapering
+leader while four large lateral limbs grow from staggered attachment heights.
+At each subsequent growth tier, an axis continues along its own tangent
+and produces smaller lateral shoots. This creates a multi-level crown
+structure rather than a trunk that ends in a spike.
 
-Each wood axis is swept along its own section frames. The root collar has
-broad, uneven ridges; the crown structure spans multiple levels with smaller
-diameters toward the tips. The browser preview shows plain shaded geometry
-so the shape can be judged without surface textures.
+Continuation segments are fused into a single meshed tube for each wood
+lineage, rather than stacked capped cylinders. Side branches emerge from
+the interior of their parent's volume; their junctions are approximate
+overlapping surfaces, not yet a single Boolean-union manifold.
+The base has a subtle asymmetric flare, and all geometry uses a neutral
+material to keep the silhouette and junctions visible for inspection.
 
 Only **Seed** and **New seed** control the generator. Whole tree, Inspect
 base, Inspect crown, Silhouette and Turntable are inspection views. This
