@@ -28,11 +28,39 @@ function rootPaths(recipe) {
 
 // Geometry primitives share one interface so the mesher is independent of
 // whether the field is occupied by trunk, branch or ground-reaching roots.
+// Hermite resampling rounds the polyline's direction changes without moving
+// branch junction anchors in the growth skeleton itself.
+function smoothPath(points,radii,subdivisions) {
+  if(subdivisions===1)return {points,radii};
+  const outPoints=[],outRadii=[];
+  for(let i=0;i<points.length-1;i++){
+    const a=points[i],b=points[i+1];
+    const before=points[Math.max(0,i-1)];
+    const after=points[Math.min(points.length-1,i+2)];
+    const d=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]);
+    const beforeD=Math.hypot(a[0]-before[0],a[1]-before[1],a[2]-before[2]);
+    const afterD=Math.hypot(after[0]-b[0],after[1]-b[1],after[2]-b[2]);
+    const m0=a.map((v,k)=>(b[k]-before[k])*d/Math.max(1e-9,beforeD+d));
+    const m1=a.map((v,k)=>(after[k]-a[k])*d/Math.max(1e-9,d+afterD));
+    for(let j=0;j<subdivisions;j++){
+      const t=j/subdivisions,t2=t*t,t3=t2*t;
+      const h00=2*t3-3*t2+1,h10=t3-2*t2+t,h01=-2*t3+3*t2,h11=t3-t2;
+      outPoints.push(a.map((v,k)=>h00*v+h10*m0[k]+h01*b[k]+h11*m1[k]));
+      outRadii.push(radii[i]+(radii[i+1]-radii[i])*t);
+    }
+  }
+  outPoints.push(points.at(-1));
+  outRadii.push(radii.at(-1));
+  return {points:outPoints,radii:outRadii};
+}
+
 export function buildWoodPrimitives(skeleton,recipe,step) {
   const segments=[];
   const paths=[...skeleton.branches.filter(b=>b.generation<=3),...rootPaths(recipe)];
   for(const path of paths){
-    const points=path.points,radii=path.radii,root=path.id<0;
+    const root=path.id<0;
+    const refined=smoothPath(path.points,path.radii,root?3:path.generation<=1?3:2);
+    const points=refined.points,radii=refined.radii;
     for(let i=0;i<points.length-1;i++){
       const a=points[i],b=points[i+1],ra=Math.max(step*.32,radii[i]),
         rb=Math.max(step*.32,radii[i+1]);
