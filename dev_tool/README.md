@@ -26,31 +26,28 @@ Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Edit
 npm start -- ../map_system/example.map.json --port 4372
 ```
 
-## Asset ProcGen — trunk phase
+## Asset ProcGen — dominant trunk / leader
 
-The tree generator is being developed **in place** in the Asset ProcGen. This
-phase provides one continuous trunk mesh for visual inspection, not a
-standalone tree or an exportable production asset. Open the tool from the Dev
-Tool home screen. Orbit with left drag, zoom with the wheel, pan with right
-drag, or focus the trunk base. Silhouette mode and turntable help compare
-shapes from multiple sides.
+The tree generator is developed directly in the Asset ProcGen. At this stage
+it generates exactly **one continuous growth path**: the main lower trunk
+curves upward and becomes its own dominant, oblique leader. No side branches
+are constructed. It is not a full tree or a production export.
 
-The stem has a curved centerline, a clear lower shaft, and an asymmetric
-upper section that begins to carry the mass of later forks. **Clear shaft
-height** controls where this transition begins; **Upper wood mass** changes
-two broad, unequally placed shoulder flutes; **Growth asymmetry** offsets the
-upper centerline and cross-section without distorting the lower shaft.
-The radial profile tapers smoothly along the full length, keeping a nonzero
-upper boundary for future growth. This is still an intentionally incomplete
-stem, not an attempt to represent the entire branch structure.
+The centerline is integrated from a seeded, continuously changing growth
+direction. The circumference follows the tangent of that centerline, with
+a continuous radius profile and subtle lengthwise cambial irregularity.
+The leader tapers to a small terminal ring connected to a single apex, so
+the upper end is **not a broad flat capped post**.
 
-**Inspect base**, **Inspect tip**, silhouette view and turntable support
-shape review from multiple angles. Enter a seed to compare the same form
-between revisions. All previews use a neutral untextured material. Tests
-check mesh integrity but do not constitute artistic approval.
+Use **Leader begins** to move the start of the bend, **Leader bend** to control
+how strongly the trunk changes direction, and **Lower lean** for a small
+initial inclination. Seed, height, initial radius, surface character and
+root buttresses remain adjustable. Orbit, silhouette, turntable, and
+whole/base/tip camera presets exist for inspecting the shape.
 
-There is no GLB export, material authoring, leaf system, tree placement, or
-recipe saving in this phase. The Map Editor remains independent and unchanged.
+There is no branch system, leaf system, texture, material editor, save/load,
+GLB export, or tree placement. The shape must be judged visually before any
+of those capabilities are introduced. The Map Editor is unchanged.
 
 ## Map workspace
 
