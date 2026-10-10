@@ -78,8 +78,9 @@ test('oak wood loads and branch collars follow the growth hierarchy', () => {
       if (branch.parentId===null)continue;
       const parent=byId.get(branch.parentId)!;
       assert.ok(parent);
-      assert.ok(branch.parentT>=0 && branch.parentT<=1);
-      const x=branch.parentT*(parent.points.length-1);
+      const attachment=branch.parentT;
+      assert.ok(attachment!==null && attachment>=0 && attachment<=1);
+      const x=attachment!*(parent.points.length-1);
       const i=Math.min(parent.points.length-2,Math.floor(x));
       const alpha=x-i;
       const expected=parent.points[i].map((v,k)=>v+(parent.points[i+1][k]-v)*alpha);
