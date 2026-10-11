@@ -26,4 +26,4 @@ export interface OakFoliageMesh {
 }
 export const OAK_ATLAS_GRID:number;
 export const OAK_CARD_TRIANGLES:number;
-export function generateOakFoliage(wood:TreeMesh):OakFoliageMesh;
+export function generateOakFoliage(wood:TreeMesh,variation?:{seed?:number}):OakFoliageMesh;

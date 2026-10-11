@@ -4,7 +4,7 @@
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. Generates an oak with wood and procedural textured foliage-card cushions, or a young fir wood structure. Seed-only 3D preview; no recipes or exports.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. The shared asset workspace currently previews an oak with wood and textured foliage, or a young fir wood structure. It supports a master seed and independent seeds per generated component. No recipes or exports.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -29,10 +29,28 @@ npm start -- ../map_system/example.map.json --port 4372
 ## Asset ProcGen — seeded tree architecture and foliage
 
 Choose **Oak** or **Fir** in the generator library. Oak is selected by
-default, now with a foliage layer. The public generation input remains
-one unsigned integer seed; no growth-parameter panel is added. Both
-species use the same 3D preview controls. The accepted oak wood
-generator is unchanged.
+default, with a foliage layer. This is the first modular slice of a
+general asset workspace: a generator catalog, a UI-independent seed
+model, and a reusable 3D model viewport. The catalog can later hold
+2D textures, sprites, atlases and other model generators without
+turning the 3D renderer into a generator.
+
+Each generated part has its own unsigned 32-bit seed. Currently the
+oak has **Wood geometry**, **Foliage placement**, and **Leaf atlas**;
+the fir has **Wood geometry**. Bark texture is not listed, because no
+bark-texture generator exists yet. Changing foliage placement preserves
+the wood geometry, but anchors the foliage to the updated wood when
+its geometry seed changes. Changing leaf atlas seed preserves both
+meshes. Component seeds are retained independently when switching
+between oak and fir.
+
+The **Master seed** applies a deterministic combination to all
+components of the selected generator; component fields and their
+reseed buttons then override individual components independently.
+Component IDs, rather than list positions, determine derived seeds.
+The initial defaults deliberately preserve the previous results
+(wood and foliage use the old tree seed; the atlas uses 21749).
+The accepted oak and fir wood generators remain unchanged.
 
 ### Oak wood structure
 
@@ -103,8 +121,8 @@ oak-atlas.mjs handles painting; oak-foliage.mjs returns one indexed
 mesh with positions, normals, colors, UVs, and cushion metadata.
 No external textures or dependencies are introduced.
 
-The preview creates the atlas **once** and shares the texture across
-tree seeds. **Inspect leaf card** enlarges the actual atlas tile;
+The preview caches the atlas for the selected leaf seed and reuses
+the texture when only wood or foliage placement changes. **Inspect leaf card** enlarges the actual atlas tile;
 **Inspect clump** isolates one real lobe of the generated tree, while
 Whole tree and Inspect crown restore the normal geometry draw range. Alpha cutout writes depth and casts shadows, while
 double-sided cards and alpha-to-coverage preserve a solid crown at

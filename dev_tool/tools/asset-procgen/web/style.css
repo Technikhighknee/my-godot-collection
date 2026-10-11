@@ -52,3 +52,20 @@
   aspect-ratio:1;object-fit:contain;background:#21342f}
 .pg-card-preview-label{color:#d6e0d1;font-size:11px;font-weight:700;letter-spacing:.14em}
 .pg-card-preview-help{color:#9ab5a6;font-size:10px;text-align:center;padding:0 18px}
+
+/* Independent generator component seeds; no asset-specific layout. */
+.pg-seed-note{font-size:11px!important;line-height:1.5!important;margin:11px 0 17px!important;
+  color:#91aaa1!important}
+.pg-component-title{margin-top:2px}
+.pg-component-seeds{display:flex;flex-direction:column;gap:9px;padding-top:15px}
+.pg-component-seed{display:grid;grid-template-columns:minmax(0,1fr) 112px 30px;
+  align-items:center;gap:7px}
+.pg-component-seed label{font-size:11px;color:#b9c9bf;line-height:1.3}
+.pg-component-seed input{width:100%;min-width:0;border:1px solid #51615c;border-radius:5px;
+  background:#122022;color:#dfc59e;padding:8px 6px;
+  font:600 11px Consolas,monospace;font-variant-numeric:tabular-nums}
+.pg-seed-shuffle{height:32px;width:30px;padding:0;border:1px solid #65766c;
+  border-radius:5px;background:#273b37;color:#dec399}
+.pg-seed-shuffle:hover{background:#38544a}
+
+.pg-generator-list{display:flex;flex-direction:column;gap:7px;min-width:0}

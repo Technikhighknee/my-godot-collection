@@ -158,23 +158,25 @@ function addCushion(out,cushion,seed){
   }
   return count;
 }
-export function generateOakFoliage(wood){
+export function generateOakFoliage(wood,{seed=wood?.seed}={}){
   if(!wood||!Number.isInteger(wood.seed)||wood.seed<0||
     wood.seed>0xffffffff||!Array.isArray(wood.branches)||
     !(wood.positions instanceof Float32Array))
     throw Error('Expected generated oak wood');
+  if(!Number.isInteger(seed)||seed<0||seed>0xffffffff)
+    throw Error('Invalid oak foliage variation seed');
   const centers=axisCenters(wood);
   const out={positions:[],normals:[],uvs:[],colors:[],indices:[]};
   const groups=[];
   let cards=0;
   for(const parent of wood.branches.filter(b=>b.level===2)){
     const children=wood.branches.filter(b=>b.parentId===parent.id&&b.level===3);
-    const cushions=cushionPair(parent,children,centers,wood.seed);
+    const cushions=cushionPair(parent,children,centers,seed);
     const group={supportAxisId:parent.id,axisCount:children.length+1,
       cardCount:0,cushions:[]};
     for(const c of cushions){
       const firstCard=cards;
-      const count=addCushion(out,c,wood.seed);
+      const count=addCushion(out,c,seed);
       cards+=count;group.cardCount+=count;
       group.cushions.push({
         center:c.center.slice(),radii:c.radii.slice(),
@@ -202,7 +204,7 @@ export function generateOakFoliage(wood){
       bounds.min[k]=Math.min(bounds.min[k],out.positions[i+k]);
       bounds.max[k]=Math.max(bounds.max[k],out.positions[i+k]);
     }
-  return {seed:wood.seed,cardCount:cards,crownMasses:groups,
+  return {seed,cardCount:cards,crownMasses:groups,
     atlasGrid:OAK_ATLAS_GRID,
     positions:Float32Array.from(out.positions),
     normals:Float32Array.from(out.normals),

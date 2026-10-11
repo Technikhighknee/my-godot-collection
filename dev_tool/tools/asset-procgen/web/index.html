@@ -19,13 +19,8 @@
 <main class="pg-workspace">
   <nav class="pg-library" aria-label="Asset generators">
     <div class="pg-overline">GENERATORS</div>
-    <button id="oakGenerator" class="pg-generator" type="button" aria-pressed="true" aria-current="page">
-      <span class="pg-symbol" aria-hidden="true">♠</span><span><strong>Oak tree</strong><small>Oak wood &amp; leaves</small></span>
-    </button>
-    <button id="firGenerator" class="pg-generator" type="button" aria-pressed="false">
-      <span class="pg-symbol" aria-hidden="true">♣</span><span><strong>Fir tree</strong><small>Fir wood geometry</small></span>
-    </button>
-    <div class="pg-library-foot">Seeded tree architectures. Detailed wood and European oak foliage.</div>
+    <div id="generatorList" class="pg-generator-list" aria-label="Available asset generators"></div>
+    <div class="pg-library-foot">A growing workshop for procedural models and 2D assets.</div>
   </nav>
   <section class="pg-stage" aria-label="3D asset preview">
     <div class="pg-stage-label"><span class="pg-dot"></span> LIVE GEOMETRY <span class="pg-stage-separator">/</span> <span id="stageContent">WOOD + FOLIAGE</span></div>
@@ -49,20 +44,20 @@
     <div id="error" role="alert" hidden></div>
   </section>
   <aside class="pg-settings" aria-label="Asset preview">
-    <label class="pg-mobile-choice" for="speciesSelect">SPECIES
-      <select id="speciesSelect" aria-label="Tree species">
-        <option value="oak" selected>Oak tree</option>
-        <option value="fir">Fir tree</option>
-      </select>
+    <label class="pg-mobile-choice" for="speciesSelect">GENERATOR
+      <select id="speciesSelect" aria-label="Asset generator"></select>
     </label>
     <span id="assetOverline" class="pg-overline">OAK / WOOD + FOLIAGE</span>
     <h1 id="assetTitle">Oak in leaf.</h1>
-    <p id="assetDescription">A small European oak with individual lobed leaves, grown on its existing branch skeleton. No bark texture or export.</p>
-    <div class="pg-settings-title"><span>VARIATION</span></div>
-    <label class="pg-seed" for="seedValue"><span>SEED</span>
+    <p id="assetDescription">A European oak with branch-supported foliage. No bark texture or export.</p>
+    <div class="pg-settings-title"><span>MASTER SEED</span></div>
+    <label class="pg-seed" for="seedValue"><span>MASTER</span>
       <input id="seedValue" type="number" min="0" max="4294967295" step="1" aria-label="Tree seed">
     </label>
-    <button id="reseed" class="pg-generate" type="button">New seed ↻</button>
+    <button id="reseed" class="pg-generate" type="button">Reseed all components ↻</button>
+    <p class="pg-seed-note">Master seed creates a reproducible combination. You can also change each component independently.</p>
+    <div class="pg-settings-title pg-component-title"><span>COMPONENT SEEDS</span></div>
+    <div id="componentSeeds" class="pg-component-seeds" aria-label="Independent generator component seeds"></div>
     <div class="pg-settings-bottom"><span id="status" role="status">Generating…</span></div>
   </aside>
 </main>

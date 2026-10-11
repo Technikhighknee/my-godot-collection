@@ -1,327 +1,184 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEFAULT_TREE, generateTree } from './tree.mjs';
-import { generateFir } from './fir.mjs';
-import { generateOakFoliage } from './oak-foliage.mjs';
-import { paintOakAtlas } from './oak-atlas.mjs';
+// Application coordinator: catalog, seed controls, and preview UI.
+// Mesh generation and Three.js rendering live in separate modules.
+import {GENERATORS,findGenerator,generateAsset} from './generators.mjs';
+import {createSeedState,parseSeed,updateComponentSeed,updateMasterSeed}
+  from './seed-model.mjs';
+import {createModelViewport} from './viewport-3d.mjs';
 
-const byId = id => document.getElementById(id);
-const settings = { ...DEFAULT_TREE };
-let species = 'oak';
-let renderer, camera, scene, controls, wood, foliage, treeGroup, extents;
-let oakAtlasTexture, oakAtlasCanvas, currentFoliage;
-let inspectMode='tree';
-let woodBounds, foliageBounds;
-let spinning = false, silhouette = false, foliageVisible = true;
+const byId=id=>document.getElementById(id);
+const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
+let active=findGenerator('oak');
+let viewport;
+const randomSeed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
+const seeds=()=>states.get(active.id);
 
-function setupScene() {
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x18272a);
-  scene.fog = new THREE.Fog(0x18272a, 28, 85);
-  camera = new THREE.PerspectiveCamera(38, 1, .05, 160);
-  renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.5;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  byId('viewport').append(renderer.domElement);
-  scene.add(new THREE.HemisphereLight(0xd7ded5, 0x666257, 2.0));
-  const light = new THREE.DirectionalLight(0xffe8cd, 2.9);
-  light.position.set(-6, 14, 8);
-  light.castShadow = true;
-  light.shadow.mapSize.set(2048, 2048);
-  light.shadow.camera.left = -12;
-  light.shadow.camera.right = 12;
-  light.shadow.camera.top = 15;
-  light.shadow.camera.bottom = -12;
-  light.shadow.camera.near = .1;
-  light.shadow.camera.far = 40;
-  light.shadow.bias = -.0004;
-  scene.add(light);
-  const fill = new THREE.DirectionalLight(0xc1ccd5, 1.4);
-  fill.position.set(7, 6, -8);
-  scene.add(fill);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(65,65),
-    new THREE.MeshStandardMaterial({color:0x26342e,roughness:1}));
-  ground.rotation.x = -Math.PI/2;
-  ground.position.y = -.07;
-  ground.receiveShadow = true;
-  scene.add(ground);
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = .075;
-  controls.screenSpacePanning = true;
-  controls.minDistance = 1;
-  controls.maxDistance = 65;
-  controls.maxPolarAngle = Math.PI * .87;
-  controls.addEventListener('start',()=>{
-    spinning = false;
-    byId('turntable').setAttribute('aria-pressed','false');
-  });
-  new ResizeObserver(()=>{
-    const el=byId('viewport');
-    const w=Math.max(1,el.clientWidth),h=Math.max(1,el.clientHeight);
-    renderer.setSize(w,h,false);
-    camera.aspect=w/h;
-    camera.updateProjectionMatrix();
-  }).observe(byId('viewport'));
-  const tick=()=>{
-    requestAnimationFrame(tick);
-    if (spinning && treeGroup && inspectMode==='tree') treeGroup.rotation.y += .003;
-    controls.update();
-    renderer.render(scene,camera);
-  };
-  tick();
-}
-
-function focus(mode) {
-  if (!extents) return;
-  if(inspectMode!=='tree')resetInspect();
-  const lo=extents.min, hi=extents.max;
-  const center=new THREE.Vector3((lo[0]+hi[0])*.5,(lo[1]+hi[1])*.5,(lo[2]+hi[2])*.5);
-  const size=Math.max(...hi.map((v,i)=>v-lo[i]));
-  if (mode==='foot') {
-    controls.target.set(0,.65,0);
-    camera.position.set(2.25,1.65,3.4);
-  } else if (mode==='crown') {
-    controls.target.set(center.x,lo[1]+(hi[1]-lo[1])*.72,center.z);
-    camera.position.set(center.x+size*.52,hi[1]+size*.27,center.z+size*.85);
-  } else {
-    controls.target.copy(center);
-    camera.position.set(center.x+size*.69,center.y+size*.25,center.z+size*1.65);
-  }
-  controls.update();
-}
-
-function updateFoliageUI() {
-  const enabled = species==='oak';
-  const button=byId('foliageToggle');
-  button.hidden=!enabled;
-  button.setAttribute('aria-pressed',String(enabled&&foliageVisible));
-  button.textContent=foliageVisible?'Hide leaves':'Show leaves';
-  byId('stageContent').textContent=inspectMode==='card'?'LEAF CARD / ATLAS':
-    inspectMode==='clump'?'ONE FOLIAGE CLUMP':
-    enabled&&foliageVisible?'WOOD + FOLIAGE':'WOOD ONLY';
+function updatePreviewControls(state){
+  const oak=state.assetId==='oak';
+  const leaves=byId('foliageToggle');
+  leaves.hidden=!oak;
+  leaves.textContent=state.foliageVisible?'Hide leaves':'Show leaves';
+  leaves.setAttribute('aria-pressed',String(oak&&state.foliageVisible));
   for(const id of ['inspectCard','inspectClump'])
-    byId(id).hidden=!enabled;
+    byId(id).hidden=!oak;
+  byId('stageContent').textContent=state.inspectMode==='card'?
+    'LEAF CARD / ATLAS':state.inspectMode==='clump'?
+    'ONE FOLIAGE CLUMP':oak&&state.foliageVisible?
+    'WOOD + FOLIAGE':'WOOD ONLY';
+  byId('turntable').setAttribute('aria-pressed',String(state.spinning));
+  byId('silhouette').setAttribute('aria-pressed',String(state.silhouette));
+  if(state.inspectMode!=='card')byId('cardPreview').hidden=true;
 }
-function mergedBounds(a,b) {
-  if(!b)return a;
-  return {
-    min:a.min.map((v,i)=>Math.min(v,b.min[i])),
-    max:a.max.map((v,i)=>Math.max(v,b.max[i])),
-  };
-}
-function updateLeafVisibility() {
-  if(foliage)foliage.visible=species==='oak'&&foliageVisible&&inspectMode!=='card';
-  extents=foliage?.visible?mergedBounds(woodBounds,foliageBounds):woodBounds;
-  updateFoliageUI();
-}
-function geometryFrom(data,colors=false) {
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.BufferAttribute(data.positions,3));
-  geometry.setAttribute('normal',new THREE.BufferAttribute(data.normals,3));
-  if(colors)geometry.setAttribute('color',new THREE.BufferAttribute(data.colors,3));
-  if(data.uvs)geometry.setAttribute('uv',new THREE.BufferAttribute(data.uvs,2));
-  geometry.setIndex(new THREE.BufferAttribute(data.indices,1));
-  geometry.computeBoundingSphere();
-  return geometry;
-}
-// The shared atlas is painted only once, reused for every tree seed.
-function oakTexture(){
-  if(!oakAtlasTexture){
-    const canvas=document.createElement('canvas');
-    paintOakAtlas(canvas);
-    oakAtlasCanvas=canvas;
-    oakAtlasTexture=new THREE.CanvasTexture(canvas);
-    oakAtlasTexture.colorSpace=THREE.SRGBColorSpace;
-    oakAtlasTexture.wrapS=THREE.ClampToEdgeWrapping;
-    oakAtlasTexture.wrapT=THREE.ClampToEdgeWrapping;
-    oakAtlasTexture.minFilter=THREE.LinearMipmapLinearFilter;
-    oakAtlasTexture.magFilter=THREE.LinearFilter;
-    oakAtlasTexture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-    oakAtlasTexture.generateMipmaps=true;
-  }
-  return oakAtlasTexture;
-}
-function build() {
-  let replacement=null;
-  inspectMode='tree';
-  byId('cardPreview').hidden=true;
-  try {
+function build(state=seeds()){
+  try{
     const started=performance.now();
-    const result=species==='fir'?generateFir(settings):generateTree(settings);
-    const foliageData=species==='oak'?generateOakFoliage(result):null;
-    replacement=new THREE.Group();
-    const woodMesh=new THREE.Mesh(geometryFrom(result),
-      new THREE.MeshStandardMaterial({
-        color:silhouette?0x050909:0xa49c8e,
-        roughness:.96,metalness:0,side:THREE.FrontSide,
-      }));
-    woodMesh.castShadow=true;
-    woodMesh.receiveShadow=true;
-    replacement.add(woodMesh);
-    let leavesMesh=null;
-    if(foliageData){
-      leavesMesh=new THREE.Mesh(geometryFrom(foliageData,true),
-        new THREE.MeshStandardMaterial({
-          map:oakTexture(),color:silhouette?0x050909:0xc5d0bc,
-          vertexColors:true,roughness:.93,metalness:0,
-          alphaTest:.43,alphaToCoverage:true,depthWrite:true,
-          transparent:false,side:THREE.DoubleSide,
-        }));
-      leavesMesh.castShadow=true;
-      replacement.add(leavesMesh);
-    }
-    if(treeGroup){
-      replacement.rotation.copy(treeGroup.rotation);
-      scene.remove(treeGroup);
-      treeGroup.traverse(node=>{
-        if(node.isMesh){node.geometry.dispose();node.material.dispose();}
-      });
-    }
-    treeGroup=replacement;
-    wood=woodMesh;
-    foliage=leavesMesh;
-    currentFoliage=foliageData;
-    woodBounds=result.bounds;
-    foliageBounds=foliageData?.bounds??null;
-    updateLeafVisibility();
-    scene.add(treeGroup);
-    const triangles=result.indices.length+(foliageData?.indices.length??0);
-    byId('meshStats').textContent =result.branches.length+
-      ' WOOD AXES · '+(foliageData?foliageData.cardCount+' FOLIAGE CARDS · ':'')+
-      (triangles/3).toLocaleString()+' TRIS';
-    byId('status').textContent='Geometry ready · '+Math.round(performance.now()-started)+' ms';
-    byId('seedValue').value=String(settings.seed);
+    // Generate first, then replace the preview atomically.
+    const asset=generateAsset(active,state.components);
+    const stats=viewport.render(asset);
+    states.set(active.id,state);
+    byId('seedValue').value=String(state.masterSeed);
+    byId('meshStats').textContent=stats.axes+' WOOD AXES · '+
+      (stats.cards?stats.cards+' FOLIAGE CARDS · ':'')+
+      stats.triangles.toLocaleString()+' TRIS';
+    byId('cardPreview').hidden=true;
+    byId('status').textContent='Geometry ready · '+
+      Math.round(performance.now()-started)+' ms';
     byId('error').hidden=true;
-  } catch(error) {
-    // Leave the previous complete asset displayed on generation errors.
-    if(replacement&&replacement!==treeGroup)
-      replacement.traverse(node=>{
-        if(node.isMesh){node.geometry.dispose();node.material.dispose();}
-      });
+    return true;
+  }catch(error){
     byId('status').textContent='Generation failed';
     byId('error').hidden=false;
     byId('error').textContent=error.message;
     console.error(error);
+    return false;
   }
 }
-// Reset any diagnostic draw range before normal tree/crown inspection.
-function resetInspect(){
-  inspectMode='tree';
-  byId('cardPreview').hidden=true;
-  if(wood)wood.visible=true;
-  if(foliage&&currentFoliage)
-    foliage.geometry.setDrawRange(0,currentFoliage.indices.length);
-  updateLeafVisibility();
+function applySeeds(next){
+  if(build(next)){
+    renderSeedControls();
+    viewport.focus('whole');
+  }else{
+    renderSeedControls();
+  }
 }
-function inspectCard(){
-  if(species!=='oak'||!currentFoliage)return;
-  oakTexture();
-  inspectMode='card';
-  byId('cardPreview').hidden=false;
-  byId('cardPreviewLabel').textContent='ATLAS TILE / ONE LEAF SPRAY';
+function updateSeedInput(input,onValid,current){
+  try{
+    const seed=parseSeed(input.value);
+    onValid(seed);
+  }catch(error){
+    byId('status').textContent=error.message;
+    input.value=String(current);
+  }
+}
+function renderSeedControls(){
+  const state=seeds();
+  byId('seedValue').value=String(state.masterSeed);
+  const list=byId('componentSeeds');
+  list.replaceChildren();
+  for(const component of active.components){
+    const row=document.createElement('div');
+    row.className='pg-component-seed';
+    const label=document.createElement('label');
+    const id='seed-'+component.id;
+    label.htmlFor=id;
+    label.textContent=component.label;
+    const input=document.createElement('input');
+    input.id=id;input.type='number';
+    input.min='0';input.max='4294967295';input.step='1';
+    input.value=String(state.components[component.id]);
+    input.setAttribute('aria-label',component.label+' seed');
+    input.addEventListener('change',()=>updateSeedInput(input,seed=>{
+      applySeeds(updateComponentSeed(active,seeds(),component.id,seed));
+    },seeds().components[component.id]));
+    const shuffle=document.createElement('button');
+    shuffle.type='button';shuffle.className='pg-seed-shuffle';
+    shuffle.textContent='↻';
+    shuffle.title='Reseed '+component.label;
+    shuffle.setAttribute('aria-label','Reseed '+component.label);
+    shuffle.addEventListener('click',()=>applySeeds(
+      updateComponentSeed(active,seeds(),component.id,randomSeed())));
+    row.append(label,input,shuffle);
+    list.append(row);
+  }
+}
+function renderGeneratorChoices(){
+  const list=byId('generatorList');
+  const select=byId('speciesSelect');
+  list.replaceChildren();select.replaceChildren();
+  for(const def of GENERATORS){
+    const button=document.createElement('button');
+    button.id=def.id+'Generator';
+    button.className='pg-generator';
+    button.type='button';
+    button.setAttribute('aria-pressed','false');
+    const symbol=document.createElement('span');
+    symbol.className='pg-symbol';
+    symbol.setAttribute('aria-hidden','true');
+    symbol.textContent=def.symbol;
+    const content=document.createElement('span');
+    const title=document.createElement('strong');
+    title.textContent=def.label;
+    const subtitle=document.createElement('small');
+    subtitle.textContent=def.subtitle;
+    content.append(title,subtitle);
+    button.append(symbol,content);
+    button.addEventListener('click',()=>selectGenerator(def.id));
+    list.append(button);
+    const option=document.createElement('option');
+    option.value=def.id;option.textContent=def.label;
+    select.append(option);
+  }
+}
+function selectGenerator(id){
+  const def=findGenerator(id);
+  if(!def)return;
+  active=def;
+  for(const item of GENERATORS){
+    const button=byId(item.id+'Generator'),selected=item.id===id;
+    button.setAttribute('aria-pressed',String(selected));
+    if(selected)button.setAttribute('aria-current','page');
+    else button.removeAttribute('aria-current');
+  }
+  byId('speciesSelect').value=id;
+  byId('assetOverline').textContent=def.overline;
+  byId('assetTitle').textContent=def.title;
+  byId('assetDescription').textContent=def.description;
+  byId('viewport').setAttribute('aria-label',def.previewLabel);
+  renderSeedControls();
+  if(build())viewport.focus('whole');
+}
+renderGeneratorChoices();
+byId('speciesSelect').addEventListener('change',
+  e=>selectGenerator(e.target.value));
+byId('seedValue').addEventListener('change',()=>{
+  const input=byId('seedValue');
+  updateSeedInput(input,value=>applySeeds(
+    updateMasterSeed(active,seeds(),value)),seeds().masterSeed);
+});
+byId('reseed').addEventListener('click',()=>applySeeds(
+  updateMasterSeed(active,seeds(),randomSeed())));
+for(const action of ['whole','foot','crown'])
+  byId(action).addEventListener('click',()=>{
+    viewport.focus(action);
+  });
+byId('inspectCard').addEventListener('click',()=>{
+  const source=viewport.inspectCard();
+  if(!source)return;
   const canvas=byId('cardPreviewCanvas'),ctx=canvas.getContext('2d');
   if(!ctx)throw Error('2D card preview unavailable');
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.imageSmoothingEnabled=true;
   ctx.imageSmoothingQuality='high';
-  ctx.drawImage(oakAtlasCanvas,0,0,256,256,0,0,canvas.width,canvas.height);
-  if(wood)wood.visible=false;
-  if(foliage)foliage.visible=false;
-  spinning=false;
-  byId('turntable').setAttribute('aria-pressed','false');
-  updateFoliageUI();
-}
-function inspectClump(){
-  if(species!=='oak'||!foliage||!currentFoliage)return;
-  inspectMode='clump';
-  byId('cardPreview').hidden=true;
-  const group=currentFoliage.crownMasses[Math.floor(currentFoliage.crownMasses.length/2)];
-  const c=group.cushions[0],radius=Math.max(...c.radii);
-  foliage.geometry.setDrawRange(c.firstCard*12,c.cardCount*12);
-  if(wood)wood.visible=false;
-  foliageVisible=true;
-  spinning=false;
-  byId('turntable').setAttribute('aria-pressed','false');
-  controls.target.set(...c.center);
-  camera.position.set(c.center[0]+radius*1.9,
-    c.center[1]+radius*.75,c.center[2]+radius*2.6);
-  controls.update();
-  updateLeafVisibility();
-}
-function selectSpecies(next){
-  if(next!=='fir'&&next!=='oak')return;
-  species=next;
-  const isFir=next==='fir';
-  for(const kind of ['oak','fir']){
-    const button=byId(kind+'Generator');
-    const selected=kind===next;
-    button.setAttribute('aria-pressed',String(selected));
-    if(selected)button.setAttribute('aria-current','page');
-    else button.removeAttribute('aria-current');
-  }
-  byId('speciesSelect').value=next;
-  byId('assetOverline').textContent=isFir?'FIR / WOOD GEOMETRY':'OAK / WOOD + FOLIAGE';
-  byId('assetTitle').textContent=isFir?'Fir wood.':'Oak in leaf.';
-  byId('assetDescription').textContent=isFir
-    ?'A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood only; no needles, bark texture or export.'
-    :'A European oak with branch-supported textured leaf cushions generated from a procedural oak atlas. No bark texture or export.';
-  byId('viewport').setAttribute('aria-label',
-    isFir?'Interactive 3D fir wood preview':'Interactive 3D oak tree wood preview');
-  build();
-  focus('whole');
-}
-for(const kind of ['oak','fir'])
-  byId(kind+'Generator').addEventListener('click',()=>selectSpecies(kind));
-byId('speciesSelect').addEventListener('change',e=>selectSpecies(e.target.value));
-byId('seedValue').addEventListener('change',()=>{
-  const field=byId('seedValue'),value=Number(field.value);
-  if (!Number.isInteger(value)||value<0||value>0xffffffff||field.value.trim()==='') {
-    byId('status').textContent='Seed must be an integer between 0 and 4294967295';
-    field.value=String(settings.seed);
-    return;
-  }
-  settings.seed=value;
-  build();
-  focus('whole');
+  ctx.drawImage(source,0,0,256,256,0,0,canvas.width,canvas.height);
+  byId('cardPreview').hidden=false;
 });
-byId('reseed').addEventListener('click',()=>{
-  settings.seed=crypto.getRandomValues(new Uint32Array(1))[0];
-  build();
-  focus('whole');
-});
-byId('whole').addEventListener('click',()=>focus('whole'));
-byId('foot').addEventListener('click',()=>focus('foot'));
-byId('crown').addEventListener('click',()=>focus('crown'));
-byId('inspectCard').addEventListener('click',inspectCard);
-byId('inspectClump').addEventListener('click',inspectClump);
-byId('foliageToggle').addEventListener('click',()=>{
-  if(species!=='oak')return;
-  foliageVisible=!foliageVisible;
-  if(inspectMode!=='tree')resetInspect();
-  updateLeafVisibility();
-});
-byId('silhouette').addEventListener('click',()=>{
-  silhouette=!silhouette;
-  byId('silhouette').setAttribute('aria-pressed',String(silhouette));
-  if(wood)wood.material.color.setHex(silhouette?0x050909:0xa49c8e);
-  if(foliage)foliage.material.color.setHex(silhouette?0x050909:0xffffff);
-  scene.background.setHex(silhouette?0xaab9b0:0x18272a);
-  scene.fog.color.setHex(silhouette?0xaab9b0:0x18272a);
-});
-byId('turntable').addEventListener('click',()=>{
-  spinning=!spinning;
-  byId('turntable').setAttribute('aria-pressed',String(spinning));
-});
-try {
-  byId('seedValue').value=String(settings.seed);
-  setupScene();
-  selectSpecies(species);
-} catch(error) {
+byId('inspectClump').addEventListener('click',()=>viewport.inspectClump());
+byId('foliageToggle').addEventListener('click',()=>viewport.toggleLeaves());
+byId('silhouette').addEventListener('click',()=>viewport.toggleSilhouette());
+byId('turntable').addEventListener('click',()=>viewport.toggleTurntable());
+try{
+  viewport=createModelViewport(byId('viewport'),updatePreviewControls);
+  selectGenerator(active.id);
+}catch(error){
   byId('error').hidden=false;
   byId('error').textContent=error.message;
   byId('status').textContent='Preview unavailable';
