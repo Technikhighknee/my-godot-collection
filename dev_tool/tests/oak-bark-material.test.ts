@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generateOakBark,generateOakBarkMaterial,OAK_BARK_MAPS,
+import {generateOakBark,generateOakBarkMaterial,
+  generateOakBarkMaterialSet,OAK_BARK_MAPS,OAK_BARK_PROFILES,
   paintGeneratedOakBarkMap}
   from '../tools/asset-procgen/web/oak-bark.mjs';
 import {generateTree}
@@ -9,6 +10,30 @@ import {mapOakBarkWood,OAK_BARK_UV_SCALE}
   from '../tools/asset-procgen/web/oak-bark-uv.mjs';
 
 const base={structureSeed:19641,surfaceSeed:48507,colorSeed:21749,size:64};
+
+test('three maturity profiles share seeds but have graduated relief',()=>{
+  assert.deepEqual(OAK_BARK_PROFILES,['trunk','limb','young']);
+  const set=generateOakBarkMaterialSet(base);
+  const again=generateOakBarkMaterialSet(base);
+  const variance=(field:Float32Array)=>{
+    let sum=0,sum2=0;
+    for(const v of field){sum+=v;sum2+=v*v;}
+    const mean=sum/field.length;
+    return sum2/field.length-mean*mean;
+  };
+  assert.ok(variance(set.trunk.heightField)>variance(set.limb.heightField)*1.5);
+  assert.ok(variance(set.limb.heightField)>variance(set.young.heightField)*2);
+  for(const profile of OAK_BARK_PROFILES){
+    const mat=set[profile];
+    assert.deepEqual(mat,again[profile]);
+    assert.equal(mat.profile,profile);
+    assert.deepEqual(mat,generateOakBarkMaterial({...base,profile}));
+    assert.equal(mat.height,base.size);
+    assert.equal(mat.heightMap.length,base.size*base.size*4);
+  }
+  assert.throws(()=>generateOakBark({size:64,profile:'unknown' as never}),
+    /Unknown oak bark profile/);
+});
 
 test('a single reproducible relief drives all five properly packed PBR maps',()=>{
   const material=generateOakBarkMaterial(base);
@@ -53,8 +78,13 @@ test('pigmentation has no influence on geometry, normals, roughness or AO',()=>{
   const first=generateOakBarkMaterial(base);
   const changed=generateOakBarkMaterial({...base,colorSeed:98333});
   assert.notDeepEqual(changed.albedo,first.albedo);
-  for(const key of ['heightField','heightMap','normal','roughness','ao'] as const)
-    assert.deepEqual(first[key],changed[key],key);
+  for(const profile of OAK_BARK_PROFILES){
+    const a=generateOakBarkMaterial({...base,profile});
+    const b=generateOakBarkMaterial({...base,profile,colorSeed:98333});
+    assert.notDeepEqual(a.albedo,b.albedo);
+    for(const key of ['heightField','heightMap','normal','roughness','ao'] as const)
+      assert.deepEqual(a[key],b[key],key);
+  }
   const cracks=generateOakBarkMaterial({...base,structureSeed:98333});
   assert.notDeepEqual(cracks.heightField,first.heightField);
   const surface=generateOakBarkMaterial({...base,surfaceSeed:98333});
@@ -106,6 +136,17 @@ test('oak mapping preserves the accepted growth mesh and duplicates render seams
     assert.deepEqual(wood.normals,snapshot.normals);
     assert.deepEqual(wood.indices,snapshot.indices);
     assert.deepEqual(mapOakBarkWood(wood),mapped);
+    assert.equal(mapped.groups.length,wood.branches.filter(b=>!b.continuation).length);
+    const counts=new Set(mapped.groups.map(g=>g.profile));
+    assert.ok(counts.has('trunk')&&counts.has('young'));
+    let groupOffset=0;
+    for(const group of mapped.groups){
+      assert.equal(group.start,groupOffset);
+      assert.ok(group.count>0&&group.count%3===0);
+      assert.equal(group.materialIndex,OAK_BARK_PROFILES.indexOf(group.profile));
+      groupOffset+=group.count;
+    }
+    assert.equal(groupOffset,mapped.indices.length);
     for(let i=0;i<mapped.indices.length;i+=3){
       const uv=Array.from(mapped.indices.slice(i,i+3),index=>[
         mapped.uvs[index*2],mapped.uvs[index*2+1]]);
@@ -125,9 +166,9 @@ test('oak bark preview uses PBR textures, leaves the fir material unchanged',asy
   const pathname=new URL('../tools/asset-procgen/web/viewport-3d.mjs',
     import.meta.url);
   const code=await source.readFile(pathname,'utf8');
-  for(const token of ['generateOakBarkMaterial','map:bark.albedo',
-    'normalMap:bark.normal','roughnessMap:bark.roughness','aoMap:bark.ao',
-    'THREE.RepeatWrapping','uv1','disposeBark'])
+  for(const token of ['generateOakBarkMaterialSet','map:maps.albedo',
+    'normalMap:maps.normal','roughnessMap:maps.roughness','aoMap:maps.ao',
+    'THREE.RepeatWrapping','uv1','disposeBark','geometry.addGroup'])
     assert.ok(code.includes(token),token);
   assert.ok(code.includes('asset.barkWood??asset.wood'));
 });

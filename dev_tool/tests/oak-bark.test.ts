@@ -19,9 +19,10 @@ test('mature oak bark is reproducible opaque RGBA with finite relief',()=>{
       assert.ok(a.heightField[i]!>=0&&a.heightField[i]!<=1);
       assert.equal(a.pixels[i*4+3],255);
     }
-    const dark=a.pixels.filter((_,i)=>i%4===0&&a.pixels[i]<75).length;
-    const light=a.pixels.filter((_,i)=>i%4===0&&a.pixels[i]>110).length;
-    assert.ok(dark>0&&light>0,'Relief must show fissures and raised bark');
+    const colors=Array.from(a.pixels.filter((_,i)=>i%4===0));
+    const range=Math.max(...colors)-Math.min(...colors);
+    assert.ok(range>=25&&range<=100,
+      'Bark pigmentation needs variation without painted black fissures');
   }
 });
 

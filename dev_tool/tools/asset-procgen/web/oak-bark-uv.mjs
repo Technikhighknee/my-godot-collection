@@ -11,7 +11,7 @@ export function mapOakBarkWood(wood){
     !Array.isArray(wood.branches))
     throw Error('Expected oak wood geometry');
   const positions=Array.from(wood.positions),normals=Array.from(wood.normals);
-  const uvs=Array(positions.length/3*2).fill(0),indices=[];
+  const uvs=Array(positions.length/3*2).fill(0),indices=[],groups=[];
   const point=i=>positions.slice(i*3,i*3+3);
   const branches=wood.branches;
   const continuation=new Map(branches.filter(b=>b.continuation)
@@ -70,6 +70,15 @@ export function mapOakBarkWood(wood){
   }
   for(const chain of chains){
     chain.offsetV=inheritDistance(chain);
+    // One connected woody shell receives one stable maturity class.
+    // Profile transitions occur only at real axis boundaries, not across
+    // arbitrary ring faces. More developed secondary limbs can retain
+    // coarse bark, while thin sapwood stays nearly smooth.
+    const radius=chain.radiusSamples[0];
+    const profile=chain.root.level===0?'trunk':
+      radius>=.054?'limb':'young';
+    const materialIndex=profile==='trunk'?0:profile==='limb'?1:2;
+    const groupStart=indices.length;
     const sides=chain.root.sides,offset=chain.offset;
     const around=Math.max(1,Math.round(2*Math.PI*
       chain.radiusSamples[0]/OAK_BARK_UV_SCALE.aroundMeters));
@@ -122,6 +131,8 @@ export function mapOakBarkWood(wood){
         else indices.push(capCenter,capRing[j],next);
       }
     }
+    groups.push({start:groupStart,count:indices.length-groupStart,
+      materialIndex,profile,axisId:chain.root.id,radius});
   }
   if(indices.length!==wood.indices.length)
     throw Error('Bark render mesh changed triangle count');
@@ -130,6 +141,7 @@ export function mapOakBarkWood(wood){
     normals:Float32Array.from(normals),
     uvs:Float32Array.from(uvs),
     indices:Uint32Array.from(indices),
+    groups,
     bounds:wood.bounds,
     uvScale:OAK_BARK_UV_SCALE,
   };

@@ -6,8 +6,8 @@ import {generateOakFoliage} from './oak-foliage.mjs';
 import {validateSeed} from './seed-model.mjs';
 import {paintOakAtlas,OAK_ATLAS_SIZE} from './oak-atlas.mjs';
 import {generateOakSprig,paintOakSprig,OAK_SPRIG_SIZE} from './oak-sprig.mjs';
-import {OAK_BARK_SIZE,OAK_BARK_MAPS,generateOakBarkMaterial,
-  paintGeneratedOakBarkMap} from './oak-bark.mjs';
+import {OAK_BARK_SIZE,OAK_BARK_MAPS,OAK_BARK_PROFILES,
+  generateOakBarkMaterial,paintGeneratedOakBarkMap} from './oak-bark.mjs';
 import {mapOakBarkWood} from './oak-bark-uv.mjs';
 
 // Each registration owns its implementation; the UI never switches on
@@ -44,19 +44,24 @@ function generateOakSprigAsset(seeds){
     paint:canvas=>paintOakSprig(canvas,sprig)};
 }
 function generateOakBarkAsset(seeds){
-  // One material per generated asset. Switching inspected maps does not
-  // regenerate its million-pixel procedural relief five times.
-  let material=null;
+  // Lazily materialize only the requested profile, then reuse its
+  // maps when switching inspector channels. Seed edits create a new asset.
+  const materials=new Map();
   return {
     id:'oak-bark',kind:'image',width:OAK_BARK_SIZE,height:OAK_BARK_SIZE,
-    channels:'RGBA',views:OAK_BARK_MAPS,
-    paint:(canvas,view='albedo')=>{
+    channels:'RGBA',views:OAK_BARK_MAPS,profiles:OAK_BARK_PROFILES,
+    paint:(canvas,view='albedo',profile='trunk')=>{
       if(!OAK_BARK_MAPS.includes(view))throw Error('Unknown bark material map');
-      if(!material)material=generateOakBarkMaterial({
-        structureSeed:seeds.structure,
-        surfaceSeed:seeds.surface,
-        colorSeed:seeds.color,
-      });
+      if(!OAK_BARK_PROFILES.includes(profile))throw Error('Unknown bark profile');
+      let material=materials.get(profile);
+      if(!material){
+        material=generateOakBarkMaterial({
+          structureSeed:seeds.structure,
+          surfaceSeed:seeds.surface,
+          colorSeed:seeds.color,profile,
+        });
+        materials.set(profile,material);
+      }
       return paintGeneratedOakBarkMap(canvas,material,view);
     },
   };
@@ -124,7 +129,7 @@ export const GENERATORS=Object.freeze([
     label:'Oak bark',subtitle:'Seamless mature oak bark PBR material',
     generate:generateOakBarkAsset,
     overline:'2D / OAK BARK',title:'Mature oak bark.',
-    description:'A single deterministic bark material with seamlessly tiled Albedo, OpenGL Normal, Roughness, cavity AO and Height previews. All maps use the same relief and are applied to Oak Tree wood.',
+    description:'Age-responsive oak bark with three independent maturity profiles: mature trunk, strong limbs and smooth young wood. Inspect Albedo, Normal, Roughness, cavity AO and Height for each profile; the 3D oak uses all three PBR materials.',
     previewLabel:'Seamless gray-brown oak bark albedo texture',
     initialMasterSeed:19641,
     components:Object.freeze([

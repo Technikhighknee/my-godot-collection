@@ -30,97 +30,127 @@ function noise(u, v, nx, ny, seed) {
   const lower = a + (b - a) * fx, upper = c + (d - c) * fx;
   return (lower + (upper - lower) * fy) * 2 - 1;
 }
-function makePlateCuts(seed, n) {
-  return Array.from({length: n}, (_, col) => {
-    const count = 5 + Math.floor(hash(col, 11, seed) * 7);
-    const offset = hash(col, 73, seed) * .8;
-    return Array.from({length: count}, (_, i) => ({
-      y: fract((i + .12 + hash(col, i + 101, seed) * .9 + offset) / count),
-      slope: (hash(col, i + 619, seed) - .5) * .095,
-      arc: (hash(col, i + 703, seed) - .5) * .042,
-      width: .0022 + hash(col, i + 521, seed) * .0026,
-      strength: .29 + hash(col, i + 389, seed) * .71,
+// Each age class shares the same seeded spatial composition, but mature
+// cork has larger plates and deeper separations than living young twigs.
+export const OAK_BARK_PROFILES=Object.freeze(['trunk','limb','young']);
+const PROFILES=Object.freeze({
+  trunk:Object.freeze({bands:10,depth:.72,fracture:.52,grain:.115,
+    tone:33,variation:25,base:[117,111,100]}),
+  limb:Object.freeze({bands:13,depth:.43,fracture:.31,grain:.086,
+    tone:25,variation:20,base:[124,116,103]}),
+  young:Object.freeze({bands:17,depth:.095,fracture:.08,grain:.042,
+    tone:14,variation:12,base:[130,119,106]}),
+});
+function getProfile(name){
+  if(!Object.hasOwn(PROFILES,name))
+    throw Error('Unknown oak bark profile: '+name);
+  return PROFILES[name];
+}
+// Curved, broken cross cuts inside the larger plates. This is periodic
+// in v; the cuts are not regularly spaced horizontal grid lines.
+function makePlateCuts(seed,bands){
+  return Array.from({length:bands},(_,col)=>{
+    const count=2+Math.floor(hash(col,93,seed)*4);
+    return Array.from({length:count},(_,i)=>({
+      y:fract((i+.25+hash(col,i+137,seed)*.7)/count),
+      slope:(hash(col,i+71,seed)-.5)*.065,
+      strength:.36+.60*hash(col,i+19,seed),
+      width:.003+hash(col,i+59,seed)*.006,
     }));
   });
 }
-function cutDistance(y, xFraction, cuts) {
-  let closest = 999, strength = 0, width = 1;
-  for (const c of cuts) {
-    const location = c.y + c.slope * (xFraction - .5) + c.arc * Math.sin(xFraction * TAU);
-    const d = Math.abs(fract(y - location + .5) - .5);
-    if (d < closest) { closest = d; strength = c.strength; width = c.width; }
+function transverseCuts(v,across,cuts){
+  let fracture=0;
+  for(const cut of cuts){
+    const center=cut.y+cut.slope*(across-.5);
+    const d=Math.abs(fract(v-center+.5)-.5);
+    fracture=Math.max(fracture,cut.strength*(1-
+      smooth((d-cut.width*.35)/(cut.width*2.5))));
   }
-  return {distance: closest, width, strength};
+  return fracture;
 }
 /**
- * Pure generator. Height values are retained for a later normal-map stage;
- * the exported image for now is RGBA albedo only.
- * size is optional for fast deterministic tests; production is 1024 square.
+ * Synthesize a periodic bark height field with explicit macro, meso and
+ * micro scales. Albedo is pigment-led, not a baked lighting pass.
+ * profile: mature trunk, middle-aged limb, or young twig.
  */
-export function generateOakBark({structureSeed = 19641, surfaceSeed = 48507,
-  colorSeed = 21749, size = OAK_BARK_SIZE} = {}) {
-  validSeed(structureSeed); validSeed(surfaceSeed); validSeed(colorSeed);
-  if (!Number.isInteger(size) || size < 32 || size > OAK_BARK_SIZE)
+export function generateOakBark({structureSeed=19641,surfaceSeed=48507,
+  colorSeed=21749,size=OAK_BARK_SIZE,profile='trunk'}={}){
+  validSeed(structureSeed);validSeed(surfaceSeed);validSeed(colorSeed);
+  if(!Number.isInteger(size)||size<32||size>OAK_BARK_SIZE)
     throw Error('Invalid oak bark resolution');
-  const pixels = new Uint8ClampedArray(size * size * 4);
-  const heightField = new Float32Array(size * size);
-  const bands = 25;
-  const cracks = makePlateCuts(structureSeed, bands);
-  const palette = [
-    98 + Math.round(hash(3, 7, colorSeed) * 11),
-    97 + Math.round(hash(7, 3, colorSeed) * 9),
-    92 + Math.round(hash(5, 5, colorSeed) * 8),
-  ];
-  for (let y = 0; y < size; y++) {
-    const v = y / size;
-    for (let x = 0; x < size; x++) {
-      const u = x / size, p = y * size + x, p4 = p * 4;
-      const warp = .021 * noise(u, v, 3, 5, structureSeed ^ 0xa7391bf1)
-        + .009 * noise(u, v, 7, 11, structureSeed ^ 0x4d941b43)
-        + .006 * noise(u, v, 29, 37, structureSeed ^ 0x7c2ead91);
-      const bandU = (u + warp) * bands;
-      const col = mod(Math.floor(bandU), bands);
-      const cell = fract(bandU);
-      const d = Math.min(cell, 1 - cell);
-      const crossWarp = .009 * noise(u, v, 5, 7, structureSeed ^ 0xc930a81d)
-        + .003 * noise(u, v, 23, 17, structureSeed ^ 0x107d9c53);
-      const cut = cutDistance(fract(v + crossWarp), cell, cracks[col]);
-      const seamWidth = .083 + .027 * noise(u, v, 18, 13, structureSeed ^ 0x1cf2700d);
-      const verticalCrack = 1 - smooth((d - seamWidth * .72) / (seamWidth * 1.35));
-      const fractureWarp = .004 * noise(u, v, 45, 36, structureSeed ^ 0xc35c0d31);
-      const horizontalCrack = (1 - smooth((cut.distance + fractureWarp - cut.width * .45) /
-        (cut.width * 2.8))) * cut.strength;
-      const fissure = clamp(Math.max(verticalCrack, horizontalCrack *
-        (.75 + verticalCrack * .25)), 0, 1);
-      const rim = smooth(.08, .20, d) - smooth(.21, .40, d);
-      const island = .42 * noise(u, v, 22, 34, structureSeed ^ 0x949c1783)
-        + .35 * noise(u, v, 44, 65, structureSeed ^ 0x1a39efc5);
-      const grain = .37 * noise(u, v, 90, 16, surfaceSeed ^ 0x5a3f15d9)
-        + .20 * noise(u, v, 195, 45, surfaceSeed ^ 0x47e2af35)
-        + .12 * noise(u, v, 320, 133, surfaceSeed ^ 0x2d9b7a1b);
-      const grit = noise(u, v, 390, 411, surfaceSeed ^ 0x43fa9117);
-      const fine = noise(u, v, 512, 512, surfaceSeed ^ 0xa983149f);
-      const fracture = Math.pow(Math.max(0, 1 - Math.abs(grain + .30 * grit) * 3.0),
-        14) * .24;
-      const relief = clamp(.47 + island * .42 + grain * .56 + grit * .1
-        + fine * .075 + rim * .19 - fissure * .72 -
-        fracture * (1 - fissure), 0, 1);
-      heightField[p] = relief;
-      const patina = noise(u, v, 13, 22, colorSeed ^ 0x15a28b97);
-      const tone = (relief - .48) * 110 + island * 27 + grain * 22 +
-        grit * 15 + fine * 11 + patina * 14 - fissure * 17;
-      const lichen = Math.max(0, noise(u, v, 18, 20, colorSeed ^ 0x91b2c3e7)
-        - .48) * 22;
-      pixels[p4] = clamp(palette[0] + tone + patina * 3 - lichen * .15, 22, 212);
-      pixels[p4 + 1] = clamp(palette[1] + tone * .94 + patina * 2 +
-        lichen * .36, 22, 207);
-      pixels[p4 + 2] = clamp(palette[2] + tone * .87 - patina +
-        lichen * .22, 22, 200);
-      pixels[p4 + 3] = 255;
+  const settings=getProfile(profile);
+  const pixels=new Uint8ClampedArray(size*size*4);
+  const heightField=new Float32Array(size*size);
+  const cuts=makePlateCuts(structureSeed,settings.bands);
+  const palette=settings.base.map((base,i)=>
+    base+(hash(i+3,i+11,colorSeed)-.5)*13);
+  for(let y=0;y<size;y++){
+    const v=y/size;
+    for(let x=0;x<size;x++){
+      const u=x/size,p=y*size+x,i=p*4;
+      // MACRO: vertical plates with meandering margins, interrupted by
+      // occasional branch/split ridges. All frequency domains tile exactly.
+      const meander=.026*noise(u,v,3,4,structureSeed^0x3135b849)
+        +.011*noise(u,v,7,11,structureSeed^0x512bb71a)
+        +.004*noise(u,v,17,19,structureSeed^0xa75bd94f);
+      const stripe=fract((u+meander)*settings.bands);
+      const column=mod(Math.floor((u+meander)*settings.bands),
+        settings.bands);
+      const edge=Math.min(stripe,1-stripe);
+      const breadth=clamp(.10+.034*noise(u,v,9,15,
+        structureSeed^0x2bde4987),.065,.15);
+      const primary=1-smooth((edge-breadth*.38)/(breadth*.8));
+      const splitFlow=.035*noise(u,v,12,5,structureSeed^0x7057e2ab);
+      const split=Math.abs(stripe-.5-splitFlow);
+      const splitMask=Math.max(0,noise(u,v,6,7,
+        structureSeed^0x149ab801)-.13);
+      const secondary=(1-smooth((split-.026)/.11))*
+        smooth(.02,.25,splitMask)*.57;
+      const fissure=clamp(Math.max(primary,secondary),0,1);
+      const plateau=smooth(.055,.29,edge);
+      const plateUndulation=.14*noise(u,v,11,14,
+        structureSeed^0x6ecad42b)
+        +.07*noise(u,v,20,27,structureSeed^0xd831fa41);
+      // MESO: oblique, interrupted cracks and worn, irregular plate edges.
+      const crossDrift=.009*noise(u,v,8,15,
+        structureSeed^0x7152e189);
+      const transverse=transverseCuts(fract(v+crossDrift),stripe,
+        cuts[column]);
+      const flake=.12*noise(u,v,34,55,
+        structureSeed^0x42e7f35d)
+        +.045*noise(u,v,61,71,structureSeed^0xae291b03);
+      const erosion=1-smooth(.17,.48,edge);
+      // MICRO: supporting cork granularity, not black fiber stripes.
+      const cork=.65*noise(u,v,70,87,surfaceSeed^0x132fed40)
+        +.24*noise(u,v,153,176,surfaceSeed^0x8931a96b)
+        +.11*noise(u,v,289,311,surfaceSeed^0x28ba701e);
+      const grit=noise(u,v,389,401,surfaceSeed^0x9117ab32);
+      const relief=clamp(
+        .56+settings.depth*(plateau*.25-fissure*.54
+          -transverse*settings.fracture*.33
+          +plateUndulation*.7+flake*(.6+erosion*.3))
+        +settings.grain*(cork+.13*grit),0,1);
+      heightField[p]=relief;
+      const colorVariation=.55*noise(u,v,8,13,
+        colorSeed^0x730aec31)+.25*noise(u,v,24,37,
+        colorSeed^0x8a17e365);
+      const patina=noise(u,v,43,52,colorSeed^0x2a18c3de);
+      const pigment=settings.variation*colorVariation+
+        patina*settings.variation*.4;
+      // Deliberately restrained cavity coloration; the normal and AO
+      // maps now carry the bulk of the fissure perception.
+      const shade=-(fissure*.12+transverse*.045)*
+        settings.tone+plateau*settings.tone*.09;
+      pixels[i]=clamp(palette[0]+pigment+shade,30,223);
+      pixels[i+1]=clamp(palette[1]+pigment*.91+shade*.95,27,217);
+      pixels[i+2]=clamp(palette[2]+pigment*.79+shade*.87,25,209);
+      pixels[i+3]=255;
     }
   }
-  return {width: size, height: size, pixels, heightField};
+  return {width:size,height:size,pixels,heightField,profile};
 }
+
 export function paintOakBark(canvas, seeds = {}) {
   if (!canvas || typeof canvas.getContext !== 'function')
     throw Error('Invalid oak bark canvas');
@@ -178,7 +208,13 @@ export function generateOakBarkMaterial(options={}){
     heightMap[i+3]=255;
   }
   return {width,height,albedo,normal,roughness,ao,heightMap,
-    heightField,normalConvention:'opengl'};
+    heightField,normalConvention:'opengl',profile:options.profile??'trunk'};
+}
+export function generateOakBarkMaterialSet(options={}){
+  const result={};
+  for(const profile of OAK_BARK_PROFILES)
+    result[profile]=generateOakBarkMaterial({...options,profile});
+  return result;
 }
 export const OAK_BARK_MAPS=Object.freeze([
   'albedo','normal','roughness','ao','height',

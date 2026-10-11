@@ -42,9 +42,21 @@ function updateImageControls(state){
     byId(id).setAttribute('aria-pressed',String(state.channel===channel));
   byId('imageTile').value=state.tile===null?'all':String(state.tile);
   byId('imageMap').value=state.view??'';
+  byId('imageProfile').value=state.profile??'';
   byId('stageContent').textContent=(state.tile===null?
     'FULL IMAGE':'TILE '+(state.tile+1)+' / '+state.tiles)+
     ' · '+state.channel.toUpperCase();
+}
+function updateImageProfiles(asset){
+  const picker=byId('imageProfile');
+  picker.replaceChildren();
+  for(const profile of asset.profiles??[]){
+    const option=document.createElement('option');
+    option.value=profile;option.textContent=profile.toUpperCase();
+    picker.append(option);
+  }
+  byId('imageProfileRow').hidden=!(asset.profiles?.length);
+  picker.value=imageViewport.state().profile??'';
 }
 function updateImageViews(asset){
   const select=byId('imageMap');
@@ -94,6 +106,7 @@ function build(state=seeds()){
       stats=imageViewport.render(asset);
       updateImageTiles(asset);
       updateImageViews(asset);
+      updateImageProfiles(asset);
       updateImageControls(imageViewport.state());
       byId('meshStats').textContent=stats.width+' × '+stats.height+
         ' PX · '+stats.channels+(stats.tiles?' · '+stats.tiles+' TILES':'');
@@ -263,6 +276,9 @@ for(const [name,channel] of [['imageRGBA','rgba'],
   byId(name).addEventListener('click',()=>{
     if(active.kind==='image')imageViewport.setChannel(channel);
   });
+byId('imageProfile').addEventListener('change',event=>{
+  if(active.kind==='image')imageViewport.setProfile(event.target.value);
+});
 byId('imageMap').addEventListener('change',event=>{
   if(active.kind==='image')imageViewport.setView(event.target.value);
 });

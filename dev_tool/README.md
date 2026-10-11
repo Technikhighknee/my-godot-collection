@@ -113,31 +113,39 @@ The accepted oak and fir wood generators remain unchanged.
 
 ### Oak bark PBR material
 
-Under **Vegetation → Oak → Bark**, the generator synthesizes one
-deterministic, tileable 1024 × 1024 bark material inspired by mature
-*Quercus robur*, with long irregular fissures, raised ridges, fine
-cork grain and restrained gray-brown pigmentation. No third-party
-texture assets or additional dependencies are bundled.
+Under **Vegetation → Oak → Bark**, the generator synthesizes three
+deterministic, tileable 1024 × 1024 material profiles from the same
+seeds, inspired by *Quercus robur*: **Trunk**, **Limb**, and **Young**.
+The mature trunk receives wider irregular plates and strong fissures,
+secondary limbs less pronounced separations, and young wood a much
+quieter, nearly smooth surface. Macro plate structure, interrupted meso
+fractures and subordinate micro cork grain are combined before
+deriving maps. No third-party textures or new dependencies are bundled.
 
 Its independent seeds are **Bark fissures**, **Surface detail** and
 **Pigmentation**. All five maps originate from the same scalar relief
 field: sRGB albedo, OpenGL tangent-space normal (+Y), grayscale
 roughness (G channel), approximate local cavity AO and height.
-The albedo retains some inherent pigmentation contrast; AO is a local
-height-field approximation, not a world-space light bake. Height is
-retained for inspection and future material workflows; the mesh is
-**not** displaced. The inspector's **Material map** menu lets you
-view each map directly, without regenerating the seed for every view.
+The albedo is deliberately restrained so that deep fissures are
+expressed primarily through normal/occlusion rather than black painted
+stripes. AO is a local height-field approximation, not a world-space
+light bake. Height is available for inspection; the mesh is **not**
+displaced. The 2D inspector has **Bark profile** and **Material map**
+selectors: changing only the map reuses the profile's previously
+generated pixels; other profiles are generated lazily.
 
-**Vegetation → Oak → Tree** now uses all four applicable Three.js
-`MeshStandardMaterial` maps (albedo, normal, roughness, AO).
-The accepted wood mesh is preserved, but a separate render-only mesh
-gets axial UV mapping for each woody chain, including inherited
-distance along real continuations, repeated cylindrical U wrapping,
-and duplicate vertices at the UV seam and planar end caps. The
-mapping's physical reference scales are explicit in
-`oak-bark-uv.mjs`. All tree components remain independently seeded,
-and the fir continues using its existing plain wood material.
+**Vegetation → Oak → Tree** uses three physically based
+`MeshStandardMaterial` instances (albedo, normal, roughness, AO)
+on one UV-mapped render mesh. Every connected woody chain gets a
+stable maturity profile based on actual radius: the trunk remains
+mature, strong limbs receive intermediate bark, fine twigs are young.
+One draw group per chain ensures no dropped or duplicated triangles,
+while preserving the accepted topology of the procedural wood generator.
+UV distance continues along real axis continuations, U wraps at
+duplicate seam vertices, and end caps use planar mapping. Physical
+reference scales remain in `oak-bark-uv.mjs`. These profile boundaries
+do not yet solve *geometric* branch collar transitions; that is a
+separate mesh-shaping concern. The fir keeps its own wood material.
 
 Bark map textures are cached between renders with unchanged seeds,
 then explicitly disposed when their seed changes. This step **does

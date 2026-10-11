@@ -370,7 +370,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   for(const id of ['assetSearch','assetFilters','libraryCount',
     'modelStage','imageStage','imageViewport','imageFit','imageActual',
     'imageZoomIn','imageZoomOut','imageZoomLabel','imageRGBA','imageRGB',
-    'imageAlpha','imageTile','imageMap','imageMapRow',
+    'imageAlpha','imageTile','imageMap','imageMapRow','imageProfile','imageProfileRow',
     'stageKind','viewportHint'])
     assert.ok(html.includes('id="'+id+'"'),id);
   assert.doesNotMatch(html,/id="oakGenerator"|id="firGenerator"|id="modelMode"|id="imageMode"/,
@@ -395,6 +395,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(app,/createImageViewport/);
   assert.match(app,/imageViewport\.setChannel/);
   assert.match(app,/imageViewport\.setView/);
+  assert.match(app,/imageViewport\.setProfile/);
   assert.match(app,/\['alpha','imageAlpha'\]/);
   assert.doesNotMatch(app,/imageALPHA/);
   assert.match(app,/imageViewport\.selectTile/);
@@ -419,6 +420,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(catalog,/generateOakBarkAsset/);
   assert.match(catalog,/mapOakBarkWood/);
   assert.match(catalog,/barkSeeds/);
+  assert.match(catalog,/OAK_BARK_PROFILES/);
   assert.match(imagePreview,/createImageViewport/);
   assert.match(imagePreview,/validateImageAsset/);
   assert.match(imagePreview,/imageZoomAt/);

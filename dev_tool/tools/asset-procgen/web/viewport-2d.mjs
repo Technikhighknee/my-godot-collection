@@ -18,6 +18,11 @@ export function validateImageAsset(asset){
   if(asset.tiles!==undefined&&(!Number.isInteger(asset.tiles)||asset.tiles<1||
     asset.tiles>4096))
     throw Error('Invalid 2D tile count');
+  if(asset.profiles!==undefined&&(!Array.isArray(asset.profiles)||
+    asset.profiles.length<1||asset.profiles.some(value=>
+      typeof value!=='string'||!value)||
+    new Set(asset.profiles).size!==asset.profiles.length))
+    throw Error('Invalid image profiles');
   if(asset.views!==undefined&&(!Array.isArray(asset.views)||
     asset.views.length<1||asset.views.some(name=>
       typeof name!=='string'||!name.length)||
@@ -64,7 +69,7 @@ export function createImageViewport(container,onChange=()=>{}){
   surface.append(mat);
   container.append(surface);
   let source=null,canvas=null,asset=null,tile=null,channel='rgba';
-  let view=null;
+  let view=null,profile=null;
   let mode='fit',zoom=1,offsetX=0,offsetY=0;
   let viewWidth=0,viewHeight=0,drag=null;
   const state=()=>({
@@ -72,6 +77,7 @@ export function createImageViewport(container,onChange=()=>{}){
     viewWidth:canvas?.width??0,viewHeight:canvas?.height??0,
     channel,tile,tiles:asset?.tiles??0,hasAtlas:!!asset?.atlas,
     view,views:asset?.views??[],
+    profile,profiles:asset?.profiles??[],
   });
   const changed=()=>onChange(state());
   function bounds(){
@@ -162,7 +168,9 @@ export function createImageViewport(container,onChange=()=>{}){
     const fresh=document.createElement('canvas');
     fresh.width=next.width;fresh.height=next.height;
     const nextView=next.views?.includes(view)?view:(next.views?.[0]??null);
-    next.paint(fresh,nextView??undefined);
+    const nextProfile=next.profiles?.includes(profile)?profile:
+      (next.profiles?.[0]??null);
+    next.paint(fresh,nextView??undefined,nextProfile??undefined);
     if(fresh.width!==next.width||fresh.height!==next.height)
       throw Error('Image generator changed the declared dimensions');
     const keepTile=next.atlas&&asset?.id===next.id&&tile!==null&&
@@ -172,6 +180,7 @@ export function createImageViewport(container,onChange=()=>{}){
       canvas.width!==preview.width||canvas.height!==preview.height;
     swap(preview,fresh,next,keepTile,channel,reframe);
     view=nextView;
+    profile=nextProfile;
     changed();
     return {width:asset.width,height:asset.height,
       channels:asset.channels??'RGBA',tiles:asset.tiles??0};
@@ -181,12 +190,25 @@ export function createImageViewport(container,onChange=()=>{}){
     if(next===view)return;
     const fresh=document.createElement('canvas');
     fresh.width=asset.width;fresh.height=asset.height;
-    asset.paint(fresh,next);
+    asset.paint(fresh,next,profile??undefined);
     if(fresh.width!==asset.width||fresh.height!==asset.height)
       throw Error('Image generator changed the declared dimensions');
     const preview=compose(fresh,asset,tile,channel);
     swap(preview,fresh,asset,tile,channel,false);
     view=next;
+    changed();
+  }
+  function setProfile(next){
+    if(!asset?.profiles?.includes(next))throw Error('Unknown image profile');
+    if(next===profile)return;
+    const fresh=document.createElement('canvas');
+    fresh.width=asset.width;fresh.height=asset.height;
+    asset.paint(fresh,view??undefined,next);
+    if(fresh.width!==asset.width||fresh.height!==asset.height)
+      throw Error('Image generator changed the declared dimensions');
+    const preview=compose(fresh,asset,tile,channel);
+    swap(preview,fresh,asset,tile,channel,false);
+    profile=next;
     changed();
   }
   function setMode(next){
@@ -276,5 +298,5 @@ export function createImageViewport(container,onChange=()=>{}){
     }
   });
   surface.addEventListener('contextmenu',event=>event.preventDefault());
-  return {render,setMode,zoomStep,setChannel,selectTile,setView,state};
+  return {render,setMode,zoomStep,setChannel,selectTile,setView,setProfile,state};
 }

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {paintOakAtlas} from './oak-atlas.mjs';
-import {generateOakBarkMaterial} from './oak-bark.mjs';
+import {generateOakBarkMaterialSet,OAK_BARK_PROFILES} from './oak-bark.mjs';
 
 function meshGeometry(data,useColors=false){
   const geometry=new THREE.BufferGeometry();
@@ -18,6 +18,8 @@ function meshGeometry(data,useColors=false){
     geometry.setAttribute('uv2',new THREE.BufferAttribute(data.uvs,2));
   }
   geometry.setIndex(new THREE.BufferAttribute(data.indices,1));
+  if(data.groups)for(const {start,count,materialIndex} of data.groups)
+    geometry.addGroup(start,count,materialIndex);
   geometry.computeBoundingSphere();
   return geometry;
 }
@@ -26,7 +28,10 @@ const combinedBounds=(a,b)=>!b?a:{
   max:a.max.map((v,i)=>Math.max(v,b.max[i])),
 };
 const disposeGroup=group=>group?.traverse(node=>{
-  if(node.isMesh){node.geometry.dispose();node.material.dispose();}
+  if(node.isMesh){
+    node.geometry.dispose();
+    for(const material of [].concat(node.material))material.dispose();
+  }
 });
 export function createModelViewport(container,onChange=()=>{}){
   const scene=new THREE.Scene();
@@ -108,34 +113,40 @@ export function createModelViewport(container,onChange=()=>{}){
     return {canvas,texture,seed};
   }
   function newBark(seeds){
-    const images=generateOakBarkMaterial(seeds);
-    const maps={};
+    const materials=generateOakBarkMaterialSet(seeds);
+    const result={};
     try{
-      for(const name of ['albedo','normal','roughness','ao']){
-        const texture=new THREE.DataTexture(
-          new Uint8Array(images[name]),images.width,images.height,
-          THREE.RGBAFormat,THREE.UnsignedByteType);
-        maps[name]=texture;
-        texture.wrapS=THREE.RepeatWrapping;
-        texture.wrapT=THREE.RepeatWrapping;
-        texture.flipY=true;
-        texture.generateMipmaps=true;
-        texture.minFilter=THREE.LinearMipmapLinearFilter;
-        texture.magFilter=THREE.LinearFilter;
-        texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-        texture.colorSpace=name==='albedo'?
-          THREE.SRGBColorSpace:THREE.NoColorSpace;
-        texture.needsUpdate=true;
+      for(const profile of OAK_BARK_PROFILES){
+        const images=materials[profile],maps={};
+        result[profile]=maps;
+        for(const name of ['albedo','normal','roughness','ao']){
+          const texture=new THREE.DataTexture(
+            new Uint8Array(images[name]),images.width,images.height,
+            THREE.RGBAFormat,THREE.UnsignedByteType);
+          maps[name]=texture;
+          texture.wrapS=THREE.RepeatWrapping;
+          texture.wrapT=THREE.RepeatWrapping;
+          texture.flipY=true;
+          texture.generateMipmaps=true;
+          texture.minFilter=THREE.LinearMipmapLinearFilter;
+          texture.magFilter=THREE.LinearFilter;
+          texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+          texture.colorSpace=name==='albedo'?
+            THREE.SRGBColorSpace:THREE.NoColorSpace;
+          texture.needsUpdate=true;
+        }
       }
-      return maps;
+      return result;
     }catch(error){
-      for(const texture of Object.values(maps))texture.dispose();
+      disposeBark(result);
       throw error;
     }
   }
-  const disposeBark=maps=>{
-    if(maps)for(const texture of Object.values(maps))texture.dispose();
-  };
+  function disposeBark(set){
+    if(!set)return;
+    for(const maps of Object.values(set))
+      for(const texture of Object.values(maps))texture.dispose();
+  }
   const setVisibility=()=>{
     if(foliageMesh)
       foliageMesh.visible=assetId==='oak'&&foliageVisible&&inspectMode!=='card';
@@ -162,18 +173,23 @@ export function createModelViewport(container,onChange=()=>{}){
         freshBark=newBark(asset.barkSeeds);
       const bark=asset.barkSeeds?(freshBark??barkTextures):null;
       if(bark&&!asset.barkWood)throw Error('Oak PBR material needs UV-mapped wood');
-      const woodMaterial=new THREE.MeshStandardMaterial(bark?{
-        color:silhouette?0x050909:0xffffff,
-        map:bark.albedo,
-        normalMap:bark.normal,
-        roughnessMap:bark.roughness,
-        aoMap:bark.ao,aoMapIntensity:.85,
-        normalScale:new THREE.Vector2(.72,.72),
-        roughness:1,metalness:0,side:THREE.FrontSide,
-      }:{
+      const woodMaterial=bark?OAK_BARK_PROFILES.map(profile=>{
+        const maps=bark[profile];
+        return new THREE.MeshStandardMaterial({
+          color:silhouette?0x050909:0xffffff,
+          map:maps.albedo,
+          normalMap:maps.normal,
+          roughnessMap:maps.roughness,
+          aoMap:maps.ao,aoMapIntensity:.85,
+          normalScale:new THREE.Vector2(.78,.78),
+          roughness:1,metalness:0,side:THREE.FrontSide,
+        });
+      }):new THREE.MeshStandardMaterial({
         color:silhouette?0x050909:0xa49c8e,
         roughness:.96,metalness:0,side:THREE.FrontSide,
       });
+      if(bark&&(!asset.barkWood.groups?.length))
+        throw Error('Oak bark groups are required for maturity profiles');
       const wood=new THREE.Mesh(meshGeometry(asset.barkWood??asset.wood),
         woodMaterial);
       wood.castShadow=true;
@@ -283,8 +299,9 @@ export function createModelViewport(container,onChange=()=>{}){
   }
   function toggleSilhouette(){
     silhouette=!silhouette;
-    if(woodMesh)woodMesh.material.color.setHex(
-      silhouette?0x050909:(woodMesh.material.map?0xffffff:0xa49c8e));
+    if(woodMesh)for(const material of [].concat(woodMesh.material))
+      material.color.setHex(silhouette?0x050909:
+        material.map?0xffffff:0xa49c8e);
     if(foliageMesh)foliageMesh.material.color.setHex(
       silhouette?0x050909:0xc5d0bc);
     scene.background.setHex(silhouette?0xaab9b0:0x18272a);

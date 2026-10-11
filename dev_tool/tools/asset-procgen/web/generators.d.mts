@@ -11,8 +11,8 @@ export interface GeneratedModel {
 export interface GeneratedImage {
   id:string;kind:'image';width:number;height:number;channels:'RGBA';
   tiles?:number;atlas?:{columns:number;rows:number};
-  views?:readonly string[];
-  paint:(canvas:HTMLCanvasElement,view?:string)=>unknown;
+  views?:readonly string[];profiles?:readonly string[];
+  paint:(canvas:HTMLCanvasElement,view?:string,profile?:string)=>unknown;
 }
 export type GeneratedAsset=GeneratedModel|GeneratedImage;
 interface GeneratorMeta {

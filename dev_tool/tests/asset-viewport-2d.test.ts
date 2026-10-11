@@ -57,7 +57,9 @@ test('image contract refuses oversized, contradictory and partial atlases',()=>{
     {...image,atlas:{columns:4,rows:2.5}},
     {...image,width:1023},{...image,atlas:null},
     {...image,views:[]},{...image,views:['albedo','albedo']},
-    {...image,views:['albedo',3]}])
+    {...image,views:['albedo',3]},
+    {...image,profiles:[]},{...image,profiles:['trunk','trunk']},
+    {...image,profiles:['trunk',17]}])
     assert.throws(()=>validateImageAsset(bad));
 });
 // The browser-only surface is driven with a small in-memory DOM / Canvas.
@@ -211,6 +213,28 @@ test('image preview supports alpha, tile isolation and retains a failed render',
     assert.equal(preview.state().view,'albedo');
     assert.equal((mat.children[0] as Canvas).pixels[0],10);
     assert.throws(()=>preview.setView('unknown'),/Unknown image view/);
+    const profileAsset={...viewAsset,id:'bark-profiles',
+      profiles:['trunk','limb','young'],
+      paint(canvas:HTMLCanvasElement,view?:string,profile?:string){
+        const target=canvas as unknown as Canvas;
+        target.pixels=sourcePixels.slice();
+        target.pixels[0]=profile==='young'?33:profile==='limb'?77:155;
+        if(view==='normal')target.pixels[1]=201;
+      },
+    };
+    preview.render(profileAsset);
+    assert.equal(preview.state().profile,'trunk');
+    preview.setProfile('young');
+    assert.equal(preview.state().profile,'young');
+    assert.equal((mat.children[0] as Canvas).pixels[0],33);
+    preview.setView('normal');
+    assert.equal(preview.state().profile,'young');
+    assert.equal((mat.children[0] as Canvas).pixels[1],201);
+    preview.setProfile('limb');
+    assert.equal((mat.children[0] as Canvas).pixels[0],77);
+    assert.throws(()=>preview.setProfile('unknown'),/Unknown image profile/);
+    preview.render({...viewAsset,id:'generic-image'});
+    assert.equal(preview.state().profile,null);
     const viewBefore=mat.children[0];
     assert.throws(()=>preview.render({...viewAsset,
       paint(){throw Error('bad map');}}),/bad map/);
