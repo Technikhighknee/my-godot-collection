@@ -4,7 +4,7 @@
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. Separate 3D Models and 2D Assets workspaces currently preview oak/fir models and the existing procedural oak leaf atlas. Master and component seeds are independent. No recipes or exports.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. A searchable Asset Library groups oak/fir models, bark and leaf images by asset family; the preview automatically selects 3D or 2D rendering. Master and component seeds are independent. No recipes or exports.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -43,21 +43,28 @@ Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Edit
 npm start -- ../map_system/example.map.json --port 4372
 ```
 
-## Asset ProcGen — model and image workspaces
+## Asset ProcGen — searchable Asset Library
 
-Asset ProcGen has two separate workspaces: **3D Models** for oak and
-fir previews, and **2D Assets** for independent image generation.
-The first 2D generator is the existing 1024×1024 procedural oak leaf
-atlas (16 RGBA tiles). This is a direct preview of the same painter
-used in the oak material. It is not a new leaf-art system or an
-improvement to the experimental leaf appearance.
+The left navigation groups generators by asset family, not their output
+format. For example, **Vegetation → Oak** contains Tree (3D), Bark
+(texture), Leaf spray (sprite) and Leaf atlas. **Vegetation → Fir**
+currently contains Tree. Generator metadata (`libraryPath`, `navLabel`,
+`navType`) defines this hierarchy; registering additional generators
+automatically creates new categories and subgroups.
 
-The generator registry selects the output kind (`model` or `image`).
-The 3D viewport owns Three.js and model-specific controls; the 2D
-viewport owns Canvas display, a checkerboard transparency background,
-**Fit image** and **100%** views. Each generator retains its own
-seed values across workspace switches. 2D image painting does not
-require wood geometry or a WebGL context.
+The search box accepts multiple words (e.g. `oak bark`), including
+category and type names. **Ctrl+K** (or **Cmd+K**) focuses search; Esc
+clears it. **All**, **3D Models**, and **2D Assets** are optional filters.
+Groups can be collapsed. The star control marks favorites; recently
+selected assets appear near the top. Favorites and history persist via
+localStorage when supported; failure to access storage is harmless.
+At narrow widths, a native generator selector remains available.
+
+The generator registry still selects the output kind (`model` or `image`).
+Three.js is used only for 3D previews; 2D generators use a Canvas inspector.
+Changing generators automatically switches the active preview without losing
+their individual seed states. The existing 1024×1024 oak leaf atlas remains
+experimental and unchanged.
 
 The standalone atlas has its own `leaves` seed and uses the same
 default as the oak model's atlas seed (21749). Changing the seed in
@@ -87,8 +94,8 @@ generate a new kind of leaf, or alter the oak model's materials.
 
 Each generated part has its own unsigned 32-bit seed. Currently the
 oak has **Wood geometry**, **Foliage placement**, and **Leaf atlas**;
-the fir has **Wood geometry**. Bark texture is not listed, because no
-bark-texture generator exists yet. Changing foliage placement preserves
+the fir has **Wood geometry**. The standalone Bark generator is
+not yet connected to the 3D tree, so the tree does not expose a bark seed. Changing foliage placement preserves
 the wood geometry, but anchors the foliage to the updated wood when
 its geometry seed changes. Changing leaf atlas seed preserves both
 meshes. Component seeds are retained independently when switching
@@ -104,7 +111,7 @@ The accepted oak and fir wood generators remain unchanged.
 
 ### Oak bark albedo
 
-Under **2D Assets → Oak bark**, the workshop generates a deterministic
+Under **Vegetation → Oak → Bark**, the workshop generates a deterministic
 1024 × 1024 opaque, tileable gray-brown texture inspired by the deep
 longitudinal fissures of mature *Quercus robur*. Unlike flat brown
 noise, it combines meandering major grooves, interrupted transverse
@@ -125,7 +132,7 @@ No PNG export is added in this step.
 
 ### Oak leaf spray prototype
 
-In **2D Assets → Oak leaf spray**, a standalone generator grows one
+In **Vegetation → Oak → Leaf spray**, a standalone generator grows one
 small twig structure in 3D with four branching axes and eleven
 individually shaped oak leaves. Each leaf has a seeded lobed blade,
 curved surface, midrib, lateral veins and subtle material variation.

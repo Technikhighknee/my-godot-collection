@@ -5,13 +5,13 @@ import {createSeedState,parseSeed,updateComponentSeed,updateMasterSeed}
   from './seed-model.mjs';
 import {createModelViewport} from './viewport-3d.mjs';
 import {createImageViewport} from './viewport-2d.mjs';
+import {createAssetLibrary} from './asset-library.mjs';
 
 const byId=id=>document.getElementById(id);
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
 let active=findGenerator('oak');
 let modelViewport,imageViewport;
-let selectedMode='model';
-const lastSelected={model:'oak',image:'oak-atlas'};
+let library;
 const randomSeed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
 const seeds=()=>states.get(active.id);
 
@@ -148,45 +148,30 @@ function renderSeedControls(){
     list.append(row);
   }
 }
-function renderGeneratorChoices(){
-  const list=byId('generatorList');
+function renderMobileChoices(){
   const select=byId('speciesSelect');
-  list.replaceChildren();select.replaceChildren();
-  for(const def of GENERATORS.filter(item=>item.kind===selectedMode)){
-    const button=document.createElement('button');
-    button.id=def.id+'Generator';
-    button.className='pg-generator';
-    button.type='button';
-    button.setAttribute('aria-pressed','false');
-    const symbol=document.createElement('span');
-    symbol.className='pg-symbol';
-    symbol.setAttribute('aria-hidden','true');
-    symbol.textContent=def.symbol;
-    const content=document.createElement('span');
-    const title=document.createElement('strong');
-    title.textContent=def.label;
-    const subtitle=document.createElement('small');
-    subtitle.textContent=def.subtitle;
-    content.append(title,subtitle);
-    button.append(symbol,content);
-    button.addEventListener('click',()=>selectGenerator(def.id));
-    list.append(button);
+  select.replaceChildren();
+  const groups=new Map();
+  for(const def of GENERATORS){
+    const name=def.libraryPath.join(' / ');
+    let group=groups.get(name);
+    if(!group){
+      group=document.createElement('optgroup');
+      group.label=name;
+      groups.set(name,group);
+      select.append(group);
+    }
     const option=document.createElement('option');
-    option.value=def.id;option.textContent=def.label;
-    select.append(option);
+    option.value=def.id;
+    option.textContent=def.navLabel+' · '+def.navType;
+    group.append(option);
   }
 }
 function selectGenerator(id){
   const def=findGenerator(id);
-  if(!def||def.kind!==selectedMode)return;
+  if(!def)return;
   active=def;
-  lastSelected[selectedMode]=id;
-  for(const item of GENERATORS.filter(x=>x.kind===selectedMode)){
-    const button=byId(item.id+'Generator'),selected=item.id===id;
-    button.setAttribute('aria-pressed',String(selected));
-    if(selected)button.setAttribute('aria-current','page');
-    else button.removeAttribute('aria-current');
-  }
+  library?.select(id);
   byId('speciesSelect').value=id;
   byId('assetOverline').textContent=def.overline;
   byId('assetTitle').textContent=def.title;
@@ -202,19 +187,15 @@ function selectGenerator(id){
   renderSeedControls();
   if(build()&&def.kind==='model')modelViewport.focus('whole');
 }
-function selectMode(kind){
-  if(kind!=='model'&&kind!=='image')return;
-  selectedMode=kind;
-  for(const mode of ['model','image'])
-    byId(mode+'Mode').setAttribute('aria-pressed',String(kind===mode));
-  byId('generatorHeading').textContent=kind==='model'?
-    '3D GENERATORS':'2D GENERATORS';
-  renderGeneratorChoices();
-  selectGenerator(lastSelected[kind]);
-}
-for(const mode of ['model','image'])
-  byId(mode+'Mode').addEventListener('click',()=>selectMode(mode));
-renderGeneratorChoices();
+renderMobileChoices();
+library=createAssetLibrary({
+  definitions:GENERATORS,
+  list:byId('generatorList'),
+  search:byId('assetSearch'),
+  filters:byId('assetFilters'),
+  count:byId('libraryCount'),
+  onSelect:selectGenerator,
+});
 byId('speciesSelect').addEventListener('change',
   e=>selectGenerator(e.target.value));
 byId('seedValue').addEventListener('change',()=>{
@@ -276,7 +257,7 @@ byId('imageTile').addEventListener('change',event=>{
   }
 });
 try{
-  selectMode(selectedMode);
+  selectGenerator(active.id);
 }catch(error){
   byId('error').hidden=false;
   byId('error').textContent=error.message;

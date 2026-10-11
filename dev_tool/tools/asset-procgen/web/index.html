@@ -17,16 +17,26 @@
   <span class="pg-header-status">PROCEDURAL ASSET WORKSPACE</span>
 </header>
 <main class="pg-workspace">
-  <nav class="pg-library" aria-label="Asset generators">
-    <div class="pg-library-modes" role="group" aria-label="Asset workspace">
-      <button id="modelMode" type="button" aria-pressed="true">3D Models</button>
-      <button id="imageMode" type="button" aria-pressed="false">2D Assets</button>
+  <nav class="pg-library" aria-label="Asset Library">
+    <div class="pg-library-header">
+      <span class="pg-library-heading">Asset Library</span>
+      <span class="pg-library-caption">GENERATOR CATALOG</span>
     </div>
-    <div id="generatorHeading" class="pg-overline">3D GENERATORS</div>
+    <label class="pg-library-search" for="assetSearch">
+      <span aria-hidden="true">⌕</span>
+      <input id="assetSearch" type="search" placeholder="Search assets…" autocomplete="off"
+        spellcheck="false" aria-label="Search asset generators">
+      <kbd>Ctrl K</kbd>
+    </label>
+    <div id="assetFilters" class="pg-library-filters" role="group" aria-label="Filter asset types">
+      <button type="button" data-kind="all" aria-pressed="true">All</button>
+      <button type="button" data-kind="model" aria-pressed="false">3D Models</button>
+      <button type="button" data-kind="image" aria-pressed="false">2D Assets</button>
+    </div>
     <div id="generatorList" class="pg-generator-list" aria-label="Available asset generators"></div>
-    <div class="pg-library-foot">A growing workshop for procedural models and 2D assets.</div>
+    <div id="libraryCount" class="pg-library-foot" role="status" aria-live="polite">5 assets</div>
   </nav>
-  <section class="pg-stage" aria-label="3D asset preview">
+  <section class="pg-stage" aria-label="Asset preview">
     <div class="pg-stage-label"><span class="pg-dot"></span> <span id="stageKind">3D MODEL</span> <span class="pg-stage-separator">/</span> <span id="stageContent">WOOD + FOLIAGE</span></div>
     <div id="modelStage" class="pg-model-stage">
       <div id="viewport" aria-label="Interactive 3D oak tree with leaves preview"></div>

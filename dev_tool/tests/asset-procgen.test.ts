@@ -367,13 +367,13 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(html,/id="seedValue" type="number"/);
   assert.match(html,/id="componentSeeds"/);
   assert.match(html,/id="generatorList"/);
-  for(const id of ['modelMode','imageMode','modelStage','imageStage',
-    'imageViewport','imageFit','imageActual','imageZoomIn','imageZoomOut',
-    'imageZoomLabel','imageRGBA','imageRGB','imageAlpha','imageTile',
-    'stageKind','viewportHint'])
+  for(const id of ['assetSearch','assetFilters','libraryCount',
+    'modelStage','imageStage','imageViewport','imageFit','imageActual',
+    'imageZoomIn','imageZoomOut','imageZoomLabel','imageRGBA','imageRGB',
+    'imageAlpha','imageTile','stageKind','viewportHint'])
     assert.ok(html.includes('id="'+id+'"'),id);
-  assert.doesNotMatch(html,/id="oakGenerator"|id="firGenerator"/,
-    'Generator navigation comes from the catalog, not fixed markup');
+  assert.doesNotMatch(html,/id="oakGenerator"|id="firGenerator"|id="modelMode"|id="imageMode"/,
+    'Generator navigation and asset type are resolved from the catalog');
   assert.match(html,/id="speciesSelect"/);
   assert.match(html,/id="foliageToggle"/);
   assert.match(html,/id="inspectCard"/);
@@ -389,6 +389,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   const preview=readFileSync(new URL('../tools/asset-procgen/web/viewport-3d.mjs',import.meta.url),'utf8');
   const imagePreview=readFileSync(new URL('../tools/asset-procgen/web/viewport-2d.mjs',import.meta.url),'utf8');
   const seedModel=readFileSync(new URL('../tools/asset-procgen/web/seed-model.mjs',import.meta.url),'utf8');
+  const library=readFileSync(new URL('../tools/asset-procgen/web/asset-library.mjs',import.meta.url),'utf8');
   assert.match(app,/createModelViewport/);
   assert.match(app,/createImageViewport/);
   assert.match(app,/imageViewport\.setChannel/);
@@ -396,12 +397,15 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.doesNotMatch(app,/imageALPHA/);
   assert.match(app,/imageViewport\.selectTile/);
   assert.match(app,/imageViewport\.zoomStep/);
-  assert.match(app,/selectMode/);
-  assert.match(app,/GENERATOR|generatorHeading/);
+  assert.match(app,/createAssetLibrary/);
+  assert.match(app,/renderMobileChoices/);
+  assert.match(library,/filterAssetLibrary/);
+  assert.match(library,/buildAssetLibraryTree/);
+  assert.match(library,/favoriteIds/);
   assert.match(app,/generateAsset\(active,state.components\)/);
   assert.match(app,/selectGenerator/);
-  assert.match(app,/renderGeneratorChoices/);
-  assert.match(app,/list\.append\(button\)/);
+  assert.match(library,/list\.append\(group/);
+  assert.match(library,/button\.addEventListener\('click'/);
   assert.match(app,/updateComponentSeed/);
   assert.match(app,/updateMasterSeed/);
   assert.match(catalog,/generateTree\(\{seed:seeds.geometry\}\)/);
@@ -440,6 +444,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
       '/tools/asset-procgen/oak-sprig.mjs',
       '/tools/asset-procgen/oak-bark.mjs',
       '/tools/asset-procgen/generators.mjs',
+      '/tools/asset-procgen/asset-library.mjs',
       '/tools/asset-procgen/seed-model.mjs',
       '/tools/asset-procgen/viewport-3d.mjs',
       '/tools/asset-procgen/viewport-2d.mjs',

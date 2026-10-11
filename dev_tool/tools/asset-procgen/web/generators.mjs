@@ -51,6 +51,7 @@ function generateOakBarkAsset(seeds){
 export const GENERATORS=Object.freeze([
   Object.freeze({
     id:'oak',kind:'model',symbol:'♠',label:'Oak tree',subtitle:'Oak wood & leaves',
+    libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Tree',navType:'3D',
     generate:generateOakAsset,
     overline:'OAK / WOOD + FOLIAGE',title:'Oak in leaf.',
     description:'A European oak with branch-supported textured leaf cushions generated from a procedural oak atlas. No bark texture or export.',
@@ -64,6 +65,7 @@ export const GENERATORS=Object.freeze([
   }),
   Object.freeze({
     id:'fir',kind:'model',symbol:'♣',label:'Fir tree',subtitle:'Fir wood geometry',
+    libraryPath:Object.freeze(['Vegetation','Fir']),navLabel:'Tree',navType:'3D',
     generate:generateFirAsset,
     overline:'FIR / WOOD GEOMETRY',title:'Fir wood.',
     description:'A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood only; no needles, bark texture or export.',
@@ -75,6 +77,7 @@ export const GENERATORS=Object.freeze([
   }),
   Object.freeze({
     id:'oak-atlas',kind:'image',symbol:'▧',label:'Oak leaf atlas',
+    libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Leaf atlas',navType:'Atlas',
     subtitle:'Procedural RGBA foliage sprites',
     generate:generateOakAtlasAsset,
     overline:'2D / OAK LEAF ATLAS',title:'Leaf atlas.',
@@ -87,6 +90,7 @@ export const GENERATORS=Object.freeze([
   }),
   Object.freeze({
     id:'oak-sprig',kind:'image',symbol:'❧',
+    libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Leaf spray',navType:'Sprite',
     label:'Oak leaf spray',subtitle:'Individual twig & leaves',
     generate:generateOakSprigAsset,
     overline:'2D / SINGLE OAK SPRAY',title:'An oak leaf spray.',
@@ -100,6 +104,7 @@ export const GENERATORS=Object.freeze([
   }),
   Object.freeze({
     id:'oak-bark',kind:'image',symbol:'▤',
+    libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Bark',navType:'Texture',
     label:'Oak bark',subtitle:'Seamless mature oak bark albedo',
     generate:generateOakBarkAsset,
     overline:'2D / OAK BARK',title:'Mature oak bark.',
