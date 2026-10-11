@@ -29,8 +29,8 @@ test('young fir has one uninterrupted leader and annual branch whorls',()=>{
     const sprays=fir.branches.filter(b=>b.level===2);
     const shoots=fir.branches.filter(b=>b.level===3);
     assert.equal(whorlBranches.length,44);
-    assert.ok(sprays.length>=280&&sprays.length<=310);
-    assert.equal(shoots.length,sprays.length);
+    assert.ok(sprays.length>=400&&sprays.length<=500);
+    assert.ok(shoots.length>=sprays.length*1.3&&shoots.length<=sprays.length*1.6);
     assert.equal(fir.branches.length,1+44+sprays.length+shoots.length);
     const byId=new Map(fir.branches.map(b=>[b.id,b]));
     assert.equal(byId.size,fir.branches.length);
@@ -56,8 +56,54 @@ test('young fir has one uninterrupted leader and annual branch whorls',()=>{
     const width=Math.max(fir.bounds.max[0]-fir.bounds.min[0],
       fir.bounds.max[2]-fir.bounds.min[2]);
     assert.ok(height>6.9&&height<8.1);
-    assert.ok(width>4.2&&width<6.2);
+    assert.ok(width>4.0&&width<6.2);
     assert.ok(fir.bounds.min[1]>=-.005);
+  }
+});
+
+test('fir wood grows in gently arched boughs with flattened lateral sprays',()=>{
+  for(const seed of SEEDS){
+    const fir=generateFir({seed});
+    let offset=0;
+    const curves:number[]=[];
+    const pitches:number[]=[];
+    const secondary= fir.branches.filter(b=>b.level===2);
+    const tertiary= fir.branches.filter(b=>b.level===3);
+    for(const branch of fir.branches){
+      // Each tube is recorded as a sequence of rings with two cap vertices.
+      const ringCenter=(ring:number)=>{
+        const result=[0,0,0];
+        const base=(offset+ring*branch.sides)*3;
+        for(let side=0;side<branch.sides;side++)
+          for(let k=0;k<3;k++)result[k]+=fir.positions[base+side*3+k]/branch.sides;
+        return result;
+      };
+      if(branch.level===1){
+        const first=ringCenter(0),mid=ringCenter(8),last=ringCenter(16);
+        curves.push(mid[1]-(first[1]+last[1])*.5);
+      }
+      if(branch.level>=2){
+        const dx=branch.to[0]-branch.from[0];
+        const dy=branch.to[1]-branch.from[1];
+        const dz=branch.to[2]-branch.from[2];
+        const distance=Math.hypot(dx,dy,dz);
+        pitches.push(Math.abs(dy/distance));
+      }
+      offset+=branch.rings*branch.sides+2;
+    }
+    assert.equal(offset*3,fir.positions.length);
+    assert.ok(curves.filter(x=>x<-.01).length>=28,
+      'Most supporting fir limbs should show a small downward arc');
+    pitches.sort((a,b)=>a-b);
+    assert.ok(pitches[Math.floor(pitches.length*.95)]<.2,
+      'Most fine shoots should remain in a broadly horizontal spray');
+    const supports=new Map<number,number>();
+    for(const branch of tertiary)
+      supports.set(branch.parentId!,1+(supports.get(branch.parentId!)??0));
+    assert.ok([...supports.values()].some(n=>n===2),
+      'Lateral shoots should support more than one terminal branch');
+    assert.ok(secondary.some(b=>supports.get(b.id)===1),
+      'Short laterals retain sparser tip branching');
   }
 });
 

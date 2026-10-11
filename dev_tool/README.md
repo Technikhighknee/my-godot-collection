@@ -89,8 +89,18 @@ boughs slope more upward toward the top. Branch lengths and attachment
 heights vary within each whorl, so the crown does not consist of
 perfectly repeated rings.
 
-Fine second-order shoots spread sideways from each supporting bough
-in relatively flat sprays. The terminal twigs taper to narrow tips.
+The whorl rhythm remains recognizable because it is characteristic
+of fir growth; the organic variation is mainly *within* each whorl.
+Primary limbs begin inside the trunk's shell with a thicker collar,
+taper early, and follow gently bowed trajectories with recovering outer
+tips. The bow is stronger in older lower limbs.
+
+Paired second-order shoots spread both forward and sideways from
+successive positions along each primary limb, forming flattened
+woody fans instead of upstanding spikes. Their finer third-order
+offspring branch within the same fan, with fewer twigs on short
+laterals. Needles are not simulated; the airy bare wood skeleton is
+not meant to have the visual density of a living evergreen crown.
 This is an intentionally different architecture, not a resized oak.
 The generator remains deterministic and exports the same in-memory
 wood mesh interface as the oak.

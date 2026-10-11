@@ -70,29 +70,32 @@ function leader(rng){
   return {id:0,parentId:null,level:0,continuation:false,length:height,sections};
 }
 function growAxis({id,parentId,level,start,heading,length:extent,radius,
-  rng,side,upward=0,sideBias=0,tipRadius=.16}){
+  rng,side,bend=0,tipLift=0,sideBias=0,tipRadius=.16}){
   const sections=[];
-  const count=level===1?12:level===2?6:4;
+  const count=level===1?16:level===2?7:4;
   const step=extent/count;
   let pos=start,dir=unit(heading),transverse=frame(dir,side).side;
   let turn=0,sway=0;
   for(let i=0;i<=count;i++){
     const f=i/count;
-    const radiusAt=Math.max(.00075,radius*(1-(1-tipRadius)*Math.pow(f,1.18)));
+    // The supporting bough is thick at its collar and sheds diameter
+    // rapidly; small twigs remain thin and taper to fine points.
+    const exponent=level===1?.78:1.05;
+    const radiusAt=Math.max(.00065,radius*(1-(1-tipRadius)*Math.pow(f,exponent)));
     transverse=frame(dir,transverse).side;
     sections.push({position:pos,tangent:dir,side:transverse,radius:radiusAt});
     if(i===count)break;
-    // Correlated deviations and modest tip lift keep wood irregular but
-    // preserve the recognizable, near-horizontal fir branch sprays.
-    turn=clamp(.75*turn+.25*(rng()-.5),-.6,.6);
-    sway=clamp(.75*sway+.25*(rng()-.5),-.6,.6);
+    turn=clamp(.82*turn+.18*(rng()-.5),-.55,.55);
+    sway=clamp(.82*sway+.18*(rng()-.5),-.55,.55);
     const basis=frame(dir,transverse),progress=(i+.5)/count;
-    const disturbance=level===1?.018:level===2?.036:.050;
-    const rise=upward*(.30+.90*progress*progress);
-    const sideways=sideBias*(.4+.6*progress);
+    const disturbance=level===1?.027:level===2?.031:.036;
+    // A live fir limb has a quiet downward bow through its middle,
+    // followed by recovered growth at the illuminated outer tip.
+    // Its young upper whorls are more ascending than the older ones.
+    const vertical=-bend*Math.cos(Math.PI*progress)+tipLift*progress**3;
     const force=add(
-      add(mul(basis.side,turn*disturbance+sideways),mul(basis.across,sway*disturbance)),
-      mul(sub(UP,mul(dir,dot(dir,UP))),rise));
+      add(mul(basis.side,turn*disturbance+sideBias),mul(basis.across,sway*disturbance)),
+      mul(sub(UP,mul(dir,dot(dir,UP))),vertical));
     dir=unit(add(dir,force));
     pos=add(pos,mul(dir,step));
   }
@@ -105,74 +108,86 @@ function buildFir(seed){
   const lower=1.20+(rng()-.5)*.14;
   const crownTop=trunk.length-.58;
   const interval=(crownTop-lower)/(whorls-1);
-  let phase=rng()*TAU;
-  let growthBias=.0;
+  let phase=rng()*TAU,growthBias=0;
   for(let tier=0;tier<whorls;tier++){
     const u=tier/(whorls-1);
-    // Neighboring yearly whorls do not arrive at perfectly regular
-    // elevations. A little correlated annual vigor alters their spacing.
-    growthBias=clamp(growthBias*.67+(rng()-.5)*.19,-.16,.16);
+    // The architectural rhythm of a fir is real: retain the annual
+    // whorls, with modest shifts in annual growth and local vigor.
+    growthBias=clamp(growthBias*.67+(rng()-.5)*.15,-.13,.13);
     const height=lower+tier*interval+growthBias;
     const n=tier<=2?5:tier<=7?4:3;
-    phase+=Math.PI*(3-Math.sqrt(5))+(rng()-.5)*.28;
-    const size=2.27*Math.pow(1-u,.82)+.20;
+    phase+=Math.PI*(3-Math.sqrt(5))+(rng()-.5)*.24;
+    const size=2.18*Math.pow(1-u,.84)+.21;
     for(let i=0;i<n;i++){
-      const angle=phase+TAU*(i+(rng()-.5)*.28)/n;
+      const angle=phase+TAU*(i+(rng()-.5)*.20)/n;
       const outward=[Math.cos(angle),0,Math.sin(angle)];
-      const anchor=at(trunk,clamp((height+(rng()-.5)*.25)/trunk.length,.06,.975));
-      const climb=-.035+.095*u+.32*u*u+(rng()-.5)*.11;
+      const anchor=at(trunk,clamp((height+(rng()-.5)*.19)/trunk.length,.06,.975));
+      const climb=.02+.07*u+.22*u*u+(rng()-.5)*.065;
       const heading=unit(add(mul(outward,Math.cos(climb)),mul(UP,Math.sin(climb))));
-      // Local light and vigor affect individual boughs rather than
-      // multiplying an entire ring by one common length.
-      const extent=size*(.77+rng()*.40);
-      const base=Math.min(anchor.radius*.50,.052)*(1-.22*u)*(.88+rng()*.18);
+      const extent=size*(.82+rng()*.31);
+      const base=Math.min(anchor.radius*.67,.073)*(1-.16*u)*(.90+rng()*.14);
       const b=growAxis({
         id:nextId++,parentId:0,level:1,
-        start:anchor.position,heading,length:extent,radius:base,
-        side:anchor.side,rng,upward:(.008+.010*u),
+        // Begin inside the bark shell; the expanded butt of the bough
+        // is visible at the union without a foreign-looking round cap.
+        start:add(anchor.position,mul(outward,anchor.radius*.48)),
+        heading,length:extent,radius:base,
+        side:anchor.side,rng,bend:.066*(1-.50*u),
+        tipLift:.014+.004*u,sideBias:(rng()-.5)*.007,
         tipRadius:.13,
       });
       axes.push(b);
 
-      // Fern-like branchlet fans share the horizontal plane of each
-      // supporting bough, with gently raised outer tips.
+      // A fir's flat sprays emerge in two ranks along the woody bough.
+      // Each rank grows forward as well as sideways; it is not a line
+      // of upright spikes. Older boughs support more lateral stations.
       const spread=unit(cross(UP,outward));
-      const lateralCount=extent>1.6?8:extent>.85?6:4;
-      for(let j=0;j<lateralCount;j++){
-        const fraction=.16+(j+.14+.63*rng())*.79/lateralCount;
-        const point=at(b,fraction);
-        const sign=j%2===0?1:-1;
-        const lift=.11+.13*u+(rng()-.5)*.13;
-        const heading=unit(add(
-          add(mul(outward,.45+.13*rng()),mul(spread,sign*(.80+.14*rng()))),
-          mul(UP,lift)));
-        const reach=extent*(.40+.13*rng())*
-          Math.pow(1-fraction,.69)*
-          (1+.22*(rng()-.5));
-        const sideBranch=growAxis({
-          id:nextId++,parentId:b.id,level:2,
-          start:point.position,heading,length:reach,
-          radius:Math.min(point.radius*.54,.0135),
-          side:point.side,rng,upward:.008,tipRadius:.11,
-        });
-        axes.push(sideBranch);
+      const stations=extent>1.65?6:extent>.88?5:4;
+      for(let j=0;j<stations;j++){
+        const station=.15+(j+.18+.40*rng())*.79/stations;
+        for(const sign of [-1,1]){
+          const fraction=clamp(station+(rng()-.5)*.055,.13,.94);
+          const point=at(b,fraction);
+          const lift=.025+.08*u+(rng()-.5)*.055;
+          const direction=unit(add(
+            add(mul(outward,.53+.12*rng()),mul(spread,sign*(.82+.15*rng()))),
+            mul(UP,lift)));
+          const reach=extent*(.32+.075*rng())*
+            Math.pow(1-fraction,.66)*(1+(rng()-.5)*.17);
+          const lateral=growAxis({
+            id:nextId++,parentId:b.id,level:2,
+            start:point.position,heading:direction,length:reach,
+            radius:Math.min(point.radius*.59,.013),
+            side:point.side,rng,bend:.003,tipLift:.007,
+            tipRadius:.085,
+          });
+          axes.push(lateral);
 
-        // One slim terminal shoot adds depth to the fan without turning
-        // the bare skeleton into an opaque mass of sticks.
-        const tip=at(sideBranch,.44+.32*rng());
-        const tilt=sign*(.32+.2*rng());
-        const tipDir=unit(add(
-          add(mul(sideBranch.sections.at(-1).tangent,.78),
-            mul(outward,.24)),
-          add(mul(spread,tilt),mul(UP,.10+.09*u))));
-        const twig=growAxis({
-          id:nextId++,parentId:sideBranch.id,level:3,
-          start:tip.position,heading:tipDir,
-          length:Math.max(.085,reach*(.28+.30*rng())),
-          radius:Math.min(.006,tip.radius*.66),
-          side:tip.side,rng,upward:.015,tipRadius:.035,
-        });
-        axes.push(twig);
+          // Small tertiary shoots remain within the lateral spray.
+          // Alternating forks create a woody fan, not comb teeth.
+          const tipCount=reach>.35?2:1;
+          for(let k=0;k<tipCount;k++){
+            const along=tipCount===1?.61:(k===0?.40:.69)+(rng()-.5)*.07;
+            const origin=at(lateral,along);
+            const lateralDir=origin.tangent;
+            const side=unit(cross(UP,lateralDir));
+            const turn=(k===0?-1:1)*(.34+.14*rng());
+            const twigDirection=unit(add(
+              add(mul(lateralDir,.88),mul(side,turn)),
+              mul(UP,.025+.06*u+(rng()-.5)*.032)));
+            const length=reach*(.25+.12*rng())*
+              Math.pow(1-along,.27);
+            const twig=growAxis({
+              id:nextId++,parentId:lateral.id,level:3,
+              start:origin.position,heading:twigDirection,
+              length:Math.max(.052,length),
+              radius:Math.min(.0054,origin.radius*.67),
+              side:origin.side,rng,tipLift:.004,
+              tipRadius:.035,
+            });
+            axes.push(twig);
+          }
+        }
       }
     }
   }
