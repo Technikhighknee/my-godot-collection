@@ -9,7 +9,8 @@ const byId = id => document.getElementById(id);
 const settings = { ...DEFAULT_TREE };
 let species = 'oak';
 let renderer, camera, scene, controls, wood, foliage, treeGroup, extents;
-let oakAtlasTexture;
+let oakAtlasTexture, oakAtlasCanvas, currentFoliage;
+let inspectMode='tree';
 let woodBounds, foliageBounds;
 let spinning = false, silhouette = false, foliageVisible = true;
 
@@ -68,7 +69,7 @@ function setupScene() {
   }).observe(byId('viewport'));
   const tick=()=>{
     requestAnimationFrame(tick);
-    if (spinning && treeGroup) treeGroup.rotation.y += .003;
+    if (spinning && treeGroup && inspectMode==='tree') treeGroup.rotation.y += .003;
     controls.update();
     renderer.render(scene,camera);
   };
@@ -77,6 +78,7 @@ function setupScene() {
 
 function focus(mode) {
   if (!extents) return;
+  if(inspectMode!=='tree')resetInspect();
   const lo=extents.min, hi=extents.max;
   const center=new THREE.Vector3((lo[0]+hi[0])*.5,(lo[1]+hi[1])*.5,(lo[2]+hi[2])*.5);
   const size=Math.max(...hi.map((v,i)=>v-lo[i]));
@@ -99,8 +101,11 @@ function updateFoliageUI() {
   button.hidden=!enabled;
   button.setAttribute('aria-pressed',String(enabled&&foliageVisible));
   button.textContent=foliageVisible?'Hide leaves':'Show leaves';
-  byId('stageContent').textContent=enabled&&foliageVisible
-    ?'WOOD + FOLIAGE':'WOOD ONLY';
+  byId('stageContent').textContent=inspectMode==='card'?'LEAF CARD / ATLAS':
+    inspectMode==='clump'?'ONE FOLIAGE CLUMP':
+    enabled&&foliageVisible?'WOOD + FOLIAGE':'WOOD ONLY';
+  for(const id of ['inspectCard','inspectClump'])
+    byId(id).hidden=!enabled;
 }
 function mergedBounds(a,b) {
   if(!b)return a;
@@ -110,7 +115,7 @@ function mergedBounds(a,b) {
   };
 }
 function updateLeafVisibility() {
-  if(foliage)foliage.visible=species==='oak'&&foliageVisible;
+  if(foliage)foliage.visible=species==='oak'&&foliageVisible&&inspectMode!=='card';
   extents=foliage?.visible?mergedBounds(woodBounds,foliageBounds):woodBounds;
   updateFoliageUI();
 }
@@ -129,6 +134,7 @@ function oakTexture(){
   if(!oakAtlasTexture){
     const canvas=document.createElement('canvas');
     paintOakAtlas(canvas);
+    oakAtlasCanvas=canvas;
     oakAtlasTexture=new THREE.CanvasTexture(canvas);
     oakAtlasTexture.colorSpace=THREE.SRGBColorSpace;
     oakAtlasTexture.wrapS=THREE.ClampToEdgeWrapping;
@@ -142,6 +148,8 @@ function oakTexture(){
 }
 function build() {
   let replacement=null;
+  inspectMode='tree';
+  byId('cardPreview').hidden=true;
   try {
     const started=performance.now();
     const result=species==='fir'?generateFir(settings):generateTree(settings);
@@ -159,7 +167,7 @@ function build() {
     if(foliageData){
       leavesMesh=new THREE.Mesh(geometryFrom(foliageData,true),
         new THREE.MeshStandardMaterial({
-          map:oakTexture(),color:silhouette?0x050909:0xffffff,
+          map:oakTexture(),color:silhouette?0x050909:0xc5d0bc,
           vertexColors:true,roughness:.93,metalness:0,
           alphaTest:.43,alphaToCoverage:true,depthWrite:true,
           transparent:false,side:THREE.DoubleSide,
@@ -177,6 +185,7 @@ function build() {
     treeGroup=replacement;
     wood=woodMesh;
     foliage=leavesMesh;
+    currentFoliage=foliageData;
     woodBounds=result.bounds;
     foliageBounds=foliageData?.bounds??null;
     updateLeafVisibility();
@@ -199,6 +208,50 @@ function build() {
     byId('error').textContent=error.message;
     console.error(error);
   }
+}
+// Reset any diagnostic draw range before normal tree/crown inspection.
+function resetInspect(){
+  inspectMode='tree';
+  byId('cardPreview').hidden=true;
+  if(wood)wood.visible=true;
+  if(foliage&&currentFoliage)
+    foliage.geometry.setDrawRange(0,currentFoliage.indices.length);
+  updateLeafVisibility();
+}
+function inspectCard(){
+  if(species!=='oak'||!currentFoliage)return;
+  oakTexture();
+  inspectMode='card';
+  byId('cardPreview').hidden=false;
+  byId('cardPreviewLabel').textContent='ATLAS TILE / ONE LEAF SPRAY';
+  const canvas=byId('cardPreviewCanvas'),ctx=canvas.getContext('2d');
+  if(!ctx)throw Error('2D card preview unavailable');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality='high';
+  ctx.drawImage(oakAtlasCanvas,0,0,256,256,0,0,canvas.width,canvas.height);
+  if(wood)wood.visible=false;
+  if(foliage)foliage.visible=false;
+  spinning=false;
+  byId('turntable').setAttribute('aria-pressed','false');
+  updateFoliageUI();
+}
+function inspectClump(){
+  if(species!=='oak'||!foliage||!currentFoliage)return;
+  inspectMode='clump';
+  byId('cardPreview').hidden=true;
+  const group=currentFoliage.crownMasses[Math.floor(currentFoliage.crownMasses.length/2)];
+  const c=group.cushions[0],radius=Math.max(...c.radii);
+  foliage.geometry.setDrawRange(c.firstCard*12,c.cardCount*12);
+  if(wood)wood.visible=false;
+  foliageVisible=true;
+  spinning=false;
+  byId('turntable').setAttribute('aria-pressed','false');
+  controls.target.set(...c.center);
+  camera.position.set(c.center[0]+radius*1.9,
+    c.center[1]+radius*.75,c.center[2]+radius*2.6);
+  controls.update();
+  updateLeafVisibility();
 }
 function selectSpecies(next){
   if(next!=='fir'&&next!=='oak')return;
@@ -244,9 +297,12 @@ byId('reseed').addEventListener('click',()=>{
 byId('whole').addEventListener('click',()=>focus('whole'));
 byId('foot').addEventListener('click',()=>focus('foot'));
 byId('crown').addEventListener('click',()=>focus('crown'));
+byId('inspectCard').addEventListener('click',inspectCard);
+byId('inspectClump').addEventListener('click',inspectClump);
 byId('foliageToggle').addEventListener('click',()=>{
   if(species!=='oak')return;
   foliageVisible=!foliageVisible;
+  if(inspectMode!=='tree')resetInspect();
   updateLeafVisibility();
 });
 byId('silhouette').addEventListener('click',()=>{

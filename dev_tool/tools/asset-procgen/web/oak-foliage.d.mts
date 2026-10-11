@@ -4,6 +4,7 @@ export interface OakCushion {
   radii:number[];
   supportAxisId:number;
   cardCount:number;
+  firstCard:number;
 }
 export interface OakCrownMass {
   supportAxisId:number;

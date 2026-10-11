@@ -369,6 +369,9 @@ test('asset generator remains seed-only and Map Editor routes still work',async(
   assert.match(html,/id="firGenerator"/);
   assert.match(html,/id="speciesSelect"/);
   assert.match(html,/id="foliageToggle"/);
+  assert.match(html,/id="inspectCard"/);
+  assert.match(html,/id="inspectClump"/);
+  assert.match(html,/id="cardPreviewCanvas"/);
   assert.match(html,/id="stageContent"/);
   for(const id of ['reseed','whole','foot','crown','silhouette','turntable'])
     assert.ok(html.includes('id="'+id+'"'));
@@ -380,6 +383,10 @@ test('asset generator remains seed-only and Map Editor routes still work',async(
   assert.match(app,/generateOakFoliage\(result\)/);
   assert.match(app,/THREE\.DoubleSide/);
   assert.match(app,/foliageVisible/);
+  assert.match(app,/oakTexture\(\)/);
+  assert.match(app,/alphaTest:\.43/);
+  assert.match(app,/firstCard\*12/);
+  assert.match(app,/paintOakAtlas\(canvas\)/);
   assert.doesNotMatch(app,/trunk\.mjs|export GLB/i);
   const map=await loadMap('../map_system/coastal_relief.map.json');
   const server=createEditorServer(map);

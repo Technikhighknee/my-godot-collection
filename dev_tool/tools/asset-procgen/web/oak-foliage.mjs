@@ -61,30 +61,39 @@ function sampleAxis(points,t){
     tangent:unit(sub(points[i+1],points[i])),
   };
 }
+// Secondary axes produce a broad inner canopy and a smaller outer
+// lobe. Both overlap and remain supported by accepted woody centerlines.
 function cushionPair(parent,children,centers,seed){
   const rng=random((seed^Math.imul(parent.id+1,0x632be5ab))>>>0);
-  const support=sampleAxis(centers.get(parent.id),.86);
+  const wood=sampleAxis(centers.get(parent.id),.80);
   const twigs=children.filter(x=>!x.continuation).map(axis=>({
-    axis,p:sampleAxis(centers.get(axis.id),.79).position,
+    axis,p:sampleAxis(centers.get(axis.id),.76).position,
   }));
   if(twigs.length<2)throw Error('Oak cushion needs terminal support');
   const near=twigs.reduce((best,x)=>!best||
-    length(sub(x.p,support.position))<length(sub(best.p,support.position))?x:best,null);
+    length(sub(x.p,wood.position))<length(sub(best.p,wood.position))?x:best,null);
   const far=twigs.reduce((best,x)=>!best||
     length(sub(x.p,near.p))>length(sub(best.p,near.p))?x:best,null);
-  return [near,far].map((twig,i)=>{
-    const site=sampleAxis(centers.get(twig.axis.id),i===0?.80:.89);
-    const r=unit([site.position[0],0,site.position[2]]);
-    const center=add(site.position,add(mul(r,.07+.085*rng()),[0,.03+.09*rng(),0]));
-    const radii=[
-      (.66+.13*rng())*(i===0?1:.93),
-      (.59+.16*rng())*(i===0?1:.94),
-      (.71+.16*rng())*(i===0?1:.98),
-    ];
-    return {center,radii,tangent:site.tangent,
-      axisId:twig.axis.id,seed:Math.floor(rng()*4294967296),
-      tone:(rng()-.5)*.12};
+  const mix=(a,b,t)=>add(mul(a,1-t),mul(b,t));
+  const rise=clamp((wood.position[1]-4.5)/5,0,1);
+  const core=mix(wood.position,near.p,.43+.09*rng());
+  const outer=mix(wood.position,far.p,.59+.08*rng());
+  const mainRadius=1.0+.12*rise+.13*rng();
+  const smallerRadius=.75+.10*rise+.13*rng();
+  const common=unit([wood.position[0],0,wood.position[2]]);
+  const make=(position,axisId,scale,outermost)=>({
+    center:add(position,add(mul(common,(outermost?.10:.025)*rng()),
+      [0,outermost?.09+.06*rng():.11+.08*rng(),0])),
+    radii:[scale*(.99+.13*rng()),scale*(.75+.11*rng()),
+      scale*(1.07+.15*rng())],
+    tangent:wood.tangent,axisId,
+    seed:Math.floor(rng()*4294967296),
+    tone:(rng()-.5)*.08,outermost,
   });
+  return [
+    make(core,parent.id,mainRadius,false),
+    make(outer,far.axis.id,smallerRadius,true),
+  ];
 }
 function addCard(out,p,facing,width,height,variant,rng,tone){
   const axis=Math.abs(facing[1])>.96?[1,0,0]:[0,1,0];
@@ -103,38 +112,49 @@ function addCard(out,p,facing,width,height,variant,rng,tone){
       const point=add(p,add(add(mul(across,x*width*.5),
         mul(rise,y*height)),mul(facing,(1-x*x)*bend)));
       const normal=unit(add(facing,mul(across,-x*bend/Math.max(.5*width,.01))));
-      const shade=clamp(.92+tone+(rng()-.5)*.065,.77,1.04);
+      const shade=clamp(.91+tone+(rng()-.5)*.052,.79,1.01);
       out.positions.push(...point);
       out.normals.push(...normal);
       out.uvs.push(lerp(u0,u1,column/2),lerp(v0,v1,row));
-      out.colors.push(shade*.96,shade,shade*.94);
+      out.colors.push(shade*.91,shade,shade*.91);
     }
   for(let column=0;column<2;column++){
     const a=start+column,b=a+1,c=a+3,d=c+1;
     out.indices.push(a,b,c,b,d,c);
   }
 }
+// Leaf sprays overlap heavily in an irregular volume. The outer shell
+// is scalloped by the texture silhouettes, not a hard spherical mesh.
 function addCushion(out,cushion,seed){
   const rng=random((seed^cushion.seed)>>>0);
   const [rx,ry,rz]=cushion.radii;
   const hor=unit([cushion.tangent[0],0,cushion.tangent[2]]);
   const along=length(hor)<.3?[1,0,0]:hor;
   const across=unit(cross([0,1,0],along));
-  const phase=rng()*TAU,count=30+Math.floor(rng()*9);
+  const phase=rng()*TAU;
+  const count=(cushion.outermost?19:32)+Math.floor(rng()*8);
   for(let i=0;i<count;i++){
-    const y=1-2*(i+.5)/count,angle=phase+i*GOLDEN+(rng()-.5)*.30;
+    const y=1-2*(i+.5)/count;
+    const angle=phase+i*GOLDEN+(rng()-.5)*.35;
     const r=Math.sqrt(1-y*y);
     const x=r*Math.cos(angle),z=r*Math.sin(angle);
-    const irregular=1+.12*Math.sin(3*angle+phase)+.07*Math.sin(5*angle-1.7*y+phase);
-    const depth=(.53+.43*rng())*irregular;
+    const bumps=1+.11*Math.sin(3*angle+phase)+.08*Math.sin(5*angle-1.7*y+phase);
+    const depth=(.42+.54*rng())*bumps;
     const p=add(cushion.center,add(
-      add(mul(along,x*rx*depth),[0,y*ry*depth,0]),
+      add(mul(along,x*rx*depth),[0,y*ry*depth]),
       mul(across,z*rz*depth)));
-    const exterior=unit(add(add(mul(along,x),[0,y*.84,0]),mul(across,z)));
-    const face=unit(add(mul(unit(add(exterior,mul(cushion.tangent,.30))),
-      .7+.12*rng()),mul([rng()-.5,rng()-.5,rng()-.5],.55)));
-    addCard(out,p,face,(.55+.19*rng())*(i%7===0?1.18:1),
-      .66+.25*rng(),Math.floor(rng()*OAK_ATLAS_GRID**2),rng,cushion.tone);
+    const exterior=unit(add(add(mul(along,x),[0,y*.88,0]),mul(across,z)));
+    // A mix of upward, outward and crossing cards keeps the foliage
+    // visible from the editor's RTS camera as well as from below.
+    let facing=unit(add(mul(exterior,.70),mul([0,1,0],.30)));
+    if(i%5===0)facing=unit(add(mul([0,1,0],.82),mul(exterior,.38)));
+    if(i%7===0)facing=unit(add(mul(exterior,.50),
+      mul(along,(i%2?1:-1)*.66)));
+    facing=unit(add(facing,mul([rng()-.5,rng()-.5,rng()-.5],.26)));
+    const width=(cushion.outermost?.65:.79)+rng()*(cushion.outermost?.20:.24);
+    const height=(cushion.outermost?.68:.79)+rng()*(cushion.outermost?.21:.24);
+    addCard(out,p,facing,width,height,
+      Math.floor(rng()*OAK_ATLAS_GRID**2),rng,cushion.tone);
   }
   return count;
 }
@@ -153,11 +173,12 @@ export function generateOakFoliage(wood){
     const group={supportAxisId:parent.id,axisCount:children.length+1,
       cardCount:0,cushions:[]};
     for(const c of cushions){
+      const firstCard=cards;
       const count=addCushion(out,c,wood.seed);
       cards+=count;group.cardCount+=count;
       group.cushions.push({
         center:c.center.slice(),radii:c.radii.slice(),
-        supportAxisId:c.axisId,cardCount:count,
+        supportAxisId:c.axisId,firstCard,cardCount:count,
       });
     }
     groups.push(group);

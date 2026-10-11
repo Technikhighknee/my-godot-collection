@@ -34,9 +34,16 @@
       <button id="whole" type="button">Whole tree</button>
       <button id="foot" type="button">Inspect base</button>
       <button id="crown" type="button">Inspect crown</button>
+      <button id="inspectCard" type="button">Inspect leaf card</button>
+      <button id="inspectClump" type="button">Inspect clump</button>
       <button id="foliageToggle" type="button" aria-pressed="true">Hide leaves</button>
       <button id="silhouette" type="button" aria-pressed="false">Silhouette</button>
       <button id="turntable" type="button" aria-pressed="false">Turntable</button>
+    </div>
+    <div id="cardPreview" class="pg-card-preview" hidden>
+      <span id="cardPreviewLabel" class="pg-card-preview-label">ATLAS TILE / ONE LEAF SPRAY</span>
+      <canvas id="cardPreviewCanvas" width="512" height="512" aria-label="Enlarged procedurally drawn oak leaf spray"></canvas>
+      <span class="pg-card-preview-help">The actual alpha-cutout texture used on the 3D foliage cards</span>
     </div>
     <div class="pg-viewport-footer"><span>DRAG TO ORBIT <b>·</b> SCROLL TO ZOOM <b>·</b> RIGHT-DRAG TO PAN</span><span id="meshStats"></span></div>
     <div id="error" role="alert" hidden></div>

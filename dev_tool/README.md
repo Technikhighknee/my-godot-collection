@@ -84,31 +84,35 @@ blades are no longer generated as individual triangle meshes: the
 former method could reach more than a million triangles without making
 recognizable clusters.
 
-Each of the fifteen secondary supports and its terminal descendants
-creates two overlapping, distinct foliage cushions. Every cushion
-contains 30–38 slightly curved **alpha-cutout leaf cards**, distributed
-through an irregular 3D volume and oriented in multiple directions.
-Cards show short sprays of multiple leaves, not one quad per leaf.
-Neighbouring cushions overlap, but the crown retains dark gaps.
-They are anchored to existing wood; no changes to the wood mesh are
-required. Seeded variation affects volumes, orientations and tint.
+Each secondary support anchors a larger inner canopy lobe and a
+smaller outer satellite, built from accepted branch and terminal
+centerlines. Rather than two isolated round tufts, the lobes overlap
+into an elongated, irregular mass; neighboring groups can overlap
+as well. A lobe carries approximately 19–39 curved alpha-cutout
+cards oriented outward, upward and at crossed angles. Each card
+depicts many overlapping leaves with a dense, scalloped silhouette.
+The wood mesh is unchanged. Seeded variation affects lobe shape,
+card position, orientation and color.
 
 The browser paints a deterministic 1024 × 1024 RGBA texture atlas with
-sixteen oak sprays using Canvas 2D. Each spray is made from several fine
-twigs and procedurally drawn *Quercus robur* leaves. The existing
+sixteen oak sprays using Canvas 2D. Each spray layers broad
+*Quercus robur* leaf silhouettes into a filled clump, with unobtrusive
+fine branchlets; every tile is clipped to prevent atlas bleeding. The existing
 oak-leaf.mjs profiles supply the rounded lobes and basal ears.
 oak-atlas.mjs handles painting; oak-foliage.mjs returns one indexed
 mesh with positions, normals, colors, UVs, and cushion metadata.
 No external textures or dependencies are introduced.
 
 The preview creates the atlas **once** and shares the texture across
-tree seeds. Alpha cutout writes depth and casts shadows, while
+tree seeds. **Inspect leaf card** enlarges the actual atlas tile;
+**Inspect clump** isolates one real lobe of the generated tree, while
+Whole tree and Inspect crown restore the normal geometry draw range. Alpha cutout writes depth and casts shadows, while
 double-sided cards and alpha-to-coverage preserve a solid crown at
 oblique viewing angles. Hide leaves, Silhouette, Turntable and camera
 controls still work.
 
-The detailed leaf-card mesh contains roughly 4,000 triangles, in
-addition to 6,444 existing wood triangles. There are **no LOD levels**
+The detailed leaf-card mesh contains roughly 3,400–3,600 triangles,
+in addition to 6,444 existing wood triangles. There are **no LOD levels**
 or asset exports yet. Bark textures and wind animation remain future
 work. Tests verify seeded output, connected group structure, correct
 UV tile boundaries, finite indexed geometry and the triangle budget.
