@@ -177,7 +177,7 @@ export function generateOakBarkMaterial(options={}){
     heightMap[i]=heightMap[i+1]=heightMap[i+2]=hByte;
     heightMap[i+3]=255;
   }
-  return {width,height,albedo,normal,roughness,ao,height:heightMap,
+  return {width,height,albedo,normal,roughness,ao,heightMap,
     heightField,normalConvention:'opengl'};
 }
 export const OAK_BARK_MAPS=Object.freeze([
@@ -187,15 +187,19 @@ export function paintGeneratedOakBarkMap(canvas,material,map='albedo'){
   if(!canvas||typeof canvas.getContext!=='function')
     throw Error('Invalid oak bark canvas');
   if(!OAK_BARK_MAPS.includes(map))throw Error('Unknown bark material map');
+  // The public inspector view is named 'height', but 'height' in the
+  // material contract is always the image dimension, not a pixel array.
+  const pixels=material?.[map==='height'?'heightMap':map];
   if(!material||!Number.isInteger(material.width)||
-    !Number.isInteger(material.height)||
-    material[map]?.length!==material.width*material.height*4)
+    !Number.isInteger(material.height)||material.width<1||
+    material.height<1||!(pixels instanceof Uint8ClampedArray)||
+    pixels.length!==material.width*material.height*4)
     throw Error('Invalid bark material');
   canvas.width=material.width;canvas.height=material.height;
   const ctx=canvas.getContext('2d');
   if(!ctx)throw Error('Canvas 2D unavailable for oak bark');
   const image=ctx.createImageData(material.width,material.height);
-  image.data.set(material[map]);
+  image.data.set(pixels);
   ctx.putImageData(image,0,0);
   return {width:material.width,height:material.height,map,seamless:true};
 }

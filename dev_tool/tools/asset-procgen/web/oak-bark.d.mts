@@ -10,7 +10,7 @@ export interface OakBarkMaterial {
   width:number;height:number;
   albedo:Uint8ClampedArray;normal:Uint8ClampedArray;
   roughness:Uint8ClampedArray;ao:Uint8ClampedArray;
-  height:Uint8ClampedArray;
+  heightMap:Uint8ClampedArray;
   heightField:Float32Array;
   normalConvention:'opengl';
 }

@@ -17,17 +17,21 @@ test('a single reproducible relief drives all five properly packed PBR maps',()=
   assert.deepEqual(material.albedo,original.pixels);
   assert.deepEqual(material.heightField,original.heightField);
   assert.equal(material.normalConvention,'opengl');
+  assert.deepEqual([material.width,material.height],
+    [base.size,base.size],'Texture dimensions must remain numeric');
   assert.deepEqual(OAK_BARK_MAPS,
     ['albedo','normal','roughness','ao','height']);
   for(const name of OAK_BARK_MAPS){
-    assert.deepEqual(material[name],repeat[name]);
-    assert.equal(material[name].length,base.size*base.size*4);
-    for(let i=3;i<material[name].length;i+=4)
-      assert.equal(material[name][i],255);
+    const pixels=name==='height'?material.heightMap:material[name];
+    const expected=name==='height'?repeat.heightMap:repeat[name];
+    assert.deepEqual(pixels,expected);
+    assert.equal(pixels.length,base.size*base.size*4);
+    for(let i=3;i<pixels.length;i+=4)
+      assert.equal(pixels[i],255);
   }
   for(let i=0;i<material.heightField.length;i++){
     assert.ok(material.heightField[i]>=0&&material.heightField[i]<=1);
-    assert.equal(material.height[i*4],Math.round(material.heightField[i]*255));
+    assert.equal(material.heightMap[i*4],Math.round(material.heightField[i]*255));
     const x=material.normal[i*4]/255*2-1;
     const y=material.normal[i*4+1]/255*2-1;
     const z=material.normal[i*4+2]/255*2-1;
@@ -49,7 +53,7 @@ test('pigmentation has no influence on geometry, normals, roughness or AO',()=>{
   const first=generateOakBarkMaterial(base);
   const changed=generateOakBarkMaterial({...base,colorSeed:98333});
   assert.notDeepEqual(changed.albedo,first.albedo);
-  for(const key of ['heightField','height','normal','roughness','ao'] as const)
+  for(const key of ['heightField','heightMap','normal','roughness','ao'] as const)
     assert.deepEqual(first[key],changed[key],key);
   const cracks=generateOakBarkMaterial({...base,structureSeed:98333});
   assert.notDeepEqual(cracks.heightField,first.heightField);
@@ -74,10 +78,14 @@ test('the inspector paints any material map without regenerating its seeds',()=>
   for(const name of OAK_BARK_MAPS){
     assert.deepEqual(paintGeneratedOakBarkMap(canvas,material,name),
       {width:64,height:64,map:name,seamless:true});
-    assert.deepEqual(captured.bytes,material[name]);
+    assert.deepEqual(captured.bytes,name==='height'?material.heightMap:material[name]);
   }
+  assert.deepEqual([canvas.width,canvas.height],[64,64]);
   assert.throws(()=>paintGeneratedOakBarkMap(canvas,material,'invalid' as never),
     /Unknown bark/);
+  assert.throws(()=>paintGeneratedOakBarkMap(canvas,{
+    ...material,heightMap:new Uint8ClampedArray(0),
+  },'height'),/Invalid bark material/);
 });
 
 test('oak mapping preserves the accepted growth mesh and duplicates render seams',()=>{
