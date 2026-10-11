@@ -101,8 +101,14 @@ steered away from detached silhouettes. A shared spatial occupancy
 field discourages both excessive self-crowding and the filling of every
 dark opening between neighboring crown masses. A soft, height-dependent
 outer crown envelope remains a broad safeguard, not a clipping mesh.
+Each mass contains two broad, overlapping foliage cushions centered
+on actual young branch supports. New supporting sprays aim toward
+underserved portions of those cushions, where a denser arrangement
+of individual leaves forms a scalloped, bush-like outline. Nearby masses
+may merge at their margins but do not uniformly fill every intervening
+gap. Every leaf remains connected through real fine wood and its petiole.
 Each mass has a restrained color variation and reports diagnostic
-counts of its axes, shoots and leaves.
+counts of its axes, shoots and leaves, plus its cushion geometry.
 
 Leaves are spaced alternately along supporting shoots and form varied
 small groups near their tips. Their laminae are oriented to present

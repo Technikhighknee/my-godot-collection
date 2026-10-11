@@ -258,6 +258,7 @@ function crownSpace(wood,centers){
     const members=[parent,...(descendants.get(parent.id)||[])];
     const rng=random((wood.seed^Math.imul(parent.id+1,0x632be5ab))>>>0);
     const cores=[],centerSamples=[];
+    const tips=[];
     for(const axis of members){
       const samples=centers.get(axis.id);
       if(!samples||samples.length<2)
@@ -275,9 +276,38 @@ function crownSpace(wood,centers){
         });
         if(i===2)centerSamples.push(site.position);
       }
+      if(axis.level===3&&!axis.continuation){
+        const tip=onAxis(samples,.84);
+        tips.push({position:tip.position,tangent:tip.tangent,axisId:axis.id});
+      }
     }
+    // Two broad overlapping cushions form an irregular clump on each
+    // secondary bough. Their positions are inherited from actual branch
+    // tips, but the visible outline is made by leaves on supporting wood.
+    // One cushion alone makes a ball; independent shoots everywhere make
+    // a shapeless cloud.
+    const parentSamples=centers.get(parent.id);
+    const parentTip=onAxis(parentSamples,.85);
+    const firstTip=tips.reduce((best,tip)=>
+      !best||Math.hypot(...sub(tip.position,parentTip.position))<
+        Math.hypot(...sub(best.position,parentTip.position))?tip:best,null);
+    const distantTip=tips.reduce((best,tip)=>
+      !best||Math.hypot(...sub(tip.position,firstTip.position))>
+        Math.hypot(...sub(best.position,firstTip.position))?tip:best,null);
+    const cushions=[firstTip,distantTip].map((tip,i)=>{
+      const position=add(tip.position,add(
+        mul(tip.tangent,(i===0?.12:.19)+rng()*.12),
+        [0,.08+.12*rng(),0]));
+      const width=(i===0?.82:.76)*(.88+.23*rng());
+      return {
+        position,axisId:tip.axisId,
+        tangent:tip.tangent,
+        width,length:width*(1.03+.22*rng()),height:width*(.82+.25*rng()),
+        leaves:0,
+      };
+    });
     const mass={
-      id:parent.id,axes:members.length,cores,
+      id:parent.id,axes:members.length,cores,cushions,
       center:[0,0,0],tone:(rng()-.5)*.075,
       leafCount:0,shootCount:0,
     };
@@ -354,15 +384,35 @@ function crownSpace(wood,centers){
     const side=unit(cross(Math.abs(tangent[1])<.86?[0,1,0]:[1,0,0],tangent));
     const across=unit(cross(tangent,side));
     const phase=rng()*TAU;
+    // A cushion is a real target for foliage growth, not just a
+    // collision envelope around the pre-existing sprays. Choose a nearby
+    // cushion that the supporting wood can plausibly reach.
+    const cushions=mass.cushions.slice().sort((a,b)=>
+      Math.hypot(...sub(site,a.position))-Math.hypot(...sub(site,b.position)));
+    const cushion=cushions[rng()<.84?0:1];
+    const orbit=phase+rng()*TAU;
+    const polar=(rng()-.5)*1.35+.20;
+    const target=add(cushion.position,[
+      Math.cos(orbit)*Math.cos(polar)*cushion.width*(.72+.30*rng()),
+      Math.sin(polar)*cushion.height*(.72+.30*rng()),
+      Math.sin(orbit)*Math.cos(polar)*cushion.length*(.72+.30*rng()),
+    ]);
+    const targetHeading=unit(sub(target,site));
+    const targetDistance=Math.hypot(...sub(target,site));
     let best=null;
-    for(let i=0;i<11;i++){
-      const phi=phase+i*TAU/11+(rng()-.5)*.21;
+    for(let i=0;i<12;i++){
+      const phi=phase+i*TAU/12+(rng()-.5)*.18;
       const spread=unit(add(mul(side,Math.cos(phi)),mul(across,Math.sin(phi))));
       const rise=clamp(.13-from.upper*.41+from.low*.22,-.22,.24);
-      const aim=unit(add(
+      const original=unit(add(
         add(mul(tangent,.31+.15*rng()),mul(spread,.75+.17*rng())),
         add(mul(outward,.10+.25*rng()-from.outer*.48),
           [0,rise+(rng()-.5)*.18,0])));
+      // Include a target-directed candidate so the field cannot choose
+      // twelve directions that all miss an otherwise empty cushion.
+      const aim=i===0?targetHeading:unit(add(
+        mul(original,.53+.36*rng()),
+        mul(targetHeading,.47+.17*rng())));
       const middle=add(site,mul(aim,extent*.55));
       const tip=add(site,mul(aim,extent));
       const excessiveRadius=Math.max(0,radial(tip)-envelope(tip[1]));
@@ -370,6 +420,12 @@ function crownSpace(wood,centers){
       const excessiveBottom=Math.max(0,(bottom-.36)-tip[1]);
       const outsideMass=Math.max(0,closestLobe(tip,mass).distance);
       const middleOutside=Math.max(0,closestLobe(middle,mass).distance);
+      // The shoots should surround each cushion, not collapse into its
+      // center. Sparse portions of the surface are preferred.
+      const delta=sub(tip,cushion.position);
+      const ellipsoid=Math.hypot(delta[0]/cushion.width,
+        delta[1]/cushion.height,delta[2]/cushion.length);
+      const surfaceError=Math.abs(ellipsoid-.81);
       let closest=Infinity,crowding=0,otherMassCrowding=0;
       nearby(tip,node=>{
         const p=node.point;
@@ -377,18 +433,20 @@ function crownSpace(wood,centers){
         if(node.massId===mass.id){
           closest=Math.min(closest,d);
           crowding+=Math.max(0,1-d/.40);
-        } else {
-          otherMassCrowding+=Math.max(0,1-d/.66);
-        }
+        } else otherMassCrowding+=Math.max(0,1-d/.72);
       });
       const isolation=closest===Infinity?.65:Math.max(0,closest-.98);
+      const distanceToTarget=Math.hypot(...sub(tip,target));
+      const progress=targetDistance>extent*.85?
+        Math.max(0,dot(aim,targetHeading)):.5;
       const score=-4.2*excessiveRadius**2-7.5*excessiveTop**2-
-        5*excessiveBottom**2-3.8*outsideMass**2-
-        .80*middleOutside**2-.34*isolation**2-
-        .28*Math.max(0,crowding-1.7)-
-        .17*Math.max(0,otherMassCrowding-1.0)-
-        2*Math.max(0,radial(middle)-envelope(middle[1]))**2+
-        (order===2?.045:0)+rng()*.26;
+        5*excessiveBottom**2-4.7*outsideMass**2-
+        .9*middleOutside**2-.22*isolation**2-
+        .30*Math.max(0,crowding-2.0)-
+        .42*Math.max(0,otherMassCrowding-.65)-
+        1.0*surfaceError**2-.25*distanceToTarget**2+
+        .34*progress-2*Math.max(0,radial(middle)-envelope(middle[1]))**2+
+        (order===2?.045:0)+rng()*.14;
       if(!best||score>best.score)best={aim,tip,score};
     }
     register(best.tip,mass);
@@ -459,10 +517,12 @@ export function generateOakFoliage(wood){
     const sparse=crown.localSupport(upper,mass)<1.3;
     const infill=level===3&&status.outer<.72&&
       status.t>.20&&status.t<.86&&sparse&&rng()<.70;
-    const fans=(level===2?3:3)+Math.floor(rng()*3)+(infill?1:0);
+    // More leaf-bearing sprays per real axis, concentrated into the
+    // overlapping cushions instead of coating the entire branch length.
+    const fans=4+Math.floor(rng()*3)+(infill?1:0);
     const internodes=Array.from({length:fans},()=>.64+.74*rng());
     const total=internodes.reduce((sum,v)=>sum+v,0);
-    let current=level===2?.49:.19,phase=rng()*TAU;
+    let current=level===2?.54:.31,phase=rng()*TAU;
     // A little leaf cover belongs on the outermost established wood;
     // most foliage belongs to the connected sprays grown below.
     if(level===3){
@@ -475,21 +535,21 @@ export function generateOakFoliage(wood){
       }
     }
     for(let j=0;j<fans;j++){
-      current+=internodes[j]/total*(level===2?.43:.76);
+      current+=internodes[j]/total*(level===2?.39:.65);
       const bud=onAxis(base,clamp(current+(rng()-.5)*.055,.18,.985));
       phase+=2.399963229728653+(rng()-.5)*.31;
-      const extension=((level===2?.45:.36)+rng()*(level===2?.26:.25))*
+      const extension=((level===2?.53:.45)+rng()*(level===2?.32:.32))*
         (1-.22*status.upper-.18*status.outer);
       const heading=crown.choose(bud.position,bud.tangent,extension,rng,level,mass);
       const main=fineShoot(output,bud.position,heading,extension,rng);
       shootCount++;
       const familyVigor=vigor*(.79+.45*rng());
       leafCount+=leafOnShoot(output,main,radial,rng,phase,
-        3+Math.floor(rng()*3),familyVigor,mass.tone);
+        4+Math.floor(rng()*3),familyVigor,mass.tone);
       // Families branch in space: supporting stems split into several
       // thinner sprays with variable angles, vigor and terminal leaves.
       // The forks are genuine wood meshes, not free-floating leaf balls.
-      const forks=1+Math.floor(rng()*3);
+      const forks=2+Math.floor(rng()*3);
       let branchAngle=phase+.35;
       for(let k=0;k<forks;k++){
         const split=clamp(.36+(k+.2+.42*rng())*.48/forks,.29,.84);
@@ -512,7 +572,7 @@ export function generateOakFoliage(wood){
         crown.register(child.at(-1),mass);
         shootCount++;
         leafCount+=leafOnShoot(output,child,radial,rng,branchAngle,
-          4+Math.floor(rng()*4),familyVigor*(.88+.22*rng()),mass.tone);
+          5+Math.floor(rng()*4),familyVigor*(.88+.22*rng()),mass.tone);
       }
     }
     branchesUsed++;
@@ -520,7 +580,7 @@ export function generateOakFoliage(wood){
     mass.shootCount+=shootCount-shootsBefore;
   }
   if(!leafCount)throw Error('Oak crown contains no leaf-bearing wood');
-  if(output.indices.length>3300000)throw Error('Foliage geometry budget exceeded');
+  if(output.indices.length>7500000)throw Error('Foliage geometry budget exceeded');
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(let i=0;i<output.positions.length;i+=3)
     for(let k=0;k<3;k++){
@@ -533,6 +593,10 @@ export function generateOakFoliage(wood){
       supportAxisId:mass.id,axisCount:mass.axes,
       center:mass.center.slice(),leafCount:mass.leafCount,
       shootCount:mass.shootCount,
+      cushions:mass.cushions.map(cushion=>({
+        center:cushion.position.slice(),supportAxisId:cushion.axisId,
+        radii:[cushion.width,cushion.height,cushion.length],
+      })),
     })),
     veinCount:output.veinCount,
     positions:Float32Array.from(output.positions),

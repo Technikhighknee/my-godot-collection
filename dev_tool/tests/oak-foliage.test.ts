@@ -47,15 +47,19 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     assert.equal(new Set(f.crownMasses.map(m=>m.supportAxisId)).size,15);
     assert.ok(f.crownMasses.every(m=>
       m.axisCount===5&&m.leafCount>0&&m.shootCount>0&&
-      m.center.length===3&&m.center.every(Number.isFinite)));
+      m.center.length===3&&m.center.every(Number.isFinite)&&
+      m.cushions.length===2&&m.cushions.every(c=>
+        c.center.length===3&&c.center.every(Number.isFinite)&&
+        c.radii.length===3&&c.radii.every(r=>Number.isFinite(r)&&r>.45)&&
+        Number.isInteger(c.supportAxisId))));
     assert.equal(f.crownMasses.reduce((n,m)=>n+m.leafCount,0),f.leafCount);
     assert.equal(f.crownMasses.reduce((n,m)=>n+m.shootCount,0),f.shootCount);
     assert.equal(f.branchesUsed,75,
       'Both secondary and terminal wood must carry connected foliage families');
-    assert.ok(f.leafCount>3600&&f.leafCount<5000,
-      'A summer oak crown needs enough leaf area without blanket saturation');
-    assert.ok(f.shootCount>=700&&f.shootCount<=1100,
-      'Crown volume must contain branching families of short supporting wood');
+    assert.ok(f.leafCount>6500&&f.leafCount<15000,
+      'The distinct leafy cushions need ample individually modeled leaves');
+    assert.ok(f.shootCount>=1100&&f.shootCount<=2600,
+      'Cushions need dense connected secondary and terminal sprays');
     assert.ok(f.veinCount>=f.leafCount*8);
     assert.ok(f.veinCount<=f.leafCount*12);
     assert.deepEqual(tree.positions,positions,'Foliage cannot reshape accepted oak wood');
@@ -63,8 +67,8 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     assert.equal(f.positions.length,f.normals.length);
     assert.equal(f.colors.length,f.positions.length);
     assert.equal(f.indices.length%3,0);
-    assert.ok(f.indices.length/3<850000,
-      'Detailed oak leaves must stay within a practical triangle budget');
+    assert.ok(f.indices.length/3<2500000,
+      'Preserve detailed individual blades without unbounded geometry');
     assert.ok(f.positions.every(Number.isFinite));
     assert.ok(f.normals.every(Number.isFinite));
     assert.ok(f.colors.every(x=>Number.isFinite(x)&&x>=0&&x<=1));
@@ -73,8 +77,8 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     assert.ok(f.bounds.max[1]>=tree.bounds.max[1]-.8);
     assert.ok(f.bounds.max[1]<=tree.bounds.max[1]+.45,
       'Sunward shoots may soften the skyline, not form new isolated spires');
-    assert.ok(f.leafCount/f.shootCount>3.8&&f.leafCount/f.shootCount<6,
-      'Leaf families should cover branches without indiscriminate density');
+    assert.ok(f.leafCount/f.shootCount>4.1&&f.leafCount/f.shootCount<7.0,
+      'Denser sprays should be concentrated into connected cushions');
     // The first supporting shoot has six rings of five vertices and
     // two center caps. The first attached blade follows it immediately.
     // Its last row must taper instead of being spread apart by twist.
