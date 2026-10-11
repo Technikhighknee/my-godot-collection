@@ -126,8 +126,13 @@ test('navigation supports selecting, filtering, favorites, recents and Ctrl+K',(
     assert.equal(count.textContent,'5 assets');
     assert.equal(library.select('oak'),true);
     assert.equal(library.select('invalid'),false);
-    const selected=find(list,node=>node.attributes['aria-current']==='page');
-    assert.equal(selected?.id,'oakGenerator');
+    // A selected asset can appear both in Recent and in the category
+    // tree. Compact Recent/Favorites links intentionally have no DOM id.
+    const selected=find(list,node=>node.id==='oakGenerator');
+    assert.equal(selected?.attributes['aria-current'],'page');
+    const selectedRecent=find(list,node=>node.id===''&&
+      node.attributes['aria-current']==='page');
+    assert.ok(selectedRecent,'Recent must also highlight the active asset');
 
     const favorite=find(list,node=>
       node.attributes['aria-label']==='Add favorite: Oak tree');
