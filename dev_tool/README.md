@@ -102,6 +102,27 @@ The initial defaults deliberately preserve the previous results
 (wood and foliage use the old tree seed; the atlas uses 21749).
 The accepted oak and fir wood generators remain unchanged.
 
+### Oak bark albedo
+
+Under **2D Assets → Oak bark**, the workshop generates a deterministic
+1024 × 1024 opaque, tileable gray-brown texture inspired by the deep
+longitudinal fissures of mature *Quercus robur*. Unlike flat brown
+noise, it combines meandering major grooves, interrupted transverse
+fractures, cork-grain microrelief and restrained material pigmentation.
+
+The component seeds are **Bark fissures** (large-scale structure),
+**Surface detail** (granularity) and **Pigmentation** (color/patina).
+Changing the color seed does not change the generated relief field.
+No photographs, third-party texture assets or additional dependencies
+are bundled. The image is computed locally in the browser.
+
+The generator also produces a scalar height field internally for later
+normal-map work; this first slice exposes an **albedo preview only**, not a finished
+PBR material. The existing oak's mesh, barkless preview material,
+foliage and UVs are unchanged. A separate later task will handle
+material maps, mapping scale and applying bark to the 3D tree.
+No PNG export is added in this step.
+
 ### Oak leaf spray prototype
 
 In **2D Assets → Oak leaf spray**, a standalone generator grows one

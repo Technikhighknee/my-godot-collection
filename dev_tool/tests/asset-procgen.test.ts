@@ -410,6 +410,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(catalog,/return definition\.generate\(componentSeeds\)/);
   assert.match(catalog,/kind:'image'/);
   assert.match(catalog,/generateOakSprigAsset/);
+  assert.match(catalog,/generateOakBarkAsset/);
   assert.match(imagePreview,/createImageViewport/);
   assert.match(imagePreview,/validateImageAsset/);
   assert.match(imagePreview,/imageZoomAt/);
@@ -437,6 +438,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
       '/tools/asset-procgen/oak-foliage.mjs',
       '/tools/asset-procgen/oak-atlas.mjs',
       '/tools/asset-procgen/oak-sprig.mjs',
+      '/tools/asset-procgen/oak-bark.mjs',
       '/tools/asset-procgen/generators.mjs',
       '/tools/asset-procgen/seed-model.mjs',
       '/tools/asset-procgen/viewport-3d.mjs',

@@ -25,6 +25,7 @@ const staticRoutes:Record<string,[string,string]>={
   '/tools/asset-procgen/oak-foliage.mjs': ['tools/asset-procgen/web/oak-foliage.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/oak-atlas.mjs': ['tools/asset-procgen/web/oak-atlas.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/oak-sprig.mjs': ['tools/asset-procgen/web/oak-sprig.mjs', 'text/javascript; charset=utf-8'],
+  '/tools/asset-procgen/oak-bark.mjs': ['tools/asset-procgen/web/oak-bark.mjs', 'text/javascript; charset=utf-8'],
   '/app.js': ['tools/map-editor/web/app.js', 'text/javascript; charset=utf-8'],
   '/road-edit.mjs': ['tools/map-editor/web/road-edit.mjs', 'text/javascript; charset=utf-8'],
   '/terrain-edit.mjs': ['tools/map-editor/web/terrain-edit.mjs', 'text/javascript; charset=utf-8'],

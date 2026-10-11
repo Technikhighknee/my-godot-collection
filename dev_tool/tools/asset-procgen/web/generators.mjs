@@ -6,6 +6,7 @@ import {generateOakFoliage} from './oak-foliage.mjs';
 import {validateSeed} from './seed-model.mjs';
 import {paintOakAtlas,OAK_ATLAS_SIZE} from './oak-atlas.mjs';
 import {generateOakSprig,paintOakSprig,OAK_SPRIG_SIZE} from './oak-sprig.mjs';
+import {paintOakBark,OAK_BARK_SIZE} from './oak-bark.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -35,6 +36,17 @@ function generateOakSprigAsset(seeds){
   return {id:'oak-sprig',kind:'image',width:OAK_SPRIG_SIZE,
     height:OAK_SPRIG_SIZE,channels:'RGBA',
     paint:canvas=>paintOakSprig(canvas,sprig)};
+}
+function generateOakBarkAsset(seeds){
+  return {
+    id:'oak-bark',kind:'image',width:OAK_BARK_SIZE,height:OAK_BARK_SIZE,
+    channels:'RGBA',
+    paint:canvas=>paintOakBark(canvas,{
+      structureSeed:seeds.structure,
+      surfaceSeed:seeds.surface,
+      colorSeed:seeds.color,
+    }),
+  };
 }
 export const GENERATORS=Object.freeze([
   Object.freeze({
@@ -84,6 +96,20 @@ export const GENERATORS=Object.freeze([
     components:Object.freeze([
       Object.freeze({id:'structure',label:'Twig structure',initialSeed:19461}),
       Object.freeze({id:'leaves',label:'Leaf appearance',initialSeed:21749}),
+    ]),
+  }),
+  Object.freeze({
+    id:'oak-bark',kind:'image',symbol:'▤',
+    label:'Oak bark',subtitle:'Seamless mature oak bark albedo',
+    generate:generateOakBarkAsset,
+    overline:'2D / OAK BARK',title:'Mature oak bark.',
+    description:'Seeded, seamless 1024×1024 oak-bark albedo. Independent major fissures, cork surface texture and gray-brown pigmentation. Normal mapping and attachment to the 3D oak are separate next steps.',
+    previewLabel:'Seamless gray-brown oak bark albedo texture',
+    initialMasterSeed:19641,
+    components:Object.freeze([
+      Object.freeze({id:'structure',label:'Bark fissures',initialSeed:19641}),
+      Object.freeze({id:'surface',label:'Surface detail',initialSeed:48507}),
+      Object.freeze({id:'color',label:'Pigmentation',initialSeed:21749}),
     ]),
   }),
 ]);

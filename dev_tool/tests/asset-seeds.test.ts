@@ -14,15 +14,19 @@ const oak=findGenerator('oak')!;
 const fir=findGenerator('fir')!;
 const atlas=findGenerator('oak-atlas')!;
 const sprig=findGenerator('oak-sprig')!;
+const bark=findGenerator('oak-bark')!;
 test('catalog exposes current models as independent generator definitions',()=>{
-  assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir','oak-atlas','oak-sprig']);
+  assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir','oak-atlas','oak-sprig','oak-bark']);
   assert.deepEqual(oak.components.map(x=>x.id),['geometry','foliage','leaves']);
   assert.deepEqual(fir.components.map(x=>x.id),['geometry']);
-  assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','image','image']);
+  assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','image','image','image']);
   assert.deepEqual(atlas.components.map(x=>x.id),['leaves']);
   assert.deepEqual(createSeedState(atlas).components,{leaves:21749});
   assert.deepEqual(sprig.components.map(x=>x.id),['structure','leaves']);
   assert.deepEqual(createSeedState(sprig).components,{structure:19461,leaves:21749});
+  assert.deepEqual(bark.components.map(c=>c.id),['structure','surface','color']);
+  assert.deepEqual(createSeedState(bark).components,
+    {structure:19641,surface:48507,color:21749});
   assert.equal(findGenerator('nonexistent'),null);
   assert.equal(createSeedState(oak).masterSeed,DEFAULT_TREE.seed);
   assert.deepEqual(createSeedState(oak).components,{
@@ -171,4 +175,23 @@ test('standalone 3D-grown oak spray bakes independently of tree and atlas',()=>{
   assert.equal(updated.components.leaves,43);
   assert.equal(state.components.leaves,21749);
   assert.throws(()=>generateAsset(definition,{structure:-1,leaves:10}));
+});
+
+
+test('oak bark is a standalone seedable opaque image, not a tree component',()=>{
+  const state=createSeedState(bark);
+  const asset=generateAsset(bark,state.components);
+  assert.equal(asset.kind,'image');
+  if(asset.kind!=='image')throw Error('Expected bark albedo');
+  assert.deepEqual([asset.id,asset.width,asset.height,asset.channels],
+    ['oak-bark',1024,1024,'RGBA']);
+  assert.equal(asset.tiles,undefined);
+  assert.equal(asset.atlas,undefined);
+  const changed=updateComponentSeed(bark,state,'surface',888);
+  assert.equal(changed.components.surface,888);
+  assert.equal(changed.components.structure,19641);
+  assert.equal(changed.components.color,21749);
+  assert.deepEqual(createSeedState(oak).components,
+    {geometry:DEFAULT_TREE.seed,foliage:DEFAULT_TREE.seed,leaves:21749});
+  assert.throws(()=>generateAsset(bark,{structure:1,surface:-1,color:1}));
 });
