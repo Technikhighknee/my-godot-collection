@@ -65,6 +65,10 @@ test('crown lobes overlap on accepted wood, no spherical detached tufts',()=>{
     assert.equal(f.uvs.length,f.positions.length/3*2);
     assert.equal(f.positions.length/3,f.cardCount*6);
     assert.ok(f.positions.every(Number.isFinite));
+    for(let i=0;i<f.positions.length;i+=3)
+      assert.ok(Number.isFinite(f.positions[i])&&
+        Number.isFinite(f.positions[i+1])&&Number.isFinite(f.positions[i+2]),
+      'Card vertex '+(i/3)+' needs three finite world-space coordinates');
     assert.ok(f.normals.every(Number.isFinite));
     assert.ok(f.indices.every(i=>i<f.positions.length/3));
     assert.ok(f.colors.every(c=>c>=0&&c<=1));
@@ -166,6 +170,12 @@ test('the shared RGBA atlas contains dense, distinct, clipped leaf masses',()=>{
     'One atlas sprite must be a substantial leaf mass, not isolated streaks');
   assert.throws(()=>paintOakAtlas(null as never));
   assert.throws(()=>paintOakAtlas(canvas,-1));
+});
+test('nonfinite wood geometry fails before rendering',()=>{
+  const wood=generateTree({seed:19641});
+  wood.positions.fill(Number.NaN);
+  assert.throws(()=>generateOakFoliage(wood),
+    /Non-finite oak foliage (positions|normals)/);
 });
 test('reject malformed oak wood',()=>{
   for(const bad of [null,{},[],{seed:1,branches:[]},

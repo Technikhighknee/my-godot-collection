@@ -141,7 +141,7 @@ function addCushion(out,cushion,seed){
     const bumps=1+.11*Math.sin(3*angle+phase)+.08*Math.sin(5*angle-1.7*y+phase);
     const depth=(.42+.54*rng())*bumps;
     const p=add(cushion.center,add(
-      add(mul(along,x*rx*depth),[0,y*ry*depth]),
+      add(mul(along,x*rx*depth),[0,y*ry*depth,0]),
       mul(across,z*rz*depth)));
     const exterior=unit(add(add(mul(along,x),[0,y*.88,0]),mul(across,z)));
     // A mix of upward, outward and crossing cards keeps the foliage
@@ -185,6 +185,17 @@ export function generateOakFoliage(wood){
   }
   if(!cards||cards>2000||out.indices.length/3!==cards*OAK_CARD_TRIANGLES)
     throw Error('Oak foliage geometry budget exceeded');
+  // Fail before handing an invalid position buffer to Three.js.
+  // An absent vector component becomes NaN during Float32Array conversion
+  // and otherwise surfaces only as computeBoundingSphere() warnings.
+  for(const [name,values] of Object.entries({
+    positions:out.positions,normals:out.normals,
+    uvs:out.uvs,colors:out.colors,
+  })){
+    const invalid=values.findIndex(value=>!Number.isFinite(value));
+    if(invalid!==-1)
+      throw Error('Non-finite oak foliage '+name+' at index '+invalid);
+  }
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(let i=0;i<out.positions.length;i+=3)
     for(let k=0;k<3;k++){
