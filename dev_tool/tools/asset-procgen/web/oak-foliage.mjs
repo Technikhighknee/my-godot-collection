@@ -70,7 +70,7 @@ function leafBlade(output,leaf){
   const n=BLADE_ROWS;
   const sample=(t,u,raised=0)=>{
     const xIndex=t*36.24-.12;
-    const i=Math.max(0,Math.min(n-2,Math.floor(xIndex)));
+    const i=Math.max(0,Math.min(profile.outline.length-2,Math.floor(xIndex)));
     const s=clamp(xIndex-i,0,1);
     const left=mix(profile.outline[i].left,profile.outline[i+1].left,s);
     const right=mix(profile.outline[i].right,profile.outline[i+1].right,s);
@@ -81,7 +81,7 @@ function leafBlade(output,leaf){
     // slightly without losing their single connected lamina.
     const z=bow*Math.sin(Math.PI*t)+curl*(1-u*u)*Math.sin(Math.PI*t)
       -.16*Math.abs(width)*u*u*Math.sin(Math.PI*t)
-      +twist*leafLength*u*t*t;
+      +twist*leafLength*u*t*Math.sin(Math.PI*t);
     return add(origin,add(mul(direction,y),add(
       mul(across,u*width+bendX),mul(normal,z+raised))));
   };
@@ -229,50 +229,101 @@ function attachLeaf(output,site,radial,rng,angle,scale){
     phase:angle+(rng()-.5),tint,
   });
 }
-// A low-cost spatial competition field for visible twig fans. The
-// parent axis determines where growth is possible; the field selects
-// directions into unoccupied crown pockets instead of evenly spacing
-// identical green tufts on all supporting branches.
+// A local canopy field that balances light access with woody support.
+// Favor connected leaf masses over isolated radial spears. The crown
+// envelope is smooth, height-dependent and deliberately a soft guide.
 function crownSpace(bounds){
-  const tips=[];
   const center=[
     (bounds.min[0]+bounds.max[0])*.5,
     (bounds.min[2]+bounds.max[2])*.5,
   ];
+  const height=bounds.max[1]-bounds.min[1];
+  const bottom=bounds.min[1]+height*.34;
+  const top=bounds.max[1];
   const radius=Math.max(bounds.max[0]-bounds.min[0],
     bounds.max[2]-bounds.min[2])*.5;
-  return {
-    register(pos){tips.push(pos);},
-    choose(site,tangent,extent,rng,level){
-      const radial=unit([site[0]-center[0],0,site[2]-center[1]]);
-      const side=unit(cross(Math.abs(tangent[1])<.86?[0,1,0]:[1,0,0],tangent));
-      const across=unit(cross(tangent,side));
-      const startAngle=rng()*TAU;
-      let best=null;
-      for(let i=0;i<7;i++){
-        const angle=startAngle+i*TAU/7+(rng()-.5)*.16;
-        const spread=unit(add(mul(side,Math.cos(angle)),mul(across,Math.sin(angle))));
-        const aim=unit(add(
-          add(mul(tangent,.31+.12*rng()),mul(spread,.72+.22*rng())),
-          add(mul(radial,.26+.17*rng()),[0,(rng()-.5)*.29,0])));
-        const tip=add(site,mul(aim,extent));
-        const r=Math.hypot(tip[0]-center[0],tip[2]-center[1]);
-        const over=Math.max(0,r-radius-.52);
-        const high=Math.max(0,tip[1]-bounds.max[1]-.18);
-        const low=Math.max(0,bounds.min[1]+2.75-tip[1]);
-        const near=tips.reduce((sum,p)=>{
-          const d=Math.hypot(p[0]-tip[0],p[1]-tip[1],p[2]-tip[2]);
-          return sum+Math.max(0,1-d/.74);
-        },0);
-        // Broad crown architecture, with occasional empty windows.
-        const score=-near*.75-over*6-high*7-low*4+rng()*.46+
-          (level===2?.09:0);
-        if(!best||score>best.score)best={aim,tip,score};
-      }
-      tips.push(best.tip);
-      return best.aim;
-    },
+  const size=.8,cells=new Map();
+  const cell=p=>p.map(v=>Math.floor(v/size));
+  const key=(x,y,z)=>x+','+y+','+z;
+  function register(point){
+    const [x,y,z]=cell(point),k=key(x,y,z);
+    if(!cells.has(k))cells.set(k,[]);
+    cells.get(k).push(point);
+  }
+  function nearby(p,callback){
+    const [x,y,z]=cell(p);
+    for(let i=x-2;i<=x+2;i++)
+      for(let j=y-2;j<=y+2;j++)
+        for(let k=z-2;k<=z+2;k++)
+          for(const node of cells.get(key(i,j,k))||[])
+            callback(node);
+  }
+  const radial=p=>Math.hypot(p[0]-center[0],p[2]-center[1]);
+  const level=p=>clamp((p[1]-bottom)/(top-bottom),0,1);
+  // Width peaks below the upper crown. The natural irregular outline
+  // belongs to the woody support, not to a symmetric clipping sphere.
+  const envelope=y=>{
+    const t=clamp((y-bottom)/(top-bottom),0,1);
+    return radius*(.81+.31*Math.pow(Math.sin(Math.PI*t),.8));
   };
+  function conditions(p){
+    const t=level(p),r=radial(p),limit=envelope(p[1]);
+    return {
+      upper:clamp((t-.77)/.23,0,1),
+      low:clamp((.13-t)/.13,0,1),
+      outer:clamp((r-limit+.22)/1,0,1),
+      t,r,limit,
+    };
+  }
+  function localSupport(site){
+    let support=0;
+    nearby(site,p=>{
+      const d=Math.hypot(p[0]-site[0],p[1]-site[1],p[2]-site[2]);
+      if(d<1.05)support+=1-d/1.05;
+    });
+    return support;
+  }
+  function choose(site,tangent,extent,rng,order){
+    const from=conditions(site),r=radial(site);
+    const outward=r>.001?
+      [(site[0]-center[0])/r,0,(site[2]-center[1])/r]:[0,0,0];
+    const side=unit(cross(Math.abs(tangent[1])<.86?[0,1,0]:[1,0,0],tangent));
+    const across=unit(cross(tangent,side));
+    const phase=rng()*TAU;
+    let best=null;
+    for(let i=0;i<9;i++){
+      const phi=phase+i*TAU/9+(rng()-.5)*.21;
+      const spread=unit(add(mul(side,Math.cos(phi)),mul(across,Math.sin(phi))));
+      const rise=clamp(.13-from.upper*.41+from.low*.22,-.22,.24);
+      const aim=unit(add(
+        add(mul(tangent,.31+.15*rng()),mul(spread,.75+.17*rng())),
+        add(mul(outward,.10+.25*rng()-from.outer*.48),[0,rise+(rng()-.5)*.18,0])));
+      const middle=add(site,mul(aim,extent*.55));
+      const tip=add(site,mul(aim,extent));
+      const excessiveRadius=Math.max(0,radial(tip)-envelope(tip[1]));
+      const excessiveTop=Math.max(0,tip[1]-(top+.09));
+      const excessiveBottom=Math.max(0,(bottom-.36)-tip[1]);
+      let closest=Infinity,crowding=0;
+      // Probe real end points from both primary sprays and their forks.
+      // In a connected canopy the preferred distance is neither zero
+      // nor infinity: adjacent families may touch but need some light.
+      nearby(tip,p=>{
+        const d=Math.hypot(p[0]-tip[0],p[1]-tip[1],p[2]-tip[2]);
+        closest=Math.min(closest,d);
+        crowding+=Math.max(0,1-d/.40);
+      });
+      const isolation=closest===Infinity?.65:Math.max(0,closest-.98);
+      const score=-4.2*excessiveRadius**2-7.5*excessiveTop**2-
+        5*excessiveBottom**2-.34*isolation**2-
+        .28*Math.max(0,crowding-1.7)-
+        2*Math.max(0,radial(middle)-envelope(middle[1]))**2+
+        (order===2?.045:0)+rng()*.26;
+      if(!best||score>best.score)best={aim,tip,score};
+    }
+    register(best.tip);
+    return best.aim;
+  }
+  return {choose,conditions,localSupport,register};
 }
 function leafOnShoot(output,shoot,radial,rng,phase,count,scale){
   const tipCluster=Math.max(2,Math.floor(count*.41)),early=count-tipCluster;
@@ -306,8 +357,16 @@ export function generateOakFoliage(wood){
     const rng=random((wood.seed^Math.imul(axis.id+1,0x9e3779b1) ^
       Math.imul(axis.level+1,0x85ebca6b))>>>0);
     const upper=base.at(-1),radial=unit([upper[0],0,upper[2]]);
-    const vigor=.72+.55*rng(),level=axis.level;
-    const fans=level===2?2+Math.floor(rng()*3):3+Math.floor(rng()*3);
+    const status=crown.conditions(upper),level=axis.level;
+    // Older side branches support fuller inner foliage. Weak skyline
+    // whips and protruding lower shoots get less distal spread, not
+    // more foliage merely because an open pocket exists.
+    const density=1-.17*status.upper-.04*status.low*status.outer;
+    const vigor=(.76+.47*rng())*density;
+    const sparse=crown.localSupport(upper)<1.3;
+    const infill=level===3&&status.outer<.72&&
+      status.t>.20&&status.t<.86&&sparse&&rng()<.70;
+    const fans=(level===2?3:3)+Math.floor(rng()*3)+(infill?1:0);
     const internodes=Array.from({length:fans},()=>.64+.74*rng());
     const total=internodes.reduce((sum,v)=>sum+v,0);
     let current=level===2?.49:.19,phase=rng()*TAU;
@@ -326,7 +385,8 @@ export function generateOakFoliage(wood){
       current+=internodes[j]/total*(level===2?.43:.76);
       const bud=onAxis(base,clamp(current+(rng()-.5)*.055,.18,.985));
       phase+=2.399963229728653+(rng()-.5)*.31;
-      const extension=(level===2?.49:.38)+rng()*(level===2?.29:.28);
+      const extension=((level===2?.45:.36)+rng()*(level===2?.26:.25))*
+        (1-.22*status.upper-.18*status.outer);
       const heading=crown.choose(bud.position,bud.tangent,extension,rng,level);
       const main=fineShoot(output,bud.position,heading,extension,rng);
       shootCount++;
@@ -348,10 +408,14 @@ export function generateOakFoliage(wood){
         branchAngle+=2.399963229728653+(rng()-.5)*.43;
         const turn=add(mul(sideways,Math.cos(branchAngle)),
           mul(across,Math.sin(branchAngle)));
+        const crowd=crown.conditions(point.position);
+        const inward=crowd.outer*.33;
         const forkHeading=unit(add(add(mul(forward,.44+.19*rng()),
-          mul(turn,.68+.22*rng())),add(mul(outward,.24),[0,.055+.16*rng(),0])));
+          mul(turn,.68+.22*rng())),
+          add(mul(outward,.17-inward),[0,.04-.20*crowd.upper+.14*crowd.low,0])));
         const forkLength=extension*(.42+.25*rng());
         const child=fineShoot(output,point.position,forkHeading,forkLength,rng);
+        crown.register(child.at(-1));
         shootCount++;
         leafCount+=leafOnShoot(output,child,radial,rng,branchAngle,
           4+Math.floor(rng()*4),familyVigor*(.88+.22*rng()));

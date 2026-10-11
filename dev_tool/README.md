@@ -84,7 +84,10 @@ The separate `oak-leaf.mjs` module defines European oak
 basal auricles, four to six rounded lobes per side, and vein-aligned
 lobe tips. Each leaf has a slightly folded blade, a visible center rib,
 subtle lateral veins and restrained within-family color differences.
-Leaf shapes remain individually seeded.
+The sampled blade follows the complete anatomical outline, including
+the narrowing tip; three-dimensional twist fades at the blade ends
+instead of tearing the tip into two separated margins. Leaf shapes
+remain individually seeded.
 
 `oak-foliage.mjs` reads the accepted oak wood mesh, including
 continuation axes, to attach foliage to the **actual branch centerlines**.
@@ -92,10 +95,15 @@ The foliage architecture grows connected families of small branches from
 both the secondary and terminal oak wood, not just from the 60 outermost
 tips. Each family can fork into several additional woody shoots with
 independent internodes, leaf size and orientation. The growth directions
-are chosen using a lightweight spatial competition field to find
-underoccupied crown pockets, while limiting excursions beyond the
-original crown. This makes the crown denser through its middle and along
-its sides, but leaves some natural gaps.
+are selected through a small spatially indexed canopy field that
+registers both supporting shoots and their smaller forks. Adjacent
+families grow into related, loosely overlapping leaf masses, instead
+of automatically reaching toward the most distant empty space. A
+soft height-dependent crown envelope constrains weak high leaders
+and extreme lateral excursions while retaining the irregular outline
+set by the accepted woody skeleton. Sparse, supported crown pockets
+can develop additional shoots without indiscriminately stuffing
+every gap with leaves. The envelope never clips existing wood.
 
 Leaves are spaced alternately along supporting shoots and form varied
 small groups near their tips. Their laminae are oriented to present

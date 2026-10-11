@@ -62,8 +62,23 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     assert.ok(f.indices.every(i=>i<f.positions.length/3));
     assert.ok(f.bounds.min[1]>2.0,'The lower trunk should remain visible');
     assert.ok(f.bounds.max[1]>=tree.bounds.max[1]-.8);
+    assert.ok(f.bounds.max[1]<=tree.bounds.max[1]+.45,
+      'Sunward shoots may soften the skyline, not form new isolated spires');
     assert.ok(f.leafCount/f.shootCount>3.8&&f.leafCount/f.shootCount<6,
       'Leaf families should cover branches without indiscriminate density');
+    // The first supporting shoot has six rings of five vertices and
+    // two center caps. The first attached blade follows it immediately.
+    // Its last row must taper instead of being spread apart by twist.
+    const firstLeaf=6*5+2;
+    const bladeWidth=(row:number)=>{
+      const a=(firstLeaf+row*3)*3,b=(firstLeaf+row*3+2)*3;
+      return Math.hypot(
+        f.positions[a]-f.positions[b],
+        f.positions[a+1]-f.positions[b+1],
+        f.positions[a+2]-f.positions[b+2]);
+    };
+    assert.ok(bladeWidth(26)<bladeWidth(12)*.24,
+      'Leaf tips must narrow despite the three-dimensional blade twist');
     // A coarse silhouette coverage regression: foliage must occupy
     // the outer and lower crown in two perpendicular projections.
     // Sampling one of every 15 vertices keeps the test inexpensive.
