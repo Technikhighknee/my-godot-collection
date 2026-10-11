@@ -8,6 +8,23 @@
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
+## Structure
+
+The Dev Tool itself owns the HTTP host and startup in `src/server.ts` and
+`src/serve.ts`. `web/` contains the shared landing page. Each tool stays
+under `tools/<tool-name>/`:
+
+- `tools/map-editor/src/` owns map validation, workspace persistence, and
+  the Map Editor API handler. Its `createEditorServer` helper still works for
+  existing tests and integrations, but delegates HTTP hosting to the shared
+  server. Editor-specific web files remain in `tools/map-editor/web/`.
+- `tools/asset-procgen/web/` owns the asset generators and their preview.
+  The shared server serves both tools from an explicit static route list.
+
+The shared HTTP host can run without a Map Editor API. Starting the normal
+Dev Tool still initializes the map workspace so all existing editor routes
+and saves remain available.
+
 ## Run
 
 Requires Node.js >= 22.10, npm, and a WebGL2 browser.
@@ -172,9 +189,9 @@ parent-child intersections are not fused into one watertight volume.
 Needles, leaf meshes, bark materials, asset exports and extra user
 parameters are deferred.
 
-**Seed** and **New seed** control the selected species. Whole tree,
-Inspect base, Inspect crown, Silhouette and Turntable are inspection
-views. The Map Editor and game assets remain unchanged.
+The Master seed and independent component seeds control each generated
+asset. Whole tree, Inspect base, Inspect crown, Silhouette and Turntable
+are inspection views. The Map Editor and game assets remain unchanged.
 
 
 ## Map workspace

@@ -1,50 +1,9 @@
-import { createServer, type IncomingMessage, type Server } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { validateDocument, type MapDocument } from './core/map.ts';
+import {type IncomingMessage,type Server,type ServerResponse} from 'node:http';
+import {validateDocument,type MapDocument} from './core/map.ts';
+import {createDevToolServer,type ToolApiHandler} from '../../../src/server.ts';
 import { RoadConflict, RoadStore } from './editing/road-store.ts';
 import { MapWorkspace } from './editing/map-workspace.ts';
 import { validatePlacementDefinitions, type PlacementDefinitions } from '../web/building-placement.mjs';
-
-const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
-const responses: Record<string, [string, string]> = {
-  '/': ['../../web/index.html', 'text/html; charset=utf-8'],
-  '/dev-tool.css': ['../../web/dev-tool.css', 'text/css; charset=utf-8'],
-  '/dev-tool.js': ['../../web/dev-tool.js', 'text/javascript; charset=utf-8'],
-  '/tools/map-editor': ['web/index.html', 'text/html; charset=utf-8'],
-  '/tools/map-editor/': ['web/index.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen': ['../../tools/asset-procgen/web/index.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen/': ['../../tools/asset-procgen/web/index.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen/app.js': ['../../tools/asset-procgen/web/app.js', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/seed-model.mjs': ['../../tools/asset-procgen/web/seed-model.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/generators.mjs': ['../../tools/asset-procgen/web/generators.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/viewport-3d.mjs': ['../../tools/asset-procgen/web/viewport-3d.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/style.css': ['../../tools/asset-procgen/web/style.css', 'text/css; charset=utf-8'],
-  '/tools/asset-procgen/tree.mjs': ['../../tools/asset-procgen/web/tree.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/fir.mjs': ['../../tools/asset-procgen/web/fir.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-leaf.mjs': ['../../tools/asset-procgen/web/oak-leaf.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-foliage.mjs': ['../../tools/asset-procgen/web/oak-foliage.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-atlas.mjs': ['../../tools/asset-procgen/web/oak-atlas.mjs', 'text/javascript; charset=utf-8'],
-  '/app.js': ['web/app.js', 'text/javascript; charset=utf-8'],
-  '/road-edit.mjs': ['web/road-edit.mjs', 'text/javascript; charset=utf-8'],
-  '/terrain-edit.mjs': ['web/terrain-edit.mjs', 'text/javascript; charset=utf-8'],
-  '/tool-state.mjs': ['web/tool-state.mjs', 'text/javascript; charset=utf-8'],
-  '/edit-shortcuts.mjs': ['web/edit-shortcuts.mjs', 'text/javascript; charset=utf-8'],
-  '/terrain-ray.mjs': ['web/terrain-ray.mjs', 'text/javascript; charset=utf-8'],
-  '/terrain-patch.mjs': ['web/terrain-patch.mjs', 'text/javascript; charset=utf-8'],
-  '/water-field.mjs': ['web/water-field.mjs', 'text/javascript; charset=utf-8'],
-  '/entity-edit.mjs': ['web/entity-edit.mjs', 'text/javascript; charset=utf-8'],
-  '/polygon-edit.mjs': ['web/polygon-edit.mjs', 'text/javascript; charset=utf-8'],
-  '/mesh-data.mjs': ['web/mesh-data.mjs', 'text/javascript; charset=utf-8'],
-  '/building-placement.mjs': ['web/building-placement.mjs', 'text/javascript; charset=utf-8'],
-  '/workflow.mjs': ['web/workflow.mjs', 'text/javascript; charset=utf-8'],
-  '/map-management.mjs': ['web/map-management.mjs', 'text/javascript; charset=utf-8'],
-  '/style.css': ['web/style.css', 'text/css; charset=utf-8'],
-  '/vendor/three/build/three.module.js': ['../../node_modules/three/build/three.module.js', 'text/javascript; charset=utf-8'],
-  '/vendor/three/build/three.core.js': ['../../node_modules/three/build/three.core.js', 'text/javascript; charset=utf-8'],
-  '/vendor/three/examples/jsm/controls/OrbitControls.js': ['../../node_modules/three/examples/jsm/controls/OrbitControls.js', 'text/javascript; charset=utf-8'],
-};
 
 async function jsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -58,7 +17,9 @@ async function jsonBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /** Read-only by default; optional local workspace enables multi-map management. */
-export function createEditorServer(source: MapDocument, store?: RoadStore, placementDefinitions?: PlacementDefinitions, workspace?: MapWorkspace): Server {
+/** Map Editor API only: no shared static routes or HTTP listener. */
+export function createMapEditorHandler(source:MapDocument,store?:RoadStore,
+  placementDefinitions?:PlacementDefinitions,workspace?:MapWorkspace):ToolApiHandler{
   const doc = validateDocument(source);
   const definitions = validatePlacementDefinitions(placementDefinitions ?? { buildings: [] });
   if (doc.heights.data.length > 1_500_000) throw new Error('Viewport currently supports at most 1,500,000 height samples');
@@ -76,16 +37,8 @@ export function createEditorServer(source: MapDocument, store?: RoadStore, place
     if (bytes.length !== byteLength || bytes.toString('base64') !== value) throw new Error('Invalid asset length');
     return bytes;
   };
-  return createServer(async (req, res) => {
+  return async (req:IncomingMessage,res:ServerResponse,path:string)=>{
     const activeStore = workspace?.getStore() ?? store;
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'");
-    const path = req.url?.split('?')[0];
-    if (!path || !/^\/[A-Za-z0-9/_.-]*$/.test(path) || path.includes('..') || path.includes('//')) {
-      res.writeHead(404); res.end(); return;
-    }
     const writePaths = ['/api/roads', '/api/document', '/api/maps/active', '/api/maps/settings', '/api/maps/create'];
     if (writePaths.includes(path) && (req.method === 'PUT' || req.method === 'POST') && activeStore) {
       if (req.method !== (path === '/api/maps/create' ? 'POST' : 'PUT')) { res.writeHead(405); res.end(); return; }
@@ -174,18 +127,19 @@ export function createEditorServer(source: MapDocument, store?: RoadStore, place
         ? [Buffer.from(JSON.stringify({ map: current.map, height: { width: current.heights.width, height: current.heights.height }, surface: { width: current.surfaces.width, height: current.surfaces.height }, readOnly: !activeStore, revision: workspace?.getRevision() ?? activeStore?.getRevision() ?? null, mapFile: workspace?.getFile() ?? null, workspace: Boolean(workspace) })), 'application/json; charset=utf-8'] as [Buffer, string]
         : path === '/api/heights' || path === '/api/surfaces'
           ? [binary(current, path), 'application/octet-stream'] as [Buffer, string] : undefined;
-      const file = responses[path];
-      if (!item && !file) { res.writeHead(404); res.end(); return; }
-      let bytes: Buffer;
-      let mime: string;
-      if (item) [bytes, mime] = item;
-      else if (file) { bytes = await readFile(join(root, file[0])); mime = file[1]; }
-      else { res.writeHead(404); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length });
-      res.end(req.method === 'HEAD' ? undefined : bytes);
+      if(!item){res.writeHead(404);res.end();return;}
+      const [bytes,mime]=item;
+      res.writeHead(200,{'Content-Type':mime,'Content-Length':bytes.length});
+      res.end(req.method==='HEAD'?undefined:bytes);
     } catch {
       res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('Local editor asset unavailable. Run npm ci in dev_tool.');
     }
-  });
+  };
+}
+
+/** Compatibility helper for existing Map Editor tests and integrations. */
+export function createEditorServer(source:MapDocument,store?:RoadStore,
+  placementDefinitions?:PlacementDefinitions,workspace?:MapWorkspace):Server{
+  return createDevToolServer(createMapEditorHandler(source,store,placementDefinitions,workspace));
 }

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadMap } from '../tools/map-editor/src/io/map-io.ts';
 import { createEditorServer } from '../tools/map-editor/src/server.ts';
+import {createDevToolServer} from '../src/server.ts';
+import {createMapEditorHandler} from '../tools/map-editor/src/server.ts';
 
 const home = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8');
 const editor = readFileSync(new URL('../tools/map-editor/web/index.html', import.meta.url), 'utf8');
@@ -68,4 +70,61 @@ test('HTTP main menu and existing map editor are separate, working routes', asyn
   } finally {
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
+});
+
+
+test('shared Dev Tool host works with no Map Editor API attached',async()=>{
+  const server=createDevToolServer();
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const base='http://127.0.0.1:'+address.port;
+    for(const route of ['/','/dev-tool.js','/tools/map-editor/',
+      '/tools/asset-procgen/','/tools/asset-procgen/app.js']){
+      const res=await fetch(base+route);
+      assert.equal(res.status,200,route);
+      assert.equal(res.headers.get('x-content-type-options'),'nosniff');
+    }
+    assert.equal((await fetch(base+'/api/map')).status,404);
+    assert.equal((await fetch(base+'/tools/asset-procgen/',{method:'POST'})).status,405);
+    assert.equal((await fetch(base+'/tools/map-editor/../../package.json')).status,404);
+    assert.equal((await fetch(base+'/node_modules/three/package.json')).status,404);
+  }finally{
+    await new Promise<void>((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+  }
+});
+test('Map Editor API mounts through the shared HTTP host unchanged',async()=>{
+  const doc=await loadMap('../map_system/coastal_relief.map.json');
+  const server=createDevToolServer(createMapEditorHandler(doc));
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const url='http://127.0.0.1:'+address.port;
+    const res=await fetch(url+'/api/map');
+    assert.equal(res.status,200);
+    assert.equal((await res.json()).map.name,doc.map.name);
+    assert.equal((await fetch(url+'/api/placement-definitions')).status,200);
+    assert.equal((await fetch(url+'/tools/asset-procgen/')).status,200);
+  }finally{
+    await new Promise<void>((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+  }
+});
+
+
+test('server ownership stays at the Dev Tool root, not inside the Map Editor',()=>{
+  const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+  assert.match(pkg.scripts.start,/src\/serve\.ts$/);
+  const host=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
+  const startup=readFileSync(new URL('../src/serve.ts',import.meta.url),'utf8');
+  const mapApi=readFileSync(new URL('../tools/map-editor/src/server.ts',import.meta.url),'utf8');
+  assert.match(host,/createDevToolServer/);
+  assert.match(host,/\/tools\/asset-procgen/);
+  assert.doesNotMatch(host,/MapWorkspace|RoadStore|validateDocument/);
+  assert.match(startup,/createDevToolServer\(createMapEditorHandler\(/);
+  assert.match(mapApi,/createMapEditorHandler/);
+  assert.doesNotMatch(mapApi,/\/tools\/asset-procgen|\/vendor\/three|staticRoutes/);
 });
