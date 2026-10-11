@@ -91,19 +91,18 @@ remain individually seeded.
 
 `oak-foliage.mjs` reads the accepted oak wood mesh, including
 continuation axes, to attach foliage to the **actual branch centerlines**.
-The foliage architecture grows connected families of small branches from
-both the secondary and terminal oak wood, not just from the 60 outermost
-tips. Each family can fork into several additional woody shoots with
-independent internodes, leaf size and orientation. The growth directions
-are selected through a small spatially indexed canopy field that
-registers both supporting shoots and their smaller forks. Adjacent
-families grow into related, loosely overlapping leaf masses, instead
-of automatically reaching toward the most distant empty space. A
-soft height-dependent crown envelope constrains weak high leaders
-and extreme lateral excursions while retaining the irregular outline
-set by the accepted woody skeleton. Sparse, supported crown pockets
-can develop additional shoots without indiscriminately stuffing
-every gap with leaves. The envelope never clips existing wood.
+The foliage architecture groups each secondary bough and its terminal
+descendants into one **connected crown mass**. Every mass consists of
+overlapping, irregularly sized and branch-aligned growth lobes, sampled
+from the real supporting wood. Fine shoots and individual leaf blades
+remain attached to that wood; there are no floating mesh spheres.
+Main shoots prefer growing within their own mass and forks are gently
+steered away from detached silhouettes. A shared spatial occupancy
+field discourages both excessive self-crowding and the filling of every
+dark opening between neighboring crown masses. A soft, height-dependent
+outer crown envelope remains a broad safeguard, not a clipping mesh.
+Each mass has a restrained color variation and reports diagnostic
+counts of its axes, shoots and leaves.
 
 Leaves are spaced alternately along supporting shoots and form varied
 small groups near their tips. Their laminae are oriented to present

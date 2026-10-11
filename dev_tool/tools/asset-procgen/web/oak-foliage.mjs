@@ -200,7 +200,7 @@ function fineShoot(output,origin,heading,extent,rng){
   }
   return sections;
 }
-function attachLeaf(output,site,radial,rng,angle,scale){
+function attachLeaf(output,site,radial,rng,angle,scale,tone=0){
   const branchTangent=site.tangent;
   const horizontal=unit(cross(Math.abs(branchTangent[1])<.89?[0,1,0]:[1,0,0],branchTangent));
   const perpendicular=unit(cross(branchTangent,horizontal));
@@ -222,7 +222,7 @@ function attachLeaf(output,site,radial,rng,angle,scale){
   const leafSeed=Math.floor(rng()*4294967296);
   const leafLength=(.164+.096*rng())*scale;
   const hue=(rng()-.5);
-  const tint=[hue*.062,(rng()-.5)*.087,(rng()-.5)*.032];
+  const tint=[hue*.062+tone*.55,(rng()-.5)*.087+tone,(rng()-.5)*.032+tone*.16];
   leafBlade(output,{
     origin:petioleEnd,petioleStart:site.position,direction,normal,
     leafLength,profile:oakLeafProfile(leafSeed),
@@ -232,23 +232,72 @@ function attachLeaf(output,site,radial,rng,angle,scale){
 // A local canopy field that balances light access with woody support.
 // Favor connected leaf masses over isolated radial spears. The crown
 // envelope is smooth, height-dependent and deliberately a soft guide.
-function crownSpace(bounds){
+
+function crownSpace(wood,centers){
+  const bounds=wood.bounds;
   const center=[
     (bounds.min[0]+bounds.max[0])*.5,
     (bounds.min[2]+bounds.max[2])*.5,
   ];
   const height=bounds.max[1]-bounds.min[1];
-  const bottom=bounds.min[1]+height*.34;
-  const top=bounds.max[1];
+  const bottom=bounds.min[1]+height*.34,top=bounds.max[1];
   const radius=Math.max(bounds.max[0]-bounds.min[0],
     bounds.max[2]-bounds.min[2])*.5;
+
+  // A secondary woody axis and its terminal descendants form one
+  // physically connected crown mass. Several overlapping, stretched
+  // lobes follow actual wood centerlines, rather than a green sphere
+  // placed at the tip or a uniform distribution throughout the tree.
+  const descendants=new Map();
+  for(const axis of wood.branches.filter(b=>b.level===3)){
+    if(!descendants.has(axis.parentId))descendants.set(axis.parentId,[]);
+    descendants.get(axis.parentId).push(axis);
+  }
+  const groups=[],byAxis=new Map();
+  for(const parent of wood.branches.filter(b=>b.level===2)){
+    const members=[parent,...(descendants.get(parent.id)||[])];
+    const rng=random((wood.seed^Math.imul(parent.id+1,0x632be5ab))>>>0);
+    const cores=[],centerSamples=[];
+    for(const axis of members){
+      const samples=centers.get(axis.id);
+      if(!samples||samples.length<2)
+        throw Error('Oak crown mass has no supporting wood');
+      for(const [i,t] of (axis.level===2?[.49,.77,.96]:[.27,.66,.93]).entries()){
+        const site=onAxis(samples,t);
+        const width=(axis.level===2?.73:.64)*(.81+.35*rng())*
+          (i===0?.86:i===2?1.07:1);
+        // Stretch around the twig's natural direction. Varying the
+        // widths and directions creates scallops and pockets between
+        // lobes without disconnected leaf-ball geometry.
+        cores.push({
+          position:site.position,tangent:site.tangent,
+          radius:width,length:width*(1.13+.40*rng()),
+        });
+        if(i===2)centerSamples.push(site.position);
+      }
+    }
+    const mass={
+      id:parent.id,axes:members.length,cores,
+      center:[0,0,0],tone:(rng()-.5)*.075,
+      leafCount:0,shootCount:0,
+    };
+    for(const p of centerSamples)
+      for(let k=0;k<3;k++)mass.center[k]+=p[k]/centerSamples.length;
+    for(const axis of members)byAxis.set(axis.id,mass);
+    groups.push(mass);
+  }
+  if(groups.length===0)throw Error('Oak crown has no supporting masses');
+
+  // Occupancy is still shared across masses. Within each mass the
+  // growth field rewards connected sprays; between masses it prevents
+  // indiscriminate infill that would erase the dark crown openings.
   const size=.8,cells=new Map();
   const cell=p=>p.map(v=>Math.floor(v/size));
   const key=(x,y,z)=>x+','+y+','+z;
-  function register(point){
+  function register(point,mass){
     const [x,y,z]=cell(point),k=key(x,y,z);
     if(!cells.has(k))cells.set(k,[]);
-    cells.get(k).push(point);
+    cells.get(k).push({point,massId:mass.id});
   }
   function nearby(p,callback){
     const [x,y,z]=cell(p);
@@ -258,10 +307,23 @@ function crownSpace(bounds){
           for(const node of cells.get(key(i,j,k))||[])
             callback(node);
   }
+  // Signed distance to the closest asymmetric lobe of this branch
+  // family. Negative is inside the leaf mass, positive is outside.
+  // It is a growth guide, never a hard mesh clipping surface.
+  function closestLobe(p,mass){
+    let best=null;
+    for(const core of mass.cores){
+      const delta=sub(p,core.position);
+      const along=dot(delta,core.tangent);
+      const side=Math.max(0,dot(delta,delta)-along*along);
+      const distance=Math.sqrt(along*along/(core.length*core.length)+
+        side/(core.radius*core.radius))-1;
+      if(!best||distance<best.distance)best={distance,core};
+    }
+    return best;
+  }
   const radial=p=>Math.hypot(p[0]-center[0],p[2]-center[1]);
   const level=p=>clamp((p[1]-bottom)/(top-bottom),0,1);
-  // Width peaks below the upper crown. The natural irregular outline
-  // belongs to the woody support, not to a symmetric clipping sphere.
   const envelope=y=>{
     const t=clamp((y-bottom)/(top-bottom),0,1);
     return radius*(.81+.31*Math.pow(Math.sin(Math.PI*t),.8));
@@ -275,15 +337,17 @@ function crownSpace(bounds){
       t,r,limit,
     };
   }
-  function localSupport(site){
+  function localSupport(site,mass){
     let support=0;
-    nearby(site,p=>{
+    nearby(site,node=>{
+      if(node.massId!==mass.id)return;
+      const p=node.point;
       const d=Math.hypot(p[0]-site[0],p[1]-site[1],p[2]-site[2]);
       if(d<1.05)support+=1-d/1.05;
     });
     return support;
   }
-  function choose(site,tangent,extent,rng,order){
+  function choose(site,tangent,extent,rng,order,mass){
     const from=conditions(site),r=radial(site);
     const outward=r>.001?
       [(site[0]-center[0])/r,0,(site[2]-center[1])/r]:[0,0,0];
@@ -291,52 +355,75 @@ function crownSpace(bounds){
     const across=unit(cross(tangent,side));
     const phase=rng()*TAU;
     let best=null;
-    for(let i=0;i<9;i++){
-      const phi=phase+i*TAU/9+(rng()-.5)*.21;
+    for(let i=0;i<11;i++){
+      const phi=phase+i*TAU/11+(rng()-.5)*.21;
       const spread=unit(add(mul(side,Math.cos(phi)),mul(across,Math.sin(phi))));
       const rise=clamp(.13-from.upper*.41+from.low*.22,-.22,.24);
       const aim=unit(add(
         add(mul(tangent,.31+.15*rng()),mul(spread,.75+.17*rng())),
-        add(mul(outward,.10+.25*rng()-from.outer*.48),[0,rise+(rng()-.5)*.18,0])));
+        add(mul(outward,.10+.25*rng()-from.outer*.48),
+          [0,rise+(rng()-.5)*.18,0])));
       const middle=add(site,mul(aim,extent*.55));
       const tip=add(site,mul(aim,extent));
       const excessiveRadius=Math.max(0,radial(tip)-envelope(tip[1]));
       const excessiveTop=Math.max(0,tip[1]-(top+.09));
       const excessiveBottom=Math.max(0,(bottom-.36)-tip[1]);
-      let closest=Infinity,crowding=0;
-      // Probe real end points from both primary sprays and their forks.
-      // In a connected canopy the preferred distance is neither zero
-      // nor infinity: adjacent families may touch but need some light.
-      nearby(tip,p=>{
+      const outsideMass=Math.max(0,closestLobe(tip,mass).distance);
+      const middleOutside=Math.max(0,closestLobe(middle,mass).distance);
+      let closest=Infinity,crowding=0,otherMassCrowding=0;
+      nearby(tip,node=>{
+        const p=node.point;
         const d=Math.hypot(p[0]-tip[0],p[1]-tip[1],p[2]-tip[2]);
-        closest=Math.min(closest,d);
-        crowding+=Math.max(0,1-d/.40);
+        if(node.massId===mass.id){
+          closest=Math.min(closest,d);
+          crowding+=Math.max(0,1-d/.40);
+        } else {
+          otherMassCrowding+=Math.max(0,1-d/.66);
+        }
       });
       const isolation=closest===Infinity?.65:Math.max(0,closest-.98);
       const score=-4.2*excessiveRadius**2-7.5*excessiveTop**2-
-        5*excessiveBottom**2-.34*isolation**2-
+        5*excessiveBottom**2-3.8*outsideMass**2-
+        .80*middleOutside**2-.34*isolation**2-
         .28*Math.max(0,crowding-1.7)-
+        .17*Math.max(0,otherMassCrowding-1.0)-
         2*Math.max(0,radial(middle)-envelope(middle[1]))**2+
         (order===2?.045:0)+rng()*.26;
       if(!best||score>best.score)best={aim,tip,score};
     }
-    register(best.tip);
+    register(best.tip,mass);
     return best.aim;
   }
-  return {choose,conditions,localSupport,register};
+  function steerFork(site,heading,extent,mass){
+    const initialTip=add(site,mul(heading,extent));
+    const nearest=closestLobe(initialTip,mass);
+    if(nearest.distance<=0)return heading;
+    const toward=unit(sub(nearest.core.position,site));
+    // Only subtly rein in a fork; it must still follow its supporting
+    // branch rather than snap to an unrelated cluster center.
+    const corrected=unit(add(mul(heading,1),
+      mul(toward,.40*clamp(nearest.distance,0,1.25))));
+    const correctedTip=add(site,mul(corrected,extent));
+    return closestLobe(correctedTip,mass).distance<nearest.distance?
+      corrected:heading;
+  }
+  return {
+    groups,massFor:axis=>byAxis.get(axis.id),
+    choose,conditions,localSupport,register,steerFork,
+  };
 }
-function leafOnShoot(output,shoot,radial,rng,phase,count,scale){
-  const tipCluster=Math.max(2,Math.floor(count*.41)),early=count-tipCluster;
+function leafOnShoot(output,shoot,radial,rng,phase,count,scale,tone){
+  const tipCluster=Math.max(2,Math.ceil(count*.64)),early=count-tipCluster;
   let angle=phase;
   let leaves=0;
   for(let j=0;j<count;j++){
     if(rng()<.045)continue;
     const t=j<early
-      ?.14+(j+.17+.60*rng())*.60/early
-      :.76+(j-early+.12+.56*rng())*.23/tipCluster;
+      ?.22+(j+.17+.60*rng())*.46/early
+      :.70+(j-early+.12+.56*rng())*.29/tipCluster;
     angle+=2.399963229728653+(rng()-.5)*.41;
     attachLeaf(output,onAxis(shoot,clamp(t,.09,.995)),radial,rng,angle,
-      scale*(.86+.21*rng()));
+      scale*(.86+.21*rng()),tone);
     leaves++;
   }
   return leaves;
@@ -347,23 +434,29 @@ export function generateOakFoliage(wood){
     throw Error('Expected generated oak wood');
   const centers=axisCenters(wood);
   const output={positions:[],normals:[],colors:[],indices:[],veinCount:0};
-  const crown=crownSpace(wood.bounds);
+  const crown=crownSpace(wood,centers);
   let leafCount=0,branchesUsed=0,shootCount=0;
   const axes=wood.branches.filter(axis=>axis.level===2||axis.level===3)
     .sort((a,b)=>a.level-b.level||a.id-b.id);
   for(const axis of axes){
     const base=centers.get(axis.id);
     if(!base||base.length<2)continue;
+    const mass=crown.massFor(axis);
+    if(!mass)throw Error('Oak foliage axis has no crown mass');
+    const leavesBefore=leafCount,shootsBefore=shootCount;
     const rng=random((wood.seed^Math.imul(axis.id+1,0x9e3779b1) ^
       Math.imul(axis.level+1,0x85ebca6b))>>>0);
-    const upper=base.at(-1),radial=unit([upper[0],0,upper[2]]);
+    const upper=base.at(-1);
+    const localRadial=[upper[0]-mass.center[0],0,upper[2]-mass.center[2]];
+    const radial=unit(Math.hypot(...localRadial)>.18?
+      localRadial:[upper[0],0,upper[2]]);
     const status=crown.conditions(upper),level=axis.level;
     // Older side branches support fuller inner foliage. Weak skyline
     // whips and protruding lower shoots get less distal spread, not
     // more foliage merely because an open pocket exists.
     const density=1-.17*status.upper-.04*status.low*status.outer;
     const vigor=(.76+.47*rng())*density;
-    const sparse=crown.localSupport(upper)<1.3;
+    const sparse=crown.localSupport(upper,mass)<1.3;
     const infill=level===3&&status.outer<.72&&
       status.t>.20&&status.t<.86&&sparse&&rng()<.70;
     const fans=(level===2?3:3)+Math.floor(rng()*3)+(infill?1:0);
@@ -377,7 +470,7 @@ export function generateOakFoliage(wood){
       for(let k=0;k<direct;k++){
         phase+=2.399963229728653+(rng()-.5)*.25;
         const t=.72+(k+.20+.50*rng())*.275/direct;
-        attachLeaf(output,onAxis(base,t),radial,rng,phase,vigor);
+        attachLeaf(output,onAxis(base,t),radial,rng,phase,vigor,mass.tone);
         leafCount++;
       }
     }
@@ -387,12 +480,12 @@ export function generateOakFoliage(wood){
       phase+=2.399963229728653+(rng()-.5)*.31;
       const extension=((level===2?.45:.36)+rng()*(level===2?.26:.25))*
         (1-.22*status.upper-.18*status.outer);
-      const heading=crown.choose(bud.position,bud.tangent,extension,rng,level);
+      const heading=crown.choose(bud.position,bud.tangent,extension,rng,level,mass);
       const main=fineShoot(output,bud.position,heading,extension,rng);
       shootCount++;
       const familyVigor=vigor*(.79+.45*rng());
       leafCount+=leafOnShoot(output,main,radial,rng,phase,
-        3+Math.floor(rng()*3),familyVigor);
+        3+Math.floor(rng()*3),familyVigor,mass.tone);
       // Families branch in space: supporting stems split into several
       // thinner sprays with variable angles, vigor and terminal leaves.
       // The forks are genuine wood meshes, not free-floating leaf balls.
@@ -414,14 +507,17 @@ export function generateOakFoliage(wood){
           mul(turn,.68+.22*rng())),
           add(mul(outward,.17-inward),[0,.04-.20*crowd.upper+.14*crowd.low,0])));
         const forkLength=extension*(.42+.25*rng());
-        const child=fineShoot(output,point.position,forkHeading,forkLength,rng);
-        crown.register(child.at(-1));
+        const child=fineShoot(output,point.position,
+          crown.steerFork(point.position,forkHeading,forkLength,mass),forkLength,rng);
+        crown.register(child.at(-1),mass);
         shootCount++;
         leafCount+=leafOnShoot(output,child,radial,rng,branchAngle,
-          4+Math.floor(rng()*4),familyVigor*(.88+.22*rng()));
+          4+Math.floor(rng()*4),familyVigor*(.88+.22*rng()),mass.tone);
       }
     }
     branchesUsed++;
+    mass.leafCount+=leafCount-leavesBefore;
+    mass.shootCount+=shootCount-shootsBefore;
   }
   if(!leafCount)throw Error('Oak crown contains no leaf-bearing wood');
   if(output.indices.length>3300000)throw Error('Foliage geometry budget exceeded');
@@ -433,6 +529,11 @@ export function generateOakFoliage(wood){
     }
   return {
     seed:wood.seed,leafCount,branchesUsed,shootCount,
+    crownMasses:crown.groups.map(mass=>({
+      supportAxisId:mass.id,axisCount:mass.axes,
+      center:mass.center.slice(),leafCount:mass.leafCount,
+      shootCount:mass.shootCount,
+    })),
     veinCount:output.veinCount,
     positions:Float32Array.from(output.positions),
     normals:Float32Array.from(output.normals),

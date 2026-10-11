@@ -41,6 +41,15 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     const indices=tree.indices.slice();
     const f=generateOakFoliage(tree);
     assert.equal(f.seed,seed);
+    // One connected mass per secondary bough; terminal axes belong
+    // to their parent mass rather than forming isolated leaf balls.
+    assert.equal(f.crownMasses.length,15);
+    assert.equal(new Set(f.crownMasses.map(m=>m.supportAxisId)).size,15);
+    assert.ok(f.crownMasses.every(m=>
+      m.axisCount===5&&m.leafCount>0&&m.shootCount>0&&
+      m.center.length===3&&m.center.every(Number.isFinite)));
+    assert.equal(f.crownMasses.reduce((n,m)=>n+m.leafCount,0),f.leafCount);
+    assert.equal(f.crownMasses.reduce((n,m)=>n+m.shootCount,0),f.shootCount);
     assert.equal(f.branchesUsed,75,
       'Both secondary and terminal wood must carry connected foliage families');
     assert.ok(f.leafCount>3600&&f.leafCount<5000,
