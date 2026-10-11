@@ -3,11 +3,13 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DEFAULT_TREE, generateTree } from './tree.mjs';
 import { generateFir } from './fir.mjs';
 import { generateOakFoliage } from './oak-foliage.mjs';
+import { paintOakAtlas } from './oak-atlas.mjs';
 
 const byId = id => document.getElementById(id);
 const settings = { ...DEFAULT_TREE };
 let species = 'oak';
 let renderer, camera, scene, controls, wood, foliage, treeGroup, extents;
+let oakAtlasTexture;
 let woodBounds, foliageBounds;
 let spinning = false, silhouette = false, foliageVisible = true;
 
@@ -117,9 +119,26 @@ function geometryFrom(data,colors=false) {
   geometry.setAttribute('position',new THREE.BufferAttribute(data.positions,3));
   geometry.setAttribute('normal',new THREE.BufferAttribute(data.normals,3));
   if(colors)geometry.setAttribute('color',new THREE.BufferAttribute(data.colors,3));
+  if(data.uvs)geometry.setAttribute('uv',new THREE.BufferAttribute(data.uvs,2));
   geometry.setIndex(new THREE.BufferAttribute(data.indices,1));
   geometry.computeBoundingSphere();
   return geometry;
+}
+// The shared atlas is painted only once, reused for every tree seed.
+function oakTexture(){
+  if(!oakAtlasTexture){
+    const canvas=document.createElement('canvas');
+    paintOakAtlas(canvas);
+    oakAtlasTexture=new THREE.CanvasTexture(canvas);
+    oakAtlasTexture.colorSpace=THREE.SRGBColorSpace;
+    oakAtlasTexture.wrapS=THREE.ClampToEdgeWrapping;
+    oakAtlasTexture.wrapT=THREE.ClampToEdgeWrapping;
+    oakAtlasTexture.minFilter=THREE.LinearMipmapLinearFilter;
+    oakAtlasTexture.magFilter=THREE.LinearFilter;
+    oakAtlasTexture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+    oakAtlasTexture.generateMipmaps=true;
+  }
+  return oakAtlasTexture;
 }
 function build() {
   let replacement=null;
@@ -140,9 +159,10 @@ function build() {
     if(foliageData){
       leavesMesh=new THREE.Mesh(geometryFrom(foliageData,true),
         new THREE.MeshStandardMaterial({
-          color:silhouette?0x050909:0xffffff,
-          vertexColors:true,roughness:.88,metalness:0,
-          side:THREE.DoubleSide,
+          map:oakTexture(),color:silhouette?0x050909:0xffffff,
+          vertexColors:true,roughness:.93,metalness:0,
+          alphaTest:.43,alphaToCoverage:true,depthWrite:true,
+          transparent:false,side:THREE.DoubleSide,
         }));
       leavesMesh.castShadow=true;
       replacement.add(leavesMesh);
@@ -163,7 +183,7 @@ function build() {
     scene.add(treeGroup);
     const triangles=result.indices.length+(foliageData?.indices.length??0);
     byId('meshStats').textContent =result.branches.length+
-      ' WOOD AXES · '+(foliageData?foliageData.leafCount+' OAK LEAVES · ':'')+
+      ' WOOD AXES · '+(foliageData?foliageData.cardCount+' FOLIAGE CARDS · ':'')+
       (triangles/3).toLocaleString()+' TRIS';
     byId('status').textContent='Geometry ready · '+Math.round(performance.now()-started)+' ms';
     byId('seedValue').value=String(settings.seed);
@@ -196,7 +216,7 @@ function selectSpecies(next){
   byId('assetTitle').textContent=isFir?'Fir wood.':'Oak in leaf.';
   byId('assetDescription').textContent=isFir
     ?'A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood only; no needles, bark texture or export.'
-    :'A small European oak with individual lobed leaves, grown on its existing branch skeleton. No bark texture or export.';
+    :'A European oak with branch-supported textured leaf cushions generated from a procedural oak atlas. No bark texture or export.';
   byId('viewport').setAttribute('aria-label',
     isFir?'Interactive 3D fir wood preview':'Interactive 3D oak tree wood preview');
   build();

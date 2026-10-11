@@ -394,6 +394,7 @@ test('asset generator remains seed-only and Map Editor routes still work',async(
       '/tools/asset-procgen/fir.mjs',
       '/tools/asset-procgen/oak-leaf.mjs',
       '/tools/asset-procgen/oak-foliage.mjs',
+      '/tools/asset-procgen/oak-atlas.mjs',
       '/tools/map-editor/','/api/map',
     ])assert.equal((await fetch(base+route)).status,200,route);
     assert.equal((await fetch(base+'/tools/asset-procgen/trunk.mjs')).status,404);

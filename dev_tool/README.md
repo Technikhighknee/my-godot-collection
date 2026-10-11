@@ -4,7 +4,7 @@
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. Currently grows a **small oak wood structure** from a seed: trunk, primary limbs, secondary branches and fine twigs in a neutral 3D preview. No foliage, textures, recipe storage or exports.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. Generates an oak with wood and procedural textured foliage-card cushions, or a young fir wood structure. Seed-only 3D preview; no recipes or exports.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -77,57 +77,41 @@ of larger lateral shoots sits inside the supporting wood and gradually
 reaches its full section radius. Side-branch junctions remain intersecting
 surfaces rather than a fully fused wood volume.
 
-### Oak leaf geometry and crown placement
+### Oak crown — procedural foliage cards
 
-The separate `oak-leaf.mjs` module defines European oak
-(*Quercus robur*) leaf profiles with a short petiole, two asymmetric
-basal auricles, four to six rounded lobes per side, and vein-aligned
-lobe tips. Each leaf has a slightly folded blade, a visible center rib,
-subtle lateral veins and restrained within-family color differences.
-The sampled blade follows the complete anatomical outline, including
-the narrowing tip; three-dimensional twist fades at the blade ends
-instead of tearing the tip into two separated margins. Leaf shapes
-remain individually seeded.
+The seeded oak retains its real trunk, boughs and terminal wood. Leaf
+blades are no longer generated as individual triangle meshes: the
+former method could reach more than a million triangles without making
+recognizable clusters.
 
-`oak-foliage.mjs` reads the accepted oak wood mesh, including
-continuation axes, to attach foliage to the **actual branch centerlines**.
-The foliage architecture groups each secondary bough and its terminal
-descendants into one **connected crown mass**. Every mass consists of
-overlapping, irregularly sized and branch-aligned growth lobes, sampled
-from the real supporting wood. Fine shoots and individual leaf blades
-remain attached to that wood; there are no floating mesh spheres.
-Main shoots prefer growing within their own mass and forks are gently
-steered away from detached silhouettes. A shared spatial occupancy
-field discourages both excessive self-crowding and the filling of every
-dark opening between neighboring crown masses. A soft, height-dependent
-outer crown envelope remains a broad safeguard, not a clipping mesh.
-Each mass contains two broad, overlapping foliage cushions centered
-on actual young branch supports. New supporting sprays aim toward
-underserved portions of those cushions, where a denser arrangement
-of individual leaves forms a scalloped, bush-like outline. Nearby masses
-may merge at their margins but do not uniformly fill every intervening
-gap. Every leaf remains connected through real fine wood and its petiole.
-Each mass has a restrained color variation and reports diagnostic
-counts of its axes, shoots and leaves, plus its cushion geometry.
+Each of the fifteen secondary supports and its terminal descendants
+creates two overlapping, distinct foliage cushions. Every cushion
+contains 30–38 slightly curved **alpha-cutout leaf cards**, distributed
+through an irregular 3D volume and oriented in multiple directions.
+Cards show short sprays of multiple leaves, not one quad per leaf.
+Neighbouring cushions overlap, but the crown retains dark gaps.
+They are anchored to existing wood; no changes to the wood mesh are
+required. Seeded variation affects volumes, orientations and tint.
 
-Leaves are spaced alternately along supporting shoots and form varied
-small groups near their tips. Their laminae are oriented to present
-different faces to both the sky and the crown exterior. Fine shoots are
-actual tapered wood meshes and every leaf has an attached petiole.
-The underside of the crown and the lower trunk remain exposed.
+The browser paints a deterministic 1024 × 1024 RGBA texture atlas with
+sixteen oak sprays using Canvas 2D. Each spray is made from several fine
+twigs and procedurally drawn *Quercus robur* leaves. The existing
+oak-leaf.mjs profiles supply the rounded lobes and basal ears.
+oak-atlas.mjs handles painting; oak-foliage.mjs returns one indexed
+mesh with positions, normals, colors, UVs, and cushion metadata.
+No external textures or dependencies are introduced.
 
-The leaf mesh uses a reduced but still genuinely lobed surface grid and
-short raised lateral vein strips; this keeps the detailed canopy below
-a practical triangle budget rather than scaling foliage density by
-adding millions of unnecessary polygons. Both oak wood and leaf shapes
-remain deterministic from one seed. There are no additional public
-generation parameters or external leaf models.
+The preview creates the atlas **once** and shares the texture across
+tree seeds. Alpha cutout writes depth and casts shadows, while
+double-sided cards and alpha-to-coverage preserve a solid crown at
+oblique viewing angles. Hide leaves, Silhouette, Turntable and camera
+controls still work.
 
-The preview renders the oak with foliage by default. **Hide leaves**
-reveals the original wood, and **Show leaves** restores the crown.
-Silhouette, Turntable and camera inspection work on both layers. The
-fir remains wood-only. Textures, needle geometry, external asset export,
-growth controls and wind animation are not yet implemented.
+The detailed leaf-card mesh contains roughly 4,000 triangles, in
+addition to 6,444 existing wood triangles. There are **no LOD levels**
+or asset exports yet. Bark textures and wind animation remain future
+work. Tests verify seeded output, connected group structure, correct
+UV tile boundaries, finite indexed geometry and the triangle budget.
 
 ### Young fir wood structure
 
