@@ -463,3 +463,20 @@ test('modular asset workspace keeps its existing controls and serves new modules
       server.close(error=>error?reject(error):resolve()));
   }
 });
+
+test('reseeding preserves the 3D camera until a user requests a focus',()=>{
+  const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
+  const start=app.indexOf('function applySeeds(next){');
+  const end=app.indexOf('function updateSeedInput(',start);
+  assert.ok(start>=0&&end>start,'Locate the reseed handler');
+  const applySeeds=app.slice(start,end);
+  assert.match(applySeeds,/build\(next\)/);
+  assert.doesNotMatch(applySeeds,/modelViewport\.focus\(/,
+    'Reseeding must not reset the camera');
+  assert.match(app,/for\(const action of \['whole','foot','crown'\]\)/);
+  assert.match(app,/modelViewport\.focus\(action\)/,
+    'Manual camera framing must remain available');
+  assert.match(app,/function selectGenerator\(id\)/);
+  assert.match(app,/modelViewport\.focus\('whole'\)/,
+    'Initial generator selection should still frame the model');
+});

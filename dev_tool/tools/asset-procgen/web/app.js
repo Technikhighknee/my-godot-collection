@@ -127,12 +127,9 @@ function build(state=seeds()){
   }
 }
 function applySeeds(next){
-  if(build(next)){
-    renderSeedControls();
-    if(active.kind==='model')modelViewport.focus('whole');
-  }else{
-    renderSeedControls();
-  }
+  // A fresh seed replaces the model, not the user's camera view.
+  build(next);
+  renderSeedControls();
 }
 function updateSeedInput(input,onValid,current){
   try{
