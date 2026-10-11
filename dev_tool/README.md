@@ -95,15 +95,23 @@ Primary limbs begin inside the trunk's shell with a thicker collar,
 taper early, and follow gently bowed trajectories with recovering outer
 tips. The bow is stronger in older lower limbs.
 
-Paired second-order shoots spread both forward and sideways from
-successive positions along each primary limb, forming flattened
-woody fans instead of upstanding spikes. Their finer third-order
-offspring branch within the same fan, with fewer twigs on short
-laterals. Needles are not simulated; the airy bare wood skeleton is
-not meant to have the visual density of a living evergreen crown.
-This is an intentionally different architecture, not a resized oak.
-The generator remains deterministic and exports the same in-memory
-wood mesh interface as the oak.
+Second-order shoots spread forward and sideways in flattened woody
+fans. Every primary bough receives its own correlated vigor, lateral
+station spacing, and uneven side exposure. Opposing ranks are no longer
+exact mirrors: shoots can be missing, shorter, or unusually vigorous.
+Terminal twigs vary between zero and three per lateral; their attachment
+positions and divergence are deliberately not repeated in pairs. The
+variation acts within the characteristic annual whorls, rather than
+randomizing away the fir's overall architecture.
+
+The young wood is also not perfectly cylindrical: larger axes use
+slightly irregular cross sections, gently winding longitudinal ridges,
+and restrained changes of section thickness. All surface variation is
+seeded and radius-relative; the slenderest twigs remain nearly smooth.
+This is geometric form, not a painted bark material. Needles are not
+simulated, so the bare wood will appear much more open than a living
+evergreen crown. This is an intentionally different architecture, not
+a resized oak; it retains the same in-memory mesh interface.
 
 Both meshes currently use closed tubes for individual woody axes;
 parent-child intersections are not fused into one watertight volume.

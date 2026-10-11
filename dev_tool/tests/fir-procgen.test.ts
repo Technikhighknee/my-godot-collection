@@ -29,8 +29,8 @@ test('young fir has one uninterrupted leader and annual branch whorls',()=>{
     const sprays=fir.branches.filter(b=>b.level===2);
     const shoots=fir.branches.filter(b=>b.level===3);
     assert.equal(whorlBranches.length,44);
-    assert.ok(sprays.length>=400&&sprays.length<=500);
-    assert.ok(shoots.length>=sprays.length*1.3&&shoots.length<=sprays.length*1.6);
+    assert.ok(sprays.length>=350&&sprays.length<=440);
+    assert.ok(shoots.length>=sprays.length*.7&&shoots.length<=sprays.length*1.2);
     assert.equal(fir.branches.length,1+44+sprays.length+shoots.length);
     const byId=new Map(fir.branches.map(b=>[b.id,b]));
     assert.equal(byId.size,fir.branches.length);
@@ -104,6 +104,58 @@ test('fir wood grows in gently arched boughs with flattened lateral sprays',()=>
       'Lateral shoots should support more than one terminal branch');
     assert.ok(secondary.some(b=>supports.get(b.id)===1),
       'Short laterals retain sparser tip branching');
+  }
+});
+
+test('fir secondary ranks vary in station count, asymmetry and terminal maturity',()=>{
+  for(const seed of SEEDS){
+    const fir=generateFir({seed});
+    const secondaryByBough=new Map<number,number>();
+    const terminalsByLateral=new Map<number,number>();
+    for(const axis of fir.branches){
+      if(axis.level===2)
+        secondaryByBough.set(axis.parentId!,
+          (secondaryByBough.get(axis.parentId!)??0)+1);
+      if(axis.level===3)
+        terminalsByLateral.set(axis.parentId!,
+          (terminalsByLateral.get(axis.parentId!)??0)+1);
+    }
+    const secondaries=fir.branches.filter(b=>b.level===2);
+    assert.equal(secondaryByBough.size,44);
+    assert.ok(new Set(secondaryByBough.values()).size>=5,
+      'Supporting boughs need genuinely different lateral densities');
+    assert.ok(secondaries.some(b=>!terminalsByLateral.has(b.id)),
+      'Young laterals should sometimes remain unbranched');
+    assert.ok([...terminalsByLateral.values()].some(count=>count===1));
+    assert.ok([...terminalsByLateral.values()].some(count=>count===2));
+    assert.ok([...terminalsByLateral.values()].some(count=>count===3),
+      'Vigorous laterals can support three terminal shoots');
+  }
+});
+
+test('young fir wood has subtle, noncircular longitudinally ridged surfaces',()=>{
+  for(const seed of SEEDS){
+    const fir=generateFir({seed});
+    const trunk=fir.branches[0];
+    const sides=trunk.sides,ring=16;
+    assert.ok(sides>=16,'Trunk ring resolution must support restrained ridges');
+    const center=[0,0,0];
+    for(let side=0;side<sides;side++)
+      for(let k=0;k<3;k++)
+        center[k]+=fir.positions[(ring*sides+side)*3+k]/sides;
+    const radii=Array.from({length:sides},(_,side)=>{
+      const offset=(ring*sides+side)*3;
+      return Math.hypot(...center.map((v,k)=>fir.positions[offset+k]-v));
+    });
+    const mean=radii.reduce((a,b)=>a+b,0)/sides;
+    const variation=Math.sqrt(radii.reduce((a,b)=>a+(b-mean)**2,0)/sides)/mean;
+    assert.ok(variation>.02,'Visible wood should not be a perfect cylinder');
+    assert.ok(variation<.08,'Young fir bark geometry must remain restrained');
+    for(let i=0;i<fir.normals.length;i+=3){
+      const normal=Math.hypot(fir.normals[i],fir.normals[i+1],fir.normals[i+2]);
+      assert.ok(normal>.995&&normal<1.005,
+        'The longitudinal surface normals should remain normalized');
+    }
   }
 });
 
