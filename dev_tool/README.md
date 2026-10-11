@@ -79,35 +79,36 @@ surfaces rather than a fully fused wood volume.
 
 ### Oak leaf geometry and crown placement
 
-The separate `oak-leaf.mjs` module builds a family of European oak
-(*Quercus robur*) leaf profiles: a short basal petiole, two asymmetric
-basal auricles, four to six rounded lateral lobes per side and
-vein-aligned lobe tips. The smooth inward bays between lobes differ on
-the two edges. Each blade is meshed as a curved, shallowly folded
-surface with visible midrib and small geometric lateral veins. Colors
-vary modestly within one coherent foliage family. No leaf cards,
-external textures or third-party leaf models are used.
+The separate `oak-leaf.mjs` module defines European oak
+(*Quercus robur*) leaf profiles with a short petiole, two asymmetric
+basal auricles, four to six rounded lobes per side, and vein-aligned
+lobe tips. Each leaf has a slightly folded blade, a visible center rib,
+subtle lateral veins and restrained within-family color differences.
+Leaf shapes remain individually seeded.
 
-`oak-foliage.mjs` reads the positions of the **existing meshed wood
-rings**, including continuation axes, to attach petioles to actual twig
-centerlines. Each terminal woody axis carries a small number of alternate leaves
-directly and sprouts short, tapering leaf-bearing branchlets that spread
-the crown into three-dimensional space. The branchlets are concentrated
-toward the outer portions of the terminal wood, with irregularly spaced
-attachment stations rather than uniform repeats. Each branchlet has
-scattered earlier leaves and a small, variable group of closely spaced
-leaves near its tip, matching the tendency of European oaks to form
-crowded terminal foliage. More exposed lateral limbs, including some
-lower boughs, receive modest additional branchlets; the center and
-lower trunk remain legible rather than being indiscriminately filled.
+`oak-foliage.mjs` reads the accepted oak wood mesh, including
+continuation axes, to attach foliage to the **actual branch centerlines**.
+The foliage architecture grows connected families of small branches from
+both the secondary and terminal oak wood, not just from the 60 outermost
+tips. Each family can fork into several additional woody shoots with
+independent internodes, leaf size and orientation. The growth directions
+are chosen using a lightweight spatial competition field to find
+underoccupied crown pockets, while limiting excursions beyond the
+original crown. This makes the crown denser through its middle and along
+its sides, but leaves some natural gaps.
 
-The petioles follow alternate phyllotaxy with varied internodes,
-orientation, size and light-facing inclination. Each branchlet is
-genuinely meshed, rather than letting leaf clusters float in the air.
-Separate deterministic random streams keep leaf changes from altering
-the accepted wood generator. The overall leaf count is intentionally
-moderate and determined internally by species architecture, not a new
-user-facing density parameter.
+Leaves are spaced alternately along supporting shoots and form varied
+small groups near their tips. Their laminae are oriented to present
+different faces to both the sky and the crown exterior. Fine shoots are
+actual tapered wood meshes and every leaf has an attached petiole.
+The underside of the crown and the lower trunk remain exposed.
+
+The leaf mesh uses a reduced but still genuinely lobed surface grid and
+short raised lateral vein strips; this keeps the detailed canopy below
+a practical triangle budget rather than scaling foliage density by
+adding millions of unnecessary polygons. Both oak wood and leaf shapes
+remain deterministic from one seed. There are no additional public
+generation parameters or external leaf models.
 
 The preview renders the oak with foliage by default. **Hide leaves**
 reveals the original wood, and **Show leaves** restores the crown.

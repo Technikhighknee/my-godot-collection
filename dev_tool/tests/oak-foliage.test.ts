@@ -41,11 +41,12 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     const indices=tree.indices.slice();
     const f=generateOakFoliage(tree);
     assert.equal(f.seed,seed);
-    assert.equal(f.branchesUsed,60);
-    assert.ok(f.leafCount>3100&&f.leafCount<4000,
+    assert.equal(f.branchesUsed,75,
+      'Both secondary and terminal wood must carry connected foliage families');
+    assert.ok(f.leafCount>3600&&f.leafCount<5000,
       'A summer oak crown needs enough leaf area without blanket saturation');
-    assert.ok(f.shootCount>=320&&f.shootCount<=420,
-      'The outer crown must retain varied short supporting shoots');
+    assert.ok(f.shootCount>=700&&f.shootCount<=1100,
+      'Crown volume must contain branching families of short supporting wood');
     assert.ok(f.veinCount>=f.leafCount*8);
     assert.ok(f.veinCount<=f.leafCount*12);
     assert.deepEqual(tree.positions,positions,'Foliage cannot reshape accepted oak wood');
@@ -53,13 +54,16 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     assert.equal(f.positions.length,f.normals.length);
     assert.equal(f.colors.length,f.positions.length);
     assert.equal(f.indices.length%3,0);
-    assert.ok(f.indices.length/3<1500000);
+    assert.ok(f.indices.length/3<850000,
+      'Detailed oak leaves must stay within a practical triangle budget');
     assert.ok(f.positions.every(Number.isFinite));
     assert.ok(f.normals.every(Number.isFinite));
     assert.ok(f.colors.every(x=>Number.isFinite(x)&&x>=0&&x<=1));
     assert.ok(f.indices.every(i=>i<f.positions.length/3));
     assert.ok(f.bounds.min[1]>2.0,'The lower trunk should remain visible');
     assert.ok(f.bounds.max[1]>=tree.bounds.max[1]-.8);
+    assert.ok(f.leafCount/f.shootCount>3.8&&f.leafCount/f.shootCount<6,
+      'Leaf families should cover branches without indiscriminate density');
     // A coarse silhouette coverage regression: foliage must occupy
     // the outer and lower crown in two perpendicular projections.
     // Sampling one of every 15 vertices keeps the test inexpensive.
@@ -74,14 +78,14 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
       if(y>=3&&y<7.7&&Math.hypot(x,z)>1.4)
         lowerOuter.add(Math.floor(x/.22)+':'+Math.floor(y/.22));
     }
-    assert.ok(frontal.size>700&&side.size>700,
+    assert.ok(frontal.size>780&&side.size>950,
       'Leaf cover must extend across the crown in both projections');
-    assert.ok(lowerOuter.size>250,
+    assert.ok(lowerOuter.size>280,
       'Lower, exposed boughs should not remain conspicuously bare');
     for(let k=0;k<3;k++){
       assert.ok(f.bounds.max[k]>f.bounds.min[k]);
-      assert.ok(f.bounds.min[k]>=tree.bounds.min[k]-.80);
-      assert.ok(f.bounds.max[k]<=tree.bounds.max[k]+.80);
+      assert.ok(f.bounds.min[k]>=tree.bounds.min[k]-1.00);
+      assert.ok(f.bounds.max[k]<=tree.bounds.max[k]+1.00);
     }
   }
 });
