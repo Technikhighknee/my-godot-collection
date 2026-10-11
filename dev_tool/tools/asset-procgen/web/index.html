@@ -48,9 +48,22 @@
     </div>
     <div id="imageStage" class="pg-image-stage" hidden>
       <div id="imageViewport" aria-label="2D procedural asset preview"></div>
-      <div class="pg-camera-tools pg-image-tools">
-        <button id="imageFit" type="button" aria-pressed="true">Fit image</button>
-        <button id="imageActual" type="button" aria-pressed="false">100%</button>
+      <div class="pg-image-tools" aria-label="2D image inspector controls">
+        <div class="pg-image-tool-row" role="group" aria-label="Zoom">
+          <button id="imageFit" type="button" aria-pressed="true">Fit</button>
+          <button id="imageZoomOut" type="button" aria-label="Zoom out">−</button>
+          <output id="imageZoomLabel" aria-label="Current zoom">100%</output>
+          <button id="imageZoomIn" type="button" aria-label="Zoom in">+</button>
+          <button id="imageActual" type="button" aria-pressed="false">100%</button>
+        </div>
+        <div class="pg-image-tool-row" role="group" aria-label="Image channels">
+          <button id="imageRGBA" type="button" aria-pressed="true">RGBA</button>
+          <button id="imageRGB" type="button" aria-pressed="false">RGB</button>
+          <button id="imageAlpha" type="button" aria-pressed="false">Alpha</button>
+          <label class="pg-tile-control" for="imageTile">Tile
+            <select id="imageTile" aria-label="Atlas tile"><option value="all">All tiles</option></select>
+          </label>
+        </div>
       </div>
     </div>
     <div class="pg-viewport-footer"><span id="viewportHint">DRAG TO ORBIT <b>·</b> SCROLL TO ZOOM <b>·</b> RIGHT-DRAG TO PAN</span><span id="meshStats"></span></div>

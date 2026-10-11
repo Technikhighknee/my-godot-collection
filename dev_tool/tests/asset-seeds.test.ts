@@ -127,6 +127,7 @@ test('2D atlas generator is independent of tree wood and yields a paintable asse
   if(image.kind!=='image')throw Error('Expected image asset');
   assert.deepEqual([image.width,image.height,image.tiles,image.channels],
     [1024,1024,16,'RGBA']);
+  assert.deepEqual(image.atlas,{columns:4,rows:4});
   const different=generateAsset(atlas,{leaves:500});
   assert.equal(different.kind,'image');
   assert.equal(createSeedState(oak).components.leaves,21749);

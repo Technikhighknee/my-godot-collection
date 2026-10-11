@@ -36,7 +36,32 @@ function updateImageControls(state){
   if(active.kind!=='image')return;
   byId('imageFit').setAttribute('aria-pressed',String(state.mode==='fit'));
   byId('imageActual').setAttribute('aria-pressed',String(state.mode==='actual'));
-  byId('stageContent').textContent='RGBA ATLAS';
+  byId('imageZoomLabel').textContent=Math.round(state.scale*100)+'%';
+  for(const [channel,id] of [['rgba','imageRGBA'],
+    ['rgb','imageRGB'],['alpha','imageAlpha']])
+    byId(id).setAttribute('aria-pressed',String(state.channel===channel));
+  byId('imageTile').value=state.tile===null?'all':String(state.tile);
+  byId('stageContent').textContent=(state.tile===null?
+    'FULL IMAGE':'TILE '+(state.tile+1)+' / '+state.tiles)+
+    ' · '+state.channel.toUpperCase();
+}
+function updateImageTiles(asset){
+  const picker=byId('imageTile');
+  picker.replaceChildren();
+  const full=document.createElement('option');
+  full.value='all';
+  full.textContent=asset.atlas?'All tiles':'Full image';
+  picker.append(full);
+  if(asset.atlas)
+    for(let i=0;i<asset.tiles;i++){
+      const item=document.createElement('option');
+      item.value=String(i);
+      item.textContent='Tile '+(i+1);
+      picker.append(item);
+    }
+  picker.disabled=!asset.atlas;
+  picker.value=imageViewport.state().tile===null?
+    'all':String(imageViewport.state().tile);
 }
 function build(state=seeds()){
   try{
@@ -55,6 +80,8 @@ function build(state=seeds()){
       if(!imageViewport)
         imageViewport=createImageViewport(byId('imageViewport'),updateImageControls);
       stats=imageViewport.render(asset);
+      updateImageTiles(asset);
+      updateImageControls(imageViewport.state());
       byId('meshStats').textContent=stats.width+' × '+stats.height+
         ' PX · '+stats.channels+(stats.tiles?' · '+stats.tiles+' TILES':'');
     }else throw Error('Unknown asset kind');
@@ -171,7 +198,7 @@ function selectGenerator(id){
   byId('stageKind').textContent=def.kind==='model'?'3D MODEL':'2D ASSET';
   byId('viewportHint').textContent=def.kind==='model'?
     'DRAG TO ORBIT · SCROLL TO ZOOM · RIGHT-DRAG TO PAN':
-    'TRANSPARENT RGBA · FIT OR 100%';
+    'WHEEL ZOOM · DRAG PAN · CLICK A TILE · ALPHA CHANNEL';
   renderSeedControls();
   if(build()&&def.kind==='model')modelViewport.focus('whole');
 }
@@ -230,6 +257,23 @@ byId('imageFit').addEventListener('click',()=>{
 });
 byId('imageActual').addEventListener('click',()=>{
   if(active.kind==='image')imageViewport.setMode('actual');
+});
+byId('imageZoomOut').addEventListener('click',()=>{
+  if(active.kind==='image')imageViewport.zoomStep(-1);
+});
+byId('imageZoomIn').addEventListener('click',()=>{
+  if(active.kind==='image')imageViewport.zoomStep(1);
+});
+for(const [name,channel] of [['imageRGBA','rgba'],
+  ['imageRGB','rgb'],['imageAlpha','alpha']])
+  byId(name).addEventListener('click',()=>{
+    if(active.kind==='image')imageViewport.setChannel(channel);
+  });
+byId('imageTile').addEventListener('change',event=>{
+  if(active.kind==='image'){
+    const value=event.target.value;
+    imageViewport.selectTile(value==='all'?null:Number(value));
+  }
 });
 try{
   selectMode(selectedMode);

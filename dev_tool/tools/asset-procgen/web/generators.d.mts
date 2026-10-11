@@ -8,7 +8,8 @@ export interface GeneratedModel {
 }
 export interface GeneratedImage {
   id:string;kind:'image';width:number;height:number;channels:'RGBA';
-  tiles:number;paint:(canvas:HTMLCanvasElement)=>unknown;
+  tiles:number;atlas?:{columns:number;rows:number};
+  paint:(canvas:HTMLCanvasElement)=>unknown;
 }
 export type GeneratedAsset=GeneratedModel|GeneratedImage;
 interface GeneratorMeta {

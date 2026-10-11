@@ -22,7 +22,7 @@ function generateFirAsset(seeds){
 function generateOakAtlasAsset(seeds){
   return {
     id:'oak-atlas',kind:'image',width:OAK_ATLAS_SIZE,height:OAK_ATLAS_SIZE,
-    channels:'RGBA',tiles:16,
+    channels:'RGBA',tiles:16,atlas:{columns:4,rows:4},
     paint:canvas=>paintOakAtlas(canvas,seeds.leaves),
   };
 }

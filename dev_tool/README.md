@@ -64,6 +64,27 @@ default as the oak model's atlas seed (21749). Changing the seed in
 one generator does **not** implicitly mutate the other generator.
 Explicit asset linking and sprite/atlas editing are future work.
 
+### 2D asset inspector
+
+2D images retain their full-resolution original canvas independently of
+the preview. Mouse wheel zooms around the cursor, left/middle drag pans,
+**Fit** centers the image, **100%** restores native pixel scale, and the
+plus/minus controls adjust zoom incrementally (5%–1600%). Pixelated
+magnification begins at 200% to make cutout edges inspectable.
+
+**RGBA** displays the checkerboard through transparency; **RGB** displays
+color without transparency; **Alpha** displays opacity in grayscale
+(black transparent, white opaque). Channel changes never modify the
+generator's source image.
+
+An image with explicit atlas layout metadata can isolate one tile using
+the **Tile** selector, or by clicking a cell in the full atlas. **All
+tiles** returns to the full texture. The tile view preserves native
+pixels and supports the same zoom and channel controls. Seed changes
+retain the inspected tile when its layout is still valid. Non-atlas
+images have no tile selection. This inspection does not export files,
+generate a new kind of leaf, or alter the oak model's materials.
+
 Each generated part has its own unsigned 32-bit seed. Currently the
 oak has **Wood geometry**, **Foliage placement**, and **Leaf atlas**;
 the fir has **Wood geometry**. Bark texture is not listed, because no
@@ -81,8 +102,8 @@ The initial defaults deliberately preserve the previous results
 (wood and foliage use the old tree seed; the atlas uses 21749).
 The accepted oak and fir wood generators remain unchanged.
 
-The next step is advanced 2D inspection (zoom, pan, alpha channels,
-tile isolation) before changing how oak leaves are generated or baked.
+The 2D inspection tools are now in place; improving the actual
+oak leaf sprites and their baking strategy is a separate next step.
 
 ### Oak wood structure
 

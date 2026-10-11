@@ -368,7 +368,9 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(html,/id="componentSeeds"/);
   assert.match(html,/id="generatorList"/);
   for(const id of ['modelMode','imageMode','modelStage','imageStage',
-    'imageViewport','imageFit','imageActual','stageKind','viewportHint'])
+    'imageViewport','imageFit','imageActual','imageZoomIn','imageZoomOut',
+    'imageZoomLabel','imageRGBA','imageRGB','imageAlpha','imageTile',
+    'stageKind','viewportHint'])
     assert.ok(html.includes('id="'+id+'"'),id);
   assert.doesNotMatch(html,/id="oakGenerator"|id="firGenerator"/,
     'Generator navigation comes from the catalog, not fixed markup');
@@ -389,6 +391,11 @@ test('modular asset workspace keeps its existing controls and serves new modules
   const seedModel=readFileSync(new URL('../tools/asset-procgen/web/seed-model.mjs',import.meta.url),'utf8');
   assert.match(app,/createModelViewport/);
   assert.match(app,/createImageViewport/);
+  assert.match(app,/imageViewport\.setChannel/);
+  assert.match(app,/\['alpha','imageAlpha'\]/);
+  assert.doesNotMatch(app,/imageALPHA/);
+  assert.match(app,/imageViewport\.selectTile/);
+  assert.match(app,/imageViewport\.zoomStep/);
   assert.match(app,/selectMode/);
   assert.match(app,/GENERATOR|generatorHeading/);
   assert.match(app,/generateAsset\(active,state.components\)/);
@@ -404,6 +411,9 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(catalog,/kind:'image'/);
   assert.match(imagePreview,/createImageViewport/);
   assert.match(imagePreview,/validateImageAsset/);
+  assert.match(imagePreview,/imageZoomAt/);
+  assert.match(imagePreview,/imageTileRect/);
+  assert.match(imagePreview,/getImageData/);
   assert.match(preview,/THREE\.DoubleSide/);
   assert.match(preview,/alphaTest:\.43/);
   assert.match(preview,/firstCard\*12/);
