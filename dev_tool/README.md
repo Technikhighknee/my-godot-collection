@@ -116,11 +116,14 @@ The accepted oak and fir wood generators remain unchanged.
 Under **Vegetation → Oak → Bark**, the generator synthesizes three
 deterministic, tileable 1024 × 1024 material profiles from the same
 seeds, inspired by *Quercus robur*: **Trunk**, **Limb**, and **Young**.
-The mature trunk receives wider irregular plates and strong fissures,
-secondary limbs less pronounced separations, and young wood a much
-quieter, nearly smooth surface. Macro plate structure, interrupted meso
-fractures and subordinate micro cork grain are combined before
-deriving maps. No third-party textures or new dependencies are bundled.
+The material starts from **actual procedurally traced fissures**:
+finite longitudinal grooves with irregular widths, variable depth,
+branching tributaries, interruptions and tapered ends. Crack shoulders
+are raised in the same height field; normal, AO and roughness therefore
+respond to the same geometric incisions instead of a painted stripe
+pattern. Trunk, limb and young profiles progressively reduce fissure
+depth and width. The original wood meshes, UVs and branch geometry are
+unchanged. No third-party textures or new dependencies are bundled.
 
 Its independent seeds are **Bark fissures**, **Surface detail** and
 **Pigmentation**. All five maps originate from the same scalar relief

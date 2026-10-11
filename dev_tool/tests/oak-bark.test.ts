@@ -26,6 +26,39 @@ test('mature oak bark is reproducible opaque RGBA with finite relief',()=>{
   }
 });
 
+test('oak bark is made of directional cracks, not a repeated band grid',()=>{
+  const size=256;
+  for(const profile of ['trunk','limb','young'] as const){
+    const {heightField}=generateOakBark({size,profile});
+    let across=0,along=0;
+    for(let y=0;y<size-1;y++)for(let x=0;x<size-1;x++){
+      const p=y*size+x;
+      across+=Math.abs(heightField[p+1]!-heightField[p]!);
+      along+=Math.abs(heightField[p+size]!-heightField[p]!);
+    }
+    assert.ok(across>along*1.15,
+      'Fissures should run preferentially along the growing wood axis: '+profile);
+  }
+  // A crack network must vary with the structure seed without changing
+  // its pigmentation or the entire surface into equally spaced strips.
+  const first=generateOakBark({size,structureSeed:19641});
+  const next=generateOakBark({size,structureSeed:19642});
+  assert.notDeepEqual(first.heightField,next.heightField);
+  const crossings=new Set<number>();
+  for(let y=0;y<size;y+=11){
+    let crossingsInRow=0;
+    for(let x=1;x<size-1;x++){
+      const p=y*size+x;
+      if(first.heightField[p]!<first.heightField[p-1]!&&
+        first.heightField[p]!<first.heightField[p+1]!&&
+        first.heightField[p]!<.39)crossingsInRow++;
+    }
+    crossings.add(crossingsInRow);
+  }
+  assert.ok(crossings.size>=4,
+    'Cracks must appear, end, fork and interrupt instead of forming static stripes');
+});
+
 test('oak bark components vary independently by seed',()=>{
   const options={structureSeed:19641,surfaceSeed:48507,colorSeed:21749,size:128};
   const base=generateOakBark(options);
