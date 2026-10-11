@@ -92,12 +92,22 @@ external textures or third-party leaf models are used.
 rings**, including continuation axes, to attach petioles to actual twig
 centerlines. Each terminal woody axis carries a small number of alternate leaves
 directly and sprouts short, tapering leaf-bearing branchlets that spread
-the crown into three-dimensional space. Their petioles follow alternate
-phyllotaxy with varied internodes, orientation, size and light-facing
-inclination. Each branchlet is genuinely meshed, rather than letting
-leaf clusters float in the air. The distribution favors the terminal
-crown, leaving the lower trunk open. Separate deterministic random
-streams keep leaf changes from altering the accepted wood generator.
+the crown into three-dimensional space. The branchlets are concentrated
+toward the outer portions of the terminal wood, with irregularly spaced
+attachment stations rather than uniform repeats. Each branchlet has
+scattered earlier leaves and a small, variable group of closely spaced
+leaves near its tip, matching the tendency of European oaks to form
+crowded terminal foliage. More exposed lateral limbs, including some
+lower boughs, receive modest additional branchlets; the center and
+lower trunk remain legible rather than being indiscriminately filled.
+
+The petioles follow alternate phyllotaxy with varied internodes,
+orientation, size and light-facing inclination. Each branchlet is
+genuinely meshed, rather than letting leaf clusters float in the air.
+Separate deterministic random streams keep leaf changes from altering
+the accepted wood generator. The overall leaf count is intentionally
+moderate and determined internally by species architecture, not a new
+user-facing density parameter.
 
 The preview renders the oak with foliage by default. **Hide leaves**
 reveals the original wood, and **Show leaves** restores the crown.

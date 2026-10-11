@@ -230,21 +230,32 @@ export function generateOakFoliage(wood){
   const output={positions:[],normals:[],colors:[],indices:[],veinCount:0};
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   let leafCount=0,branchesUsed=0,shootCount=0;
+  const crownHeight=wood.bounds.max[1]-wood.bounds.min[1];
+  const crownRadius=.5*Math.max(
+    wood.bounds.max[0]-wood.bounds.min[0],
+    wood.bounds.max[2]-wood.bounds.min[2]);
   for(const axis of wood.branches){
     if(axis.level!==3)continue;
     const sections=centerlines.get(axis.id);
     if(!sections||sections.length<2)continue;
     const rng=random((wood.seed^Math.imul(axis.id+1,0x9e3779b1))>>>0);
-    const vigor=.78+.43*rng();
     const center=sections.at(-1);
+    const radius=Math.hypot(center[0],center[2]);
+    // Open lateral limbs, especially in the lower crown, can carry
+    // broader leaf sprays without filling the interior with greenery.
+    const lower=clamp((wood.bounds.min[1]+crownHeight*.75-center[1])/
+      (crownHeight*.35),0,1);
+    const exposed=clamp((radius-crownRadius*.26)/(crownRadius*.67),0,1);
+    const lowerEdge=lower*exposed;
+    const vigor=(.78+.43*rng())*(1+.055*lowerEdge);
     const radial=unit([center[0],0,center[2]]);
     let angle=rng()*TAU;
 
     // A modest number of leaves directly on the continuing axis
     // retains its alternate phyllotaxy without building a perfect comb.
-    const direct=6+Math.floor(rng()*5);
+    const direct=4+Math.floor(rng()*4);
     for(let j=0;j<direct;j++){
-      const t=clamp(.56+(j+.25+.5*rng())*.43/direct,.52,.995);
+      const t=clamp(.66+(j+.20+.62*rng())*.34/direct,.62,.995);
       angle+=2.399963229728653+(rng()-.5)*.27;
       attachLeaf(output,onAxis(sections,t),radial,rng,angle,
         vigor*(.90+.17*rng()));
@@ -253,9 +264,15 @@ export function generateOakFoliage(wood){
     // Fine sprigs occupy volume around the terminal wood, rather than
     // putting all leaves along one long axis. They remain actual small
     // brown woody shoots that visibly support their petioles.
-    const spurCount=4+Math.floor(rng()*3);
+    const spurCount=5+Math.floor(rng()*3)+(rng()<.54*lowerEdge?1:0);
+    const intervals=Array.from({length:spurCount},()=>.62+.80*rng());
+    const total=intervals.reduce((sum,weight)=>sum+weight,0);
+    let station=.39;
     for(let j=0;j<spurCount;j++){
-      const t=clamp(.35+(j+.14+.63*rng())*.59/spurCount,.31,.97);
+      // Irregular bud stations, biased toward the outer half of the
+      // existing terminal shoot. Not every branch is equally vigorous.
+      station+=intervals[j]/total*.57;
+      const t=clamp(station+(rng()-.5)*.025,.37,.98);
       const origin=onAxis(sections,t),tangent=origin.tangent;
       angle+=2.399963229728653+(rng()-.5)*.31;
       const side=unit(cross(Math.abs(tangent[1])<.85?[0,1,0]:[1,0,0],tangent));
@@ -266,11 +283,18 @@ export function generateOakFoliage(wood){
       const extent=(.23+.20*rng())*(.82+.29*vigor);
       const shoot=fineShoot(output,origin.position,heading,extent,rng);
       shootCount++;
-      const leafNodes=6+Math.floor(rng()*5);
       const shootVigor=vigor*(.88+.24*rng());
+      const leafNodes=7+Math.floor(rng()*5)+(rng()<.36*lowerEdge?1:0);
+      // European oak leaves appear in crowded terminal groups. Keep
+      // some earlier leaves, but place two to four near each sprig tip
+      // instead of another regularly populated length of bare wood.
+      const tipCluster=2+Math.floor(rng()*3);
+      const early=leafNodes-tipCluster;
       let leafAngle=angle+(rng()-.5)*.65;
       for(let i=0;i<leafNodes;i++){
-        const location=clamp(.17+(i+.15+.67*rng())*.77/leafNodes,.15,.96);
+        const location=i<early
+          ?clamp(.22+(i+.12+.68*rng())*.48/early,.20,.73)
+          :clamp(.75+(i-early+.11+.68*rng())*.23/tipCluster,.73,.99);
         if(rng()<.045)continue;
         leafAngle+=2.399963229728653+(rng()-.5)*.28;
         attachLeaf(output,onAxis(shoot,location),radial,rng,leafAngle,

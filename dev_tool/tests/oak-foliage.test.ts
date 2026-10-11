@@ -42,9 +42,10 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     const f=generateOakFoliage(tree);
     assert.equal(f.seed,seed);
     assert.equal(f.branchesUsed,60);
-    assert.ok(f.leafCount>2000&&f.leafCount<3800);
-    assert.ok(f.shootCount>=240&&f.shootCount<=360,
-      'All outer axes should support fine secondary leaf-bearing shoots');
+    assert.ok(f.leafCount>3100&&f.leafCount<4000,
+      'A summer oak crown needs enough leaf area without blanket saturation');
+    assert.ok(f.shootCount>=320&&f.shootCount<=420,
+      'The outer crown must retain varied short supporting shoots');
     assert.ok(f.veinCount>=f.leafCount*8);
     assert.ok(f.veinCount<=f.leafCount*12);
     assert.deepEqual(tree.positions,positions,'Foliage cannot reshape accepted oak wood');
@@ -52,13 +53,31 @@ test('oak foliage grows from all terminal wood and never changes its skeleton',(
     assert.equal(f.positions.length,f.normals.length);
     assert.equal(f.colors.length,f.positions.length);
     assert.equal(f.indices.length%3,0);
-    assert.ok(f.indices.length/3<1400000);
+    assert.ok(f.indices.length/3<1500000);
     assert.ok(f.positions.every(Number.isFinite));
     assert.ok(f.normals.every(Number.isFinite));
     assert.ok(f.colors.every(x=>Number.isFinite(x)&&x>=0&&x<=1));
     assert.ok(f.indices.every(i=>i<f.positions.length/3));
     assert.ok(f.bounds.min[1]>2.0,'The lower trunk should remain visible');
     assert.ok(f.bounds.max[1]>=tree.bounds.max[1]-.8);
+    // A coarse silhouette coverage regression: foliage must occupy
+    // the outer and lower crown in two perpendicular projections.
+    // Sampling one of every 15 vertices keeps the test inexpensive.
+    const frontal=new Set<string>(),side=new Set<string>(),
+      lowerOuter=new Set<string>();
+    for(let i=0;i<f.positions.length;i+=45){
+      const x=f.positions[i],y=f.positions[i+1],z=f.positions[i+2];
+      if(y>=3){
+        frontal.add(Math.floor(x/.18)+':'+Math.floor(y/.18));
+        side.add(Math.floor(z/.18)+':'+Math.floor(y/.18));
+      }
+      if(y>=3&&y<7.7&&Math.hypot(x,z)>1.4)
+        lowerOuter.add(Math.floor(x/.22)+':'+Math.floor(y/.22));
+    }
+    assert.ok(frontal.size>700&&side.size>700,
+      'Leaf cover must extend across the crown in both projections');
+    assert.ok(lowerOuter.size>250,
+      'Lower, exposed boughs should not remain conspicuously bare');
     for(let k=0;k<3;k++){
       assert.ok(f.bounds.max[k]>f.bounds.min[k]);
       assert.ok(f.bounds.min[k]>=tree.bounds.min[k]-.80);
