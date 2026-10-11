@@ -26,37 +26,43 @@ test('mature oak bark is reproducible opaque RGBA with finite relief',()=>{
   }
 });
 
-test('oak bark is made of directional cracks, not a repeated band grid',()=>{
+test('mature bark has sparse, broad damaged areas, not hairline patterns',()=>{
   const size=256;
-  for(const profile of ['trunk','limb','young'] as const){
-    const {heightField}=generateOakBark({size,profile});
-    let across=0,along=0;
-    for(let y=0;y<size-1;y++)for(let x=0;x<size-1;x++){
-      const p=y*size+x;
-      across+=Math.abs(heightField[p+1]!-heightField[p]!);
-      along+=Math.abs(heightField[p+size]!-heightField[p]!);
+  const {heightField,pixels}=generateOakBark({size,profile:'trunk'});
+  let damaged=0,longestWidth=0;
+  const counts=new Set<number>();
+  for(let y=0;y<size;y++){
+    let current=0,rowDamaged=0;
+    for(let x=0;x<size;x++){
+      const damagedHere=heightField[y*size+x]!<.53;
+      if(damagedHere){damaged++;rowDamaged++;current++;}
+      else {longestWidth=Math.max(longestWidth,current);current=0;}
     }
-    assert.ok(across>along*1.15,
-      'Fissures should run preferentially along the growing wood axis: '+profile);
+    longestWidth=Math.max(longestWidth,current);
+    if(y%11===0)counts.add(rowDamaged);
   }
-  // A crack network must vary with the structure seed without changing
-  // its pigmentation or the entire surface into equally spaced strips.
-  const first=generateOakBark({size,structureSeed:19641});
-  const next=generateOakBark({size,structureSeed:19642});
-  assert.notDeepEqual(first.heightField,next.heightField);
-  const crossings=new Set<number>();
-  for(let y=0;y<size;y+=11){
-    let crossingsInRow=0;
-    for(let x=1;x<size-1;x++){
-      const p=y*size+x;
-      if(first.heightField[p]!<first.heightField[p-1]!&&
-        first.heightField[p]!<first.heightField[p+1]!&&
-        first.heightField[p]!<.39)crossingsInRow++;
-    }
-    crossings.add(crossingsInRow);
+  const fraction=damaged/(size*size);
+  assert.ok(fraction>.025&&fraction<.12,
+    'Most mature bark should stay intact; fissures are sparse areas');
+  assert.ok(longestWidth>=5,
+    'Opened bark should have width rather than one-pixel grooves');
+  assert.ok(counts.size>=5,
+    'Broken regions should begin, end and change lateral coverage');
+  let lo=255,hi=0;
+  for(let i=0;i<pixels.length;i+=4){
+    lo=Math.min(lo,pixels[i]!);hi=Math.max(hi,pixels[i]!);
   }
-  assert.ok(crossings.size>=4,
-    'Cracks must appear, end, fork and interrupt instead of forming static stripes');
+  assert.ok(hi-lo<80,'Albedo must not draw high-contrast black incisions');
+  const limb=generateOakBark({size,profile:'limb'});
+  const young=generateOakBark({size,profile:'young'});
+  const damageCount=(field:Float32Array)=>
+    field.filter(h=>h<.53).length;
+  assert.ok(damaged>damageCount(limb.heightField)*1.7,
+    'Large mature openings should dominate over limb weathering');
+  assert.ok(damageCount(young.heightField)<damaged*.05,
+    'Young wood should remain mostly smooth');
+  assert.notDeepEqual(heightField,
+    generateOakBark({size,structureSeed:19642}).heightField);
 });
 
 test('oak bark components vary independently by seed',()=>{

@@ -1,5 +1,5 @@
-// Deterministic, seamless mature Quercus robur bark albedo.
-// Fissures, surface granularity and pigmentation are independent components.
+// Deterministic, seamless oak bark PBR source material.
+// Broken areas, cork relief and pigment are independently seeded.
 // Periodic noise keeps both image edges continuous without baked directionality.
 export const OAK_BARK_SIZE = 1024;
 const TAU = Math.PI * 2;
@@ -20,112 +20,123 @@ function hash(x, y, seed) {
   return ((a ^ a >>> 16) >>> 0) / 4294967295;
 }
 const mod = (x, n) => ((x % n) + n) % n;
-// Integer lattice periods make the noise repeat across both tile borders.
-function noise(u, v, nx, ny, seed) {
-  const x = u * nx, y = v * ny;
-  const ix = Math.floor(x), iy = Math.floor(y), fx = smooth(x - ix), fy = smooth(y - iy);
-  const x0 = mod(ix, nx), y0 = mod(iy, ny), x1 = (x0 + 1) % nx, y1 = (y0 + 1) % ny;
-  const a = hash(x0, y0, seed), b = hash(x1, y0, seed);
-  const c = hash(x0, y1, seed), d = hash(x1, y1, seed);
-  const lower = a + (b - a) * fx, upper = c + (d - c) * fx;
-  return (lower + (upper - lower) * fy) * 2 - 1;
+// Cache an octave's periodic lattice before rasterizing it. Computing
+// four 32-bit hashes per pixel, per octave made the 1024px material set
+// needlessly stall the browser for tens of seconds.
+function noiseField(size,nx,ny,seed){
+  const lattice=new Float32Array(nx*ny);
+  for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)
+    lattice[y*nx+x]=hash(x,y,seed);
+  const field=new Float32Array(size*size);
+  const rowX=Array.from({length:size},(_,x)=>{
+    const v=x*nx/size,ix=Math.floor(v);
+    return {ix,ix1:(ix+1)%nx,fx:smooth(v-ix)};
+  });
+  for(let y=0;y<size;y++){
+    const v=y*ny/size,iy=Math.floor(v);
+    const row0=iy*nx,row1=((iy+1)%ny)*nx,fy=smooth(v-iy);
+    for(let x=0;x<size;x++){
+      const {ix,ix1,fx}=rowX[x];
+      const bottom=lattice[row0+ix]+
+        (lattice[row0+ix1]-lattice[row0+ix])*fx;
+      const top=lattice[row1+ix]+
+        (lattice[row1+ix1]-lattice[row1+ix])*fx;
+      field[y*size+x]=(bottom+(top-bottom)*fy)*2-1;
+    }
+  }
+  return field;
 }
-// Real fissures are finite, branching grooves with physical width, depth
-// and raised shoulders. They are NOT frequency bands painted on the albedo.
-// The same network is used by height, normal, AO and pigmentation.
+
+// Quercus-inspired game bark: continuous quiet cork skin interrupted by
+// sparse, broad, broken-up weathered openings. This is a material effect;
+// growth geometry, wood UVs and branch intersections are not modified.
 export const OAK_BARK_PROFILES=Object.freeze(['trunk','limb','young']);
 const PROFILES=Object.freeze({
-  trunk:Object.freeze({cracks:21,depth:.44,width:.0029,lip:.075,
-    grain:.026,albedoContrast:27,variation:19,base:[135,131,124]}),
-  limb:Object.freeze({cracks:17,depth:.29,width:.0022,lip:.052,
-    grain:.019,albedoContrast:22,variation:17,base:[140,131,119]}),
-  young:Object.freeze({cracks:11,depth:.105,width:.00115,lip:.018,
-    grain:.013,albedoContrast:10,variation:14,base:[141,132,120]}),
+  trunk:Object.freeze({openings:17,width:.018,depth:.30,raised:.049,
+    grain:.019,shade:23,variation:21,base:[129,122,110]}),
+  limb:Object.freeze({openings:13,width:.013,depth:.19,raised:.033,
+    grain:.016,shade:16,variation:19,base:[134,125,111]}),
+  young:Object.freeze({openings:5,width:.007,depth:.062,raised:.013,
+    grain:.012,shade:6,variation:15,base:[137,129,116]}),
 });
 function getProfile(name){
   if(!Object.hasOwn(PROFILES,name))
     throw Error('Unknown oak bark profile: '+name);
   return PROFILES[name];
 }
-function crackNetwork(size,seed,settings){
-  const fissures=new Float32Array(size*size);
-  const lips=new Float32Array(size*size);
-  // Strokes wrap on both axes. Even branching cracks that cross the
-  // image boundary continue cleanly on the opposite tile.
-  function stamp(u,v,radius,depth){
-    if(depth<=.005)return;
-    const cx=fract(u)*size,cy=fract(v)*size;
-    const r=Math.max(.62,radius*size),reach=Math.ceil(r*2.4);
-    const x0=Math.floor(cx),y0=Math.floor(cy);
-    for(let dy=-reach;dy<=reach;dy++)for(let dx=-reach;dx<=reach;dx++){
-      const distance=Math.hypot(x0+dx+.5-cx,y0+dy+.5-cy);
-      if(distance>r*2.35)continue;
-      const i=mod(y0+dy,size)*size+mod(x0+dx,size);
-      // A thin, sunken incision with irregular shoulders instead of
-      // a Gaussian stripe. Lip outside the core supports the normal map.
-      const incision=1-smooth((distance-r*.18)/(r*.94));
-      const ring=Math.max(0,1-Math.abs(distance-r*1.38)/(r*.85));
-      if(incision>0)fissures[i]=Math.max(fissures[i],incision*depth);
-      if(ring>0)lips[i]=Math.max(lips[i],ring*depth);
+// Draw an irregular, finite patch rather than tracing a thin curve.
+// A mostly flat split interior, rounded broken shoulders, tapered ends
+// and intermittent eroded flanks make the result read as damaged bark,
+// not a dark painted line. Coordinates wrap in both texture dimensions.
+function fracturedSurface(size,seed,settings){
+  const gouge=new Float32Array(size*size);
+  const shoulders=new Float32Array(size*size);
+  const seed2=seed^0x7eab3615;
+  function patch(id,startU,startV,length,halfWidth,strength,slope,
+    branch=false){
+    const phase=TAU*hash(id,11,seed),phase2=TAU*hash(id,27,seed);
+    const freq=1.6+1.7*hash(id,37,seed);
+    const drift=.004+.009*hash(id,49,seed);
+    function pathU(t){
+      return startU+slope*t+drift*(
+        Math.sin(TAU*freq*t+phase)-Math.sin(phase))+
+        .003*(Math.sin(TAU*6.2*t+phase2)-Math.sin(phase2));
+    }
+    const rowStart=Math.floor(startV*size);
+    const rowEnd=Math.ceil((startV+length)*size);
+    for(let row=rowStart;row<=rowEnd;row++){
+      const t=(row+.5-startV*size)/(length*size);
+      if(t<0||t>1)continue;
+      const taper=smooth(Math.min(t/.13,(1-t)/.17));
+      const segmented=.81+.13*Math.sin(TAU*(2.7*t)+phase2)+
+        .06*Math.sin(TAU*(8.5*t)+phase);
+      const radius=Math.max(.75,halfWidth*size*
+        (.25+.75*taper)*Math.max(.40,segmented));
+      const center=pathU(t)*size;
+      const depth=strength*(.31+.69*taper)*
+        (.84+.16*Math.sin(TAU*3.4*t+phase));
+      const centerX=Math.floor(center);
+      const xRadius=Math.ceil(radius*2.1);
+      const iy=mod(row,size);
+      for(let x=centerX-xRadius;x<=centerX+xRadius;x++){
+        const lateral=Math.abs((x+.5-center)/radius);
+        if(lateral>1.95)continue;
+        const xx=mod(x,size),i=iy*size+xx;
+        // An uneven edge, broad interior and narrow lifted margin.
+        const erode=.94+.095*Math.sin(TAU*(4.8*t)+phase+
+          .23*Math.sin(lateral*3))+ .06*Math.sin(TAU*14.3*t+phase2);
+        const d=lateral/Math.max(.72,erode);
+        const core=1-smooth((d-.17)/.93);
+        const rim=Math.max(0,1-Math.abs(d-1.27)/.60);
+        gouge[i]=Math.max(gouge[i],depth*core);
+        shoulders[i]=Math.max(shoulders[i],depth*rim);
+      }
+    }
+    // Only some openings split; their tributaries are also broad and
+    // shallow, and connect to the parent's actual damaged area.
+    if(!branch&&hash(id,101,seed)>.55){
+      const t=.25+.40*hash(id,115,seed);
+      const direction=hash(id,133,seed)>.5?1:-1;
+      patch(id+10000,pathU(t),startV+length*t,
+        length*(.21+.20*hash(id,143,seed)),
+        halfWidth*.61,strength*.57,
+        slope+direction*(.20+.23*hash(id,151,seed)),true);
     }
   }
-  const spatialSeed=seed^0x8c32813d;
-  const step=1/(size*1.15);
-  function path(id,startU,startV,length,angle,widthScale,depthScale,branch=false){
-    const phase=TAU*hash(id,17,seed);
-    const wave=TAU*hash(id,31,seed);
-    const incline=angle; // horizontal drift per unit distance along the bark
-    const amplitude=(branch?.008:.017)*(0.6+hash(id,57,seed));
-    const fineAmplitude=branch?.0019:.0037;
-    const gaps=Array.from({length:branch?0:1+Math.floor(hash(id,91,seed)*2)},(_,j)=>({
-      position:length*(.22+.55*hash(id,j+250,seed)),
-      halfWidth:.007+.012*hash(id,j+314,seed),
-    }));
-    const coords=t=>{
-      const v=startV+t;
-      const x=startU+incline*t+
-        amplitude*(Math.sin(TAU*(1.35*t)+phase)-Math.sin(phase))+
-        fineAmplitude*(Math.sin(TAU*(5.7*t)+wave)-Math.sin(wave));
-      return [x,v];
-    };
-    for(let t=0;t<=length;t+=step){
-      const [x,v]=coords(t);
-      const taper=smooth(t/.025)*smooth((length-t)/.033);
-      const gap=gaps.reduce((mult,g)=>mult*
-        smooth(Math.abs(t-g.position)/(g.halfWidth*1.55)),1);
-      const wobble=noise(fract(x),fract(v),17,31,seed^0xa133d319);
-      const depth=depthScale*taper*gap*(.81+.19*wobble);
-      const radius=settings.width*widthScale*(.80+
-        .20*noise(fract(x),fract(v),23,37,seed^0x57b6a289));
-      stamp(x,v,radius,depth);
-    }
-    // Explicit tributaries share the parent incision for a stretch,
-    // then diverge. They sometimes reconnect with another fissure.
-    if(!branch&&hash(id,409,seed)>.22){
-      const originT=length*(.27+.44*hash(id,503,seed));
-      const [originX,originV]=coords(originT);
-      const direction=hash(id,607,seed)>.5?1:-1;
-      path(id+2000,originX,originV,.07+.23*hash(id,703,seed),
-        incline+direction*(.095+.18*hash(id,811,seed)),
-        widthScale*.64,depthScale*.71,true);
-    }
+  for(let i=0;i<settings.openings;i++){
+    const startU=hash(i+17,19,seed2);
+    const startV=hash(i+43,31,seed2);
+    const length=.085+.24*hash(i+61,41,seed);
+    const halfWidth=settings.width*(.65+.75*hash(i+73,53,seed));
+    const strength=.55+.45*hash(i+89,67,seed);
+    const slope=(hash(i+103,79,seed)-.5)*.20;
+    patch(i,startU,startV,length,halfWidth,strength,slope);
   }
-  for(let i=0;i<settings.cracks;i++){
-    // Irregular lateral spacing: not an evenly divided circumference.
-    const u=hash(i+19,47,spatialSeed);
-    const v=hash(i+47,23,spatialSeed);
-    const len=.22+.69*hash(i+71,69,seed);
-    const slope=(hash(i+87,83,seed)-.5)*.18;
-    const width=.66+.68*hash(i+103,97,seed);
-    const depth=.65+.35*hash(i+127,131,seed);
-    path(i,u,v,len,slope,width,depth);
-  }
-  return {fissures,lips};
+  return {gouge,shoulders};
 }
 /**
- * Surface relief organized around topological fissures, not color stripes.
- * Independent structure, surface and pigmentation seeds stay compatible
- * with the existing model, inspector and PBR-material interfaces.
+ * The relief is predominantly intact bark, with locally broken surface.
+ * All maps are derived from one deterministic scalar height field.
  */
 export function generateOakBark({structureSeed=19641,surfaceSeed=48507,
   colorSeed=21749,size=OAK_BARK_SIZE,profile='trunk'}={}){
@@ -133,35 +144,39 @@ export function generateOakBark({structureSeed=19641,surfaceSeed=48507,
   if(!Number.isInteger(size)||size<32||size>OAK_BARK_SIZE)
     throw Error('Invalid oak bark resolution');
   const settings=getProfile(profile);
-  const {fissures,lips}=crackNetwork(size,structureSeed,settings);
+  const {gouge,shoulders}=fracturedSurface(size,structureSeed,settings);
   const pixels=new Uint8ClampedArray(size*size*4);
   const heightField=new Float32Array(size*size);
-  const palette=settings.base.map((c,i)=>c+
-    (hash(i+3,i+11,colorSeed)-.5)*9);
-  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const u=x/size,v=y/size,p=y*size+x,i=p*4;
-    const crack=fissures[p];
-    const shoulder=lips[p];
-    const macro=noise(u,v,7,11,structureSeed^0x4e6f1291);
-    const surface=.64*noise(u,v,54,73,surfaceSeed^0x132fed40)+
-      .27*noise(u,v,143,179,surfaceSeed^0x8931a96b)+
-      .09*noise(u,v,281,307,surfaceSeed^0x28ba701e);
-    // Deep cuts are subtractive from an otherwise quiet cork surface;
-    // the positive shoulder breaks up their edges in tangent lighting.
-    const relief=clamp(.57+.052*macro+settings.grain*surface-
-      settings.depth*crack+settings.lip*shoulder,0,1);
+  const palette=settings.base.map((base,i)=>
+    base+(hash(i+3,i+11,colorSeed)-.5)*10);
+  const large=noiseField(size,5,7,structureSeed^0x4e6f1291);
+  const corkA=noiseField(size,23,33,surfaceSeed^0x132fed40);
+  const corkB=noiseField(size,73,85,surfaceSeed^0x8931a96b);
+  const corkC=noiseField(size,189,197,surfaceSeed^0x28ba701e);
+  const colorA=noiseField(size,7,9,colorSeed^0x730aec31);
+  const colorB=noiseField(size,19,27,colorSeed^0x8a17e365);
+  const colorC=noiseField(size,48,54,colorSeed^0x2a18c3de);
+  const weatherA=noiseField(size,9,15,colorSeed^0x1d4c7f31);
+  const weatherB=noiseField(size,143,157,colorSeed^0x782d41e5);
+  for(let p=0;p<size*size;p++){
+    const i=p*4;
+    const small=.58*corkA[p]+.30*corkB[p]+.12*corkC[p];
+    // Broad but restrained cork undulation prevents plastic smoothness.
+    // Stronger relief exists only where the original skin has opened.
+    const cavity=gouge[p],lip=shoulders[p];
+    const relief=clamp(.61+.033*large[p]+settings.grain*small-
+      settings.depth*cavity+settings.raised*lip,0,1);
     heightField[p]=relief;
     const pigment=settings.variation*(
-      .56*noise(u,v,9,13,colorSeed^0x730aec31)+
-      .29*noise(u,v,27,39,colorSeed^0x8a17e365)+
-      .15*noise(u,v,49,61,colorSeed^0x2a18c3de));
-    // The thin dark groove follows the actual 3D incision, not an
-    // unrelated hand-painted stripe; light shading remains in PBR.
-    const shade=-settings.albedoContrast*crack+
-      settings.albedoContrast*.065*shoulder;
-    pixels[i]=clamp(palette[0]+pigment+shade,30,223);
-    pixels[i+1]=clamp(palette[1]+pigment*.94+shade*.93,27,217);
-    pixels[i+2]=clamp(palette[2]+pigment*.89+shade*.86,25,209);
+      .47*colorA[p]+.35*colorB[p]+.18*colorC[p]);
+    const weathering=.45*weatherA[p]+.19*weatherB[p];
+    // Only a modest tonal shift marks an opening; no black strokes,
+    // fake directional shadows or baked specular highlights.
+    const tint=pigment+weathering*settings.variation*.18-
+      settings.shade*cavity+settings.shade*.09*lip;
+    pixels[i]=clamp(palette[0]+tint,28,225);
+    pixels[i+1]=clamp(palette[1]+tint*.93,25,220);
+    pixels[i+2]=clamp(palette[2]+tint*.84,23,217);
     pixels[i+3]=255;
   }
   return {width:size,height:size,pixels,heightField,profile};
@@ -195,13 +210,16 @@ export function generateOakBarkMaterial(options={}){
   const heightMap=new Uint8ClampedArray(albedo.length);
   const at=(x,y)=>heightField[((y+height)%height)*width+
     ((x+width)%width)];
+  // Scale derivatives by the texture's resolution: the same physical
+  // gouge should produce comparable lighting at 64px and at 1024px.
+  const normalStrength=Math.min(width,height)*.046;
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
     const index=y*width+x,i=index*4,h=heightField[index];
     const dx=(at(x+1,y)-at(x-1,y))*.5;
     const dy=(at(x,y+1)-at(x,y-1))*.5;
     // Canvas rows go down; the OpenGL normal convention uses +Y.
     // Flip the v derivative so the uploaded normal is not DirectX style.
-    const nx=-dx*4.5,ny=dy*4.5,nz=1;
+    const nx=-dx*normalStrength,ny=dy*normalStrength,nz=1;
     const length=Math.hypot(nx,ny,nz);
     normal[i]=Math.round((nx/length*.5+.5)*255);
     normal[i+1]=Math.round((ny/length*.5+.5)*255);
