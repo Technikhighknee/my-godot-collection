@@ -4,15 +4,19 @@ import {GENERATORS,findGenerator,generateAsset} from './generators.mjs';
 import {createSeedState,parseSeed,updateComponentSeed,updateMasterSeed}
   from './seed-model.mjs';
 import {createModelViewport} from './viewport-3d.mjs';
+import {createImageViewport} from './viewport-2d.mjs';
 
 const byId=id=>document.getElementById(id);
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
 let active=findGenerator('oak');
-let viewport;
+let modelViewport,imageViewport;
+let selectedMode='model';
+const lastSelected={model:'oak',image:'oak-atlas'};
 const randomSeed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
 const seeds=()=>states.get(active.id);
 
 function updatePreviewControls(state){
+  if(active.kind!=='model')return;
   const oak=state.assetId==='oak';
   const leaves=byId('foliageToggle');
   leaves.hidden=!oak;
@@ -28,19 +32,36 @@ function updatePreviewControls(state){
   byId('silhouette').setAttribute('aria-pressed',String(state.silhouette));
   if(state.inspectMode!=='card')byId('cardPreview').hidden=true;
 }
+function updateImageControls(state){
+  if(active.kind!=='image')return;
+  byId('imageFit').setAttribute('aria-pressed',String(state.mode==='fit'));
+  byId('imageActual').setAttribute('aria-pressed',String(state.mode==='actual'));
+  byId('stageContent').textContent='RGBA ATLAS';
+}
 function build(state=seeds()){
   try{
     const started=performance.now();
     // Generate first, then replace the preview atomically.
     const asset=generateAsset(active,state.components);
-    const stats=viewport.render(asset);
+    let stats;
+    if(asset.kind==='model'){
+      if(!modelViewport)
+        modelViewport=createModelViewport(byId('viewport'),updatePreviewControls);
+      stats=modelViewport.render(asset);
+      byId('meshStats').textContent=stats.axes+' WOOD AXES · '+
+        (stats.cards?stats.cards+' FOLIAGE CARDS · ':'')+
+        stats.triangles.toLocaleString()+' TRIS';
+    }else if(asset.kind==='image'){
+      if(!imageViewport)
+        imageViewport=createImageViewport(byId('imageViewport'),updateImageControls);
+      stats=imageViewport.render(asset);
+      byId('meshStats').textContent=stats.width+' × '+stats.height+
+        ' PX · '+stats.channels+(stats.tiles?' · '+stats.tiles+' TILES':'');
+    }else throw Error('Unknown asset kind');
     states.set(active.id,state);
     byId('seedValue').value=String(state.masterSeed);
-    byId('meshStats').textContent=stats.axes+' WOOD AXES · '+
-      (stats.cards?stats.cards+' FOLIAGE CARDS · ':'')+
-      stats.triangles.toLocaleString()+' TRIS';
     byId('cardPreview').hidden=true;
-    byId('status').textContent='Geometry ready · '+
+    byId('status').textContent='Asset ready · '+
       Math.round(performance.now()-started)+' ms';
     byId('error').hidden=true;
     return true;
@@ -55,7 +76,7 @@ function build(state=seeds()){
 function applySeeds(next){
   if(build(next)){
     renderSeedControls();
-    viewport.focus('whole');
+    if(active.kind==='model')modelViewport.focus('whole');
   }else{
     renderSeedControls();
   }
@@ -104,7 +125,7 @@ function renderGeneratorChoices(){
   const list=byId('generatorList');
   const select=byId('speciesSelect');
   list.replaceChildren();select.replaceChildren();
-  for(const def of GENERATORS){
+  for(const def of GENERATORS.filter(item=>item.kind===selectedMode)){
     const button=document.createElement('button');
     button.id=def.id+'Generator';
     button.className='pg-generator';
@@ -130,9 +151,10 @@ function renderGeneratorChoices(){
 }
 function selectGenerator(id){
   const def=findGenerator(id);
-  if(!def)return;
+  if(!def||def.kind!==selectedMode)return;
   active=def;
-  for(const item of GENERATORS){
+  lastSelected[selectedMode]=id;
+  for(const item of GENERATORS.filter(x=>x.kind===selectedMode)){
     const button=byId(item.id+'Generator'),selected=item.id===id;
     button.setAttribute('aria-pressed',String(selected));
     if(selected)button.setAttribute('aria-current','page');
@@ -142,10 +164,29 @@ function selectGenerator(id){
   byId('assetOverline').textContent=def.overline;
   byId('assetTitle').textContent=def.title;
   byId('assetDescription').textContent=def.description;
-  byId('viewport').setAttribute('aria-label',def.previewLabel);
+  byId(def.kind==='model'?'viewport':'imageViewport')
+    .setAttribute('aria-label',def.previewLabel);
+  byId('modelStage').hidden=def.kind!=='model';
+  byId('imageStage').hidden=def.kind!=='image';
+  byId('stageKind').textContent=def.kind==='model'?'3D MODEL':'2D ASSET';
+  byId('viewportHint').textContent=def.kind==='model'?
+    'DRAG TO ORBIT · SCROLL TO ZOOM · RIGHT-DRAG TO PAN':
+    'TRANSPARENT RGBA · FIT OR 100%';
   renderSeedControls();
-  if(build())viewport.focus('whole');
+  if(build()&&def.kind==='model')modelViewport.focus('whole');
 }
+function selectMode(kind){
+  if(kind!=='model'&&kind!=='image')return;
+  selectedMode=kind;
+  for(const mode of ['model','image'])
+    byId(mode+'Mode').setAttribute('aria-pressed',String(kind===mode));
+  byId('generatorHeading').textContent=kind==='model'?
+    '3D GENERATORS':'2D GENERATORS';
+  renderGeneratorChoices();
+  selectGenerator(lastSelected[kind]);
+}
+for(const mode of ['model','image'])
+  byId(mode+'Mode').addEventListener('click',()=>selectMode(mode));
 renderGeneratorChoices();
 byId('speciesSelect').addEventListener('change',
   e=>selectGenerator(e.target.value));
@@ -158,10 +199,11 @@ byId('reseed').addEventListener('click',()=>applySeeds(
   updateMasterSeed(active,seeds(),randomSeed())));
 for(const action of ['whole','foot','crown'])
   byId(action).addEventListener('click',()=>{
-    viewport.focus(action);
+    if(active.kind==='model')modelViewport.focus(action);
   });
 byId('inspectCard').addEventListener('click',()=>{
-  const source=viewport.inspectCard();
+  if(active.kind!=='model')return;
+  const source=modelViewport.inspectCard();
   if(!source)return;
   const canvas=byId('cardPreviewCanvas'),ctx=canvas.getContext('2d');
   if(!ctx)throw Error('2D card preview unavailable');
@@ -171,13 +213,26 @@ byId('inspectCard').addEventListener('click',()=>{
   ctx.drawImage(source,0,0,256,256,0,0,canvas.width,canvas.height);
   byId('cardPreview').hidden=false;
 });
-byId('inspectClump').addEventListener('click',()=>viewport.inspectClump());
-byId('foliageToggle').addEventListener('click',()=>viewport.toggleLeaves());
-byId('silhouette').addEventListener('click',()=>viewport.toggleSilhouette());
-byId('turntable').addEventListener('click',()=>viewport.toggleTurntable());
+byId('inspectClump').addEventListener('click',()=>{
+  if(active.kind==='model')modelViewport.inspectClump();
+});
+byId('foliageToggle').addEventListener('click',()=>{
+  if(active.kind==='model')modelViewport.toggleLeaves();
+});
+byId('silhouette').addEventListener('click',()=>{
+  if(active.kind==='model')modelViewport.toggleSilhouette();
+});
+byId('turntable').addEventListener('click',()=>{
+  if(active.kind==='model')modelViewport.toggleTurntable();
+});
+byId('imageFit').addEventListener('click',()=>{
+  if(active.kind==='image')imageViewport.setMode('fit');
+});
+byId('imageActual').addEventListener('click',()=>{
+  if(active.kind==='image')imageViewport.setMode('actual');
+});
 try{
-  viewport=createModelViewport(byId('viewport'),updatePreviewControls);
-  selectGenerator(active.id);
+  selectMode(selectedMode);
 }catch(error){
   byId('error').hidden=false;
   byId('error').textContent=error.message;

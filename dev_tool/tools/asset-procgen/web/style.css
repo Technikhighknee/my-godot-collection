@@ -69,3 +69,26 @@
 .pg-seed-shuffle:hover{background:#38544a}
 
 .pg-generator-list{display:flex;flex-direction:column;gap:7px;min-width:0}
+
+/* Asset workspaces: separate model and image stages, one shared shell. */
+.pg-library-modes{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pg-library-modes button{padding:10px 5px;border:1px solid #435851;border-radius:6px;
+  background:#1c302e;color:#95a9a1;font-size:11px;font-weight:700}
+.pg-library-modes button[aria-pressed="true"]{background:#435648;border-color:#bb9e79;color:#f0dbc1}
+.pg-model-stage,.pg-image-stage{position:absolute;inset:0}
+.pg-model-stage[hidden],.pg-image-stage[hidden]{display:none}
+.pg-image-stage{background:radial-gradient(ellipse at center,#273938 0%,#101d20 82%)}
+#imageViewport{position:absolute;inset:0}
+.pg-image-scroll{position:absolute;inset:0;overflow:auto;display:flex;
+  padding:65px 22px 50px;align-items:safe center;justify-content:safe center}
+.pg-image-mat{flex:none;position:relative;margin:auto;
+  background-color:#bfc8c3;
+  background-image:linear-gradient(45deg,#87918e 25%,transparent 25%),
+    linear-gradient(-45deg,#87918e 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#87918e 75%),
+    linear-gradient(-45deg,transparent 75%,#87918e 75%);
+  background-size:22px 22px;
+  background-position:0 0,0 11px,11px -11px,-11px 0;
+  box-shadow:0 16px 50px #0008,0 0 0 1px #afc4b24d}
+.pg-image-canvas{display:block;width:100%;height:100%}
+.pg-image-tools{z-index:3}

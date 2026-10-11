@@ -367,6 +367,9 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(html,/id="seedValue" type="number"/);
   assert.match(html,/id="componentSeeds"/);
   assert.match(html,/id="generatorList"/);
+  for(const id of ['modelMode','imageMode','modelStage','imageStage',
+    'imageViewport','imageFit','imageActual','stageKind','viewportHint'])
+    assert.ok(html.includes('id="'+id+'"'),id);
   assert.doesNotMatch(html,/id="oakGenerator"|id="firGenerator"/,
     'Generator navigation comes from the catalog, not fixed markup');
   assert.match(html,/id="speciesSelect"/);
@@ -382,8 +385,12 @@ test('modular asset workspace keeps its existing controls and serves new modules
   const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
   const catalog=readFileSync(new URL('../tools/asset-procgen/web/generators.mjs',import.meta.url),'utf8');
   const preview=readFileSync(new URL('../tools/asset-procgen/web/viewport-3d.mjs',import.meta.url),'utf8');
+  const imagePreview=readFileSync(new URL('../tools/asset-procgen/web/viewport-2d.mjs',import.meta.url),'utf8');
   const seedModel=readFileSync(new URL('../tools/asset-procgen/web/seed-model.mjs',import.meta.url),'utf8');
   assert.match(app,/createModelViewport/);
+  assert.match(app,/createImageViewport/);
+  assert.match(app,/selectMode/);
+  assert.match(app,/GENERATOR|generatorHeading/);
   assert.match(app,/generateAsset\(active,state.components\)/);
   assert.match(app,/selectGenerator/);
   assert.match(app,/renderGeneratorChoices/);
@@ -394,6 +401,9 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(catalog,/generateFir\(\{seed:seeds.geometry\}\)/);
   assert.match(catalog,/generateOakFoliage\(wood,\{seed:seeds.foliage\}\)/);
   assert.match(catalog,/return definition\.generate\(componentSeeds\)/);
+  assert.match(catalog,/kind:'image'/);
+  assert.match(imagePreview,/createImageViewport/);
+  assert.match(imagePreview,/validateImageAsset/);
   assert.match(preview,/THREE\.DoubleSide/);
   assert.match(preview,/alphaTest:\.43/);
   assert.match(preview,/firstCard\*12/);
@@ -418,6 +428,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
       '/tools/asset-procgen/generators.mjs',
       '/tools/asset-procgen/seed-model.mjs',
       '/tools/asset-procgen/viewport-3d.mjs',
+      '/tools/asset-procgen/viewport-2d.mjs',
       '/tools/map-editor/','/api/map',
     ])assert.equal((await fetch(base+route)).status,200,route);
     assert.equal((await fetch(base+'/tools/asset-procgen/trunk.mjs')).status,404);

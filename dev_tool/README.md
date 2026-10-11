@@ -4,7 +4,7 @@
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. The shared asset workspace currently previews an oak with wood and textured foliage, or a young fir wood structure. It supports a master seed and independent seeds per generated component. No recipes or exports.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. Separate 3D Models and 2D Assets workspaces currently preview oak/fir models and the existing procedural oak leaf atlas. Master and component seeds are independent. No recipes or exports.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -43,14 +43,26 @@ Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Edit
 npm start -- ../map_system/example.map.json --port 4372
 ```
 
-## Asset ProcGen — seeded tree architecture and foliage
+## Asset ProcGen — model and image workspaces
 
-Choose **Oak** or **Fir** in the generator library. Oak is selected by
-default, with a foliage layer. This is the first modular slice of a
-general asset workspace: a generator catalog, a UI-independent seed
-model, and a reusable 3D model viewport. The catalog can later hold
-2D textures, sprites, atlases and other model generators without
-turning the 3D renderer into a generator.
+Asset ProcGen has two separate workspaces: **3D Models** for oak and
+fir previews, and **2D Assets** for independent image generation.
+The first 2D generator is the existing 1024×1024 procedural oak leaf
+atlas (16 RGBA tiles). This is a direct preview of the same painter
+used in the oak material. It is not a new leaf-art system or an
+improvement to the experimental leaf appearance.
+
+The generator registry selects the output kind (`model` or `image`).
+The 3D viewport owns Three.js and model-specific controls; the 2D
+viewport owns Canvas display, a checkerboard transparency background,
+**Fit image** and **100%** views. Each generator retains its own
+seed values across workspace switches. 2D image painting does not
+require wood geometry or a WebGL context.
+
+The standalone atlas has its own `leaves` seed and uses the same
+default as the oak model's atlas seed (21749). Changing the seed in
+one generator does **not** implicitly mutate the other generator.
+Explicit asset linking and sprite/atlas editing are future work.
 
 Each generated part has its own unsigned 32-bit seed. Currently the
 oak has **Wood geometry**, **Foliage placement**, and **Leaf atlas**;
@@ -68,6 +80,9 @@ Component IDs, rather than list positions, determine derived seeds.
 The initial defaults deliberately preserve the previous results
 (wood and foliage use the old tree seed; the atlas uses 21749).
 The accepted oak and fir wood generators remain unchanged.
+
+The next step is advanced 2D inspection (zoom, pan, alpha channels,
+tile isolation) before changing how oak leaves are generated or baked.
 
 ### Oak wood structure
 

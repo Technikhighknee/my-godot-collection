@@ -12,11 +12,14 @@ import {generateOakFoliage}
 
 const oak=findGenerator('oak')!;
 const fir=findGenerator('fir')!;
+const atlas=findGenerator('oak-atlas')!;
 test('catalog exposes current models as independent generator definitions',()=>{
-  assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir']);
+  assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir','oak-atlas']);
   assert.deepEqual(oak.components.map(x=>x.id),['geometry','foliage','leaves']);
   assert.deepEqual(fir.components.map(x=>x.id),['geometry']);
-  assert.ok(GENERATORS.every(x=>x.kind==='model'));
+  assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','image']);
+  assert.deepEqual(atlas.components.map(x=>x.id),['leaves']);
+  assert.deepEqual(createSeedState(atlas).components,{leaves:21749});
   assert.equal(findGenerator('nonexistent'),null);
   assert.equal(createSeedState(oak).masterSeed,DEFAULT_TREE.seed);
   assert.deepEqual(createSeedState(oak).components,{
@@ -115,4 +118,33 @@ test('fir remains wood only, and component seeds are validated',()=>{
   assert.throws(()=>generateAsset(oak,{...createSeedState(oak).components,leaves:-1}));
   assert.throws(()=>generateAsset(fir,{geometry:Infinity}));
   assert.throws(()=>generateAsset({...fir},s.components),/Unknown generator/);
+});
+
+test('2D atlas generator is independent of tree wood and yields a paintable asset',()=>{
+  const state=createSeedState(atlas);
+  const image=generateAsset(atlas,state.components);
+  assert.equal(image.kind,'image');
+  if(image.kind!=='image')throw Error('Expected image asset');
+  assert.deepEqual([image.width,image.height,image.tiles,image.channels],
+    [1024,1024,16,'RGBA']);
+  const different=generateAsset(atlas,{leaves:500});
+  assert.equal(different.kind,'image');
+  assert.equal(createSeedState(oak).components.leaves,21749);
+  const events:string[]=[];
+  const ctx=new Proxy({},{
+    get(_target,key){
+      if(key==='fill'||key==='stroke')return ()=>{events.push(String(key));};
+      return ()=>{};
+    },
+    set(){return true;},
+  });
+  const canvas={width:0,height:0,getContext:(kind:string)=>{
+    assert.equal(kind,'2d');return ctx;
+  }};
+  const meta=image.paint(canvas as never);
+  assert.equal(canvas.width,1024);
+  assert.equal(canvas.height,1024);
+  assert.equal((meta as {tiles:number}).tiles,16);
+  assert.ok(events.length>500,'The image must paint actual atlas content');
+  assert.throws(()=>generateAsset(atlas,{leaves:-5}));
 });

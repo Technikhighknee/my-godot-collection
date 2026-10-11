@@ -4,6 +4,7 @@ import {DEFAULT_TREE,generateTree} from './tree.mjs';
 import {generateFir} from './fir.mjs';
 import {generateOakFoliage} from './oak-foliage.mjs';
 import {validateSeed} from './seed-model.mjs';
+import {paintOakAtlas,OAK_ATLAS_SIZE} from './oak-atlas.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -17,6 +18,13 @@ function generateFirAsset(seeds){
   return {id:'fir',kind:'model',
     wood:generateFir({seed:seeds.geometry}),
     foliage:null,atlasSeed:null};
+}
+function generateOakAtlasAsset(seeds){
+  return {
+    id:'oak-atlas',kind:'image',width:OAK_ATLAS_SIZE,height:OAK_ATLAS_SIZE,
+    channels:'RGBA',tiles:16,
+    paint:canvas=>paintOakAtlas(canvas,seeds.leaves),
+  };
 }
 export const GENERATORS=Object.freeze([
   Object.freeze({
@@ -41,6 +49,18 @@ export const GENERATORS=Object.freeze([
     initialMasterSeed:DEFAULT_TREE.seed,
     components:Object.freeze([
       Object.freeze({id:'geometry',label:'Wood geometry',initialSeed:DEFAULT_TREE.seed}),
+    ]),
+  }),
+  Object.freeze({
+    id:'oak-atlas',kind:'image',symbol:'▧',label:'Oak leaf atlas',
+    subtitle:'Procedural RGBA foliage sprites',
+    generate:generateOakAtlasAsset,
+    overline:'2D / OAK LEAF ATLAS',title:'Leaf atlas.',
+    description:'Inspect the current procedural oak leaf atlas separately from the tree. The sprites are still experimental; no baking, export or advanced image tools yet.',
+    previewLabel:'Procedural oak leaf atlas with transparent tiles',
+    initialMasterSeed:21749,
+    components:Object.freeze([
+      Object.freeze({id:'leaves',label:'Leaf appearance',initialSeed:21749}),
     ]),
   }),
 ]);
