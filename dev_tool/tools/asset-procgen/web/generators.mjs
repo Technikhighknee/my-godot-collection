@@ -6,13 +6,19 @@ import {generateOakFoliage} from './oak-foliage.mjs';
 import {validateSeed} from './seed-model.mjs';
 import {paintOakAtlas,OAK_ATLAS_SIZE} from './oak-atlas.mjs';
 import {generateOakSprig,paintOakSprig,OAK_SPRIG_SIZE} from './oak-sprig.mjs';
-import {paintOakBark,OAK_BARK_SIZE} from './oak-bark.mjs';
+import {OAK_BARK_SIZE,OAK_BARK_MAPS,generateOakBarkMaterial,
+  paintGeneratedOakBarkMap} from './oak-bark.mjs';
+import {mapOakBarkWood} from './oak-bark-uv.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
 function generateOakAsset(seeds){
   const wood=generateTree({seed:seeds.geometry});
   return {id:'oak',kind:'model',wood,
+    // Never change the established growth mesh to accommodate UV seams.
+    barkWood:mapOakBarkWood(wood),
+    barkSeeds:{structureSeed:seeds.barkStructure,
+      surfaceSeed:seeds.barkSurface,colorSeed:seeds.barkColor},
     foliage:generateOakFoliage(wood,{seed:seeds.foliage}),
     atlasSeed:seeds.leaves};
 }
@@ -38,14 +44,21 @@ function generateOakSprigAsset(seeds){
     paint:canvas=>paintOakSprig(canvas,sprig)};
 }
 function generateOakBarkAsset(seeds){
+  // One material per generated asset. Switching inspected maps does not
+  // regenerate its million-pixel procedural relief five times.
+  let material=null;
   return {
     id:'oak-bark',kind:'image',width:OAK_BARK_SIZE,height:OAK_BARK_SIZE,
-    channels:'RGBA',
-    paint:canvas=>paintOakBark(canvas,{
-      structureSeed:seeds.structure,
-      surfaceSeed:seeds.surface,
-      colorSeed:seeds.color,
-    }),
+    channels:'RGBA',views:OAK_BARK_MAPS,
+    paint:(canvas,view='albedo')=>{
+      if(!OAK_BARK_MAPS.includes(view))throw Error('Unknown bark material map');
+      if(!material)material=generateOakBarkMaterial({
+        structureSeed:seeds.structure,
+        surfaceSeed:seeds.surface,
+        colorSeed:seeds.color,
+      });
+      return paintGeneratedOakBarkMap(canvas,material,view);
+    },
   };
 }
 export const GENERATORS=Object.freeze([
@@ -54,13 +67,16 @@ export const GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Tree',navType:'3D',
     generate:generateOakAsset,
     overline:'OAK / WOOD + FOLIAGE',title:'Oak in leaf.',
-    description:'A European oak with branch-supported textured leaf cushions generated from a procedural oak atlas. No bark texture or export.',
+    description:'European oak with seeded bark PBR material (albedo, normal, roughness and cavity AO), continuous axial UVs along each woody chain, and independently generated foliage. No export.',
     previewLabel:'Interactive 3D oak tree wood preview',
     initialMasterSeed:DEFAULT_TREE.seed,
     components:Object.freeze([
       Object.freeze({id:'geometry',label:'Wood geometry',initialSeed:DEFAULT_TREE.seed}),
       Object.freeze({id:'foliage',label:'Foliage placement',initialSeed:DEFAULT_TREE.seed}),
       Object.freeze({id:'leaves',label:'Leaf atlas',initialSeed:21749}),
+      Object.freeze({id:'barkStructure',label:'Bark fissures',initialSeed:19641}),
+      Object.freeze({id:'barkSurface',label:'Bark surface',initialSeed:48507}),
+      Object.freeze({id:'barkColor',label:'Bark pigmentation',initialSeed:21749}),
     ]),
   }),
   Object.freeze({
@@ -105,10 +121,10 @@ export const GENERATORS=Object.freeze([
   Object.freeze({
     id:'oak-bark',kind:'image',symbol:'▤',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Bark',navType:'Texture',
-    label:'Oak bark',subtitle:'Seamless mature oak bark albedo',
+    label:'Oak bark',subtitle:'Seamless mature oak bark PBR material',
     generate:generateOakBarkAsset,
     overline:'2D / OAK BARK',title:'Mature oak bark.',
-    description:'Seeded, seamless 1024×1024 oak-bark albedo. Independent major fissures, cork surface texture and gray-brown pigmentation. Normal mapping and attachment to the 3D oak are separate next steps.',
+    description:'A single deterministic bark material with seamlessly tiled Albedo, OpenGL Normal, Roughness, cavity AO and Height previews. All maps use the same relief and are applied to Oak Tree wood.',
     previewLabel:'Seamless gray-brown oak bark albedo texture',
     initialMasterSeed:19641,
     components:Object.freeze([

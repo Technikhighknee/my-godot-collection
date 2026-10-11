@@ -134,3 +134,72 @@ export function paintOakBark(canvas, seeds = {}) {
   ctx.putImageData(data, 0, 0);
   return {width: image.width, height: image.height, channels: 'RGBA', seamless: true};
 }
+
+/**
+ * Cohesive material output. All maps come from the SAME generated relief.
+ * Normal is OpenGL (+Y) tangent-space, with circular derivatives at edges.
+ * Occlusion is a local cavity approximation, not scene/world-space AO.
+ * Arrays are tightly packed, opaque RGBA to feed both Canvas and WebGL.
+ */
+export function generateOakBarkMaterial(options={}){
+  const {width,height,pixels:albedo,heightField}=generateOakBark(options);
+  const normal=new Uint8ClampedArray(albedo.length);
+  const roughness=new Uint8ClampedArray(albedo.length);
+  const ao=new Uint8ClampedArray(albedo.length);
+  const heightMap=new Uint8ClampedArray(albedo.length);
+  const at=(x,y)=>heightField[((y+height)%height)*width+
+    ((x+width)%width)];
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const index=y*width+x,i=index*4,h=heightField[index];
+    const dx=(at(x+1,y)-at(x-1,y))*.5;
+    const dy=(at(x,y+1)-at(x,y-1))*.5;
+    // Canvas rows go down; the OpenGL normal convention uses +Y.
+    // Flip the v derivative so the uploaded normal is not DirectX style.
+    const nx=-dx*4.5,ny=dy*4.5,nz=1;
+    const length=Math.hypot(nx,ny,nz);
+    normal[i]=Math.round((nx/length*.5+.5)*255);
+    normal[i+1]=Math.round((ny/length*.5+.5)*255);
+    normal[i+2]=Math.round((nz/length*.5+.5)*255);
+    normal[i+3]=255;
+    const rough=clamp(.80+(h-.5)*.12+Math.abs(dx+dy)*.20,.67,.96);
+    const roughByte=Math.round(rough*255);
+    roughness[i]=roughness[i+1]=roughness[i+2]=roughByte;
+    roughness[i+3]=255;
+    const nearby=(at(x-3,y)+at(x+3,y)+at(x,y-3)+at(x,y+3)+
+      at(x-7,y)+at(x+7,y)+at(x,y-7)+at(x,y+7))*.125;
+    const cavity=Math.max(0,nearby-h);
+    const occlusion=clamp(1-cavity*1.55-
+      Math.max(0,.36-h)*.36,.53,1);
+    const aoByte=Math.round(occlusion*255);
+    ao[i]=ao[i+1]=ao[i+2]=aoByte;
+    ao[i+3]=255;
+    const hByte=Math.round(h*255);
+    heightMap[i]=heightMap[i+1]=heightMap[i+2]=hByte;
+    heightMap[i+3]=255;
+  }
+  return {width,height,albedo,normal,roughness,ao,height:heightMap,
+    heightField,normalConvention:'opengl'};
+}
+export const OAK_BARK_MAPS=Object.freeze([
+  'albedo','normal','roughness','ao','height',
+]);
+export function paintGeneratedOakBarkMap(canvas,material,map='albedo'){
+  if(!canvas||typeof canvas.getContext!=='function')
+    throw Error('Invalid oak bark canvas');
+  if(!OAK_BARK_MAPS.includes(map))throw Error('Unknown bark material map');
+  if(!material||!Number.isInteger(material.width)||
+    !Number.isInteger(material.height)||
+    material[map]?.length!==material.width*material.height*4)
+    throw Error('Invalid bark material');
+  canvas.width=material.width;canvas.height=material.height;
+  const ctx=canvas.getContext('2d');
+  if(!ctx)throw Error('Canvas 2D unavailable for oak bark');
+  const image=ctx.createImageData(material.width,material.height);
+  image.data.set(material[map]);
+  ctx.putImageData(image,0,0);
+  return {width:material.width,height:material.height,map,seamless:true};
+}
+export function paintOakBarkMap(canvas,options={},map='albedo'){
+  if(!OAK_BARK_MAPS.includes(map))throw Error('Unknown bark material map');
+  return paintGeneratedOakBarkMap(canvas,generateOakBarkMaterial(options),map);
+}

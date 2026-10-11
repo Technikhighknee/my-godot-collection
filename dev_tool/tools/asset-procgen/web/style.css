@@ -179,3 +179,6 @@
   .pg-library-search kbd{display:none}
   .pg-asset-type{font-size:8px}
 }
+
+/* Keep the map selector absent for sprites and atlases without map views. */
+.pg-image-tool-row[hidden]{display:none}

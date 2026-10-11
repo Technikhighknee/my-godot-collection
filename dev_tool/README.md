@@ -92,14 +92,16 @@ retain the inspected tile when its layout is still valid. Non-atlas
 images have no tile selection. This inspection does not export files,
 generate a new kind of leaf, or alter the oak model's materials.
 
-Each generated part has its own unsigned 32-bit seed. Currently the
-oak has **Wood geometry**, **Foliage placement**, and **Leaf atlas**;
-the fir has **Wood geometry**. The standalone Bark generator is
-not yet connected to the 3D tree, so the tree does not expose a bark seed. Changing foliage placement preserves
-the wood geometry, but anchors the foliage to the updated wood when
-its geometry seed changes. Changing leaf atlas seed preserves both
-meshes. Component seeds are retained independently when switching
-between oak and fir.
+Each generated part has its own unsigned 32-bit seed. The oak has
+**Wood geometry**, **Foliage placement**, **Leaf atlas**, **Bark fissures**,
+**Bark surface** and **Bark pigmentation**; the fir has **Wood geometry**.
+The Oak Tree's three bark seeds match the independent Bark generator's
+three default seed values, but edits in either generator do not silently
+change the other generator's seeds. A bark seed changes the material,
+never the established wood geometry or the leaf-card positions.
+Changing the geometry seed repositions the attached foliage and
+rebuilds its UV render mesh; it does not change the bark's relief recipe.
+Component states persist across generator switching.
 
 The **Master seed** applies a deterministic combination to all
 components of the selected generator; component fields and their
@@ -109,26 +111,37 @@ The initial defaults deliberately preserve the previous results
 (wood and foliage use the old tree seed; the atlas uses 21749).
 The accepted oak and fir wood generators remain unchanged.
 
-### Oak bark albedo
+### Oak bark PBR material
 
-Under **Vegetation → Oak → Bark**, the workshop generates a deterministic
-1024 × 1024 opaque, tileable gray-brown texture inspired by the deep
-longitudinal fissures of mature *Quercus robur*. Unlike flat brown
-noise, it combines meandering major grooves, interrupted transverse
-fractures, cork-grain microrelief and restrained material pigmentation.
+Under **Vegetation → Oak → Bark**, the generator synthesizes one
+deterministic, tileable 1024 × 1024 bark material inspired by mature
+*Quercus robur*, with long irregular fissures, raised ridges, fine
+cork grain and restrained gray-brown pigmentation. No third-party
+texture assets or additional dependencies are bundled.
 
-The component seeds are **Bark fissures** (large-scale structure),
-**Surface detail** (granularity) and **Pigmentation** (color/patina).
-Changing the color seed does not change the generated relief field.
-No photographs, third-party texture assets or additional dependencies
-are bundled. The image is computed locally in the browser.
+Its independent seeds are **Bark fissures**, **Surface detail** and
+**Pigmentation**. All five maps originate from the same scalar relief
+field: sRGB albedo, OpenGL tangent-space normal (+Y), grayscale
+roughness (G channel), approximate local cavity AO and height.
+The albedo retains some inherent pigmentation contrast; AO is a local
+height-field approximation, not a world-space light bake. Height is
+retained for inspection and future material workflows; the mesh is
+**not** displaced. The inspector's **Material map** menu lets you
+view each map directly, without regenerating the seed for every view.
 
-The generator also produces a scalar height field internally for later
-normal-map work; this first slice exposes an **albedo preview only**, not a finished
-PBR material. The existing oak's mesh, barkless preview material,
-foliage and UVs are unchanged. A separate later task will handle
-material maps, mapping scale and applying bark to the 3D tree.
-No PNG export is added in this step.
+**Vegetation → Oak → Tree** now uses all four applicable Three.js
+`MeshStandardMaterial` maps (albedo, normal, roughness, AO).
+The accepted wood mesh is preserved, but a separate render-only mesh
+gets axial UV mapping for each woody chain, including inherited
+distance along real continuations, repeated cylindrical U wrapping,
+and duplicate vertices at the UV seam and planar end caps. The
+mapping's physical reference scales are explicit in
+`oak-bark-uv.mjs`. All tree components remain independently seeded,
+and the fir continues using its existing plain wood material.
+
+Bark map textures are cached between renders with unchanged seeds,
+then explicitly disposed when their seed changes. This step **does
+not** add export or a Godot material converter.
 
 ### Oak leaf spray prototype
 

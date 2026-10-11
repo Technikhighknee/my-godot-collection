@@ -370,7 +370,8 @@ test('modular asset workspace keeps its existing controls and serves new modules
   for(const id of ['assetSearch','assetFilters','libraryCount',
     'modelStage','imageStage','imageViewport','imageFit','imageActual',
     'imageZoomIn','imageZoomOut','imageZoomLabel','imageRGBA','imageRGB',
-    'imageAlpha','imageTile','stageKind','viewportHint'])
+    'imageAlpha','imageTile','imageMap','imageMapRow',
+    'stageKind','viewportHint'])
     assert.ok(html.includes('id="'+id+'"'),id);
   assert.doesNotMatch(html,/id="oakGenerator"|id="firGenerator"|id="modelMode"|id="imageMode"/,
     'Generator navigation and asset type are resolved from the catalog');
@@ -393,6 +394,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(app,/createModelViewport/);
   assert.match(app,/createImageViewport/);
   assert.match(app,/imageViewport\.setChannel/);
+  assert.match(app,/imageViewport\.setView/);
   assert.match(app,/\['alpha','imageAlpha'\]/);
   assert.doesNotMatch(app,/imageALPHA/);
   assert.match(app,/imageViewport\.selectTile/);
@@ -415,6 +417,8 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(catalog,/kind:'image'/);
   assert.match(catalog,/generateOakSprigAsset/);
   assert.match(catalog,/generateOakBarkAsset/);
+  assert.match(catalog,/mapOakBarkWood/);
+  assert.match(catalog,/barkSeeds/);
   assert.match(imagePreview,/createImageViewport/);
   assert.match(imagePreview,/validateImageAsset/);
   assert.match(imagePreview,/imageZoomAt/);
@@ -443,6 +447,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
       '/tools/asset-procgen/oak-atlas.mjs',
       '/tools/asset-procgen/oak-sprig.mjs',
       '/tools/asset-procgen/oak-bark.mjs',
+      '/tools/asset-procgen/oak-bark-uv.mjs',
       '/tools/asset-procgen/generators.mjs',
       '/tools/asset-procgen/asset-library.mjs',
       '/tools/asset-procgen/seed-model.mjs',

@@ -18,6 +18,11 @@ export function validateImageAsset(asset){
   if(asset.tiles!==undefined&&(!Number.isInteger(asset.tiles)||asset.tiles<1||
     asset.tiles>4096))
     throw Error('Invalid 2D tile count');
+  if(asset.views!==undefined&&(!Array.isArray(asset.views)||
+    asset.views.length<1||asset.views.some(name=>
+      typeof name!=='string'||!name.length)||
+    new Set(asset.views).size!==asset.views.length))
+    throw Error('Invalid image views');
   if(asset.atlas!==undefined){
     const {columns,rows}=asset.atlas??{};
     if(!Number.isInteger(columns)||!Number.isInteger(rows)||
@@ -59,12 +64,14 @@ export function createImageViewport(container,onChange=()=>{}){
   surface.append(mat);
   container.append(surface);
   let source=null,canvas=null,asset=null,tile=null,channel='rgba';
+  let view=null;
   let mode='fit',zoom=1,offsetX=0,offsetY=0;
   let viewWidth=0,viewHeight=0,drag=null;
   const state=()=>({
     mode,scale:zoom,width:asset?.width??0,height:asset?.height??0,
     viewWidth:canvas?.width??0,viewHeight:canvas?.height??0,
     channel,tile,tiles:asset?.tiles??0,hasAtlas:!!asset?.atlas,
+    view,views:asset?.views??[],
   });
   const changed=()=>onChange(state());
   function bounds(){
@@ -154,7 +161,8 @@ export function createImageViewport(container,onChange=()=>{}){
     // Painting or channel conversion may throw; the old visible asset survives.
     const fresh=document.createElement('canvas');
     fresh.width=next.width;fresh.height=next.height;
-    next.paint(fresh);
+    const nextView=next.views?.includes(view)?view:(next.views?.[0]??null);
+    next.paint(fresh,nextView??undefined);
     if(fresh.width!==next.width||fresh.height!==next.height)
       throw Error('Image generator changed the declared dimensions');
     const keepTile=next.atlas&&asset?.id===next.id&&tile!==null&&
@@ -163,8 +171,23 @@ export function createImageViewport(container,onChange=()=>{}){
     const reframe=!canvas||!asset||asset.id!==next.id||
       canvas.width!==preview.width||canvas.height!==preview.height;
     swap(preview,fresh,next,keepTile,channel,reframe);
+    view=nextView;
+    changed();
     return {width:asset.width,height:asset.height,
       channels:asset.channels??'RGBA',tiles:asset.tiles??0};
+  }
+  function setView(next){
+    if(!asset?.views?.includes(next))throw Error('Unknown image view');
+    if(next===view)return;
+    const fresh=document.createElement('canvas');
+    fresh.width=asset.width;fresh.height=asset.height;
+    asset.paint(fresh,next);
+    if(fresh.width!==asset.width||fresh.height!==asset.height)
+      throw Error('Image generator changed the declared dimensions');
+    const preview=compose(fresh,asset,tile,channel);
+    swap(preview,fresh,asset,tile,channel,false);
+    view=next;
+    changed();
   }
   function setMode(next){
     if(next!=='fit'&&next!=='actual')throw Error('Unknown image scale mode');
@@ -253,5 +276,5 @@ export function createImageViewport(container,onChange=()=>{}){
     }
   });
   surface.addEventListener('contextmenu',event=>event.preventDefault());
-  return {render,setMode,zoomStep,setChannel,selectTile,state};
+  return {render,setMode,zoomStep,setChannel,selectTile,setView,state};
 }

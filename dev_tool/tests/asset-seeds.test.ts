@@ -17,7 +17,7 @@ const sprig=findGenerator('oak-sprig')!;
 const bark=findGenerator('oak-bark')!;
 test('catalog exposes current models as independent generator definitions',()=>{
   assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir','oak-atlas','oak-sprig','oak-bark']);
-  assert.deepEqual(oak.components.map(x=>x.id),['geometry','foliage','leaves']);
+  assert.deepEqual(oak.components.map(x=>x.id),['geometry','foliage','leaves','barkStructure','barkSurface','barkColor']);
   assert.deepEqual(fir.components.map(x=>x.id),['geometry']);
   assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','image','image','image']);
   assert.deepEqual(atlas.components.map(x=>x.id),['leaves']);
@@ -33,6 +33,7 @@ test('catalog exposes current models as independent generator definitions',()=>{
     geometry:DEFAULT_TREE.seed,
     foliage:DEFAULT_TREE.seed,
     leaves:21749,
+    barkStructure:19641,barkSurface:48507,barkColor:21749,
   });
 });
 test('unsigned seeds use exact bounds and reject ambiguous input',()=>{
@@ -80,7 +81,7 @@ test('component overrides remain independent, and seed states are per generator'
   const pine=updateMasterSeed(fir,createSeedState(fir),987);
   assert.equal(pine.components.geometry,987);
   assert.deepEqual(createSeedState(oak),state);
-  assert.throws(()=>updateComponentSeed(oak,state,'bark',1),/Unknown/);
+  assert.throws(()=>updateComponentSeed(oak,state,'missingBark',1),/Unknown/);
   assert.throws(()=>updateComponentSeed(fir,createSeedState(fir),'leaves',1),/Unknown/);
 });
 test('generated oak composes unmodified wood, independent foliage and leaf atlas',()=>{
@@ -89,6 +90,11 @@ test('generated oak composes unmodified wood, independent foliage and leaf atlas
   assert.deepEqual(baseline.wood,generateTree({seed:DEFAULT_TREE.seed}));
   assert.deepEqual(baseline.foliage,generateOakFoliage(baseline.wood));
   assert.equal(baseline.atlasSeed,21749);
+  assert.deepEqual(baseline.barkSeeds,
+    {structureSeed:19641,surfaceSeed:48507,colorSeed:21749});
+  assert.ok(baseline.barkWood);
+  assert.equal(baseline.barkWood!.uvs.length,
+    baseline.barkWood!.positions.length/3*2);
 
   const variedLeaves=generateAsset(oak,{
     ...s.components,leaves:123456,
@@ -96,6 +102,15 @@ test('generated oak composes unmodified wood, independent foliage and leaf atlas
   assert.deepEqual(variedLeaves.wood,baseline.wood);
   assert.deepEqual(variedLeaves.foliage,baseline.foliage);
   assert.equal(variedLeaves.atlasSeed,123456);
+
+  const variedBark=generateAsset(oak,{
+    ...s.components,barkStructure:91933,
+  });
+  assert.deepEqual(variedBark.wood,baseline.wood);
+  assert.deepEqual(variedBark.foliage,baseline.foliage);
+  assert.deepEqual(variedBark.barkWood,baseline.barkWood);
+  assert.notDeepEqual(variedBark.barkSeeds,baseline.barkSeeds);
+  assert.equal(variedBark.atlasSeed,baseline.atlasSeed);
 
   const variedFoliage=generateAsset(oak,{
     ...s.components,foliage:98765,
@@ -169,7 +184,8 @@ test('standalone 3D-grown oak spray bakes independently of tree and atlas',()=>{
   assert.equal(painted.tiles,undefined);
   assert.equal(painted.atlas,undefined,'An isolated spray is not a tile atlas');
   assert.deepEqual(createSeedState(oak).components,
-    {geometry:DEFAULT_TREE.seed,foliage:DEFAULT_TREE.seed,leaves:21749});
+    {geometry:DEFAULT_TREE.seed,foliage:DEFAULT_TREE.seed,leaves:21749,
+      barkStructure:19641,barkSurface:48507,barkColor:21749});
   const updated=updateComponentSeed(definition,state,'leaves',43);
   assert.equal(updated.components.structure,state.components.structure);
   assert.equal(updated.components.leaves,43);
@@ -192,6 +208,7 @@ test('oak bark is a standalone seedable opaque image, not a tree component',()=>
   assert.equal(changed.components.structure,19641);
   assert.equal(changed.components.color,21749);
   assert.deepEqual(createSeedState(oak).components,
-    {geometry:DEFAULT_TREE.seed,foliage:DEFAULT_TREE.seed,leaves:21749});
+    {geometry:DEFAULT_TREE.seed,foliage:DEFAULT_TREE.seed,leaves:21749,
+      barkStructure:19641,barkSurface:48507,barkColor:21749});
   assert.throws(()=>generateAsset(bark,{structure:1,surface:-1,color:1}));
 });

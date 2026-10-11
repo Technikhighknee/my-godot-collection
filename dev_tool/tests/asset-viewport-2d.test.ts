@@ -55,7 +55,9 @@ test('image contract refuses oversized, contradictory and partial atlases',()=>{
     {...image,atlas:{columns:3,rows:2}},
     {...image,atlas:{columns:4,rows:3}},
     {...image,atlas:{columns:4,rows:2.5}},
-    {...image,width:1023},{...image,atlas:null}])
+    {...image,width:1023},{...image,atlas:null},
+    {...image,views:[]},{...image,views:['albedo','albedo']},
+    {...image,views:['albedo',3]}])
     assert.throws(()=>validateImageAsset(bad));
 });
 // The browser-only surface is driven with a small in-memory DOM / Canvas.
@@ -192,6 +194,27 @@ test('image preview supports alpha, tile isolation and retains a failed render',
     assert.throws(()=>preview.setChannel('height' as Parameters<typeof preview.setChannel>[0]),
       /Invalid image channel/);
     assert.ok(updates.length>=7);
+    const viewAsset={...asset,id:'bark-material',views:['albedo','normal'],
+      paint(canvas:HTMLCanvasElement,view?:string){
+        const target=canvas as unknown as Canvas;
+        target.pixels=sourcePixels.slice();
+        if(view==='normal')target.pixels[0]=241;
+      },
+    };
+    preview.render(viewAsset);
+    assert.equal(preview.state().view,'albedo');
+    assert.deepEqual(preview.state().views,['albedo','normal']);
+    preview.setView('normal');
+    assert.equal(preview.state().view,'normal');
+    assert.equal((mat.children[0] as Canvas).pixels[0],241);
+    preview.setView('albedo');
+    assert.equal(preview.state().view,'albedo');
+    assert.equal((mat.children[0] as Canvas).pixels[0],10);
+    assert.throws(()=>preview.setView('unknown'),/Unknown image view/);
+    const viewBefore=mat.children[0];
+    assert.throws(()=>preview.render({...viewAsset,
+      paint(){throw Error('bad map');}}),/bad map/);
+    assert.equal(mat.children[0],viewBefore);
   }finally{
     if(savedDocument)Object.defineProperty(globalThis,'document',savedDocument);
     else Reflect.deleteProperty(globalThis,'document');

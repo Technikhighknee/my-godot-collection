@@ -5,11 +5,14 @@ import type {OakFoliageMesh} from './oak-foliage.mjs';
 export interface GeneratedModel {
   id:string;kind:'model';wood:TreeMesh;foliage:OakFoliageMesh|null;
   atlasSeed:number|null;
+  barkWood?:import('./oak-bark-uv.mjs').MappedWood;
+  barkSeeds?:{structureSeed:number;surfaceSeed:number;colorSeed:number};
 }
 export interface GeneratedImage {
   id:string;kind:'image';width:number;height:number;channels:'RGBA';
   tiles?:number;atlas?:{columns:number;rows:number};
-  paint:(canvas:HTMLCanvasElement)=>unknown;
+  views?:readonly string[];
+  paint:(canvas:HTMLCanvasElement,view?:string)=>unknown;
 }
 export type GeneratedAsset=GeneratedModel|GeneratedImage;
 interface GeneratorMeta {

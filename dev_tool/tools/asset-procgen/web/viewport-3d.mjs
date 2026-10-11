@@ -3,13 +3,20 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {paintOakAtlas} from './oak-atlas.mjs';
+import {generateOakBarkMaterial} from './oak-bark.mjs';
 
 function meshGeometry(data,useColors=false){
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.BufferAttribute(data.positions,3));
   geometry.setAttribute('normal',new THREE.BufferAttribute(data.normals,3));
   if(useColors)geometry.setAttribute('color',new THREE.BufferAttribute(data.colors,3));
-  if(data.uvs)geometry.setAttribute('uv',new THREE.BufferAttribute(data.uvs,2));
+  if(data.uvs){
+    geometry.setAttribute('uv',new THREE.BufferAttribute(data.uvs,2));
+    // Three 0.180's aoMap defaults to channel 1 (uv1).
+    // Keep uv2 as a compatibility alias for downstream preview consumers.
+    geometry.setAttribute('uv1',new THREE.BufferAttribute(data.uvs,2));
+    geometry.setAttribute('uv2',new THREE.BufferAttribute(data.uvs,2));
+  }
   geometry.setIndex(new THREE.BufferAttribute(data.indices,1));
   geometry.computeBoundingSphere();
   return geometry;
@@ -67,6 +74,7 @@ export function createModelViewport(container,onChange=()=>{}){
   let group=null,woodMesh=null,foliageMesh=null,foliageData=null;
   let woodBounds=null,foliageBounds=null,extents=null,assetId=null;
   let atlasCanvas=null,atlasTexture=null,atlasSeed=null;
+  let barkTextures=null,barkSeedKey=null;
   let spinning=false,silhouette=false,foliageVisible=true,inspectMode='tree';
 
   const state=()=>({assetId,spinning,silhouette,foliageVisible,inspectMode});
@@ -99,6 +107,35 @@ export function createModelViewport(container,onChange=()=>{}){
     texture.generateMipmaps=true;
     return {canvas,texture,seed};
   }
+  function newBark(seeds){
+    const images=generateOakBarkMaterial(seeds);
+    const maps={};
+    try{
+      for(const name of ['albedo','normal','roughness','ao']){
+        const texture=new THREE.DataTexture(
+          new Uint8Array(images[name]),images.width,images.height,
+          THREE.RGBAFormat,THREE.UnsignedByteType);
+        maps[name]=texture;
+        texture.wrapS=THREE.RepeatWrapping;
+        texture.wrapT=THREE.RepeatWrapping;
+        texture.flipY=true;
+        texture.generateMipmaps=true;
+        texture.minFilter=THREE.LinearMipmapLinearFilter;
+        texture.magFilter=THREE.LinearFilter;
+        texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+        texture.colorSpace=name==='albedo'?
+          THREE.SRGBColorSpace:THREE.NoColorSpace;
+        texture.needsUpdate=true;
+      }
+      return maps;
+    }catch(error){
+      for(const texture of Object.values(maps))texture.dispose();
+      throw error;
+    }
+  }
+  const disposeBark=maps=>{
+    if(maps)for(const texture of Object.values(maps))texture.dispose();
+  };
   const setVisibility=()=>{
     if(foliageMesh)
       foliageMesh.visible=assetId==='oak'&&foliageVisible&&inspectMode!=='card';
@@ -115,13 +152,30 @@ export function createModelViewport(container,onChange=()=>{}){
   }
   function render(asset){
     if(asset.kind!=='model'||!asset.wood)throw Error('Expected model asset');
-    let replacement=new THREE.Group(),freshAtlas=null;
+    const replacement=new THREE.Group();
+    let freshAtlas=null,freshBark=null;
     try{
-      const wood=new THREE.Mesh(meshGeometry(asset.wood),
-        new THREE.MeshStandardMaterial({
-          color:silhouette?0x050909:0xa49c8e,
-          roughness:.96,metalness:0,side:THREE.FrontSide,
-        }));
+      const barkKey=asset.barkSeeds?[
+        asset.barkSeeds.structureSeed,asset.barkSeeds.surfaceSeed,
+        asset.barkSeeds.colorSeed].join(':'):null;
+      if(barkKey!==null&&(!barkTextures||barkSeedKey!==barkKey))
+        freshBark=newBark(asset.barkSeeds);
+      const bark=asset.barkSeeds?(freshBark??barkTextures):null;
+      if(bark&&!asset.barkWood)throw Error('Oak PBR material needs UV-mapped wood');
+      const woodMaterial=new THREE.MeshStandardMaterial(bark?{
+        color:silhouette?0x050909:0xffffff,
+        map:bark.albedo,
+        normalMap:bark.normal,
+        roughnessMap:bark.roughness,
+        aoMap:bark.ao,aoMapIntensity:.85,
+        normalScale:new THREE.Vector2(.72,.72),
+        roughness:1,metalness:0,side:THREE.FrontSide,
+      }:{
+        color:silhouette?0x050909:0xa49c8e,
+        roughness:.96,metalness:0,side:THREE.FrontSide,
+      });
+      const wood=new THREE.Mesh(meshGeometry(asset.barkWood??asset.wood),
+        woodMaterial);
       wood.castShadow=true;
       wood.receiveShadow=true;
       replacement.add(wood);
@@ -143,7 +197,7 @@ export function createModelViewport(container,onChange=()=>{}){
       // Prepare the replacement completely before touching the old asset.
       if(group)replacement.rotation.copy(group.rotation);
       scene.add(replacement);
-      const previous=group,oldAtlas=atlasTexture;
+      const previous=group,oldAtlas=atlasTexture,oldBark=barkTextures;
       group=replacement;
       woodMesh=wood;foliageMesh=leaves;foliageData=asset.foliage;
       woodBounds=asset.wood.bounds;
@@ -155,8 +209,13 @@ export function createModelViewport(container,onChange=()=>{}){
         atlasTexture=freshAtlas.texture;
         atlasSeed=freshAtlas.seed;
       }
+      if(freshBark){
+        barkTextures=freshBark;
+        barkSeedKey=barkKey;
+      }
       if(previous){scene.remove(previous);disposeGroup(previous);}
       if(freshAtlas&&oldAtlas)oldAtlas.dispose();
+      if(freshBark&&oldBark)disposeBark(oldBark);
       setVisibility();
       return {
         axes:asset.wood.branches.length,
@@ -166,6 +225,7 @@ export function createModelViewport(container,onChange=()=>{}){
     } catch(error){
       disposeGroup(replacement);
       if(freshAtlas)freshAtlas.texture.dispose();
+      if(freshBark)disposeBark(freshBark);
       throw error;
     }
   }
@@ -224,7 +284,7 @@ export function createModelViewport(container,onChange=()=>{}){
   function toggleSilhouette(){
     silhouette=!silhouette;
     if(woodMesh)woodMesh.material.color.setHex(
-      silhouette?0x050909:0xa49c8e);
+      silhouette?0x050909:(woodMesh.material.map?0xffffff:0xa49c8e));
     if(foliageMesh)foliageMesh.material.color.setHex(
       silhouette?0x050909:0xc5d0bc);
     scene.background.setHex(silhouette?0xaab9b0:0x18272a);

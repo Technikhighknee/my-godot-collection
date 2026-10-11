@@ -2,12 +2,14 @@ export interface ImageViewportState {
   mode:'fit'|'actual'|'custom';scale:number;width:number;height:number;
   viewWidth:number;viewHeight:number;channel:'rgba'|'rgb'|'alpha';
   tile:number|null;tiles:number;hasAtlas:boolean;
+  view:string|null;views:readonly string[];
 }
 export interface ImageAsset {
   id:string;kind:'image';width:number;height:number;
   channels?:string;tiles?:number;
   atlas?:{columns:number;rows:number};
-  paint:(canvas:HTMLCanvasElement)=>unknown;
+  views?:readonly string[];
+  paint:(canvas:HTMLCanvasElement,view?:string)=>unknown;
 }
 export const IMAGE_MIN_ZOOM:number;
 export const IMAGE_MAX_ZOOM:number;
@@ -25,5 +27,6 @@ export function createImageViewport(container:HTMLElement,
   zoomStep(direction:number):void;
   setChannel(channel:'rgba'|'rgb'|'alpha'):void;
   selectTile(index:number|null):void;
+  setView(view:string):void;
   state:()=>ImageViewportState;
 };
