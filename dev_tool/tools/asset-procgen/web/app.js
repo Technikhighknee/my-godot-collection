@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DEFAULT_TREE, generateTree } from './tree.mjs';
 import { generateFir } from './fir.mjs';
+import { generateOakFoliage } from './oak-foliage.mjs';
 
 const byId = id => document.getElementById(id);
 const settings = { ...DEFAULT_TREE };
-let species = 'fir';
-let renderer, camera, scene, controls, wood, extents;
-let spinning = false, silhouette = false;
+let species = 'oak';
+let renderer, camera, scene, controls, wood, foliage, treeGroup, extents;
+let woodBounds, foliageBounds;
+let spinning = false, silhouette = false, foliageVisible = true;
 
 function setupScene() {
   scene = new THREE.Scene();
@@ -64,7 +66,7 @@ function setupScene() {
   }).observe(byId('viewport'));
   const tick=()=>{
     requestAnimationFrame(tick);
-    if (spinning && wood) wood.rotation.y += .003;
+    if (spinning && treeGroup) treeGroup.rotation.y += .003;
     controls.update();
     renderer.render(scene,camera);
   };
@@ -89,36 +91,89 @@ function focus(mode) {
   controls.update();
 }
 
+function updateFoliageUI() {
+  const enabled = species==='oak';
+  const button=byId('foliageToggle');
+  button.hidden=!enabled;
+  button.setAttribute('aria-pressed',String(enabled&&foliageVisible));
+  button.textContent=foliageVisible?'Hide leaves':'Show leaves';
+  byId('stageContent').textContent=enabled&&foliageVisible
+    ?'WOOD + FOLIAGE':'WOOD ONLY';
+}
+function mergedBounds(a,b) {
+  if(!b)return a;
+  return {
+    min:a.min.map((v,i)=>Math.min(v,b.min[i])),
+    max:a.max.map((v,i)=>Math.max(v,b.max[i])),
+  };
+}
+function updateLeafVisibility() {
+  if(foliage)foliage.visible=species==='oak'&&foliageVisible;
+  extents=foliage?.visible?mergedBounds(woodBounds,foliageBounds):woodBounds;
+  updateFoliageUI();
+}
+function geometryFrom(data,colors=false) {
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.BufferAttribute(data.positions,3));
+  geometry.setAttribute('normal',new THREE.BufferAttribute(data.normals,3));
+  if(colors)geometry.setAttribute('color',new THREE.BufferAttribute(data.colors,3));
+  geometry.setIndex(new THREE.BufferAttribute(data.indices,1));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
 function build() {
+  let replacement=null;
   try {
     const started=performance.now();
     const result=species==='fir'?generateFir(settings):generateTree(settings);
-    const geometry=new THREE.BufferGeometry();
-    geometry.setAttribute('position',new THREE.BufferAttribute(result.positions,3));
-    geometry.setAttribute('normal',new THREE.BufferAttribute(result.normals,3));
-    geometry.setIndex(new THREE.BufferAttribute(result.indices,1));
-    geometry.computeBoundingSphere();
-    const material=new THREE.MeshStandardMaterial({
-      color:silhouette?0x050909:0xa49c8e,roughness:.96,metalness:0,
-      side:THREE.FrontSide,
-    });
-    const mesh=new THREE.Mesh(geometry,material);
-    mesh.castShadow=true;
-    mesh.receiveShadow=true;
-    if (wood) {
-      scene.remove(wood);
-      wood.geometry.dispose();
-      wood.material.dispose();
+    const foliageData=species==='oak'?generateOakFoliage(result):null;
+    replacement=new THREE.Group();
+    const woodMesh=new THREE.Mesh(geometryFrom(result),
+      new THREE.MeshStandardMaterial({
+        color:silhouette?0x050909:0xa49c8e,
+        roughness:.96,metalness:0,side:THREE.FrontSide,
+      }));
+    woodMesh.castShadow=true;
+    woodMesh.receiveShadow=true;
+    replacement.add(woodMesh);
+    let leavesMesh=null;
+    if(foliageData){
+      leavesMesh=new THREE.Mesh(geometryFrom(foliageData,true),
+        new THREE.MeshStandardMaterial({
+          color:silhouette?0x050909:0xffffff,
+          vertexColors:true,roughness:.88,metalness:0,
+          side:THREE.DoubleSide,
+        }));
+      leavesMesh.castShadow=true;
+      replacement.add(leavesMesh);
     }
-    wood=mesh;
-    extents=result.bounds;
-    scene.add(wood);
-    byId('meshStats').textContent =
-      result.branches.length+' WOOD AXES · '+(result.indices.length/3).toLocaleString()+' TRIS';
+    if(treeGroup){
+      replacement.rotation.copy(treeGroup.rotation);
+      scene.remove(treeGroup);
+      treeGroup.traverse(node=>{
+        if(node.isMesh){node.geometry.dispose();node.material.dispose();}
+      });
+    }
+    treeGroup=replacement;
+    wood=woodMesh;
+    foliage=leavesMesh;
+    woodBounds=result.bounds;
+    foliageBounds=foliageData?.bounds??null;
+    updateLeafVisibility();
+    scene.add(treeGroup);
+    const triangles=result.indices.length+(foliageData?.indices.length??0);
+    byId('meshStats').textContent =result.branches.length+
+      ' WOOD AXES · '+(foliageData?foliageData.leafCount+' OAK LEAVES · ':'')+
+      (triangles/3).toLocaleString()+' TRIS';
     byId('status').textContent='Geometry ready · '+Math.round(performance.now()-started)+' ms';
     byId('seedValue').value=String(settings.seed);
     byId('error').hidden=true;
   } catch(error) {
+    // Leave the previous complete asset displayed on generation errors.
+    if(replacement&&replacement!==treeGroup)
+      replacement.traverse(node=>{
+        if(node.isMesh){node.geometry.dispose();node.material.dispose();}
+      });
     byId('status').textContent='Generation failed';
     byId('error').hidden=false;
     byId('error').textContent=error.message;
@@ -137,11 +192,11 @@ function selectSpecies(next){
     else button.removeAttribute('aria-current');
   }
   byId('speciesSelect').value=next;
-  byId('assetOverline').textContent=isFir?'FIR / WOOD GEOMETRY':'OAK / WOOD GEOMETRY';
-  byId('assetTitle').textContent=isFir?'Fir wood.':'Oak wood.';
+  byId('assetOverline').textContent=isFir?'FIR / WOOD GEOMETRY':'OAK / WOOD + FOLIAGE';
+  byId('assetTitle').textContent=isFir?'Fir wood.':'Oak in leaf.';
   byId('assetDescription').textContent=isFir
     ?'A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood only; no needles, bark texture or export.'
-    :'A small oak grown from a seed: trunk, major limbs, finer branches and twigs. No foliage, bark texture or export.';
+    :'A small European oak with individual lobed leaves, grown on its existing branch skeleton. No bark texture or export.';
   byId('viewport').setAttribute('aria-label',
     isFir?'Interactive 3D fir wood preview':'Interactive 3D oak tree wood preview');
   build();
@@ -169,10 +224,16 @@ byId('reseed').addEventListener('click',()=>{
 byId('whole').addEventListener('click',()=>focus('whole'));
 byId('foot').addEventListener('click',()=>focus('foot'));
 byId('crown').addEventListener('click',()=>focus('crown'));
+byId('foliageToggle').addEventListener('click',()=>{
+  if(species!=='oak')return;
+  foliageVisible=!foliageVisible;
+  updateLeafVisibility();
+});
 byId('silhouette').addEventListener('click',()=>{
   silhouette=!silhouette;
   byId('silhouette').setAttribute('aria-pressed',String(silhouette));
   if(wood)wood.material.color.setHex(silhouette?0x050909:0xa49c8e);
+  if(foliage)foliage.material.color.setHex(silhouette?0x050909:0xffffff);
   scene.background.setHex(silhouette?0xaab9b0:0x18272a);
   scene.fog.color.setHex(silhouette?0xaab9b0:0x18272a);
 });

@@ -26,12 +26,13 @@ Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Edit
 npm start -- ../map_system/example.map.json --port 4372
 ```
 
-## Asset ProcGen — wood generators
+## Asset ProcGen — seeded tree architecture and foliage
 
-Choose **Oak** or **Fir** in the generator library. The current species
-uses one unsigned integer seed, with no growth-parameter panel. Both
-species are inspected through the same 3D viewport and camera tools.
-The oak's accepted geometry is preserved.
+Choose **Oak** or **Fir** in the generator library. Oak is selected by
+default, now with a foliage layer. The public generation input remains
+one unsigned integer seed; no growth-parameter panel is added. Both
+species use the same 3D preview controls. The accepted oak wood
+generator is unchanged.
 
 ### Oak wood structure
 
@@ -74,12 +75,35 @@ parallel upright tips.
 Continuing axes become one continuous meshed wood tube. The beginning
 of larger lateral shoots sits inside the supporting wood and gradually
 reaches its full section radius. Side-branch junctions remain intersecting
-surfaces rather than a fully fused wood volume. This phase intentionally
-contains no foliage, bark texture, exported assets or additional
-authoring options.
+surfaces rather than a fully fused wood volume.
 
-The oak retains its own seed-only growth algorithm and geometry. No
-leaf or surface generation is enabled yet.
+### Oak leaf geometry and crown placement
+
+The separate `oak-leaf.mjs` module builds a family of European oak
+(*Quercus robur*) leaf profiles: a short basal petiole, two asymmetric
+basal auricles, four to six rounded lateral lobes per side and
+vein-aligned lobe tips. The smooth inward bays between lobes differ on
+the two edges. Each blade is meshed as a curved, shallowly folded
+surface with visible midrib and small geometric lateral veins. Colors
+vary modestly within one coherent foliage family. No leaf cards,
+external textures or third-party leaf models are used.
+
+`oak-foliage.mjs` reads the positions of the **existing meshed wood
+rings**, including continuation axes, to attach petioles to actual twig
+centerlines. Each terminal woody axis carries a small number of alternate leaves
+directly and sprouts short, tapering leaf-bearing branchlets that spread
+the crown into three-dimensional space. Their petioles follow alternate
+phyllotaxy with varied internodes, orientation, size and light-facing
+inclination. Each branchlet is genuinely meshed, rather than letting
+leaf clusters float in the air. The distribution favors the terminal
+crown, leaving the lower trunk open. Separate deterministic random
+streams keep leaf changes from altering the accepted wood generator.
+
+The preview renders the oak with foliage by default. **Hide leaves**
+reveals the original wood, and **Show leaves** restores the crown.
+Silhouette, Turntable and camera inspection work on both layers. The
+fir remains wood-only. Textures, needle geometry, external asset export,
+growth controls and wind animation are not yet implemented.
 
 ### Young fir wood structure
 
