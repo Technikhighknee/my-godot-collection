@@ -4,7 +4,7 @@ import {IMAGE_MIN_ZOOM,IMAGE_MAX_ZOOM,imageFitScale,imageTileRect,
   imageZoomAt,validateImageAsset,createImageViewport}
   from '../tools/asset-procgen/web/viewport-2d.mjs';
 
-const image={id:'test',kind:'image',width:1024,height:512,
+const image={id:'test',kind:'image' as const,width:1024,height:512,
   channels:'RGBA',tiles:8,atlas:{columns:4,rows:2},
   paint(){return null;}};
 
@@ -189,7 +189,8 @@ test('image preview supports alpha, tile isolation and retains a failed render',
     assert.equal(mat.children[0],oldCanvas);
     assert.deepEqual([...((mat.children[0] as Canvas).pixels)],[...oldSourcePixels]);
     assert.throws(()=>preview.selectTile(5),/Invalid image tile/);
-    assert.throws(()=>preview.setChannel('height'),/Invalid image channel/);
+    assert.throws(()=>preview.setChannel('height' as Parameters<typeof preview.setChannel>[0]),
+      /Invalid image channel/);
     assert.ok(updates.length>=7);
   }finally{
     if(savedDocument)Object.defineProperty(globalThis,'document',savedDocument);
