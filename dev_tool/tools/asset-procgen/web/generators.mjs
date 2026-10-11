@@ -5,6 +5,7 @@ import {generateFir} from './fir.mjs';
 import {generateOakFoliage} from './oak-foliage.mjs';
 import {validateSeed} from './seed-model.mjs';
 import {paintOakAtlas,OAK_ATLAS_SIZE} from './oak-atlas.mjs';
+import {generateOakSprig,paintOakSprig,OAK_SPRIG_SIZE} from './oak-sprig.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -25,6 +26,15 @@ function generateOakAtlasAsset(seeds){
     channels:'RGBA',tiles:16,atlas:{columns:4,rows:4},
     paint:canvas=>paintOakAtlas(canvas,seeds.leaves),
   };
+}
+function generateOakSprigAsset(seeds){
+  const sprig=generateOakSprig({
+    structureSeed:seeds.structure,
+    leafSeed:seeds.leaves,
+  });
+  return {id:'oak-sprig',kind:'image',width:OAK_SPRIG_SIZE,
+    height:OAK_SPRIG_SIZE,channels:'RGBA',
+    paint:canvas=>paintOakSprig(canvas,sprig)};
 }
 export const GENERATORS=Object.freeze([
   Object.freeze({
@@ -60,6 +70,19 @@ export const GENERATORS=Object.freeze([
     previewLabel:'Procedural oak leaf atlas with transparent tiles',
     initialMasterSeed:21749,
     components:Object.freeze([
+      Object.freeze({id:'leaves',label:'Leaf appearance',initialSeed:21749}),
+    ]),
+  }),
+  Object.freeze({
+    id:'oak-sprig',kind:'image',symbol:'❧',
+    label:'Oak leaf spray',subtitle:'Individual twig & leaves',
+    generate:generateOakSprigAsset,
+    overline:'2D / SINGLE OAK SPRAY',title:'An oak leaf spray.',
+    description:'Experimental leaf-spray prototype: an independent 3D-grown twig with individually curved oak leaves, projected into a transparent RGBA sprite. Not connected to the tree or existing atlas.',
+    previewLabel:'Baked oak leaf spray with transparent background',
+    initialMasterSeed:19461,
+    components:Object.freeze([
+      Object.freeze({id:'structure',label:'Twig structure',initialSeed:19461}),
       Object.freeze({id:'leaves',label:'Leaf appearance',initialSeed:21749}),
     ]),
   }),

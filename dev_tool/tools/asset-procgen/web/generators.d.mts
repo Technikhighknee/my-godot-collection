@@ -8,7 +8,7 @@ export interface GeneratedModel {
 }
 export interface GeneratedImage {
   id:string;kind:'image';width:number;height:number;channels:'RGBA';
-  tiles:number;atlas?:{columns:number;rows:number};
+  tiles?:number;atlas?:{columns:number;rows:number};
   paint:(canvas:HTMLCanvasElement)=>unknown;
 }
 export type GeneratedAsset=GeneratedModel|GeneratedImage;
@@ -26,7 +26,7 @@ export interface ImageGeneratorDefinition extends GeneratorMeta {
 export type GeneratorDefinition=ModelGeneratorDefinition|ImageGeneratorDefinition;
 export const GENERATORS:readonly GeneratorDefinition[];
 export function findGenerator(id:'oak'|'fir'):ModelGeneratorDefinition|null;
-export function findGenerator(id:'oak-atlas'):ImageGeneratorDefinition|null;
+export function findGenerator(id:'oak-atlas'|'oak-sprig'):ImageGeneratorDefinition|null;
 export function findGenerator(id:string):GeneratorDefinition|null;
 export function generateAsset(definition:ModelGeneratorDefinition,
   componentSeeds:Record<string,number>):GeneratedModel;

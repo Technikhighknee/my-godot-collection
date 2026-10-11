@@ -13,13 +13,16 @@ import {generateOakFoliage}
 const oak=findGenerator('oak')!;
 const fir=findGenerator('fir')!;
 const atlas=findGenerator('oak-atlas')!;
+const sprig=findGenerator('oak-sprig')!;
 test('catalog exposes current models as independent generator definitions',()=>{
-  assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir','oak-atlas']);
+  assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir','oak-atlas','oak-sprig']);
   assert.deepEqual(oak.components.map(x=>x.id),['geometry','foliage','leaves']);
   assert.deepEqual(fir.components.map(x=>x.id),['geometry']);
-  assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','image']);
+  assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','image','image']);
   assert.deepEqual(atlas.components.map(x=>x.id),['leaves']);
   assert.deepEqual(createSeedState(atlas).components,{leaves:21749});
+  assert.deepEqual(sprig.components.map(x=>x.id),['structure','leaves']);
+  assert.deepEqual(createSeedState(sprig).components,{structure:19461,leaves:21749});
   assert.equal(findGenerator('nonexistent'),null);
   assert.equal(createSeedState(oak).masterSeed,DEFAULT_TREE.seed);
   assert.deepEqual(createSeedState(oak).components,{
@@ -148,4 +151,24 @@ test('2D atlas generator is independent of tree wood and yields a paintable asse
   assert.equal((meta as {tiles:number}).tiles,16);
   assert.ok(events.length>500,'The image must paint actual atlas content');
   assert.throws(()=>generateAsset(atlas,{leaves:-5}));
+});
+
+test('standalone 3D-grown oak spray bakes independently of tree and atlas',()=>{
+  const definition=findGenerator('oak-sprig')!;
+  const state=createSeedState(definition);
+  const painted=generateAsset(definition,state.components);
+  assert.equal(painted.kind,'image');
+  if(painted.kind!=='image')throw Error('Expected leaf-spray image');
+  assert.equal(painted.id,'oak-sprig');
+  assert.deepEqual([painted.width,painted.height,painted.channels],
+    [768,768,'RGBA']);
+  assert.equal(painted.tiles,undefined);
+  assert.equal(painted.atlas,undefined,'An isolated spray is not a tile atlas');
+  assert.deepEqual(createSeedState(oak).components,
+    {geometry:DEFAULT_TREE.seed,foliage:DEFAULT_TREE.seed,leaves:21749});
+  const updated=updateComponentSeed(definition,state,'leaves',43);
+  assert.equal(updated.components.structure,state.components.structure);
+  assert.equal(updated.components.leaves,43);
+  assert.equal(state.components.leaves,21749);
+  assert.throws(()=>generateAsset(definition,{structure:-1,leaves:10}));
 });

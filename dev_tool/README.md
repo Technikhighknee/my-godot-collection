@@ -102,8 +102,25 @@ The initial defaults deliberately preserve the previous results
 (wood and foliage use the old tree seed; the atlas uses 21749).
 The accepted oak and fir wood generators remain unchanged.
 
-The 2D inspection tools are now in place; improving the actual
-oak leaf sprites and their baking strategy is a separate next step.
+### Oak leaf spray prototype
+
+In **2D Assets → Oak leaf spray**, a standalone generator grows one
+small twig structure in 3D with four branching axes and eleven
+individually shaped oak leaves. Each leaf has a seeded lobed blade,
+curved surface, midrib, lateral veins and subtle material variation.
+The twig structure and leaf appearance use **different seeds**.
+
+The spray is projected from a fixed camera into a transparent
+**768 × 768 RGBA image** with bounds-based framing. This is a
+deterministic proof of the 3D-to-2D baking pipeline, not the final leaf
+art, physically based 3D lighting or an export format. It does **not**
+modify the accepted oak/fir geometry, the existing 16-tile atlas,
+foliage cards or game materials. The sprite can be examined in the
+existing 2D inspector, including the alpha channel.
+
+This intentionally keeps the next steps small: improve a single
+leaf-spray's appearance, then generate a coherent atlas from several
+sprays, and only later attach crossed card clumps to the tree.
 
 ### Oak wood structure
 
