@@ -204,20 +204,6 @@ function drawOakSprig(ctx,sprig,size){
   const xs=drawn.map(p=>p[0]),ys=drawn.map(p=>p[1]);
   const left=Math.min(...xs),right=Math.max(...xs);
   const top=Math.min(...ys),bottom=Math.max(...ys);
-  // Fit the entire projected twig and individual leaf contours in frame.
-  const drawn=[];
-  for(const path of sprig.paths)
-    for(const p of path.points)drawn.push(project(p,size));
-  for(const leaf of sprig.leaves){
-    const profile=oakLeafProfile(leaf.profileSeed);
-    for(const step of profile.outline){
-      drawn.push(project(bladePoint(leaf,step.t,step.left,-1),size));
-      drawn.push(project(bladePoint(leaf,step.t,step.right,1),size));
-    }
-  }
-  const xs=drawn.map(p=>p[0]),ys=drawn.map(p=>p[1]);
-  const left=Math.min(...xs),right=Math.max(...xs);
-  const top=Math.min(...ys),bottom=Math.max(...ys);
   const fit=Math.min(1.6,(size-108)/(right-left),
     (size-108)/(bottom-top));
   ctx.save();
