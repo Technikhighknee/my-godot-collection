@@ -34,3 +34,9 @@ export function paintOakSprig(canvas:HTMLCanvasElement,sprig:OakSprig):{
   leaves:number;
   branches:number;
 };
+export function paintOakSprigTile(ctx:CanvasRenderingContext2D,
+  sprig:OakSprig,left:number,top:number,size:number):{
+  size:number;
+  leaves:number;
+  branches:number;
+};

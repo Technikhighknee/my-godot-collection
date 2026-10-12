@@ -107,50 +107,37 @@ test('deterministic 3D cards retain finite nondegenerate triangles and isolated 
     assert.equal(new Set(vs.map(v=>Math.floor(v*OAK_ATLAS_GRID))).size,1);
   }
 });
-// Test the sprite itself, not merely that some canvas methods were called.
-// A coarse alpha-mask union estimates its visible foliage coverage.
-test('the shared RGBA atlas contains dense, distinct, clipped leaf masses',()=>{
-  let tile=-1,leaves=0,clips=0,strokes=0,outline=0;
-  const colors=new Set<string>();
-  let path:number[][]=[];
-  const samples=new Uint8Array(48*48);
+// The atlas must render real 3D-grown sprigs, not independently painted
+// flat leaf blobs. All sixteen tiles should produce eleven shaded leaves.
+test('shared RGBA atlas bakes sixteen distinct 3D-grown leaf sprays',()=>{
+  let tiles=0,clips=0,gradients=0,strokes=0,fills=0,saves=0,restores=0;
+  const leafColors=new Set<string>(),transforms:number[][]=[];
+  const gradient={addColorStop(_t:number,_color:string){}};
   const context=new Proxy({} as Record<string,unknown>,{
     get(_target,key){
-      if(key==='save'||key==='restore'||key==='clearRect')return ()=>{};
+      if(key==='save')return ()=>{saves++;};
+      if(key==='restore')return ()=>{restores++;};
+      if(key==='clearRect')return ()=>{};
       if(key==='rect')return (x:number,y:number,w:number,h:number)=>{
-        const ox=(clips%OAK_ATLAS_GRID)*OAK_ATLAS_TILE;
-        const oy=Math.floor(clips/OAK_ATLAS_GRID)*OAK_ATLAS_TILE;
-        assert.equal(x,ox+9);assert.equal(y,oy+9);
-        assert.equal(w,OAK_ATLAS_TILE-18);assert.equal(h,OAK_ATLAS_TILE-18);
+        const left=(tiles%OAK_ATLAS_GRID)*OAK_ATLAS_TILE;
+        const top=Math.floor(tiles/OAK_ATLAS_GRID)*OAK_ATLAS_TILE;
+        assert.deepEqual([x,y,w,h],
+          [left+9,top+9,OAK_ATLAS_TILE-18,OAK_ATLAS_TILE-18]);
+        tiles++;
       };
-      if(key==='clip')return ()=>{tile++;clips++;};
-      if(key==='beginPath')return ()=>{path=[];};
-      if(key==='moveTo')return (x:number,y:number)=>{path=[[x,y]];};
-      if(key==='lineTo')return (x:number,y:number)=>{path.push([x,y]);};
-      if(key==='closePath'||key==='quadraticCurveTo')return ()=>{};
+      if(key==='clip')return ()=>{clips++;};
+      if(key==='transform')return (...args:number[])=>{
+        assert.ok(args.every(Number.isFinite));transforms.push(args);
+      };
+      if(key==='createLinearGradient')return ()=>{
+        gradients++;return gradient;
+      };
+      if(key==='fill')return ()=>{fills++;};
       if(key==='stroke')return ()=>{strokes++;};
-      if(key==='fill')return ()=>{
-        leaves++;
-        if(tile!==0)return;
-        // Coarse per-tile alpha coverage: polygon winding and clipping.
-        for(let y=0;y<48;y++)for(let x=0;x<48;x++){
-          const px=(x+.5)*OAK_ATLAS_TILE/48;
-          const py=(y+.5)*OAK_ATLAS_TILE/48;
-          if(px<9||px>247||py<9||py>247)continue;
-          let inside=false;
-          for(let k=0,j=path.length-1;k<path.length;j=k++){
-            const a=path[k],b=path[j];
-            if((a[1]>py)!==(b[1]>py))
-              if(px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])
-                inside=!inside;
-          }
-          if(inside)samples[y*48+x]=1;
-        }
-      };
-      return undefined;
+      return ()=>{};
     },
     set(_target,key,value){
-      if(key==='fillStyle')colors.add(String(value));
+      if(key==='fillStyle')leafColors.add(String(value));
       return true;
     },
   });
@@ -159,15 +146,17 @@ test('the shared RGBA atlas contains dense, distinct, clipped leaf masses',()=>{
   }};
   const meta=paintOakAtlas(canvas);
   assert.equal(meta.tiles,16);
-  assert.equal(clips,16);
+  assert.equal(meta.padding,9);
+  assert.equal(tiles,16);
+  assert.equal(gradients,16*11,'Each tile must contain eleven grown leaves');
+  assert.equal(clips,16*(11+1),'Clip each leaf and its enclosing tile');
+  assert.equal(transforms.length,16);
+  assert.equal(saves,restores);
+  assert.ok(fills>=16*22);
+  assert.ok(strokes>1200);
+  assert.ok(leafColors.size>50);
   assert.equal(canvas.width,OAK_ATLAS_SIZE);
   assert.equal(canvas.height,OAK_ATLAS_SIZE);
-  assert.equal(meta.padding,9);
-  assert.ok(leaves>900&&strokes>1900);
-  assert.ok(colors.size>200);
-  const coverage=samples.reduce((sum,n)=>sum+n,0)/samples.length;
-  assert.ok(coverage>.42&&coverage<.85,
-    'One atlas sprite must be a substantial leaf mass, not isolated streaks');
   assert.throws(()=>paintOakAtlas(null as never));
   assert.throws(()=>paintOakAtlas(canvas,-1));
 });

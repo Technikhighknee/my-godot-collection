@@ -189,43 +189,70 @@ function paintLeaf(ctx,leaf,size){
     }
   }
 }
+// Reused by both the standalone 768px sprite and the game-scale atlas.
+function drawOakSprig(ctx,sprig,size){
+  // Fit the entire projected twig and individual leaf contours in frame.
+  const drawn=[];
+  for(const path of sprig.paths)
+    for(const p of path.points)drawn.push(project(p,size));
+  for(const leaf of sprig.leaves){
+    const profile=oakLeafProfile(leaf.profileSeed);
+    for(const step of profile.outline){
+      drawn.push(project(bladePoint(leaf,step.t,step.left,-1),size));
+      drawn.push(project(bladePoint(leaf,step.t,step.right,1),size));
+    }
+  }
+  const xs=drawn.map(p=>p[0]),ys=drawn.map(p=>p[1]);
+  const left=Math.min(...xs),right=Math.max(...xs);
+  const top=Math.min(...ys),bottom=Math.max(...ys);
+  const fit=Math.min(1.6,(size-108)/(right-left),
+    (size-108)/(bottom-top));
+  ctx.save();
+  ctx.transform(fit,0,0,fit,
+    size/2-(left+right)*fit/2,
+    size/2-(top+bottom)*fit/2);
+  for(const path of sprig.paths)
+    paintTwig(ctx,path.points,path.radius,size);
+  for(const leaf of sprig.leaves)
+    paintTwig(ctx,[leaf.attach,leaf.base],.95,size);
+  const sorted=[...sprig.leaves].sort((a,b)=>
+    dot(a.base,viewing)-dot(b.base,viewing));
+  for(const leaf of sorted)paintLeaf(ctx,leaf,size);
+  ctx.restore();
+  return {size,leaves:sprig.leaves.length,
+    branches:sprig.paths.length};
+}
+
+function validSprig(sprig){
+  return sprig&&Array.isArray(sprig.paths)&&Array.isArray(sprig.leaves);
+}
 export function paintOakSprig(canvas,sprig){
-  if(!canvas||typeof canvas.getContext!=='function'||!sprig||
-    !Array.isArray(sprig.paths)||!Array.isArray(sprig.leaves))
+  if(!canvas||typeof canvas.getContext!=='function'||!validSprig(sprig))
     throw Error('Invalid oak sprig canvas or structure');
   canvas.width=OAK_SPRIG_SIZE;
   canvas.height=OAK_SPRIG_SIZE;
   const ctx=canvas.getContext('2d');
   if(!ctx)throw Error('Canvas 2D unavailable for oak sprig');
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  // Fit the entire projected twig and individual leaf contours in frame.
-  const drawn=[];
-  for(const path of sprig.paths)
-    for(const p of path.points)drawn.push(project(p,canvas.width));
-  for(const leaf of sprig.leaves){
-    const profile=oakLeafProfile(leaf.profileSeed);
-    for(const step of profile.outline){
-      drawn.push(project(bladePoint(leaf,step.t,step.left,-1),canvas.width));
-      drawn.push(project(bladePoint(leaf,step.t,step.right,1),canvas.width));
-    }
-  }
-  const xs=drawn.map(p=>p[0]),ys=drawn.map(p=>p[1]);
-  const left=Math.min(...xs),right=Math.max(...xs);
-  const top=Math.min(...ys),bottom=Math.max(...ys);
-  const fit=Math.min(1.6,(canvas.width-108)/(right-left),
-    (canvas.height-108)/(bottom-top));
+  return drawOakSprig(ctx,sprig,OAK_SPRIG_SIZE);
+}
+// Bake an independent 3D-grown twig directly into one atlas tile. Keeping
+// the renderer shared prevents the game foliage from drifting away from
+// the isolated leaf-spray preview.
+export function paintOakSprigTile(ctx,sprig,left,top,size){
+  if(!ctx||typeof ctx.save!=='function'||!validSprig(sprig)||
+    ![left,top,size].every(Number.isFinite)||size<=0)
+    throw Error('Invalid oak sprig tile');
+  const gutter=9*size/256;
   ctx.save();
-  ctx.setTransform(fit,0,0,fit,
-    canvas.width/2-(left+right)*fit/2,
-    canvas.height/2-(top+bottom)*fit/2);
-  for(const path of sprig.paths)
-    paintTwig(ctx,path.points,path.radius,canvas.width);
-  for(const leaf of sprig.leaves)
-    paintTwig(ctx,[leaf.attach,leaf.base],.95,canvas.width);
-  const sorted=[...sprig.leaves].sort((a,b)=>
-    dot(a.base,viewing)-dot(b.base,viewing));
-  for(const leaf of sorted)paintLeaf(ctx,leaf,canvas.width);
-  ctx.restore();
-  return {size:OAK_SPRIG_SIZE,leaves:sprig.leaves.length,
-    branches:sprig.paths.length};
+  try{
+    ctx.beginPath();
+    ctx.rect(left+gutter,top+gutter,size-2*gutter,size-2*gutter);
+    ctx.clip();
+    ctx.translate(left,top);
+    ctx.scale(size/OAK_SPRIG_SIZE,size/OAK_SPRIG_SIZE);
+    return drawOakSprig(ctx,sprig,OAK_SPRIG_SIZE);
+  }finally{
+    ctx.restore();
+  }
 }

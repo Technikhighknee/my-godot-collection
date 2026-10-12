@@ -157,6 +157,7 @@ test('2D atlas generator is independent of tree wood and yields a paintable asse
   const ctx=new Proxy({},{
     get(_target,key){
       if(key==='fill'||key==='stroke')return ()=>{events.push(String(key));};
+      if(key==='createLinearGradient')return ()=>({addColorStop(){}});
       return ()=>{};
     },
     set(){return true;},

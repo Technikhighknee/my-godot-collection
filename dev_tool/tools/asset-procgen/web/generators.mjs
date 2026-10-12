@@ -102,7 +102,7 @@ export const GENERATORS=Object.freeze([
     subtitle:'Procedural RGBA foliage sprites',
     generate:generateOakAtlasAsset,
     overline:'2D / OAK LEAF ATLAS',title:'Leaf atlas.',
-    description:'Inspect the current procedural oak leaf atlas separately from the tree. The sprites are still experimental; no baking, export or advanced image tools yet.',
+    description:'Inspect the current procedural oak leaf atlas separately from the tree. Each tile is baked from a seeded 3D-grown oak twig and individual leaves. Experimental game-scale sprites; no export yet.',
     previewLabel:'Procedural oak leaf atlas with transparent tiles',
     initialMasterSeed:21749,
     components:Object.freeze([
@@ -115,7 +115,7 @@ export const GENERATORS=Object.freeze([
     label:'Oak leaf spray',subtitle:'Individual twig & leaves',
     generate:generateOakSprigAsset,
     overline:'2D / SINGLE OAK SPRAY',title:'An oak leaf spray.',
-    description:'Experimental leaf-spray prototype: an independent 3D-grown twig with individually curved oak leaves, projected into a transparent RGBA sprite. Not connected to the tree or existing atlas.',
+    description:'Independent 3D-grown twig with individually curved oak leaves, projected into a transparent RGBA sprite. This same sprite renderer now builds the tree foliage atlas.',
     previewLabel:'Baked oak leaf spray with transparent background',
     initialMasterSeed:19461,
     components:Object.freeze([

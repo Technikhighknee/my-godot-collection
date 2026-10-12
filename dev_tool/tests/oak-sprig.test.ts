@@ -58,7 +58,7 @@ test('isolated 3D twig bakes all leaves to transparent RGBA Canvas',()=>{
     get(_target,key){
       if(key==='createLinearGradient')
         return ()=>{calls.gradient++;return gradient;};
-      if(key==='setTransform')
+      if(key==='transform')
         return (...args:number[])=>{calls.transforms.push(args);};
       if(key==='save')return ()=>{calls.save++;};
       if(key==='restore')return ()=>{calls.restore++;};
