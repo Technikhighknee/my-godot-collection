@@ -110,9 +110,13 @@ test('deterministic 3D cards retain finite nondegenerate triangles and isolated 
 // The atlas must render real 3D-grown sprigs, not independently painted
 // flat leaf blobs. All sixteen tiles should produce eleven shaded leaves.
 test('shared RGBA atlas bakes sixteen distinct 3D-grown leaf sprays',()=>{
-  let tiles=0,clips=0,gradients=0,strokes=0,fills=0,saves=0,restores=0;
+  let tiles=0,clips=0,gradients=0,gradientStops=0,strokes=0,fills=0,saves=0,restores=0;
   const leafColors=new Set<string>(),transforms:number[][]=[];
-  const gradient={addColorStop(_t:number,_color:string){}};
+  const gradient={addColorStop(offset:number,color:string){
+    assert.ok(Number.isFinite(offset)&&offset>=0&&offset<=1);
+    gradientStops++;
+    leafColors.add(color);
+  }};
   const context=new Proxy({} as Record<string,unknown>,{
     get(_target,key){
       if(key==='save')return ()=>{saves++;};
@@ -149,12 +153,13 @@ test('shared RGBA atlas bakes sixteen distinct 3D-grown leaf sprays',()=>{
   assert.equal(meta.padding,9);
   assert.equal(tiles,16);
   assert.equal(gradients,16*11,'Each tile must contain eleven grown leaves');
+  assert.equal(gradientStops,16*11*3,'Every leaf uses three gradient stops');
   assert.equal(clips,16*(11+1),'Clip each leaf and its enclosing tile');
   assert.equal(transforms.length,16);
   assert.equal(saves,restores);
   assert.ok(fills>=16*22);
   assert.ok(strokes>1200);
-  assert.ok(leafColors.size>50);
+  assert.ok(leafColors.size>50,'Leaf gradients should have varied colors');
   assert.equal(canvas.width,OAK_ATLAS_SIZE);
   assert.equal(canvas.height,OAK_ATLAS_SIZE);
   assert.throws(()=>paintOakAtlas(null as never));
