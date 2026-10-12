@@ -116,14 +116,16 @@ The accepted oak and fir wood generators remain unchanged.
 Under **Vegetation → Oak → Bark**, the generator synthesizes three
 deterministic, tileable 1024 × 1024 material profiles from the same
 seeds, inspired by *Quercus robur*: **Trunk**, **Limb**, and **Young**.
-The material builds a mostly intact, subtly weathered cork surface
-with **sparse, broad, irregular broken areas**. These regions have
-tapered ends, irregular margins, worn-out depressions and shallow raised
-shoulders. Their physical relief drives the normal and local AO maps,
-while albedo adds restrained, warm gray-brown pigment variation rather
-than dark painted crack lines. The Trunk, Limb and Young profiles vary
-the number, width and depth of damaged areas. Surface shape is derived
-from periodic seeded fields, so the texture tiles on both axes.
+The bark starts with a weathered grey-brown cork skin and sparse,
+irregular longitudinal fissures. Their paths are seeded wandering splines
+with independently eroded banks, branching, uneven width, discontinuities,
+worn shoulders and local depth variation. An independent, gently warped
+cellular plate network adds natural-looking cross-breaks and flaky
+material detail. The color map includes restrained dusty and lichen
+mottling; relief, normal, AO and roughness share the same height field.
+The Trunk, Limb and Young profiles reduce the extent and depth of
+fracturing with wood maturity. The whole material is deterministic and
+tiles continuously on both axes.
 
 The existing wood growth geometry, branch intersections and UV mapping
 are deliberately unchanged. No third-party textures, dependencies or

@@ -47,136 +47,214 @@ function noiseField(size,nx,ny,seed){
   return field;
 }
 
-// Quercus-inspired game bark: continuous quiet cork skin interrupted by
-// sparse, broad, broken-up weathered openings. This is a material effect;
-// growth geometry, wood UVs and branch intersections are not modified.
+// Aged bark is an eroded skin, not a set of uniform painted strokes.
+// The depth and pigmentation of every opening derive from the same
+// irregular surface, with a smaller scale of flakes and weathered grain.
 export const OAK_BARK_PROFILES=Object.freeze(['trunk','limb','young']);
 const PROFILES=Object.freeze({
-  trunk:Object.freeze({openings:17,width:.018,depth:.30,raised:.049,
-    grain:.019,shade:23,variation:21,base:[129,122,110]}),
-  limb:Object.freeze({openings:13,width:.013,depth:.19,raised:.033,
-    grain:.016,shade:16,variation:19,base:[134,125,111]}),
-  young:Object.freeze({openings:5,width:.007,depth:.062,raised:.013,
-    grain:.012,shade:6,variation:15,base:[137,129,116]}),
+  trunk:Object.freeze({count:20,width:.0090,depth:.36,lip:.070,
+    grain:.028,shade:56,variation:25,base:[151,148,140]}),
+  limb:Object.freeze({count:14,width:.0079,depth:.22,lip:.045,
+    grain:.023,shade:44,variation:22,base:[146,141,132]}),
+  young:Object.freeze({count:6,width:.0050,depth:.065,lip:.015,
+    grain:.014,shade:18,variation:16,base:[145,139,130]}),
 });
 function getProfile(name){
   if(!Object.hasOwn(PROFILES,name))
     throw Error('Unknown oak bark profile: '+name);
   return PROFILES[name];
 }
-// Draw an irregular, finite patch rather than tracing a thin curve.
-// A mostly flat split interior, rounded broken shoulders, tapered ends
-// and intermittent eroded flanks make the result read as damaged bark,
-// not a dark painted line. Coordinates wrap in both texture dimensions.
-function fracturedSurface(size,seed,settings){
-  const gouge=new Float32Array(size*size);
+const lerp=(a,b,t)=>a+(b-a)*t;
+function catmull(a,b,c,d,t){
+  return b+.5*t*(c-a+t*(2*a-5*b+4*c-d+
+    t*(3*(b-c)+d-a)));
+}
+// Irregular, sometimes interrupted weathering fractures. Their paths
+// are seeded splines with independent left/right erosion; their edges
+// are further displaced by two octaves of 2-D periodic noise.
+// Consequently a fissure can widen, split, vanish and reappear without
+// looking like the same straight brush stamp repeated around a cylinder.
+function weatheredOpenings(size,seed,profile){
+  const cavities=new Float32Array(size*size);
   const shoulders=new Float32Array(size*size);
-  const seed2=seed^0x7eab3615;
-  function patch(id,startU,startV,length,halfWidth,strength,slope,
-    branch=false){
-    const phase=TAU*hash(id,11,seed),phase2=TAU*hash(id,27,seed);
-    const freq=1.6+1.7*hash(id,37,seed);
-    const drift=.004+.009*hash(id,49,seed);
-    function pathU(t){
-      return startU+slope*t+drift*(
-        Math.sin(TAU*freq*t+phase)-Math.sin(phase))+
-        .003*(Math.sin(TAU*6.2*t+phase2)-Math.sin(phase2));
+  const rough=noiseField(size,43,79,seed^0x6135a3cb);
+  const micro=noiseField(size,137,161,seed^0x742cbe11);
+  const seed2=seed^0x6d85e93a;
+  function draw(id,x0,y0,length,width,depth,angle,secondary=false){
+    const steps=Math.max(6,Math.ceil(length*23));
+    const drift=[0],widths=[],weight=[];
+    for(let k=0;k<=steps+2;k++){
+      if(k>0)drift.push(drift[k-1]+
+        (hash(id*31+k,113,seed)-.5)*.018);
+      widths.push(.46+1.08*hash(id*19+k,211,seed));
+      weight.push(.35+.65*hash(id*23+k,337,seed));
     }
-    const rowStart=Math.floor(startV*size);
-    const rowEnd=Math.ceil((startV+length)*size);
-    for(let row=rowStart;row<=rowEnd;row++){
-      const t=(row+.5-startV*size)/(length*size);
+    function path(t){
+      const n=clamp(t*steps,0,steps),i=Math.floor(n),f=n-i;
+      const index=k=>clamp(k,0,steps+2);
+      const d=catmull(drift[index(i-1)],drift[index(i)],
+        drift[index(i+1)],drift[index(i+2)],f);
+      return x0+angle*t*length+d;
+    }
+    function envelope(t,values){
+      const n=clamp(t*steps,0,steps),i=Math.floor(n),f=smooth(n-i);
+      return lerp(values[i],values[Math.min(i+1,steps+2)],f);
+    }
+    const k0=Math.floor(y0*size),k1=Math.ceil((y0+length)*size);
+    const holeAt=.25+.52*hash(id,419,seed);
+    const hasBreak=!secondary&&hash(id,421,seed)>.37;
+    for(let row=k0;row<=k1;row++){
+      const t=(row+.5-y0*size)/(length*size);
       if(t<0||t>1)continue;
-      const taper=smooth(Math.min(t/.13,(1-t)/.17));
-      const segmented=.81+.13*Math.sin(TAU*(2.7*t)+phase2)+
-        .06*Math.sin(TAU*(8.5*t)+phase);
-      const radius=Math.max(.75,halfWidth*size*
-        (.25+.75*taper)*Math.max(.40,segmented));
-      const center=pathU(t)*size;
-      const depth=strength*(.31+.69*taper)*
-        (.84+.16*Math.sin(TAU*3.4*t+phase));
-      const centerX=Math.floor(center);
-      const xRadius=Math.ceil(radius*2.1);
-      const iy=mod(row,size);
-      for(let x=centerX-xRadius;x<=centerX+xRadius;x++){
-        const lateral=Math.abs((x+.5-center)/radius);
-        if(lateral>1.95)continue;
-        const xx=mod(x,size),i=iy*size+xx;
-        // An uneven edge, broad interior and narrow lifted margin.
-        const erode=.94+.095*Math.sin(TAU*(4.8*t)+phase+
-          .23*Math.sin(lateral*3))+ .06*Math.sin(TAU*14.3*t+phase2);
-        const d=lateral/Math.max(.72,erode);
-        const core=1-smooth((d-.17)/.93);
-        const rim=Math.max(0,1-Math.abs(d-1.27)/.60);
-        gouge[i]=Math.max(gouge[i],depth*core);
-        shoulders[i]=Math.max(shoulders[i],depth*rim);
+      const taper=smooth(Math.min(t/.075,(1-t)/.11));
+      const widthLocal=width*envelope(t,widths)*(.35+.65*taper);
+      const gap=hasBreak?(1-.92*Math.exp(-Math.pow((t-holeAt)/.025,2))):1;
+      const strength=depth*envelope(t,weight)*taper*gap;
+      if(strength<.008)continue;
+      const cx=path(t)*size,cy=mod(row,size);
+      const radius=Math.max(.58,widthLocal*size),range=Math.ceil(radius*2.8);
+      for(let x=Math.floor(cx)-range;x<=Math.floor(cx)+range;x++){
+        const xx=mod(x,size),p=cy*size+xx;
+        const side=x+.5<cx?-1:1;
+        // Two-scale erosion distorts each bank independently;
+        // larger flakes notch the lip rather than creating a clean V.
+        const edge=1+rough[p]*.33+micro[p]*.12+
+          side*.11*Math.sin(t*19+id*4.13);
+        const d=Math.abs(x+.5-cx)/(radius*Math.max(.44,edge));
+        if(d>=2.2)continue;
+        const core=(1-smooth((d-.37)/.72));
+        const flakes=.90+.13*rough[p]-.17*Math.abs(micro[p]);
+        const lip=Math.max(0,1-Math.abs(d-1.18)/.71)*
+          (.72+.28*rough[p]);
+        cavities[p]=Math.max(cavities[p],strength*core*
+          Math.max(.48,flakes));
+        shoulders[p]=Math.max(shoulders[p],strength*lip);
       }
     }
-    // Only some openings split; their tributaries are also broad and
-    // shallow, and connect to the parent's actual damaged area.
-    if(!branch&&hash(id,101,seed)>.55){
-      const t=.25+.40*hash(id,115,seed);
-      const direction=hash(id,133,seed)>.5?1:-1;
-      patch(id+10000,pathU(t),startV+length*t,
-        length*(.21+.20*hash(id,143,seed)),
-        halfWidth*.61,strength*.57,
-        slope+direction*(.20+.23*hash(id,151,seed)),true);
+    if(!secondary&&hash(id,503,seed)>.57){
+      const t=.24+.48*hash(id,509,seed);
+      const dir=hash(id,521,seed)>.5?1:-1;
+      draw(id+1300,path(t),y0+length*t,
+        length*(.18+.22*hash(id,527,seed)),width*.48,
+        depth*.59,angle+dir*(.18+.25*hash(id,541,seed)),true);
     }
   }
-  for(let i=0;i<settings.openings;i++){
-    const startU=hash(i+17,19,seed2);
-    const startV=hash(i+43,31,seed2);
-    const length=.085+.24*hash(i+61,41,seed);
-    const halfWidth=settings.width*(.65+.75*hash(i+73,53,seed));
-    const strength=.55+.45*hash(i+89,67,seed);
-    const slope=(hash(i+103,79,seed)-.5)*.20;
-    patch(i,startU,startV,length,halfWidth,strength,slope);
+  for(let i=0;i<profile.count;i++){
+    const x0=hash(i+11,23,seed2),y0=hash(i+37,41,seed2);
+    const length=.13+.74*Math.pow(hash(i+53,59,seed),.93);
+    const width=profile.width*(.75+.8*hash(i+71,83,seed));
+    const depth=.6+.4*hash(i+97,101,seed);
+    const angle=(hash(i+109,107,seed)-.5)*.19;
+    draw(i,x0,y0,length,width,depth,angle);
   }
-  return {gouge,shoulders};
+  return {cavities,shoulders};
 }
-/**
- * The relief is predominantly intact bark, with locally broken surface.
- * All maps are derived from one deterministic scalar height field.
- */
+// Eroded cork plates: a weak second-order crack network based on warped,
+// elongated irregular cells. It adds realistic cross-breaks and splintered
+// edges without imposing rows of evenly spaced horizontal/vertical marks.
+function plateErosion(size,seed){
+  // The meso-scale cell network does not need full albedo resolution.
+  // Tileable bilinear expansion keeps the 1024px material responsive.
+  const n=Math.min(size,512);
+  const nx=21,ny=11,points=new Float32Array(nx*ny*2);
+  for(let y=0;y<ny;y++)for(let x=0;x<nx;x++){
+    const index=(y*nx+x)*2;
+    points[index]=.12+.76*hash(x,y,seed^0x297a39ab);
+    points[index+1]=.12+.76*hash(x,y,seed^0x13ca577f);
+  }
+  const warpX=noiseField(n,9,13,seed^0x23df1a91);
+  const warpY=noiseField(n,13,9,seed^0x648a2dcf);
+  const breakup=noiseField(n,31,29,seed^0x8b147bb1);
+  const field=new Float32Array(n*n);
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    const p=y*n+x;
+    const u=x*nx/n+warpX[p]*.48;
+    const v=y*ny/n+warpY[p]*.35;
+    const cx=Math.floor(u),cy=Math.floor(v);
+    let first=1e9,second=1e9;
+    for(let by=-1;by<=1;by++)for(let bx=-1;bx<=1;bx++){
+      const ix=cx+bx,iy=cy+by;
+      const base=(mod(iy,ny)*nx+mod(ix,nx))*2;
+      const dx=u-(ix+points[base]),dy=v-(iy+points[base+1]);
+      const dist=dx*dx+dy*dy;
+      if(dist<first){second=first;first=dist;}
+      else if(dist<second)second=dist;
+    }
+    const distance=Math.sqrt(second)-Math.sqrt(first);
+    const edge=1-smooth((distance-.019)/.16);
+    // Most plate boundaries are faint. Broken passages are patches of
+    // edges, selected by low-frequency erosion rather than a fixed grid.
+    const wear=smooth((breakup[p]+.17)/.62);
+    field[p]=edge*wear;
+  }
+  if(n===size)return field;
+  const out=new Float32Array(size*size);
+  for(let y=0;y<size;y++){
+    const sy=y*n/size,y0=Math.floor(sy),y1=(y0+1)%n,fy=sy-y0;
+    for(let x=0;x<size;x++){
+      const sx=x*n/size,x0=Math.floor(sx),x1=(x0+1)%n,fx=sx-x0;
+      const low=lerp(field[y0*n+x0],field[y0*n+x1],fx);
+      const high=lerp(field[y1*n+x0],field[y1*n+x1],fx);
+      out[y*size+x]=lerp(low,high,fy);
+    }
+  }
+  return out;
+}
+
 export function generateOakBark({structureSeed=19641,surfaceSeed=48507,
   colorSeed=21749,size=OAK_BARK_SIZE,profile='trunk'}={}){
   validSeed(structureSeed);validSeed(surfaceSeed);validSeed(colorSeed);
   if(!Number.isInteger(size)||size<32||size>OAK_BARK_SIZE)
     throw Error('Invalid oak bark resolution');
   const settings=getProfile(profile);
-  const {gouge,shoulders}=fracturedSurface(size,structureSeed,settings);
+  const {cavities,shoulders}=weatheredOpenings(size,structureSeed,settings);
+  const erodedPlates=plateErosion(size,structureSeed);
   const pixels=new Uint8ClampedArray(size*size*4);
   const heightField=new Float32Array(size*size);
+  // Irregular bark plates and cork microtopography are subordinate to
+  // occasional deep breaks. The orientation is anisotropic but there is
+  // no regularly spaced ridge grid.
+  const broad=noiseField(size,7,9,structureSeed^0x4e6f1291);
+  const plate=noiseField(size,21,33,surfaceSeed^0x132fed40);
+  const fiber=noiseField(size,51,13,surfaceSeed^0x8931a96b);
+  const grain=noiseField(size,117,137,surfaceSeed^0x28ba701e);
+  const tiny=noiseField(size,289,307,surfaceSeed^0x51471b03);
+  const speckle=noiseField(size,431,419,surfaceSeed^0x9b147af3);
+  const colorA=noiseField(size,9,13,colorSeed^0x730aec31);
+  const colorB=noiseField(size,35,43,colorSeed^0x8a17e365);
+  const colorC=noiseField(size,137,149,colorSeed^0x2a18c3de);
+  // Lichen and pale dusty weathering occur in small, disconnected
+  // islands rather than as a global green tint.
+  const lichenCloud=noiseField(size,11,15,colorSeed^0x1763ad71);
+  const lichenEdges=noiseField(size,41,45,colorSeed^0x6973abf1);
+  const crackDirt=noiseField(size,83,101,colorSeed^0x33f12a51);
+  const pigmentGrain=noiseField(size,241,257,colorSeed^0x17ed813b);
   const palette=settings.base.map((base,i)=>
-    base+(hash(i+3,i+11,colorSeed)-.5)*10);
-  const large=noiseField(size,5,7,structureSeed^0x4e6f1291);
-  const corkA=noiseField(size,23,33,surfaceSeed^0x132fed40);
-  const corkB=noiseField(size,73,85,surfaceSeed^0x8931a96b);
-  const corkC=noiseField(size,189,197,surfaceSeed^0x28ba701e);
-  const colorA=noiseField(size,7,9,colorSeed^0x730aec31);
-  const colorB=noiseField(size,19,27,colorSeed^0x8a17e365);
-  const colorC=noiseField(size,48,54,colorSeed^0x2a18c3de);
-  const weatherA=noiseField(size,9,15,colorSeed^0x1d4c7f31);
-  const weatherB=noiseField(size,143,157,colorSeed^0x782d41e5);
+    base+(hash(i+3,i+11,colorSeed)-.5)*8);
   for(let p=0;p<size*size;p++){
-    const i=p*4;
-    const small=.58*corkA[p]+.30*corkB[p]+.12*corkC[p];
-    // Broad but restrained cork undulation prevents plastic smoothness.
-    // Stronger relief exists only where the original skin has opened.
-    const cavity=gouge[p],lip=shoulders[p];
-    const relief=clamp(.61+.033*large[p]+settings.grain*small-
-      settings.depth*cavity+settings.raised*lip,0,1);
-    heightField[p]=relief;
-    const pigment=settings.variation*(
-      .47*colorA[p]+.35*colorB[p]+.18*colorC[p]);
-    const weathering=.45*weatherA[p]+.19*weatherB[p];
-    // Only a modest tonal shift marks an opening; no black strokes,
-    // fake directional shadows or baked specular highlights.
-    const tint=pigment+weathering*settings.variation*.18-
-      settings.shade*cavity+settings.shade*.09*lip;
-    pixels[i]=clamp(palette[0]+tint,28,225);
-    pixels[i+1]=clamp(palette[1]+tint*.93,25,220);
-    pixels[i+2]=clamp(palette[2]+tint*.84,23,217);
+    const i=p*4,cavity=cavities[p],lip=shoulders[p];
+    const skin=.030*broad[p]+settings.grain*(
+      .41*plate[p]+.18*fiber[p]+.23*grain[p]+
+      .12*tiny[p]+.06*speckle[p]);
+    const h=clamp(.60+skin-settings.depth*cavity+
+      settings.lip*lip-settings.depth*.135*erodedPlates[p],0,1);
+    heightField[p]=h;
+    const pigment=settings.variation*(.36*colorA[p]+
+      .23*colorB[p]+.19*colorC[p]+.08*grain[p]+
+      .14*pigmentGrain[p]);
+    const lichen=smooth((lichenCloud[p]*.68+
+      lichenEdges[p]*.32-.27)/.31);
+    const exposed=clamp(cavity*(.93+.12*crackDirt[p]),0,1);
+    const scale=(.7*grain[p]+.3*speckle[p]);
+    const flake=smooth((Math.abs(scale)-.12)/.37);
+    const tone=pigment+flake*(7+4*plate[p])-
+      settings.shade*exposed+settings.shade*.085*lip-
+      settings.shade*.19*erodedPlates[p];
+    // A hint of mossy green/grey and dark weathering; no black
+    // centreline or fake precomputed lighting is baked into albedo.
+    pixels[i]=clamp(palette[0]+tone+lichen*2,28,225);
+    pixels[i+1]=clamp(palette[1]+tone*.95+lichen*11,25,220);
+    pixels[i+2]=clamp(palette[2]+tone*.88+lichen*8,23,217);
     pixels[i+3]=255;
   }
   return {width:size,height:size,pixels,heightField,profile};

@@ -52,7 +52,7 @@ test('mature bark has sparse, broad damaged areas, not hairline patterns',()=>{
   for(let i=0;i<pixels.length;i+=4){
     lo=Math.min(lo,pixels[i]!);hi=Math.max(hi,pixels[i]!);
   }
-  assert.ok(hi-lo<80,'Albedo must not draw high-contrast black incisions');
+  assert.ok(hi-lo<100,'Albedo must not draw artificial black incisions');
   const limb=generateOakBark({size,profile:'limb'});
   const young=generateOakBark({size,profile:'young'});
   const damageCount=(field:Float32Array)=>
@@ -100,6 +100,26 @@ test('oak bark is edge-continuous and has no repeated hard seam',()=>{
     'Horizontal repeat edge too visible: '+seamX+'/'+normalX);
   assert.ok(seamY<normalY*1.8,
     'Vertical repeat edge too visible: '+seamY+'/'+normalY);
+});
+
+test('material texture repeats smoothly for every bark maturity',()=>{
+  for(const profile of ['trunk','limb','young'] as const){
+    const n=256,{pixels,heightField}=generateOakBark({size:n,profile});
+    let seamColor=0,localColor=0,seamHeight=0,localHeight=0;
+    for(let y=0;y<n;y++){
+      const left=y*n,right=left+n-1;
+      for(let c=0;c<3;c++){
+        seamColor+=Math.abs(pixels[left*4+c]!-pixels[right*4+c]!);
+        localColor+=Math.abs(pixels[left*4+c]!-pixels[(left+1)*4+c]!);
+      }
+      seamHeight+=Math.abs(heightField[left]!-heightField[right]!);
+      localHeight+=Math.abs(heightField[left]!-heightField[left+1]!);
+    }
+    assert.ok(seamColor<localColor*2.2,
+      profile+' must tile in horizontal color');
+    assert.ok(seamHeight<localHeight*2.2,
+      profile+' must tile in horizontal relief');
+  }
 });
 
 test('bark generator rejects invalid dimensions or seed values',()=>{
