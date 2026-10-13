@@ -10,16 +10,14 @@ const home = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8')
 const editor = readFileSync(new URL('../tools/map-editor/web/index.html', import.meta.url), 'utf8');
 const homeJs = readFileSync(new URL('../web/dev-tool.js', import.meta.url), 'utf8');
 
-test('home lists tools honestly and editor can return to it', () => {
+test('project launcher replaces tool landing; standalone editor remains available', () => {
   assert.match(home, /<title>1400 · Dev Tool<\/title>/);
-  assert.match(home, /href="\/tools\/map-editor\/"/);
-  assert.match(home, /id="dt-map-name"/);
-  assert.match(home, /href="\/tools\/asset-procgen\/"/);
-  assert.match(home, /IN DEVELOPMENT/);
-  assert.doesNotMatch(home, /PLANNED — NOT YET AVAILABLE/);
+  assert.match(home, /id="projectList"/);
+  assert.match(home, /id="createForm"/);
+  assert.doesNotMatch(home, /dt-card-grid|PLANNED — NOT YET AVAILABLE/);
   assert.match(editor, /href="\/" aria-label="Return to Dev Tool home"/);
   assert.match(editor, /\/dev-tool\.css/);
-  assert.match(homeJs, /fetch\('\/api\/map'/);
+  assert.match(homeJs, /\/studio\//);
 });
 
 test('HTTP main menu and existing map editor are separate, working routes', async () => {
@@ -46,6 +44,9 @@ test('HTTP main menu and existing map editor are separate, working routes', asyn
       assert.match(page, /Return to Dev Tool home/);
     }
     for (const [path, type] of [
+      ['/studio.css', /text\/css/],
+      ['/launcher.css', /text\/css/],
+      ['/studio.js', /javascript/],
       ['/dev-tool.css', /text\/css/],
       ['/dev-tool.js', /javascript/],
       ['/style.css', /text\/css/],
@@ -60,6 +61,10 @@ test('HTTP main menu and existing map editor are separate, working routes', asyn
       assert.equal((await head.text()).length, 0);
     }
 
+    const studio = await get('/studio/');
+    assert.equal(studio.status,200);
+    assert.match(await studio.text(),/id="tabbar"/);
+    assert.match(studio.headers.get('content-security-policy')??'',/frame-src 'self'/);
     const api = await get('/api/map');
     assert.equal(api.status, 200);
     assert.equal((await api.json()).map.name, doc.map.name);
@@ -80,7 +85,7 @@ test('shared Dev Tool host works with no Map Editor API attached',async()=>{
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const base='http://127.0.0.1:'+address.port;
-    for(const route of ['/','/dev-tool.js','/tools/map-editor/',
+    for(const route of ['/','/studio/','/studio.js','/studio.css','/dev-tool.js','/tools/map-editor/',
       '/tools/asset-procgen/','/tools/asset-procgen/app.js']){
       const res=await fetch(base+route);
       assert.equal(res.status,200,route);
@@ -127,4 +132,23 @@ test('server ownership stays at the Dev Tool root, not inside the Map Editor',()
   assert.match(startup,/createDevToolServer\(api\)/);
   assert.match(mapApi,/createMapEditorHandler/);
   assert.doesNotMatch(mapApi,/\/tools\/asset-procgen|\/vendor\/three|staticRoutes/);
+});
+
+// Resource tabs use the same existing editor renderers and map API.
+test('studio defines project resource navigation and editor bridge',()=>{
+  const studio=readFileSync(new URL('../web/studio.html',import.meta.url),'utf8');
+  const code=readFileSync(new URL('../web/studio.js',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../web/studio.css',import.meta.url),'utf8');
+  const asset=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
+  const map=readFileSync(new URL('../tools/map-editor/web/app.js',import.meta.url),'utf8');
+  for(const id of ['projectTree','generatorTree','tabbar','editorRegion',
+    'overview','resourceSearch','projectButton'])assert.match(studio,new RegExp('id="'+id+'"'));
+  assert.match(studio,/PROJECT WORKSPACE/);
+  assert.match(code,/sessionStorage/);
+  assert.match(code,/studio:place-asset/);
+  assert.match(code,/studio:dirty/);
+  assert.match(styles,/\.studio\.editing/);
+  assert.match(asset,/studio:asset-saved/);
+  assert.match(map,/studio:open-asset/);
+  assert.match(map,/studio:map-saved/);
 });

@@ -111,7 +111,13 @@ test('project API is isolated and rejects cross-origin modifications',async()=>{
       assert.equal(bad.status,400);
       const project=await request('/api/projects','POST',{id:'world',name:'World'});
       assert.equal(project.status,201);
-      const asset=await request('/api/projects/active/assets','POST',{id:'oak-a',...oak()});
+      const stale=await request('/api/projects/active/assets','POST',{id:'stale',...oak()});
+      assert.equal(stale.status,409,'Stale editor cannot create an asset in another project');
+      const asset=await fetch(url+'/api/projects/active/assets',{
+        method:'POST',headers:{Origin:url,'Content-Type':'application/json',
+          'X-Project-Id':'world'},
+        body:JSON.stringify({id:'oak-a',...oak()}),
+      });
       assert.equal(asset.status,201);
       const entry=await asset.json();
       assert.equal(entry.source.generator.id,'oak');

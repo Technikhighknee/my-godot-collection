@@ -233,6 +233,7 @@ function selectGenerator(id){
     'WHEEL ZOOM · DRAG PAN · CLICK A TILE · ALPHA CHANNEL';
   renderSeedControls();
   if(build()&&def.kind==='model')modelViewport.focus('whole');
+  if(loadedProjectAsset&&loadedProjectAsset.source.generator.id!==id)setRecipeDirty(true);
 }
 renderMobileChoices();
 library=createAssetLibrary({

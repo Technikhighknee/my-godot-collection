@@ -1,4 +1,31 @@
-# 1400 Dev Tool
+# Dev Tool
+
+## Studio workbench
+
+The launcher at `/` creates and opens projects. Editing takes place in
+`/studio/`, a persistent workbench with project resources, search (Ctrl+K),
+a generator catalog and editor tabs. Switching tabs preserves the browser
+editor session; sessionStorage restores open documents after reload, but
+**unsaved edits do not survive a full page reload**.
+
+- Browse **Worlds**, **Models**, **Images & Materials**. Open a saved
+  source in its specialized editor, or create one from the generator catalog.
+- Asset ProcGen saves, loads and updates project-owned recipes. Saving
+  refreshes the project explorer.
+- Map placements with a saved `asset:<id>` reference can open their source.
+  The studio can select a saved model to place as a **point marker**. The
+  full generated mesh is not yet previewed inside the map.
+- Map documents still use one globally active map from the existing Map
+  Workspace API. The studio therefore keeps one map editor session but
+  supports multiple asset editor tabs. Changing the map prompts if there
+  are unsaved edits.
+- Editor tabs signal unsaved state to the studio. Switching projects
+  invalidates stale sessions; project asset writes require the matching
+  project identity as well as same-origin protection.
+
+The standalone editor routes remain for compatibility. This workbench
+reuses their rendering and edit functionality rather than duplicating
+procedural geometry or adding a new runtime renderer.
 
 ## Projects (source workspaces)
 

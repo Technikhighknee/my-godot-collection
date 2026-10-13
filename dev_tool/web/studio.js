@@ -340,7 +340,7 @@ function saveAssetEvent(tab,message){
   if(message.id&&tab.kind==='new'){
     const old=tab.key;const key='asset:'+message.id;
     if(!tabs.has(key)){
-      tabs.delete(old);tab.key=key;tab.id=message.id;tab.kind='model';tabs.set(key,tab);
+      tabs.delete(old);tab.key=key;tab.id=message.id;tabs.set(key,tab);
       activeTab=key;
     }
   }
