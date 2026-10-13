@@ -257,8 +257,12 @@ export function paintTimberTexture(canvas,seeds,view='albedo',profile='beam'){
       const rough=Math.round(255*m.roughness[p]);
       d[i]=rough;d[i+1]=rough;d[i+2]=rough;
     }else{
-      const dx=(m.height[y*SIZE+wrap(x+1)]-m.height[y*SIZE+wrap(x-1)])*3;
-      const dy=(m.height[wrap(y+1)*SIZE+x]-m.height[wrap(y-1)*SIZE+x])*3;
+      // Crosscut caps are clamped, while beam and panel surfaces tile.
+      const sample=(x0,y0)=>m.height[
+        (profile==='end'?clamp(y0,0,SIZE-1):wrap(y0))*SIZE+
+        (profile==='end'?clamp(x0,0,SIZE-1):wrap(x0))];
+      const dx=(sample(x+1,y)-sample(x-1,y))*3;
+      const dy=(sample(x,y+1)-sample(x,y-1))*3;
       const length=Math.hypot(dx,dy,1);
       d[i]=Math.round(127.5*(1-dx/length));
       d[i+1]=Math.round(127.5*(1-dy/length));
