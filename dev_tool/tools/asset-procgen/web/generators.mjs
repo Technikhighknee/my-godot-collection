@@ -13,6 +13,7 @@ import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
 import {makeRoofAsset} from './roof-textures.mjs';
 import {makeTimberAsset} from './timber-textures.mjs';
+import {makePlasterAsset} from './plaster-textures.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -120,6 +121,23 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
+    id:'plaster-lime',kind:'image',symbol:'▦',
+    label:'Lime plaster',subtitle:'Warm hand-applied mineral facade render',
+    libraryPath:Object.freeze(['Textures','Walls']),
+    navLabel:'Lime plaster',navType:'Texture',
+    generate:seeds=>makePlasterAsset(seeds),
+    overline:'PROJECT TEXTURES / PLASTER',
+    title:'Lime plaster.',
+    description:'Warm game-stylized lime render with subtle trowel undulations, grain and weathering. Tileable albedo, normal and roughness channels; reuse one material across timber-frame facade panels.',
+    previewLabel:'Warm hand-applied lime plaster',
+    initialMasterSeed:47519,
+    components:Object.freeze([
+      Object.freeze({id:'structure',label:'Plaster application',initialSeed:47519}),
+      Object.freeze({id:'pigment',label:'Mineral coloration',initialSeed:20468}),
+      Object.freeze({id:'wear',label:'Surface wear',initialSeed:90571}),
+    ]),
+  }),
+  Object.freeze({
     id:'timber-building',kind:'model',symbol:'⌂',
     label:'Timber-frame building',subtitle:'Three upgrade levels · optional empty interior',
     libraryPath:Object.freeze(['Architecture','Buildings','Timber frame']),
@@ -128,6 +146,8 @@ export const GENERATORS=Object.freeze([
     defaultOptions:DEFAULT_BUILDING_OPTIONS,
     validateOptions:validateBuildingOptions,
     materialSlots:Object.freeze([
+      Object.freeze({id:'facadePlaster',label:'Lime plaster · facades',
+        generators:Object.freeze(['plaster-lime'])}),
       Object.freeze({id:'timberWood',label:'Oak structural timber',
         generators:Object.freeze(['timber-oak'])}),
       Object.freeze({id:'roofThatch',label:'Thatch · level 1',
