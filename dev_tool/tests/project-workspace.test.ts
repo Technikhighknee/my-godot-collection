@@ -265,3 +265,39 @@ test('timber material assets can be reused and reseeded across buildings',async(
     }),/Material/);
   });
 });
+
+
+test('one lime plaster material is reusable across building facade variants',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('lime-work','Lime Work');
+    const plaster=await lib.createAsset('warm-lime',{
+      name:'Warm lime plaster',generator:'plaster-lime',masterSeed:47519,
+      components:{structure:47519,pigment:20468,wear:90571},
+    });
+    const house=(name:string)=>({
+      name,generator:'timber-building',masterSeed:19043,
+      components:{structure:19043,material:62191},
+      options:{width:9,depth:11,stories:1,roofPitch:43,interior:'shell'},
+      materials:{facadePlaster:'asset:warm-lime'},
+    });
+    const tavern=await lib.createAsset('tavern',house('Tavern'));
+    await lib.createAsset('bakery',house('Bakery'));
+    assert.deepEqual(tavern.source.dependencies,['asset:warm-lime']);
+    assert.deepEqual((await lib.graph()).edges.filter(e=>e.to==='asset:warm-lime')
+      .map(e=>e.from).sort(),['asset:bakery','asset:tavern']);
+    const updated=await lib.updateAsset('warm-lime',{
+      name:'Warm lime plaster',generator:'plaster-lime',masterSeed:47520,
+      components:{structure:47520,pigment:20468,wear:90571},
+    },plaster.revision);
+    assert.notEqual(updated.revision,plaster.revision);
+    assert.equal((await lib.asset('tavern')).source.materials!.facadePlaster,
+      'asset:warm-lime');
+    await assert.rejects(lib.createAsset('missing-lime',{
+      ...house('Wrong'),materials:{facadePlaster:'asset:missing'},
+    }),/Material/);
+    await assert.rejects(lib.createAsset('wrong-type',{
+      ...house('Wrong'),materials:{timberWood:'asset:warm-lime'},
+    }),/Material/);
+  });
+});
