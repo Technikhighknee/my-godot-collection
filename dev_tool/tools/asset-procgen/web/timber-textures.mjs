@@ -1,5 +1,7 @@
 // Tileable hewn timber material: grain runs along V, without board joins.
 export const TIMBER_TEXTURE_SIZE=512;
+export const TIMBER_BEAM_STRIPS=4;
+export const TIMBER_BEAM_HEIGHT=TIMBER_TEXTURE_SIZE*TIMBER_BEAM_STRIPS;
 export const TIMBER_VIEWS=Object.freeze(['albedo','normal','roughness']);
 export const TIMBER_PROFILES=Object.freeze(['beam','end','panel']);
 const SIZE=TIMBER_TEXTURE_SIZE;
@@ -141,6 +143,46 @@ function generateTimber(seeds){
       strength,-.02,-.045,-.035,-.026,.025);
   }
   return {albedo,height,roughness};
+}
+
+// Four distinct *continuous* oak sections baked into one long texture.
+// Long beams no longer have to smear one 512px square over 10–20 metres.
+// Transition bands match both ends of the atlas, so repeat wrapping remains
+// seamless for unusual lengths while the normal and roughness maps agree.
+function generateLongTimber(seeds,base){
+  const variants=[base];
+  for(let i=1;i<TIMBER_BEAM_STRIPS;i++){
+    const grain=hash(i,seeds.grain>>>0,0x94be8319)*0x100000000>>>0;
+    variants.push(generateTimber({...seeds,grain}));
+  }
+  const heightPixels=TIMBER_BEAM_HEIGHT;
+  const pixels=SIZE*heightPixels;
+  const albedo=new Float32Array(pixels*3);
+  const height=new Float32Array(pixels);
+  const roughness=new Float32Array(pixels);
+  const fade=42;
+  for(let y=0;y<heightPixels;y++){
+    const strip=Math.floor(y/SIZE),local=y%SIZE;
+    let first=strip,second=strip,weight=0;
+    if(local<fade){
+      first=(strip+TIMBER_BEAM_STRIPS-1)%TIMBER_BEAM_STRIPS;
+      second=strip;
+      weight=smooth(.5+local/(fade*2));
+    }else if(local>=SIZE-fade){
+      first=strip;second=(strip+1)%TIMBER_BEAM_STRIPS;
+      weight=smooth((local-(SIZE-fade))/(fade*2));
+    }
+    for(let x=0;x<SIZE;x++){
+      const p=y*SIZE+x,q=local*SIZE+x;
+      const source=variants[first],other=variants[second];
+      height[p]=mix(source.height[q],other.height[q],weight);
+      roughness[p]=mix(source.roughness[q],other.roughness[q],weight);
+      for(let channel=0;channel<3;channel++)
+        albedo[p*3+channel]=mix(source.albedo[q*3+channel],
+          other.albedo[q*3+channel],weight);
+    }
+  }
+  return {width:SIZE,height:heightPixels,albedo,heightMap:height,roughness};
 }
 
 // The crosscut and flat-sawn profiles are views of the SAME oak surface.
@@ -294,11 +336,10 @@ function material(seeds,profile){
   if(!cache||cache.grain!==seeds.grain||cache.color!==seeds.color)
     cache={grain:seeds.grain,color:seeds.color,profiles:new Map()};
   if(!cache.profiles.has(profile)){
-    if(profile!=='beam'&&!cache.profiles.has('beam'))
-      cache.profiles.set('beam',generateTimber(seeds));
-    const data=profile==='beam'?generateTimber(seeds):
-      profile==='end'?generateEndGrain(seeds,cache.profiles.get('beam')):
-        generateWideWood(seeds,cache.profiles.get('beam'));
+    if(!cache.base)cache.base=generateTimber(seeds);
+    const data=profile==='beam'?generateLongTimber(seeds,cache.base):
+      profile==='end'?generateEndGrain(seeds,cache.base):
+        generateWideWood(seeds,cache.base);
     cache.profiles.set(profile,data);
   }
   return cache.profiles.get(profile);
@@ -308,12 +349,15 @@ export function paintTimberTexture(canvas,seeds,view='albedo',profile='beam'){
   if(!TIMBER_PROFILES.includes(profile))throw Error('Unknown timber profile');
   for(const key of ['grain','color'])if(!Number.isInteger(seeds?.[key])||
     seeds[key]<0||seeds[key]>0xffffffff)throw Error('Invalid timber seed: '+key);
-  canvas.width=SIZE;canvas.height=SIZE;
+  const m=material(seeds,profile);
+  const width=m.width??SIZE,height=m.height??SIZE;
+  canvas.width=width;canvas.height=height;
   const ctx=canvas.getContext('2d');
   if(!ctx)throw Error('2D canvas context required');
-  const image=ctx.createImageData(SIZE,SIZE),d=image.data,m=material(seeds,profile);
-  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
-    const p=y*SIZE+x,i=p*4;
+  const image=ctx.createImageData(width,height),d=image.data;
+  const heights=m.heightMap??m.height;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const p=y*width+x,i=p*4;
     if(view==='albedo'){
       for(let channel=0;channel<3;channel++)
         d[i+channel]=Math.round(255*m.albedo[p*3+channel]);
@@ -322,9 +366,10 @@ export function paintTimberTexture(canvas,seeds,view='albedo',profile='beam'){
       d[i]=rough;d[i+1]=rough;d[i+2]=rough;
     }else{
       // Crosscut caps are clamped, while beam and panel surfaces tile.
-      const sample=(x0,y0)=>m.height[
-        (profile==='end'?clamp(y0,0,SIZE-1):wrap(y0))*SIZE+
-        (profile==='end'?clamp(x0,0,SIZE-1):wrap(x0))];
+      const sample=(x0,y0)=>heights[
+        (profile==='end'?clamp(y0,0,height-1):
+          (y0%height+height)%height)*width+
+        (profile==='end'?clamp(x0,0,width-1):wrap(x0))];
       const dx=(sample(x+1,y)-sample(x-1,y))*3;
       const dy=(sample(x,y+1)-sample(x,y-1))*3;
       const length=Math.hypot(dx,dy,1);
@@ -337,7 +382,13 @@ export function paintTimberTexture(canvas,seeds,view='albedo',profile='beam'){
   ctx.putImageData(image,0,0);
 }
 export function makeTimberAsset(seeds){
-  return {id:'timber-oak',kind:'image',width:SIZE,height:SIZE,
+  return {id:'timber-oak',kind:'image',width:SIZE,height:TIMBER_BEAM_HEIGHT,
+    // The inspector can display actual source dimensions for each cut.
+    profileSizes:{
+      beam:{width:SIZE,height:TIMBER_BEAM_HEIGHT},
+      end:{width:SIZE,height:SIZE},
+      panel:{width:SIZE,height:SIZE},
+    },
     channels:'RGBA',views:TIMBER_VIEWS,profiles:TIMBER_PROFILES,
     sourceSeeds:{grain:seeds.grain,color:seeds.color},
     paint:(canvas,view='albedo',profile='beam')=>
