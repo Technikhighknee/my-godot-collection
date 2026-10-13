@@ -377,7 +377,14 @@ function saveAssetEvent(tab,message){
   if(message.name)renameTab(tab,message.name);
   tab.button.classList.remove('modified');
   refreshResources().catch(e=>showError(e.message));
+  broadcastProjectAssets(tab);
   persisted();
+}
+function broadcastProjectAssets(sender){
+  for(const tab of tabs.values())
+    if(tab!==sender&&tab.ready)tab.frame.contentWindow?.postMessage({
+      type:'studio:project-assets-changed',projectId:project.id,
+    },location.origin);
 }
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin)return;
@@ -390,6 +397,9 @@ window.addEventListener('message',event=>{
     tab.button.querySelector('.tab-label').textContent=tab.label+(tab.dirty?' ●':'');
   }else if(msg.type==='studio:asset-saved'){
     saveAssetEvent(tab,msg);
+  }else if(msg.type==='studio:project-assets-changed'){
+    refreshResources().then(()=>broadcastProjectAssets(tab))
+      .catch(e=>showError(e.message));
   }else if(msg.type==='studio:map-saved'){
     tab.dirty=false;
     refreshResources().catch(e=>showError(e.message));

@@ -32,6 +32,50 @@ document.addEventListener('keydown',event=>{
   }
 });
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
+const projectAssets=new Map();
+const materialAssignments=new Map();
+const selectedMaterials=()=>materialAssignments.get(active.id)??{};
+function materialImages(){
+  if(!active.materialSlots)return {};
+  const assigned=selectedMaterials(),images={};
+  for(const slot of active.materialSlots){
+    const asset=projectAssets.get(assigned[slot.id]?.slice('asset:'.length));
+    const definition=asset?findGenerator(asset.source.generator.id):
+      findGenerator(slot.generators[0]);
+    if(!definition||definition.kind!=='image')continue;
+    images[slot.id]=generateAsset(definition,
+      asset?.source.generator.components??createSeedState(definition).components);
+  }
+  return images;
+}
+function renderMaterialSelects(){
+  if(!active.materialSlots)return;
+  const current=selectedMaterials();
+  for(const slot of active.materialSlots){
+    const picker=byId(slot.id+'Asset');
+    if(!picker)continue;
+    picker.replaceChildren();
+    const fallback=document.createElement('option');
+    fallback.value='';fallback.textContent='Generator default (unsaved)';
+    picker.append(fallback);
+    for(const entry of projectAssets.values()){
+      if(!slot.generators.includes(entry.source.generator.id))continue;
+      const choice=document.createElement('option');
+      choice.value='asset:'+entry.source.id;
+      choice.textContent=entry.source.name;
+      picker.append(choice);
+    }
+    const value=current[slot.id]??'';
+    if(value&&!projectAssets.has(value.slice('asset:'.length))){
+      const missing=document.createElement('option');
+      missing.value=value;missing.textContent='Missing: '+value;
+      picker.append(missing);
+    }
+    picker.value=value;
+    byId(slot.id+'Edit').disabled=!value||!projectAssets.has(value.slice('asset:'.length));
+    byId(slot.id+'Reseed').disabled=!value||!projectAssets.has(value.slice('asset:'.length));
+  }
+}
 const optionsByGenerator=new Map(GENERATORS.filter(def=>def.defaultOptions)
   .map(def=>[def.id,{...def.defaultOptions}]));
 let currentBuildingView='exterior';
@@ -40,6 +84,7 @@ const currentBuildingOptions=()=>optionsByGenerator.get(active.id);
 function renderBuildingControls(){
   const show=isBuilding();
   byId('buildingSettings').hidden=!show;
+  byId('buildingMaterials').hidden=!show;
   byId('buildingViewButtons').hidden=!show;
   byId('foot').hidden=show;
   byId('crown').hidden=show;
@@ -53,6 +98,7 @@ function renderBuildingControls(){
     byId(id).value=String(o[property]);
   byId('buildingInterior').disabled=o.interior==='none';
   if(o.interior==='none')currentBuildingView='exterior';
+  renderMaterialSelects();
   const view=currentBuildingView;
   byId('buildingExterior').setAttribute('aria-pressed',String(view==='exterior'));
   byId('buildingInterior').setAttribute('aria-pressed',String(view==='interior'));
@@ -160,7 +206,7 @@ function build(state=seeds()){
     if(asset.kind==='model'){
       if(!modelViewport)
         modelViewport=createModelViewport(byId('viewport'),updatePreviewControls);
-      stats=modelViewport.render(asset);
+      stats=modelViewport.render(asset,asset.building?materialImages():undefined);
       if(asset.building){
         if(currentBuildingView==='interior'&&asset.building.interior)
           modelViewport.setBuildingView('interior');
@@ -404,7 +450,6 @@ try{
 
 // Project asset sources are named, persistent recipes. The generator registry
 // is independent: loading a recipe simply restores its seeds.
-const projectAssets=new Map();
 const projectEl=id=>document.getElementById(id);
 function assetStatus(message){projectEl('projectAssetStatus').textContent=message;}
 async function projectApi(path,options){
@@ -435,6 +480,7 @@ async function reloadProjectAssets(){
   selector.value=projectAssets.has(previous)?previous:'';
   if(loadedProjectAsset&&!projectAssets.has(loadedProjectAsset.source.id))
     loadedProjectAsset=null;
+  renderMaterialSelects();
   assetStatus(assets.length+' saved project assets');
 }
 async function projectOperation(action){
@@ -444,7 +490,8 @@ function currentRecipe(){
   const state=seeds();
   return {name:projectEl('projectAssetName').value.trim(),generator:active.id,
     masterSeed:state.masterSeed,components:state.components,
-    ...(active.defaultOptions?{options:currentBuildingOptions()}:{})};
+    ...(active.defaultOptions?{options:currentBuildingOptions()}:{}),
+    ...(active.materialSlots?{materials:{...selectedMaterials()}}:{})};
 }
 async function loadSelectedProjectAsset(){
   const id=projectEl('savedProjectAssets').value;
@@ -458,6 +505,8 @@ async function loadSelectedProjectAsset(){
   if(gen.defaultOptions)
     optionsByGenerator.set(gen.id,gen.validateOptions(
       entry.source.options??gen.defaultOptions));
+  if(gen.materialSlots)
+    materialAssignments.set(gen.id,{...entry.source.materials});
   currentBuildingView='exterior';
   byId('buildingLevel').value='1';
   loadedProjectAsset=entry;
@@ -467,6 +516,82 @@ async function loadSelectedProjectAsset(){
   setRecipeDirty(false);
   assetStatus('Loaded '+entry.source.name);
 }
+
+// Model material slots are shared project-source references, not embedded textures.
+// A material editor can be opened from the model; reseeding updates the shared
+// source (with revision checking), so every referencing model sees the change.
+async function changeSharedRoof(slot,action){
+  if(!projectId)throw Error('Create or open a project first');
+  const value=selectedMaterials()[slot];
+  const entry=value?projectAssets.get(value.slice('asset:'.length)):null;
+  const definition=findGenerator(slot==='roofThatch'?'roof-thatch':'roof-clay');
+  if(!definition)throw Error('Roof generator unavailable');
+  if(action==='new'){
+    const id=definition.id+'-'+randomSeed().toString(36);
+    const name=slot==='roofThatch'?'Thatched roof · ':'Clay tiles · ';
+    const state=updateMasterSeed(definition,createSeedState(definition),randomSeed());
+    const created=await projectApi('/api/projects/active/assets',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id,name:name+id, generator:definition.id,
+        masterSeed:state.masterSeed,components:state.components}),
+    });
+    materialAssignments.set(active.id,{...selectedMaterials(),
+      [slot]:'asset:'+created.source.id});
+    setRecipeDirty(true);
+    await reloadProjectAssets();
+    build();
+    studioSignal({type:'studio:project-assets-changed'});
+    assetStatus('Created '+created.source.name+' · Save this building to keep the link.');
+    return;
+  }
+  if(!entry)throw Error('Select a saved texture first');
+  if(action==='edit'){
+    studioSignal({type:'studio:open-asset',id:entry.source.id});
+    return;
+  }
+  if(action==='reseed'){
+    const state=updateMasterSeed(definition,{
+      masterSeed:entry.source.generator.masterSeed,
+      components:{...entry.source.generator.components},
+    },randomSeed());
+    const updated=await projectApi('/api/projects/active/assets/'+entry.source.id,{
+      method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({revision:entry.revision,name:entry.source.name,
+        generator:definition.id,masterSeed:state.masterSeed,
+        components:state.components}),
+    });
+    projectAssets.set(updated.source.id,updated);
+    await reloadProjectAssets();
+    build();
+    studioSignal({type:'studio:project-assets-changed'});
+    assetStatus('Reseeded shared texture '+updated.source.name+'. All linked models use its new seed.');
+  }
+}
+for(const slot of ['roofThatch','roofClay']){
+  byId(slot+'Asset').addEventListener('change',event=>{
+    const value=event.target.value;
+    materialAssignments.set(active.id,{...selectedMaterials(),
+      ...(value?{[slot]:value}:{[slot]:undefined})});
+    const next=selectedMaterials();
+    for(const key of Object.keys(next))if(!next[key])delete next[key];
+    renderMaterialSelects();
+    setRecipeDirty(true);
+    build();
+  });
+  for(const [action,suffix] of [['new','New'],['edit','Edit'],['reseed','Reseed']])
+    byId(slot+suffix).addEventListener('click',()=>
+      projectOperation(()=>changeSharedRoof(slot,action)));
+}
+window.addEventListener('message',event=>{
+  if(event.origin!==location.origin||event.source!==window.parent||
+    event.data?.type!=='studio:project-assets-changed'||
+    event.data.projectId!==projectId)return;
+  projectOperation(async()=>{
+    await reloadProjectAssets();
+    if(isBuilding())build();
+  });
+});
+
 projectEl('loadProjectAsset').addEventListener('click',
   ()=>projectOperation(loadSelectedProjectAsset));
 projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(async()=>{

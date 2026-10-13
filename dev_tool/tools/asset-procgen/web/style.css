@@ -235,3 +235,11 @@
 .pg-building-view button[aria-pressed=true]{background:#625541;
   border-color:#d7b689;color:#f7e2bf}
 .pg-camera-tools .pg-building-view button{padding:8px}
+
+.pg-roof-slot{display:flex;flex-direction:column;gap:7px}
+.pg-roof-actions{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:6px}
+.pg-roof-actions button{min-width:0;padding:9px 4px;border-radius:5px;
+  border:1px solid #53675f;background:#1d3431;color:#e5e7dc;
+  font-size:11px;cursor:pointer}
+.pg-roof-actions button:hover:not(:disabled){background:#34544b}
+.pg-roof-actions button:disabled{opacity:.38;cursor:not-allowed}
