@@ -7,7 +7,7 @@ export interface BuildingOpening {
 }
 export interface BuildingPart {
   material:string;positions:Float32Array;normals:Float32Array;
-  uvs:Float32Array;indices:Uint32Array;
+  uvs:Float32Array;indices:Uint32Array;colors?:Float32Array;
 }
 export interface BuildingMesh {
   parts:BuildingPart[];bounds:{min:number[];max:number[]};triangles:number;
