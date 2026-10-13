@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TIMBER_TEXTURE_SIZE,TIMBER_VIEWS,TIMBER_PROFILES,makeTimberAsset,paintTimberTexture}
+import {TIMBER_TEXTURE_SIZE,TIMBER_BEAM_HEIGHT,TIMBER_BEAM_STRIPS,TIMBER_VIEWS,TIMBER_PROFILES,makeTimberAsset,paintTimberTexture}
   from '../tools/asset-procgen/web/timber-textures.mjs';
 
 function capture(seeds:{grain:number;color:number},view='albedo',profile='beam'){
@@ -15,12 +15,14 @@ function capture(seeds:{grain:number;color:number},view='albedo',profile='beam')
   };
   paintTimberTexture(canvas as unknown as HTMLCanvasElement,seeds,view,profile);
   assert.equal(canvas.width,512);
-  assert.equal(canvas.height,512);
+  assert.equal(canvas.height,profile==='beam'?TIMBER_BEAM_HEIGHT:512);
   assert.ok(result.bytes);
   return result.bytes;
 }
 test('timber creates deterministic independent PBR textures',()=>{
   assert.equal(TIMBER_TEXTURE_SIZE,512);
+  assert.equal(TIMBER_BEAM_STRIPS,4);
+  assert.equal(TIMBER_BEAM_HEIGHT,2048);
   assert.deepEqual(TIMBER_VIEWS,['albedo','normal','roughness']);
   assert.deepEqual(TIMBER_PROFILES,['beam','end','panel']);
   const seeds={grain:37821,color:19257};
@@ -42,21 +44,29 @@ test('timber creates deterministic independent PBR textures',()=>{
   assert.throws(()=>capture(seeds,'height'),/channel/);
 });
 test('timber grain follows V and repeats without a hard border',()=>{
-  const size=TIMBER_TEXTURE_SIZE;
+  const width=TIMBER_TEXTURE_SIZE,height=TIMBER_BEAM_HEIGHT;
   const a=capture({grain:37821,color:19257});
-  const at=(x:number,y:number)=>a[(y*size+x)*4];
+  const at=(x:number,y:number)=>a[(y*width+x)*4];
   let across=0,along=0,seamU=0,seamV=0;
-  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
     if(x)across+=Math.abs(at(x,y)-at(x-1,y));
     if(y)along+=Math.abs(at(x,y)-at(x,y-1));
-    if(!x)seamU+=Math.abs(at(0,y)-at(size-1,y));
-    if(!y)seamV+=Math.abs(at(x,0)-at(x,size-1));
+    if(!x)seamU+=Math.abs(at(0,y)-at(width-1,y));
+    if(!y)seamV+=Math.abs(at(x,0)-at(x,height-1));
   }
-  across/=size*(size-1);
-  along/=size*(size-1);
+  across/=height*(width-1);
+  along/=width*(height-1);
   assert.ok(across>along*2,'Wood grain must run along V, not across beams');
-  assert.ok(seamU/size<across*2.5,'U seam must remain unobtrusive');
-  assert.ok(seamV/size<along*2.5,'V seam must remain unobtrusive');
+  assert.ok(seamU/height<across*2.5,'U seam must remain unobtrusive');
+  assert.ok(seamV/width<along*2.5,'V seam must remain unobtrusive');
+  // Different longitudinal strips should not contain the same knots,
+  // even though they remain one texture asset and one mesh material.
+  for(let strip=1;strip<TIMBER_BEAM_STRIPS;strip++){
+    let changed=0;
+    for(let y=80;y<420;y+=3)for(let x=20;x<width-20;x+=5)
+      changed+=Math.abs(at(x,y)-at(x,y+strip*width));
+    assert.ok(changed>20000,'Long strips must contain distinct grain');
+  }
 });
 
 
@@ -64,6 +74,9 @@ test('shared wood source has different crosscut and broad-face PBR profiles',()=
   const seeds={grain:37821,color:19257};
   const asset=makeTimberAsset(seeds);
   assert.deepEqual(asset.profiles,['beam','end','panel']);
+  assert.deepEqual(asset.profileSizes.beam,{width:512,height:2048});
+  assert.deepEqual(asset.profileSizes.end,{width:512,height:512});
+  assert.deepEqual(asset.profileSizes.panel,{width:512,height:512});
   const colors=TIMBER_PROFILES.map(profile=>capture(seeds,'albedo',profile));
   const normals=TIMBER_PROFILES.map(profile=>capture(seeds,'normal',profile));
   const roughness=TIMBER_PROFILES.map(profile=>capture(seeds,'roughness',profile));
@@ -86,17 +99,18 @@ test('three oak profiles keep one material palette and sharp panel fibers',()=>{
     const result=TIMBER_PROFILES.map(profile=>{
       const image=capture(seeds,'albedo',profile);
       let sum=0,across=0,along=0;
-      for(let y=0;y<TIMBER_TEXTURE_SIZE;y++)
-        for(let x=0;x<TIMBER_TEXTURE_SIZE;x++){
-          const i=(y*TIMBER_TEXTURE_SIZE+x)*4;
+      const width=TIMBER_TEXTURE_SIZE;
+      const height=profile==='beam'?TIMBER_BEAM_HEIGHT:TIMBER_TEXTURE_SIZE;
+      for(let y=0;y<height;y++)
+        for(let x=0;x<width;x++){
+          const i=(y*width+x)*4;
           sum+=image[i];
           if(x)across+=Math.abs(image[i]-image[i-4]);
-          if(y)along+=Math.abs(image[i]-
-            image[i-TIMBER_TEXTURE_SIZE*4]);
+          if(y)along+=Math.abs(image[i]-image[i-width*4]);
         }
-      const pixels=TIMBER_TEXTURE_SIZE**2;
-      return {mean:sum/pixels,across:across/(pixels-TIMBER_TEXTURE_SIZE),
-        along:along/(pixels-TIMBER_TEXTURE_SIZE)};
+      const pixels=width*height;
+      return {mean:sum/pixels,across:across/(pixels-height),
+        along:along/(pixels-width)};
     });
     const means=result.map(v=>v.mean);
     assert.ok(Math.max(...means)-Math.min(...means)<10,
@@ -113,7 +127,8 @@ test('three oak profiles keep one material palette and sharp panel fibers',()=>{
     const a=capture(seeds,'albedo','beam');
     const b=capture(seeds,'albedo','panel');
     let absolute=0;
-    for(let i=0;i<a.length;i+=4)absolute+=Math.abs(a[i]-b[i]);
+    // Compare the same-sized first oak strip to the square panel.
+    for(let i=0;i<b.length;i+=4)absolute+=Math.abs(a[i]-b[i]);
     assert.ok(absolute/(TIMBER_TEXTURE_SIZE**2)>8,
       'Panel grain must not be a trivially warped duplicate of the beam');
   }
