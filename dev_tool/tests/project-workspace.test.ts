@@ -4,6 +4,7 @@ import {mkdtemp,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ProjectLibrary,validateSource} from '../src/projects/library.ts';
+import {findGenerator} from '../tools/asset-procgen/web/generators.mjs';
 import {createProjectRouter} from '../src/projects/router.ts';
 import {createDevToolServer} from '../src/server.ts';
 
@@ -19,7 +20,7 @@ const oak=(name='An oak')=>({name,generator:'oak',masterSeed:101,
 
 test('projects own persistent maps, recipes, and stable cross-tool references',async()=>{
   await temporary(async root=>{
-    const lib=await ProjectLibrary.open(root);
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
     assert.deepEqual(await lib.list(),[]);
     const project=await lib.create('guild-world','Guild World');
     assert.equal(project.format,'devtool-project');
@@ -45,7 +46,7 @@ test('projects own persistent maps, recipes, and stable cross-tool references',a
     await lib.select('guild-world');
     assert.equal((await lib.asset('fir-one')).source.name,'Sample fir');
     assert.equal((await lib.graph()).edges.length,1);
-    const reopened=await ProjectLibrary.open(root);
+    const reopened=await ProjectLibrary.open(root,undefined,findGenerator);
     assert.equal(reopened.active()?.id,'guild-world');
     assert.equal((await reopened.mapWorkspace()!.list()).length,1);
     assert.equal((await reopened.assets()).length,1);
@@ -55,7 +56,7 @@ test('projects own persistent maps, recipes, and stable cross-tool references',a
 });
 test('recipes validate known generators, seeds and revision conflicts',async()=>{
   await temporary(async root=>{
-    const lib=await ProjectLibrary.open(root);
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
     await lib.create('test-world','Test');
     for(const bad of [
       {...fir(),components:{}},
@@ -87,13 +88,13 @@ test('recipes validate known generators, seeds and revision conflicts',async()=>
       dependencies:['asset:linked']})+'\n');
     await assert.rejects(lib.updateAsset('linked',fir('Cycle'),edited.revision),
       /dependency cycle/i);
-    assert.throws(()=>validateSource({...first.source,dependencies:['asset:fir-one']}),
+    assert.throws(()=>validateSource({...first.source,dependencies:['asset:fir-one']},undefined,findGenerator),
       /Invalid asset dependencies/);
   });
 });
 test('project API is isolated and rejects cross-origin modifications',async()=>{
   await temporary(async root=>{
-    const lib=await ProjectLibrary.open(root);
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
     const definitions={buildings:[]};
     const server=createDevToolServer(createProjectRouter(lib,definitions));
     await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));

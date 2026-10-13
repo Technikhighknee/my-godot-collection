@@ -9,6 +9,7 @@ import {createMapEditorHandler} from '../tools/map-editor/src/server.ts';
 import {MapWorkspace} from '../tools/map-editor/src/editing/map-workspace.ts';
 import {ProjectLibrary} from './projects/library.ts';
 import {createProjectRouter} from './projects/router.ts';
+import {findGenerator} from '../tools/asset-procgen/web/generators.mjs';
 
 const args=process.argv.slice(2);
 function option(name:string,otherwise?:string){
@@ -49,7 +50,7 @@ if(args.includes('--help')||args.includes('-h')){
     }else{
       const projectDir=resolve(option('--projects-dir',
         fileURLToPath(new URL('../projects',import.meta.url)))!);
-      const library=await ProjectLibrary.open(projectDir,definitions);
+      const library=await ProjectLibrary.open(projectDir,definitions,findGenerator);
       api=createProjectRouter(library,definitions);
       label='projects: '+projectDir;
     }
