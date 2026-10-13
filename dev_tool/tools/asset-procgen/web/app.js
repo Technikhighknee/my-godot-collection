@@ -524,14 +524,14 @@ async function changeSharedMaterial(slot,action){
   if(!projectId)throw Error('Create or open a project first');
   const value=selectedMaterials()[slot];
   const entry=value?projectAssets.get(value.slice('asset:'.length)):null;
-  const generatorId={timberWood:'timber-oak',roofThatch:'roof-thatch',
-    roofClay:'roof-clay'}[slot];
+  const generatorId={facadePlaster:'plaster-lime',timberWood:'timber-oak',
+    roofThatch:'roof-thatch',roofClay:'roof-clay'}[slot];
   const definition=findGenerator(generatorId);
   if(!definition)throw Error('Material generator unavailable');
   if(action==='new'){
     const id=definition.id+'-'+randomSeed().toString(36);
-    const name={timberWood:'Hewn oak · ',roofThatch:'Thatched roof · ',
-      roofClay:'Clay tiles · '}[slot];
+    const name={facadePlaster:'Lime plaster · ',timberWood:'Hewn oak · ',
+      roofThatch:'Thatched roof · ',roofClay:'Clay tiles · '}[slot];
     const state=updateMasterSeed(definition,createSeedState(definition),randomSeed());
     const created=await projectApi('/api/projects/active/assets',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -577,7 +577,7 @@ async function changeSharedMaterial(slot,action){
     assetStatus('Reseeded shared texture '+updated.source.name+'. All linked models use its new seed.');
   }
 }
-for(const slot of ['timberWood','roofThatch','roofClay']){
+for(const slot of ['facadePlaster','timberWood','roofThatch','roofClay']){
   byId(slot+'Asset').addEventListener('change',event=>{
     const value=event.target.value;
     materialAssignments.set(active.id,{...selectedMaterials(),
