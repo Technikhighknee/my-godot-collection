@@ -132,25 +132,21 @@ function geometryBuilder(seed=0){
     const flip=variation(signature,0xa17b46c2)>.5?-1:1;
     const tint=wood?colorVariation(signature):null;
     const width=2*r*.70*scaleU;
-    const along=length*.50*scaleV;
-    // A single long quad samples an identical wood tile each time V crosses
-    // an integer. Split only long structural beams into coarse strips so UVs
-    // can gently drift across the source tile. No extra textures, draw calls
-    // or shaders; the same UVs are used by all three PBR maps in Godot too.
+    // Constrain longitudinal coverage to less than one complete timber tile.
+    // This keeps the source's fine fibers crisp and prevents repeated knots
+    // on a single long structural beam. U stays completely straight: bending
+    // it along V distorted the grain and looked blurred at game camera range.
+    const along=wood?Math.min(length*.50*scaleV,.92):length*.50*scaleV;
+    // A few strips only for slow per-vertex tint variation. All strips sample
+    // the same shared textures with LINEAR, continuous UVs; no UV warping.
     const sections=wood&&length>3.2?Math.ceil(length/1.3):1;
     const phases=[
-      variation(signature,0xc3b413af)*Math.PI*2,
       variation(signature,0x8b397fc5)*Math.PI*2,
       variation(signature,0x73b92d48)*Math.PI*2,
     ];
-    const bendU=t=>sections===1?0:
-      .14*Math.sin(t*Math.PI*2*1.31+phases[0])+
-      .085*Math.sin(t*Math.PI*2*.57+phases[1]);
-    const bendV=t=>sections===1?0:
-      .065*Math.sin(t*Math.PI*2*1.79+phases[2]);
     const shade=t=>sections===1?1:1+
-      .047*Math.sin(t*Math.PI*2*1.13+phases[1])+
-      .026*Math.sin(t*Math.PI*2*2.21+phases[2]);
+      .047*Math.sin(t*Math.PI*2*1.13+phases[0])+
+      .026*Math.sin(t*Math.PI*2*2.21+phases[1]);
     const segmentTint=t=>tint?.map(channel=>channel*shade(t))??null;
     const between=t=>a.map((value,i)=>value+(b[i]-value)*t);
     for(let k=0;k<sections;k++){
@@ -161,10 +157,10 @@ function geometryBuilder(seed=0){
         const p=corners[i],q=corners[(i+1)%4];
         const u0=offsetU+flip*i*width,u1=u0+flip*width;
         const coords=wood?[
-          [u0+bendU(t0),offsetV+along*t0+bendV(t0)],
-          [u0+bendU(t1),offsetV+along*t1+bendV(t1)],
-          [u1+bendU(t1),offsetV+along*t1+bendV(t1)],
-          [u1+bendU(t0),offsetV+along*t0+bendV(t0)],
+          [u0,offsetV+along*t0],
+          [u0,offsetV+along*t1],
+          [u1,offsetV+along*t1],
+          [u1,offsetV+along*t0],
         ]:null;
         face(material,at(a0,...p),at(a1,...p),
           at(a1,...q),at(a0,...q),coords,
