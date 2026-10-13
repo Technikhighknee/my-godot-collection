@@ -28,44 +28,35 @@ function generatePlaster(seeds){
   const height=new Float32Array(SIZE*SIZE);
   const albedo=new Float32Array(SIZE*SIZE*3);
   const roughness=new Float32Array(SIZE*SIZE);
-  // One shared warm mineral palette. Pigment seed changes the particular
-  // batch of lime/sand, not the identity of the material.
-  const batch=(hash(1,2,pigment)-.5)*.036;
-  const cream=(hash(3,4,pigment)-.5)*.019;
+  const batch=(hash(1,2,pigment)-.5)*.035;
+  const cream=(hash(3,4,pigment)-.5)*.021;
+
+  // Three scales of lime aggregate. The large tonal shapes stay quieter
+  // than the hand-applied plaster swathes painted below.
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*3;
-    // Gentle spatula undulations and a granular, imperfect lime surface.
-    // All sampled frequencies are periodic to prevent seams on walls.
     const broad=noise(x,y,4,5,structure^0x5d127a93)-.5;
-    const sweep=noise(x,y,11,9,structure^0xb9021a64)-.5;
-    const sweep2=noise(x,y,17,14,structure^0x314c72b5)-.5;
-    const warp=noise(x,y,8,7,structure^0xe034c21a)-.5;
-    const aggregate=noise(x+warp*9,y,51,47,structure^0xb8493251)-.5;
-    const fine=noise(x,y,113,109,structure^0x7e139ea5)-.5;
-    const pore=hash(x,y,structure^0x164aa387)-.5;
-    const wash=noise(x,y,6,8,pigment^0x931a61e3)-.5;
-    const variation=noise(x,y,24,21,pigment^0x02d47c59)-.5;
-    const age=noise(x,y,12,15,wear^0xa159eb34)-.5;
-    const grit=hash(x,y,wear^0xbc381e09);
-    const exposed=Math.max(0,age*.6+variation*.5-.13);
-    const speck=grit>.986?(grit-.986)*3.4:0;
-    const raised=(sweep*.045+sweep2*.023+broad*.067+
-      aggregate*.025+fine*.012+pore*.006);
-    height[p]=.49+raised-speck*.014;
-    // Larger soft pigment shifts, smaller trowel patches and slight
-    // individual mineral inclusions, not chaotic photo-like grain.
-    const trowelPatch=Math.max(0,-sweep-.12)*.13;
-    const tone=broad*.068+sweep*.052+sweep2*.034+
-      wash*.061+variation*.031+aggregate*.029+
-      fine*.012+pore*.009-exposed*.047-trowelPatch-speck*.19;
-    albedo[i]=clamp(.851+batch+tone,.64,.96);
-    albedo[i+1]=clamp(.812+batch*.81+cream+tone*.91,.58,.94);
-    albedo[i+2]=clamp(.719+batch*.70+cream*.8+tone*.77,.48,.88);
-    roughness[p]=clamp(.884+aggregate*.043+
-      fine*.025+exposed*.039+speck*.08,.78,.98);
+    const plaster=noise(x,y,13,12,structure^0xb9021a64)-.5;
+    const edge=noise(x,y,31,27,structure^0x314c72b5)-.5;
+    const aggregate=noise(x,y,87,83,structure^0xb8493251)-.5;
+    const grit=hash(x,y,structure^0x164aa387)-.5;
+    const wash=noise(x,y,7,9,pigment^0x931a61e3)-.5;
+    const grains=noise(x,y,53,49,pigment^0x02d47c59)-.5;
+    const age=noise(x,y,15,17,wear^0xa159eb34)-.5;
+    const dark=Math.max(0,age*.67+plaster*.4-.13);
+    const tone=broad*.046+plaster*.032+edge*.020+
+      wash*.036+grains*.014+aggregate*.015+
+      grit*.012-dark*.046;
+    height[p]=.49+broad*.042+plaster*.034+edge*.026+
+      aggregate*.017+grit*.009;
+    albedo[i]=clamp(.868+batch+tone,.62,.97);
+    albedo[i+1]=clamp(.824+batch*.81+cream+tone*.89,.57,.95);
+    albedo[i+2]=clamp(.720+batch*.70+cream*.8+tone*.75,.46,.88);
+    roughness[p]=clamp(.885+aggregate*.038+grit*.021+dark*.040,.80,.98);
   }
-  // Very light, broken tool impressions: short, shallow scraped crescents
-  // rather than painted cracks or random hard lines on the facade.
+
+  // Stochastic brush is rasterized in toroidal image space. Strokes that
+  // cross the edge continue on the opposite side with no tiled seam.
   let state=(structure^0x19c6d147)>>>0;
   const random=()=>{
     state=(state+0x6d2b79f5)>>>0;
@@ -74,26 +65,66 @@ function generatePlaster(seeds){
     z^=z+Math.imul(z^(z>>>7),z|61);
     return ((z^(z>>>14))>>>0)/4294967296;
   };
-  for(let mark=0;mark<48;mark++){
+  // Each wide trowel pass is an overlapping ribbon of short elliptical
+  // dabs, not a mathematical noise cloud or a baked lighting gradient.
+  // The rim raises the actual height field, giving the normal map edges.
+  for(let stroke=0;stroke<112;stroke++){
     const cx=random()*SIZE,cy=random()*SIZE;
-    const angle=random()*Math.PI*2;
-    const length=12+random()*64;
-    const amplitude=1+random()*3.2;
-    const opacity=.2+random()*.65;
-    for(let j=0;j<Math.ceil(length);j++){
-      const t=j/length,edge=Math.sin(Math.PI*t)**2;
-      const along=(t-.5)*length,side=Math.sin(t*Math.PI)*amplitude;
-      const px=wrap(Math.floor(cx+Math.cos(angle)*along-
-        Math.sin(angle)*side));
-      const py=wrap(Math.floor(cy+Math.sin(angle)*along+
-        Math.cos(angle)*side));
-      const p=py*SIZE+px,i=p*3;
-      const strength=edge*opacity;
-      height[p]+=.009*strength;
-      albedo[i]+=.008*strength;
-      albedo[i+1]+=.007*strength;
-      albedo[i+2]+=.006*strength;
+    const angle=random()<.78?(random()-.5)*1.2:
+      random()*Math.PI*2;
+    const direction=Math.cos(angle),perp=Math.sin(angle);
+    const length=24+random()*105,halfWidth=3.5+random()*11;
+    const curvature=(random()-.5)*16;
+    const strength=(random()<.48?-1:1)*(.018+random()*.031);
+    const relief=.015+random()*.022;
+    const passes=Math.ceil(length/3);
+    for(let j=0;j<=passes;j++){
+      const t=j/passes,along=(t-.5)*length;
+      const bow=Math.sin(Math.PI*t)*curvature;
+      const bx=cx+direction*along-perp*bow;
+      const by=cy+perp*along+direction*bow;
+      const radius=halfWidth*(.78+.22*Math.sin(Math.PI*t));
+      const reach=Math.ceil(radius+3);
+      // A pixel-sized softening on both edges avoids pixelated scratch rows.
+      for(let oy=-reach;oy<=reach;oy++)for(let ox=-reach;ox<=reach;ox++){
+        const px=bx+ox,py=by+oy;
+        const across=(-perp*ox+direction*oy)/radius;
+        const lengthwise=(direction*ox+perp*oy)/(radius*1.7);
+        const distance=Math.hypot(across,lengthwise);
+        if(distance>=1)continue;
+        const taper=Math.sin(Math.PI*t)**.65;
+        const opacity=taper*smooth(clamp((1-distance)*3.5))*.21;
+        const p=wrap(Math.floor(px))+wrap(Math.floor(py))*SIZE,i=p*3;
+        const heightRim=Math.max(0,1-Math.abs(distance-.76)/.20);
+        const stagger=Math.sin(t*Math.PI*7+stroke)*.22+1;
+        const ink=opacity*stagger;
+        for(let c=0;c<3;c++)
+          albedo[i+c]+=strength*ink*[1,.90,.75][c];
+        height[p]+=(relief*(heightRim*.47+.35)-
+          .009*(1-heightRim))*ink;
+        roughness[p]=clamp(roughness[p]+ink*.028);
+      }
     }
+  }
+
+  // Tiny sand inclusions and occasional shallow lost plaster chips. These
+  // create silhouettes at game viewing distance without fake stone outlines.
+  state=(wear^0x7603a5d1)>>>0;
+  for(let fleck=0;fleck<950;fleck++){
+    const x=Math.floor(random()*SIZE),y=Math.floor(random()*SIZE);
+    const radius=random()<.89?1:2+random()*2;
+    const shade=(random()<.72?-1:1)*(.011+random()*.034);
+    for(let dy=-Math.ceil(radius);dy<=Math.ceil(radius);dy++)
+      for(let dx=-Math.ceil(radius);dx<=Math.ceil(radius);dx++){
+        const distance=Math.hypot(dx,dy)/radius;
+        if(distance>=1)continue;
+        const p=wrap(y+dy)*SIZE+wrap(x+dx),i=p*3;
+        const mask=(1-smooth(distance))*.8;
+        for(let c=0;c<3;c++)
+          albedo[i+c]=clamp(albedo[i+c]+shade*mask*[1,.88,.68][c]);
+        height[p]-=mask*.018;
+        roughness[p]=clamp(roughness[p]+mask*.041,.75,.99);
+      }
   }
   return {height,albedo,roughness};
 }
