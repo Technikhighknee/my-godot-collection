@@ -14,6 +14,7 @@ import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
 import {makeRoofAsset} from './roof-textures.mjs';
 import {makeTimberAsset} from './timber-textures.mjs';
 import {makePlasterAsset} from './plaster-textures.mjs';
+import {makeStoneAsset} from './stone-textures.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -138,6 +139,23 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
+    id:'stone-rubble',kind:'image',symbol:'▦',
+    label:'Rubble stone',subtitle:'Irregular limestone and mortar masonry',
+    libraryPath:Object.freeze(['Textures','Stone']),
+    navLabel:'Rubble stone',navType:'Texture',
+    generate:seeds=>makeStoneAsset(seeds),
+    overline:'PROJECT TEXTURES / STONE',
+    title:'Rubble stone masonry.',
+    description:'Irregular interlocking fieldstones with recessed mortar, bevelled faces and granular mineral surfaces. Three seamless PBR maps and independent layout, mineral and weather seeds.',
+    previewLabel:'Irregular medieval rubble stone with mortar joints',
+    initialMasterSeed:71803,
+    components:Object.freeze([
+      Object.freeze({id:'layout',label:'Stone shape and arrangement',initialSeed:71803}),
+      Object.freeze({id:'mineral',label:'Stone color and geology',initialSeed:30192}),
+      Object.freeze({id:'weather',label:'Weathering and erosion',initialSeed:58212}),
+    ]),
+  }),
+  Object.freeze({
     id:'timber-building',kind:'model',symbol:'⌂',
     label:'Timber-frame building',subtitle:'Three upgrade levels · optional empty interior',
     libraryPath:Object.freeze(['Architecture','Buildings','Timber frame']),
@@ -146,6 +164,8 @@ export const GENERATORS=Object.freeze([
     defaultOptions:DEFAULT_BUILDING_OPTIONS,
     validateOptions:validateBuildingOptions,
     materialSlots:Object.freeze([
+      Object.freeze({id:'foundationStone',label:'Rubble stone · foundations',
+        generators:Object.freeze(['stone-rubble'])}),
       Object.freeze({id:'facadePlaster',label:'Lime plaster · facades',
         generators:Object.freeze(['plaster-lime'])}),
       Object.freeze({id:'timberWood',label:'Oak structural timber',
