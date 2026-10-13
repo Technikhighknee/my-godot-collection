@@ -175,7 +175,7 @@ test('navigation supports selecting, filtering, favorites, recents and Ctrl+K',(
     shortcut({ctrlKey:false,metaKey:false,key:'Escape'});
     assert.equal(search.value,'');
     assert.equal(search.focused,false);
-    assert.equal(count.textContent,'3 assets');
+    assert.equal(count.textContent,'5 assets');
 
     // The most recent selection stays available without a fresh search.
     filters.children[0]!.fire('click');

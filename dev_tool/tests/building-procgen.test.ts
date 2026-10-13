@@ -117,7 +117,8 @@ test('seeded facade variation changes the exterior while preserving openings',()
     assert.ok(signature(model.building.interiorOpenings).every(x=>exterior.has(x)));
   }
   const recolored=generateBuildingFamily({structure:1,material:9});
-  assert.notDeepEqual(a.building.exterior,recolored.building.exterior);
+  assert.deepEqual(a.building.exterior,recolored.building.exterior,
+    'Changing a model material seed must not silently create a different roof texture');
   assert.deepEqual(a.building.exteriorOpenings,recolored.building.exteriorOpenings);
 });
 

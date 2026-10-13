@@ -213,3 +213,22 @@ test('oak bark is a standalone seedable opaque image, not a tree component',()=>
       barkStructure:19641,barkSurface:48507,barkColor:21749});
   assert.throws(()=>generateAsset(bark,{structure:1,surface:-1,color:1}));
 });
+
+test('roof generators publish reusable 2D texture recipes',()=>{
+  const thatch=findGenerator('roof-thatch')!;
+  const clay=findGenerator('roof-clay')!;
+  assert.equal(thatch.kind,'image');
+  assert.equal(clay.kind,'image');
+  assert.deepEqual(createSeedState(clay).components,{pattern:90317,color:43091});
+  assert.deepEqual(createSeedState(thatch).components,{pattern:18174,color:23512});
+  const clayAsset=generateAsset(clay,createSeedState(clay).components);
+  const thatchAsset=generateAsset(thatch,createSeedState(thatch).components);
+  assert.equal(clayAsset.width,512);
+  assert.equal(thatchAsset.height,512);
+  assert.deepEqual(clayAsset.views,['albedo','normal','roughness']);
+  assert.deepEqual(thatchAsset.views,['albedo','normal','roughness']);
+  const building=findGenerator('timber-building')!;
+  assert.deepEqual(building.materialSlots.map(x=>[x.id,...x.generators]),[
+    ['roofThatch','roof-thatch'],['roofClay','roof-clay'],
+  ]);
+});
