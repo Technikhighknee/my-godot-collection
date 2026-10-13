@@ -16,10 +16,10 @@ const atlas=findGenerator('oak-atlas')!;
 const sprig=findGenerator('oak-sprig')!;
 const bark=findGenerator('oak-bark')!;
 test('catalog exposes current models as independent generator definitions',()=>{
-  assert.deepEqual(GENERATORS.map(x=>x.id),['roof-thatch','roof-clay','timber-oak','plaster-lime','timber-building','oak','fir','oak-atlas','oak-sprig','oak-bark']);
+  assert.deepEqual(GENERATORS.map(x=>x.id),['roof-thatch','roof-clay','timber-oak','plaster-lime','stone-rubble','timber-building','oak','fir','oak-atlas','oak-sprig','oak-bark']);
   assert.deepEqual(oak.components.map(x=>x.id),['geometry','foliage','leaves','barkStructure','barkSurface','barkColor']);
   assert.deepEqual(fir.components.map(x=>x.id),['geometry']);
-  assert.deepEqual(GENERATORS.map(x=>x.kind),['image','image','image','image','model','model','model','image','image','image']);
+  assert.deepEqual(GENERATORS.map(x=>x.kind),['image','image','image','image','image','model','model','model','image','image','image']);
   assert.deepEqual(atlas.components.map(x=>x.id),['leaves']);
   assert.deepEqual(createSeedState(atlas).components,{leaves:21749});
   assert.deepEqual(sprig.components.map(x=>x.id),['structure','leaves']);
@@ -214,15 +214,19 @@ test('oak bark is a standalone seedable opaque image, not a tree component',()=>
   assert.throws(()=>generateAsset(bark,{structure:1,surface:-1,color:1}));
 });
 
-test('roof, plaster and timber generators publish reusable 2D texture recipes',()=>{
+test('roof, stone, plaster and timber generators publish reusable 2D recipes',()=>{
   const thatch=findGenerator('roof-thatch')!;
   const clay=findGenerator('roof-clay')!;
   const timber=findGenerator('timber-oak')!;
   const plaster=findGenerator('plaster-lime')!;
+  const stone=findGenerator('stone-rubble')!;
   assert.equal(thatch.kind,'image');
   assert.equal(clay.kind,'image');
   assert.equal(timber.kind,'image');
   assert.equal(plaster.kind,'image');
+  assert.equal(stone.kind,'image');
+  assert.deepEqual(createSeedState(stone).components,
+    {layout:71803,mineral:30192,weather:58212});
   assert.deepEqual(createSeedState(plaster).components,
     {structure:47519,pigment:20468,wear:90571});
   assert.deepEqual(createSeedState(timber).components,{grain:37821,color:19257});
@@ -232,16 +236,20 @@ test('roof, plaster and timber generators publish reusable 2D texture recipes',(
   const thatchAsset=generateAsset(thatch,createSeedState(thatch).components);
   const timberAsset=generateAsset(timber,createSeedState(timber).components);
   const plasterAsset=generateAsset(plaster,createSeedState(plaster).components);
+  const stoneAsset=generateAsset(stone,createSeedState(stone).components);
   assert.equal(clayAsset.width,512);
   assert.equal(thatchAsset.height,512);
   assert.equal(timberAsset.width,512);
   assert.equal(plasterAsset.height,512);
+  assert.equal(stoneAsset.width,512);
+  assert.deepEqual(stoneAsset.views,['albedo','normal','roughness']);
   assert.deepEqual(plasterAsset.views,['albedo','normal','roughness']);
   assert.deepEqual(timberAsset.views,['albedo','normal','roughness']);
   assert.deepEqual(clayAsset.views,['albedo','normal','roughness']);
   assert.deepEqual(thatchAsset.views,['albedo','normal','roughness']);
   const building=findGenerator('timber-building')!;
   assert.deepEqual(building.materialSlots.map(x=>[x.id,...x.generators]),[
+    ['foundationStone','stone-rubble'],
     ['facadePlaster','plaster-lime'],['timberWood','timber-oak'],
     ['roofThatch','roof-thatch'],['roofClay','roof-clay'],
   ]);
