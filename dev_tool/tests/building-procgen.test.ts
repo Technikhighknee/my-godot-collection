@@ -201,3 +201,23 @@ test('roof tiles run ridge-to-eave on both slopes and the offset wing',()=>{
     }
   }
 });
+
+
+test('structural timber maps grain along each beam axis, including braces',()=>{
+  for(const level of [1,2,3]){
+    const part=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level)
+      .building.exterior.parts.find(p=>p.material==='timber');
+    assert.ok(part);
+    let oriented=0;
+    // Beam side quads use [0,0], [0,length], [width,length], [width,0]
+    // regardless of whether the beam runs vertically or diagonally.
+    for(let i=0;i+7<part.uvs.length;i+=2){
+      const [u0,v0,u1,v1,u2,v2,u3,v3]=part.uvs.slice(i,i+8);
+      if(Math.abs(u0)<1e-6&&Math.abs(v0)<1e-6&&
+        Math.abs(u1)<1e-6&&Math.abs(v2-v1)<1e-5&&
+        Math.abs(u3-u2)<1e-5&&Math.abs(v3)<1e-6&&
+        u2>.07&&v1>.20)oriented++;
+    }
+    assert.ok(oriented>30,'Framing beams need local lengthwise grain UVs');
+  }
+});
