@@ -4,7 +4,7 @@ import {mkdtemp,readFile,readdir,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ProjectLibrary,validateSource} from '../src/projects/library.ts';
-import {createProjectHandler} from '../src/projects/api.ts';
+import {createProjectRouter} from '../src/projects/router.ts';
 import {createDevToolServer} from '../src/server.ts';
 
 async function temporary(run:(path:string)=>Promise<void>){
@@ -80,11 +80,8 @@ test('recipes validate known generators, seeds and revision conflicts',async()=>
 test('project API is isolated and rejects cross-origin modifications',async()=>{
   await temporary(async root=>{
     const lib=await ProjectLibrary.open(root);
-    const projectApi=createProjectHandler(lib);
-    const server=createDevToolServer(async(req,res,path)=>{
-      if(path.startsWith('/api/projects'))return projectApi(req,res,path);
-      res.writeHead(404);res.end();
-    });
+    const definitions={buildings:[]};
+    const server=createDevToolServer(createProjectRouter(lib,definitions));
     await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
     try{
       const address=server.address();
@@ -107,6 +104,19 @@ test('project API is isolated and rejects cross-origin modifications',async()=>{
       assert.equal((await saved.json()).kind,'model');
       assert.equal((await request('/api/projects/active/graph')).status,200);
       assert.equal((await request('/api/projects')).status,200);
+      const map=await request('/api/map');
+      assert.equal(map.status,200);
+      assert.equal((await map.json()).map.name,'World');
+      const blocked=await request('/api/document','PUT',{
+        revision:'invalid',mapFile:'world.map.json',roads:[],
+      });
+      assert.equal(blocked.status,409,'Map writes require active project identity');
+      const permitted=await fetch(url+'/api/document',{
+        method:'PUT',headers:{Origin:url,'Content-Type':'application/json',
+          'X-Project-Id':'world'},
+        body:JSON.stringify({revision:'invalid',mapFile:'world.map.json',roads:[]}),
+      });
+      assert.equal(permitted.status,409,'A matching project still enforces revision protection');
     }finally{
       await new Promise<void>((resolve,reject)=>
         server.close(e=>e?reject(e):resolve()));

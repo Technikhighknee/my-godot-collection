@@ -8,7 +8,7 @@ import {createDevToolServer} from './server.ts';
 import {createMapEditorHandler} from '../tools/map-editor/src/server.ts';
 import {MapWorkspace} from '../tools/map-editor/src/editing/map-workspace.ts';
 import {ProjectLibrary} from './projects/library.ts';
-import {createProjectHandler} from './projects/api.ts';
+import {createProjectRouter} from './projects/router.ts';
 
 const args=process.argv.slice(2);
 function option(name:string,otherwise?:string){
@@ -50,24 +50,7 @@ if(args.includes('--help')||args.includes('-h')){
       const projectDir=resolve(option('--projects-dir',
         fileURLToPath(new URL('../projects',import.meta.url)))!);
       const library=await ProjectLibrary.open(projectDir,definitions);
-      const projectApi=createProjectHandler(library);
-      api=async(req:import('node:http').IncomingMessage,
-        res:import('node:http').ServerResponse,path:string)=>{
-        if(path.startsWith('/api/projects'))return projectApi(req,res,path);
-        const workspace=library.mapWorkspace();
-        if(!workspace){
-          res.writeHead(409,{'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Create or open a project first'}));return;
-        }
-        if(['PUT','POST'].includes(req.method??'')&&
-          req.headers['x-project-id']!==library.active()?.id){
-          res.writeHead(409,{'Content-Type':'application/json'});
-          res.end(JSON.stringify({error:'Active project changed; reload the map editor'}));
-          return;
-        }
-        return createMapEditorHandler(workspace.getDocument(),
-          workspace.getStore(),definitions,workspace)(req,res,path);
-      };
+      api=createProjectRouter(library,definitions);
       label='projects: '+projectDir;
     }
     const server=createDevToolServer(api);

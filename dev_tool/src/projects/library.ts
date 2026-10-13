@@ -160,8 +160,8 @@ export class ProjectLibrary {
     const p=parseProject(JSON.parse((await regular(join(base,'project.json'))).toString('utf8')),id);
     const maps=await readdir(join(base,'maps'));
     const first=maps.filter(v=>slugPattern.test(v.replace(/\.map\.json$/,''))&&v.endsWith('.map.json')).sort()[0];
-    if(!first)throw Error('Project has no map to open');
-    const workspace=await MapWorkspace.open(join(base,'maps',first),this.definitions);
+    const workspace=first?
+      await MapWorkspace.open(join(base,'maps',first),this.definitions):null;
     if(persist)await atomic(join(this.root,'.active-project.json'),Buffer.from(JSON.stringify({id})+'\n'));
     this.activeId=id;this.activeManifest=p;this.activeWorkspace=workspace;
     return p;
