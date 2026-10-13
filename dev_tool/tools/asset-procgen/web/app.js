@@ -85,7 +85,7 @@ function updatePreviewControls(state){
   for(const id of ['inspectCard','inspectClump'])
     byId(id).hidden=!oak;
   byId('stageContent').textContent=state.assetId==='timber-building'?
-    (state.buildingView==='interior'?'EMPTY ROOM SHELL':'TIMBER EXTERIOR'):
+    (state.buildingView==='interior'?'EMPTY ARCHITECTURAL INTERIOR':'TOWNHOUSE EXTERIOR'):
     state.inspectMode==='card'?
     'LEAF CARD / ATLAS':state.inspectMode==='clump'?
     'ONE FOLIAGE CLUMP':oak&&state.foliageVisible?

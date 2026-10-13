@@ -79,7 +79,7 @@ export const GENERATORS=Object.freeze([
     validateOptions:validateBuildingOptions,
     overline:'ARCHITECTURE / TIMBER-FRAME FAMILY',
     title:'Timber-frame building.',
-    description:'Three related exterior levels, a shared facade opening plan and optional empty interior shell. Doors and windows cannot appear inside where none exist outside. Furniture and engine export come later.',
+    description:'Northern European town architecture: jettied timber floors, articulated gables, varied roof tiles, dormers and a service wing. Three linked levels; a detachable unfurnished interior hall and side room share the same openings.',
     previewLabel:'Procedural timber frame building with optional interior preview',
     initialMasterSeed:19043,
     components:Object.freeze([

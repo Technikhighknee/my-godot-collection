@@ -291,13 +291,9 @@ function gable(g,plan,side){
   const z=side==='front'?-plan.depth/2-.01:plan.depth/2+.01;
   const xwidth=plan.width/2+plan.jetty;
   const apex=plan.ridgeHeight-.15,y=plan.wallHeight;
-  // The facade's attic is physically a triangle, not a flat rectangular box.
-  for(let i=0;i<12;i++){
-    const a=-xwidth+2*xwidth*i/12,b=-xwidth+2*xwidth*(i+1)/12;
-    const mid=(a+b)/2;
-    const top=apex-(Math.abs(mid)/(xwidth+plan.eave))*(apex-y);
-    if(top>y)g.box('plasterWarm',mid,(top+y)/2,z,b-a,top-y,.16);
-  }
+  // Continuous gable triangle; no stepping artifacts in plaster geometry.
+  // Decorative steps, where used, sit on top of the real triangular wall.
+  g.face('plasterWarm',[-xwidth,y,z],[0,apex,z],[xwidth,y,z]);
   for(const sign of [-1,1])
     g.beam('timber',[0,apex,z+(side==='front'?-.16:.16)],
       [sign*xwidth,y,z+(side==='front'?-.16:.16)],.14);
@@ -458,7 +454,15 @@ function interiorShell(g,plan){
   for(const side of SIDES){
     plasterWall(g,plan,side,0,'interior',-.12);
     const len=span(plan,side);
-    facadeBox(g,plan,side,-len/2,len/2,.30,.82,.14,'interiorPlinth',-.24);
+    // Interior wainscot stops at doorways rather than sealing them.
+    const doors=plan.openings.filter(o=>o.side===side&&o.level===0&&o.type==='door');
+    const limits=[-len/2,len/2,...doors.flatMap(o=>[o.center-o.width/2,o.center+o.width/2])]
+      .sort((a,b)=>a-b);
+    for(let i=1;i<limits.length;i++){
+      const a=limits[i-1],b=limits[i],mid=(a+b)/2;
+      if(doors.some(o=>Math.abs(mid-o.center)<o.width/2))continue;
+      facadeBox(g,plan,side,a,b,.30,.82,.14,'interiorPlinth',-.24);
+    }
     facadeBeam(g,plan,side,-len/2,2.85,len/2,2.85,.11,'innerTrim',-.20);
     for(const o of plan.openings.filter(o=>o.side===side&&o.level===0))
       trimOpening(g,plan,o,true,-.12);

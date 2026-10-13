@@ -163,11 +163,20 @@ export function createModelViewport(container,onChange=()=>{}){
     setVisibility();
   }
   const buildingColors={
-    stone:0x827b6c,plaster:0xd4c8ac,interior:0xd9cdb6,
-    wood:0x4a3020,door:0x593c27,innerTrim:0x6c5035,
-    metal:0xbba568,glass:0x648687,innerGlass:0x657779,
-    roofBase:0x553f37,roofTileA:0x78473c,roofTileB:0x8b5142,
-    ridge:0x44342e,chimney:0x252521,floor:0x947653,
+    foundation:0x766b5b,stone:0x9a9282,brick:0x895f4c,
+    plaster:0xd2c6a8,plasterWarm:0xbca88b,
+    plasterOchre:0xbda27b,plasterIvory:0xe1d2b6,
+    timber:0x4a3325,trim:0x74523b,shutter:0x544d36,
+    door:0x68432b,metal:0xb5a17e,
+    glass:0x536c65,innerGlass:0x718a82,
+    interior:0xd8cbb4,interiorPlinth:0xa9977e,
+    innerTrim:0x866a4e,innerTimber:0x62442e,
+    roofUnderlay:0x43342f,roofBase:0x64443b,
+    tile:0x9e5b46,tileWarm:0xbb7857,
+    tileDark:0x73483d,tileMoss:0x71715a,
+    ridge:0x5c453b,chimney:0x2d2520,floor:0x967654,
+    // Existing standalone tree previews retain their own materials.
+    wood:0x4a3325,roofTileA:0x9e5b46,roofTileB:0xbb7857,
   };
   function buildBuildingGroup(mesh){
     const next=new THREE.Group();
@@ -311,7 +320,17 @@ export function createModelViewport(container,onChange=()=>{}){
     const center=new THREE.Vector3(
       (lo[0]+hi[0])*.5,(lo[1]+hi[1])*.5,(lo[2]+hi[2])*.5);
     const size=Math.max(...hi.map((v,i)=>v-lo[i]));
-    if(mode==='foot'){
+    if(buildingAsset&&buildingView==='interior'){
+      // The shell is an open-top cutaway. Looking from outside at eye level
+      // would hide the architectural work behind its opaque walls.
+      controls.target.set(center.x,lo[1]+1.10,center.z);
+      camera.position.set(center.x+size*.55,hi[1]+size*.43,
+        center.z+size*.58);
+    }else if(buildingAsset){
+      controls.target.copy(center);
+      camera.position.set(center.x+size*.79,center.y+size*.43,
+        center.z+size*1.14);
+    }else if(mode==='foot'){
       controls.target.set(0,.65,0);
       camera.position.set(2.25,1.65,3.4);
     } else if(mode==='crown'){
