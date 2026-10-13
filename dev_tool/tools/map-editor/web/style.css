@@ -262,3 +262,14 @@ body { font-size: 13px; }
 
 .hotbar-slot .tool-icon svg { display: block; width: 27px; height: 27px; }
 @media (prefers-reduced-motion: reduce) { .hotbar-slot { transition: none; } }
+
+/* Studio embeds only the document-specific tools, not a second application shell. */
+.studio-embedded .shell{grid-template-rows:50px minmax(0,1fr)}
+.studio-embedded .header{height:50px}
+.studio-embedded .header .brand,
+.studio-embedded .header .document{display:none}
+.studio-embedded .map-picker{margin-right:auto}
+.studio-embedded .header .history-controls{margin-left:auto}
+.studio-embedded .source-action{width:100%;margin-top:8px;background:#30463f;border:1px solid #66816c;
+color:#e2e9df;border-radius:5px;font-size:11px;padding:10px}
+.studio-embedded .source-action[hidden]{display:none}

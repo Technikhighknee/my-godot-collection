@@ -197,3 +197,17 @@
 .pg-project-sources #saveProjectAsset{background:#b8a27a;color:#17201e}
 .pg-project-sources #projectAssetStatus{min-height:15px;margin:0 0 5px}
 .pg-project-sources[hidden]{display:none}
+
+/* The project workbench owns navigation; this editor owns the viewport and inspector. */
+.studio-embedded .pg-header{display:none}
+.studio-embedded .pg-workspace{height:100vh;min-height:0;grid-template-columns:minmax(0,1fr) 310px}
+.studio-embedded .pg-library{display:none}
+.studio-embedded .pg-mobile-choice{display:flex;flex-direction:column;gap:8px;margin-bottom:15px}
+.studio-embedded .pg-settings{overflow-y:auto;min-height:0}
+.studio-embedded .pg-settings-title{margin-top:18px}
+@media(max-width:850px){
+ .studio-embedded .pg-workspace{grid-template-columns:minmax(0,1fr) 255px}
+}
+@media(max-width:580px){
+ .studio-embedded .pg-workspace{grid-template-columns:minmax(0,1fr) 210px}
+}

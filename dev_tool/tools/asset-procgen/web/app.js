@@ -8,6 +8,29 @@ import {createImageViewport} from './viewport-2d.mjs';
 import {createAssetLibrary} from './asset-library.mjs';
 
 const byId=id=>document.getElementById(id);
+const embedded=new URLSearchParams(location.search).get('embedded')==='1';
+if(embedded)document.documentElement.classList.add('studio-embedded');
+function studioSignal(message){
+  if(embedded&&window.parent!==window)window.parent.postMessage(message,location.origin);
+}
+let projectId=null;
+let recipeDirty=false;
+function setRecipeDirty(dirty){
+  recipeDirty=dirty;
+  studioSignal({type:'studio:dirty',dirty});
+}
+function assetSaved(entry){
+  setRecipeDirty(false);
+  studioSignal({type:'studio:asset-saved',id:entry.source.id,name:entry.source.name});
+}
+window.addEventListener('beforeunload',event=>{
+  if(recipeDirty)event.preventDefault();
+});
+document.addEventListener('keydown',event=>{
+  if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){
+    event.preventDefault();studioSignal({type:'studio:focus-search'});
+  }
+});
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
 let active=findGenerator('oak');
 let modelViewport,imageViewport;
@@ -127,6 +150,7 @@ function build(state=seeds()){
   }
 }
 function applySeeds(next){
+  setRecipeDirty(true);
   // A fresh seed replaces the model, not the user's camera view.
   build(next);
   renderSeedControls();
@@ -301,6 +325,10 @@ let loadedProjectAsset=null;
 const projectEl=id=>document.getElementById(id);
 function assetStatus(message){projectEl('projectAssetStatus').textContent=message;}
 async function projectApi(path,options){
+  if(options&&['POST','PUT'].includes(options.method)){
+    if(!projectId)throw Error('No active project');
+    options={...options,headers:{...options.headers,'X-Project-Id':projectId}};
+  }
   const response=await fetch(path,{cache:'no-store',...options});
   const result=await response.json();
   if(!response.ok)throw Error(result.error||'HTTP '+response.status);
@@ -347,6 +375,7 @@ projectEl('loadProjectAsset').addEventListener('click',()=>projectOperation(asyn
   projectEl('projectAssetName').value=entry.source.name;
   projectEl('projectAssetId').value=id;
   selectGenerator(gen.id);
+  setRecipeDirty(false);
   assetStatus('Loaded '+entry.source.name);
 }));
 projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
@@ -358,6 +387,7 @@ projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(asyn
   });
   loadedProjectAsset=entry;
   await reloadProjectAssets();
+  assetSaved(entry);
   assetStatus('Saved '+entry.source.name+' as asset:'+id);
 }));
 projectEl('updateProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
@@ -373,9 +403,11 @@ projectEl('updateProjectAsset').addEventListener('click',()=>projectOperation(as
   });
   loadedProjectAsset=entry;
   await reloadProjectAssets();
+  assetSaved(entry);
   assetStatus('Updated '+entry.source.name);
 }));
 projectEl('projectAssetName').addEventListener('input',()=>{
+  setRecipeDirty(true);
   if(!loadedProjectAsset){
     projectEl('projectAssetId').value=projectEl('projectAssetName').value
       .toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
@@ -390,12 +422,17 @@ projectEl('savedProjectAssets').addEventListener('change',()=>{
   try{
     const {project}=await projectApi('/api/projects/active');
     if(!project){assetStatus('Create a project on the home page to save assets.');return;}
+    projectId=project.id;
     await reloadProjectAssets();
     const requested=new URLSearchParams(location.search).get('asset');
     if(requested&&projectAssets.has(requested)){
       projectEl('savedProjectAssets').value=requested;
       projectEl('loadProjectAsset').click();
+    }else{
+      const generator=new URLSearchParams(location.search).get('generator');
+      if(generator&&findGenerator(generator))selectGenerator(generator);
     }
+    studioSignal({type:'studio:ready'});
   }catch{
     assetStatus('Project asset storage unavailable in legacy mode.');
   }

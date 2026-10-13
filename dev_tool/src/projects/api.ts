@@ -33,7 +33,15 @@ function exact(o:Record<string,unknown>,keys:string[]){
 export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
   return async(req,res,path)=>{
     try{
-      if(req.method==='POST'||req.method==='PUT')assertWrite(req);
+      if(req.method==='POST'||req.method==='PUT'){
+        assertWrite(req);
+        // The project ID is part of the resource identity. A stale editor
+        // must never accidentally write its recipe into another active project.
+        if(path.startsWith('/api/projects/active/assets')&&
+          req.headers['x-project-id']!==library.active()?.id){
+          return send(res,409,{error:'Active project changed; reopen this asset'});
+        }
+      }
       if(path==='/api/projects'){
         if(req.method==='GET')return send(res,200,{projects:await library.list(),active:library.active()});
         if(req.method==='POST'){

@@ -15,6 +15,16 @@ import { toolForMode, modeForTool, toolShortcut } from './tool-state.mjs';
 import { SCULPT_MODES, effectiveSculptMode, cycleChoice, resizeBrush, resizeBrushStrength, brushWheelSetting, rotateDegrees } from './edit-shortcuts.mjs';
 
 const el = id => document.getElementById(id);
+const embedded = new URLSearchParams(location.search).get('embedded')==='1';
+if(embedded)document.documentElement.classList.add('studio-embedded');
+function studioSignal(message){
+  if(embedded&&window.parent!==window)window.parent.postMessage(message,location.origin);
+}
+let lastDirty=null;
+function syncDirty(){
+  const dirty=Boolean(edits?.isDirty);
+  if(dirty!==lastDirty){lastDirty=dirty;studioSignal({type:'studio:dirty',dirty});}
+}
 const viewport = el('viewport');
 const loading = el('loading');
 const layerNames = ['surfaces', 'wireframe', 'roads', 'water', 'settlements', 'entities'];
@@ -839,6 +849,7 @@ function updateEntityUI() {
   selectedEntityIds = new Set([...selectedEntityIds].filter(id => items.some(item => item.id === id)));
   if (!selectedEntityIds.has(selectedEntityId)) selectedEntityId = selectedEntityIds.values().next().value ?? null;
   const item = currentEntity();
+  el('openSourceAsset').hidden=!embedded || !/^asset:[a-z0-9_-]+$/.test(item?.definition??el('entityDefinition').value);
   const select = el('entitySelect');
   select.replaceChildren();
   for (const entity of items) {
@@ -1668,6 +1679,7 @@ function updateTerrainUI() {
   el('brushSurface').disabled ||= editMode !== 'paint';
   el('modeSculpt').classList.toggle('active', editMode === 'sculpt');
   el('modePaint').classList.toggle('active', editMode === 'paint');
+  syncDirty();
   el('terrainStatus').textContent = edits.isDirty ?
     [edits.heightDirty ? 'HEIGHTMAP' : '', edits.surfaceDirty ? 'SURFACE MAP' : '', edits.entityDirty ? 'MARKERS' : '', edits.roadDirty ? 'ROADS' : '', edits.polygonDirty ? 'WATER / BUILD AREAS' : ''].filter(Boolean).join(' · ') : 'NO UNSAVED CHANGES';
 }
@@ -1704,6 +1716,8 @@ async function saveRoadEdits() {
     currentDoc.map.water = edits.water;
     currentDoc.map.settlements = edits.settlements;
     edits.markSaved();
+    syncDirty();
+    studioSignal({type:'studio:map-saved'});
     currentDoc.map.terrain = result.terrain;
     setMessage('Map saved. Prior terrain assets remain untouched.');
     drawPolygons();
@@ -1716,6 +1730,10 @@ function initializeEntityEditing() {
   el('entityKind').addEventListener('change', e => selectEntity(e.target.value, null));
   el('entitySelect').addEventListener('change', e => selectEntity(selectedEntityKind, e.target.value));
   for (const id of ['entityDefinition','entityRotation']) el(id).addEventListener('input', () => { if (editMode === 'place-entity') drawPlacement(); });
+  el('openSourceAsset').addEventListener('click',()=>{
+    const match=/^asset:([a-z0-9_-]+)$/.exec(el('entityDefinition').value.trim());
+    if(match)studioSignal({type:'studio:open-asset',id:match[1]});
+  });
   el('applyEntity').addEventListener('click', () => {
     const item = currentEntity();
     if (!item || savePending) return;
@@ -1998,9 +2016,32 @@ try {
   document.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey && !(e.target instanceof HTMLElement && e.target.closest('input,select,textarea,[contenteditable=true]'))) { e.preventDefault(); focusCamera(); } });
   initializeEditorChrome();
   renderEditorChrome();
+  syncDirty();
+  studioSignal({type:'studio:ready'});
   loading.remove();
 } catch (error) {
   el('loadingText').textContent = `Cannot open map: ${error instanceof Error ? error.message : String(error)}`;
   loading.classList.add('error');
   console.error(error);
+}
+
+// The studio can activate a project model without leaving the map.
+if(embedded){
+  window.addEventListener('message',event=>{
+    if(event.origin!==location.origin||event.source!==window.parent)return;
+    const value=event.data;
+    if(value?.type!=='studio:place-asset'||typeof value.id!=='string')return;
+    if(value.projectId!==currentDoc?.projectId||!currentDoc||currentDoc.readOnly)return;
+    selectEntity('objects',null);
+    el('entityDefinition').value='asset:'+value.id;
+    setEditMode('place-entity');
+    drawPlacement();
+    setMessage('Click the map to place asset:'+value.id);
+  });
+  document.addEventListener('keydown',event=>{
+    if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){
+      event.preventDefault();
+      studioSignal({type:'studio:focus-search'});
+    }
+  });
 }
