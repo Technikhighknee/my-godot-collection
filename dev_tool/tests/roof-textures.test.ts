@@ -5,21 +5,21 @@ import {ROOF_TEXTURE_SIZE,ROOF_VIEWS,makeRoofAsset,paintRoofTexture}
 
 function capture(kind:'clay'|'thatch',seeds:{pattern:number;color:number},
   view='albedo'){
-  let data:Uint8ClampedArray|null=null;
+  const result:{data:Uint8ClampedArray|null}={data:null};
   const canvas={
     width:0,height:0,
     getContext(){return {
       createImageData:(width:number,height:number)=>({
         data:new Uint8ClampedArray(width*height*4),
       }),
-      putImageData(image:{data:Uint8ClampedArray}){data=image.data;},
+      putImageData(image:{data:Uint8ClampedArray}){result.data=image.data;},
     };},
   };
   paintRoofTexture(canvas as unknown as HTMLCanvasElement,kind,seeds,view);
   assert.equal(canvas.width,ROOF_TEXTURE_SIZE);
   assert.equal(canvas.height,ROOF_TEXTURE_SIZE);
-  assert.ok(data);
-  return data;
+  assert.ok(result.data);
+  return result.data;
 }
 test('roof materials are project-independent repeatable image generators',()=>{
   assert.deepEqual(ROOF_VIEWS,['albedo','normal','roughness']);

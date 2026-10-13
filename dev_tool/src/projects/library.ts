@@ -65,7 +65,6 @@ export function validateSource(raw:unknown,expectedId?:string,
   lookup:GeneratorLookup=()=>null):AssetSource{
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid asset source');
   const x=raw as Record<string,unknown>;
-  const sourceFields=Object.keys(x).sort().join();
   const validFields=['dependencies','format','generator','id','name','version'];
   if(!validFields.every(k=>Object.hasOwn(x,k))||
     Object.keys(x).some(k=>!validFields.includes(k)&&
