@@ -48,8 +48,13 @@ test('interior windows and doors are a strict subset of exterior openings',()=>{
     }
     assert.deepEqual(signature(interiorOpenings),
       signature(exteriorOpenings.filter(o=>o.level===0)));
-    assert.equal(plan.doors.length,1);
-    assert.equal(plan.doors[0].side,'front');
+    const expectedSides=level===1?['front']:['front','right'];
+    assert.deepEqual(plan.doors.map(door=>door.side),expectedSides,
+      'The side door must be present precisely when the service wing exists');
+    assert.ok(plan.doors.every(door=>door.level===0),
+      'All doors lead to a generated ground-floor room');
+    assert.ok(plan.doors.every(door=>interiorOpenings.includes(door)),
+      'Both the street entrance and the annex connection must remain accessible');
     assert.ok(!interiorOpenings.some(o=>o.type==='window'&&o.side==='front'&&Math.abs(o.center)<.76));
     assert.ok(model.building.interior!.triangles>200);
   }
