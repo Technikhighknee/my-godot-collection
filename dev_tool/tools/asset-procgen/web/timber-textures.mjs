@@ -150,13 +150,9 @@ function generateTimber(seeds){
 // Transition bands match both ends of the atlas, so repeat wrapping remains
 // seamless for unusual lengths while the normal and roughness maps agree.
 function generateLongTimber(seeds,base){
-  // Two original fiber patterns plus four seeded crops make four distinct
-  // sections with half the expensive stroke-generation cost.
-  const alternate=generateTimber({...seeds,
-    grain:Math.floor(hash(1,seeds.grain>>>0,0x94be8319)*0x100000000)});
-  const variants=[base,alternate];
+  // Four distinct longitudinal crops of the original procedural wood
+  // surface. No second full texture synthesis needed when reseeding.
   const crops=Array.from({length:TIMBER_BEAM_STRIPS},(_,i)=>({
-    source:i%2,
     x:i===0?0:Math.floor(hash(i,2,seeds.grain^0xa183bb9d)*SIZE),
     y:i===0?0:Math.floor(hash(i,3,seeds.grain^0x71d39e4a)*SIZE),
   }));
@@ -180,14 +176,13 @@ function generateLongTimber(seeds,base){
     for(let x=0;x<SIZE;x++){
       const p=y*SIZE+x;
       const from=crops[first],to=crops[second];
-      const source=variants[from.source],other=variants[to.source];
       const a=((local+from.y)%SIZE)*SIZE+((x+from.x)%SIZE);
       const b=((local+to.y)%SIZE)*SIZE+((x+to.x)%SIZE);
-      height[p]=mix(source.height[a],other.height[b],weight);
-      roughness[p]=mix(source.roughness[a],other.roughness[b],weight);
+      height[p]=mix(base.height[a],base.height[b],weight);
+      roughness[p]=mix(base.roughness[a],base.roughness[b],weight);
       for(let channel=0;channel<3;channel++)
-        albedo[p*3+channel]=mix(source.albedo[a*3+channel],
-          other.albedo[b*3+channel],weight);
+        albedo[p*3+channel]=mix(base.albedo[a*3+channel],
+          base.albedo[b*3+channel],weight);
     }
   }
   return {width:SIZE,pixelHeight:heightPixels,albedo,heightMap:height,roughness};
