@@ -10,6 +10,7 @@ export interface ImageAsset {
   channels?:string;tiles?:number;
   atlas?:{columns:number;rows:number};
   views?:readonly string[];profiles?:readonly string[];
+  profileSizes?:Record<string,{width:number;height:number}>;
   paint:(canvas:HTMLCanvasElement,view?:string,profile?:string)=>unknown;
 }
 export const IMAGE_MIN_ZOOM:number;
@@ -17,7 +18,9 @@ export const IMAGE_MAX_ZOOM:number;
 export function imageFitScale(width:number,height:number,
   availableWidth:number,availableHeight:number):number;
 export function validateImageAsset(asset:unknown):ImageAsset;
-export function imageTileRect(asset:ImageAsset,tile:number|null):
+export function imageProfileSize(asset:ImageAsset,profile?:string|null):
+  {width:number;height:number};
+export function imageTileRect(asset:ImageAsset,tile:number|null,profile?:string|null):
   {x:number;y:number;width:number;height:number};
 export function imageZoomAt(oldZoom:number,newZoom:number,x:number,y:number,
   offsetX:number,offsetY:number):{x:number;y:number};
