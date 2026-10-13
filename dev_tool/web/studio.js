@@ -336,6 +336,7 @@ async function setMode(next){
   byId('toolsButton').setAttribute('aria-pressed',String(next==='generators'));
   tree.hidden=next!=='explorer';catalog.hidden=next!=='generators';
   byId('explorerTitle').textContent=next==='explorer'?'EXPLORER':'GENERATORS';
+  byId('newResource').hidden=next!=='explorer';
   search.placeholder=next==='explorer'?'Filter resources…':'Browse generators…';
   if(next==='explorer'){renderTree();}else await showCatalog();
 }
