@@ -144,8 +144,8 @@ function geometryBuilder(seed=0){
       variation(signature,0x73b92d48)*Math.PI*2,
     ];
     const bendU=t=>sections===1?0:
-      .20*Math.sin(t*Math.PI*2*1.31+phases[0])+
-      .12*Math.sin(t*Math.PI*2*.57+phases[1]);
+      .14*Math.sin(t*Math.PI*2*1.31+phases[0])+
+      .085*Math.sin(t*Math.PI*2*.57+phases[1]);
     const bendV=t=>sections===1?0:
       .065*Math.sin(t*Math.PI*2*1.79+phases[2]);
     const shade=t=>sections===1?1:1+
