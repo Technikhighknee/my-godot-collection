@@ -117,7 +117,7 @@ test('seeded facade variation changes the exterior while preserving openings',()
 test('evolving building levels have architectural character, not just scaled boxes',()=>{
   const levels=[1,2,3].map(level=>
     generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level).building);
-  const materials=mesh=>new Set(mesh.parts.map(part=>part.material));
+  const materials=(mesh:BuildingMesh)=>new Set(mesh.parts.map(part=>part.material));
   for(const level of levels){
     const used=materials(level.exterior);
     for(const name of ['timber','plasterWarm','roofUnderlay','tile','stone','glass'])
