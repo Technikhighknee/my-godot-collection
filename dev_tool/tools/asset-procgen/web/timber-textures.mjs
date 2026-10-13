@@ -1,6 +1,7 @@
 // Tileable hewn timber material: grain runs along V, without board joins.
 export const TIMBER_TEXTURE_SIZE=512;
 export const TIMBER_VIEWS=Object.freeze(['albedo','normal','roughness']);
+export const TIMBER_PROFILES=Object.freeze(['beam','end','panel']);
 const SIZE=TIMBER_TEXTURE_SIZE;
 const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
 const mix=(a,b,t)=>a+(b-a)*t;
@@ -141,20 +142,112 @@ function generateTimber(seeds){
   }
   return {albedo,height,roughness};
 }
-let cache=null;
-function material(seeds){
-  if(!cache||cache.grain!==seeds.grain||cache.color!==seeds.color)
-    cache={grain:seeds.grain,color:seeds.color,data:generateTimber(seeds)};
-  return cache.data;
+
+// End grain is cut across the growth axis. The concentric rings and radial
+// seasoning checks are deliberately distinct from the beam's longitudinal grain.
+function generateEndGrain(seeds){
+  const grain=seeds.grain>>>0,color=seeds.color>>>0;
+  const albedo=new Float32Array(SIZE*SIZE*3);
+  const height=new Float32Array(SIZE*SIZE);
+  const roughness=new Float32Array(SIZE*SIZE);
+  const cx=SIZE*(.48+(hash(1,0,grain)-.5)*.09);
+  const cy=SIZE*(.51+(hash(0,1,grain)-.5)*.09);
+  const checks=[];
+  for(let i=0;i<9;i++){
+    if(hash(i,3,grain^0xa8b1197e)>.76)continue;
+    checks.push({angle:hash(i,4,grain^0xc25fb412)*Math.PI*2,
+      length:.35+hash(i,5,grain^0x47e2b1aa)*.56,
+      start:.10+hash(i,6,grain^0xa932ac15)*.22});
+  }
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+    const p=y*SIZE+x,i=p*3;
+    const dx=(x-cx)/(.94*SIZE),dy=(y-cy)/(1.03*SIZE);
+    const angle=Math.atan2(dy,dx);
+    const r=Math.hypot(dx,dy);
+    const distortion=noise(x,y,7,8,grain^0x7427ca19)-.5;
+    const rings=r*70+Math.sin(angle*5+grain*.00001)*.48+
+      distortion*1.70+Math.sin(angle*11+r*31)*.19;
+    const late=Math.pow(Math.max(0,Math.sin(rings*Math.PI*2)),5);
+    const early=Math.sin(rings*Math.PI*2)*.19;
+    const pores=noise(x,y,79,73,grain^0x278ffcf3)-.5;
+    const fine=noise(x,y,126,128,grain^0xf0397ce2)-.5;
+    const spot=noise(x,y,17,19,color^0xaa13315b)-.5;
+    let crack=0;
+    for(const check of checks){
+      const difference=Math.atan2(Math.sin(angle-check.angle),
+        Math.cos(angle-check.angle));
+      const wiggle=Math.sin(r*23+check.angle*9)*.018;
+      const width=.006+Math.max(0,r-.22)*.008;
+      const span=r>check.start && r<check.length;
+      if(span)crack=Math.max(crack,Math.exp(-Math.pow((difference-wiggle)/width,2))*
+        Math.min(1,(r-check.start)*35,(check.length-r)*35));
+    }
+    const heart=Math.exp(-r*r*280)*.24;
+    const pigment=(spot*.085+pores*.060+fine*.034)-
+      late*.115+early*.023-crack*.31-heart;
+    albedo[i]=clamp(.38+pigment,.10,.66);
+    albedo[i+1]=clamp(.275+pigment*.76,.06,.49);
+    albedo[i+2]=clamp(.176+pigment*.59,.04,.34);
+    height[p]=.27+early*.07-late*.075+pores*.042+fine*.019-crack*.16;
+    roughness[p]=clamp(.84+late*.10+crack*.14+fine*.08,.66,.99);
+  }
+  return {albedo,height,roughness};
 }
-export function paintTimberTexture(canvas,seeds,view='albedo'){
+
+// Flat-sawn surfaces show broad flowing figure rather than the tight parallel
+// fibers of a narrow structural beam. No painted plank joins or beam edges.
+function generateWideWood(seeds){
+  const grain=seeds.grain>>>0,color=seeds.color>>>0;
+  const albedo=new Float32Array(SIZE*SIZE*3);
+  const height=new Float32Array(SIZE*SIZE);
+  const roughness=new Float32Array(SIZE*SIZE);
+  const knotX=SIZE*(.35+hash(2,1,grain)*.3);
+  const knotY=SIZE*(.28+hash(3,1,grain)*.4);
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+    const p=y*SIZE+x,i=p*3;
+    const dx=((x-knotX+SIZE*1.5)%SIZE)-SIZE*.5;
+    const dy=((y-knotY+SIZE*1.5)%SIZE)-SIZE*.5;
+    const elliptical=Math.hypot(dx/32,dy/92);
+    const warp=noise(x,y,8,5,grain^0x119ebc65)-.5;
+    const finer=noise(x,y,62,11,grain^0x45fe1a8d)-.5;
+    const flowing=noise(x,y,23,6,grain^0x5c911e24)-.5;
+    const pigment=noise(x,y,9,11,color^0x1da58e73)-.5;
+    const grainLine=Math.sin((x/512*21+warp*.45+
+      Math.exp(-elliptical*elliptical*.60)*dx*.020+
+      flowing*.28)*Math.PI*2);
+    const figure=grainLine*.55+finer*.26+flowing*.70;
+    const curl=Math.exp(-Math.pow((elliptical-.85)/.32,2));
+    const eye=Math.exp(-elliptical*elliptical*8);
+    const pores=noise(x,y,137,38,grain^0xba091abc)-.5;
+    const value=figure*.072+pigment*.080+pores*.029-
+      curl*.040-eye*.12;
+    albedo[i]=clamp(.375+value,.13,.62);
+    albedo[i+1]=clamp(.273+value*.78,.075,.49);
+    albedo[i+2]=clamp(.181+value*.60,.05,.35);
+    height[p]=.29+figure*.047+finer*.024+pores*.022-curl*.035-eye*.06;
+    roughness[p]=clamp(.82+pores*.080+curl*.048-eye*.08,.64,.98);
+  }
+  return {albedo,height,roughness};
+}
+let cache=null;
+function material(seeds,profile){
+  if(!cache||cache.grain!==seeds.grain||cache.color!==seeds.color)
+    cache={grain:seeds.grain,color:seeds.color,profiles:new Map()};
+  if(!cache.profiles.has(profile)){
+    const generate={beam:generateTimber,end:generateEndGrain,panel:generateWideWood}[profile];
+    cache.profiles.set(profile,generate(seeds));
+  }
+  return cache.profiles.get(profile);
+}
+export function paintTimberTexture(canvas,seeds,view='albedo',profile='beam'){
   if(!TIMBER_VIEWS.includes(view))throw Error('Unknown timber texture channel');
+  if(!TIMBER_PROFILES.includes(profile))throw Error('Unknown timber profile');
   for(const key of ['grain','color'])if(!Number.isInteger(seeds?.[key])||
     seeds[key]<0||seeds[key]>0xffffffff)throw Error('Invalid timber seed: '+key);
   canvas.width=SIZE;canvas.height=SIZE;
   const ctx=canvas.getContext('2d');
   if(!ctx)throw Error('2D canvas context required');
-  const image=ctx.createImageData(SIZE,SIZE),d=image.data,m=material(seeds);
+  const image=ctx.createImageData(SIZE,SIZE),d=image.data,m=material(seeds,profile);
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*4;
     if(view==='albedo'){
@@ -177,7 +270,8 @@ export function paintTimberTexture(canvas,seeds,view='albedo'){
 }
 export function makeTimberAsset(seeds){
   return {id:'timber-oak',kind:'image',width:SIZE,height:SIZE,
-    channels:'RGBA',views:TIMBER_VIEWS,
+    channels:'RGBA',views:TIMBER_VIEWS,profiles:TIMBER_PROFILES,
     sourceSeeds:{grain:seeds.grain,color:seeds.color},
-    paint:(canvas,view='albedo')=>paintTimberTexture(canvas,seeds,view)};
+    paint:(canvas,view='albedo',profile='beam')=>
+      paintTimberTexture(canvas,seeds,view,profile)};
 }
