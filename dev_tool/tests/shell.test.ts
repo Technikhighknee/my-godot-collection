@@ -172,5 +172,9 @@ test('embedded editors use prepaint layout and studio waits for source readiness
   assert.match(assetJs,/await loadSelectedProjectAsset\(\)/);
   assert.match(assetJs,/finally\s*\{[\s\S]*studioSignal\(\{type:'studio:ready'\}\)/);
   assert.match(studioJs,/tab\.frame\.classList\.remove\('is-loading'\)/);
+  assert.match(studioJs,/tab\.loading\.hidden=true;/,
+    'The editor ready signal must dismiss the loading overlay');
+  assert.doesNotMatch(studioJs,/tab\.loading\.hidden=tab\.key!==activeTab/,
+    'Active editor must not keep its loading overlay visible');
   assert.match(studioCss,/\.editor-view\.is-loading\{visibility:hidden\}/);
 });
