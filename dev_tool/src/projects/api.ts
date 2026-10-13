@@ -26,8 +26,10 @@ function assertWrite(req:IncomingMessage){
     req.headers.origin!=='http://'+host)
     throw Error('Cross-origin project write denied');
 }
-function exact(o:Record<string,unknown>,keys:string[]){
-  if(Object.keys(o).sort().join()!==keys.slice().sort().join())
+function exact(o:Record<string,unknown>,keys:string[],optional:string[]=[]){
+  const incoming=Object.keys(o);
+  if(keys.some(k=>!Object.hasOwn(o,k))||
+    incoming.some(k=>!keys.includes(k)&&!optional.includes(k)))
     throw Error('Unexpected request fields');
 }
 export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
@@ -59,7 +61,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       if(path==='/api/projects/active/assets'){
         if(req.method==='GET')return send(res,200,{assets:await library.assets()});
         if(req.method==='POST'){
-          const x=await body(req);exact(x,['id','name','generator','masterSeed','components']);
+          const x=await body(req);exact(x,['id','name','generator','masterSeed','components'],['options']);
           const {id,...input}=x;
           return send(res,201,await library.createAsset(id as string,input));
         }
@@ -68,7 +70,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       if(match){
         if(req.method==='GET')return send(res,200,await library.asset(match[1]));
         if(req.method==='PUT'){
-          const x=await body(req);exact(x,['revision','name','generator','masterSeed','components']);
+          const x=await body(req);exact(x,['revision','name','generator','masterSeed','components'],['options']);
           const {revision,...input}=x;
           if(typeof revision!=='string')throw Error('Missing revision');
           return send(res,200,await library.updateAsset(match[1],input,revision));

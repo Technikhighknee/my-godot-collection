@@ -7,7 +7,11 @@ import {encodeSurfacePng} from '../../tools/map-editor/src/formats/png.ts';
 import {MapWorkspace} from '../../tools/map-editor/src/editing/map-workspace.ts';
 import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 // Project storage is independent of generator implementations.
-export interface GeneratorDescriptor {kind:'model'|'image';components:readonly {id:string}[];}
+export interface GeneratorDescriptor {
+  kind:'model'|'image';components:readonly {id:string}[];
+  defaultOptions?:Record<string,unknown>;
+  validateOptions?:(value:unknown)=>Record<string,unknown>;
+}
 export type GeneratorLookup=(id:string)=>GeneratorDescriptor|null;
 function validateSeed(value:unknown):void{
   if(typeof value!=='number'||!Number.isInteger(value)||value<0||value>0xffffffff)
@@ -52,13 +56,16 @@ export interface AssetSource {
   format:'devtool-asset';version:1;id:string;name:string;
   generator:{id:string;version:1;masterSeed:number;components:Record<string,number>};
   dependencies:string[];
+  options?:Record<string,unknown>;
 }
 export interface AssetEntry {source:AssetSource;revision:string;kind:'model'|'image';}
 export function validateSource(raw:unknown,expectedId?:string,
   lookup:GeneratorLookup=()=>null):AssetSource{
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid asset source');
   const x=raw as Record<string,unknown>;
-  if(Object.keys(x).sort().join()!=='dependencies,format,generator,id,name,version'||
+  const keys=Object.keys(x).sort().join();
+  if((keys!=='dependencies,format,generator,id,name,version'&&
+    keys!=='dependencies,format,generator,id,name,options,version')||
     x.format!=='devtool-asset'||x.version!==1)throw Error('Unsupported asset source');
   const id=slug(x.id);
   if(expectedId&&id!==expectedId)throw Error('Asset ID does not match filename');
@@ -78,22 +85,30 @@ export function validateSource(raw:unknown,expectedId?:string,
   if(!unique(keys)||keys.slice().sort().join()!==def.components.map((c:{id:string})=>c.id).sort().join())
     throw Error('Generator component mismatch');
   for(const value of Object.values(comps))validateSeed(value);
+  if(x.options!==undefined&&!def.validateOptions)
+    throw Error('Generator does not support options');
+  const options=def.validateOptions?
+    def.validateOptions(x.options??def.defaultOptions):undefined;
   if(!Array.isArray(x.dependencies)||!unique(x.dependencies)||x.dependencies.some(v=>
     typeof v!=='string'||!assetRef.test(v)||v==='asset:'+id))
     throw Error('Invalid asset dependencies');
   return {format:'devtool-asset',version:1,id,name,
     generator:{id:gen.id,version:1,masterSeed:gen.masterSeed as number,
       components:comps as Record<string,number>},
-    dependencies:x.dependencies as string[]};
+    dependencies:x.dependencies as string[],
+    ...(options===undefined?{}:{options})};
 }
 function makeSource(input:unknown,id:string,lookup:GeneratorLookup,
   dependencies:string[]=[]):AssetSource{
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid asset request');
   const x=input as Record<string,unknown>;
-  if(Object.keys(x).sort().join()!=='components,generator,masterSeed,name')throw Error('Invalid asset fields');
+  const keys=Object.keys(x).sort().join();
+  if(keys!=='components,generator,masterSeed,name'&&
+     keys!=='components,generator,masterSeed,name,options')
+    throw Error('Invalid asset fields');
   return validateSource({format:'devtool-asset',version:1,id,name:x.name,
     generator:{id:x.generator,version:1,masterSeed:x.masterSeed,components:x.components},
-    dependencies},id,lookup);
+    dependencies,...(x.options===undefined?{}:{options:x.options})},id,lookup);
 }
 function parseProject(data:unknown,id:string):ProjectInfo{
   if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Invalid project manifest');
