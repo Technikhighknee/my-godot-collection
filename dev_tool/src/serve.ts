@@ -49,7 +49,7 @@ if(args.includes('--help')||args.includes('-h')){
     }else{
       const projectDir=resolve(option('--projects-dir',
         fileURLToPath(new URL('../projects',import.meta.url)))!);
-      const library=await ProjectLibrary.open(projectDir);
+      const library=await ProjectLibrary.open(projectDir,definitions);
       const projectApi=createProjectHandler(library);
       api=async(req:import('node:http').IncomingMessage,
         res:import('node:http').ServerResponse,path:string)=>{
@@ -58,6 +58,12 @@ if(args.includes('--help')||args.includes('-h')){
         if(!workspace){
           res.writeHead(409,{'Content-Type':'application/json'});
           res.end(JSON.stringify({error:'Create or open a project first'}));return;
+        }
+        if(['PUT','POST'].includes(req.method??'')&&
+          req.headers['x-project-id']!==library.active()?.id){
+          res.writeHead(409,{'Content-Type':'application/json'});
+          res.end(JSON.stringify({error:'Active project changed; reload the map editor'}));
+          return;
         }
         return createMapEditorHandler(workspace.getDocument(),
           workspace.getStore(),definitions,workspace)(req,res,path);

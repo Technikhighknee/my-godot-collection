@@ -20,11 +20,11 @@ async function body(req:IncomingMessage):Promise<Record<string,unknown>>{
   return raw as Record<string,unknown>;
 }
 function assertWrite(req:IncomingMessage){
-  const host=req.headers.host;
-  if(!host||!/^(127\.0\.0\.1|localhost|\[::1\])(:[0-9]{1,5})?$/.test(host))
-    throw Error('Invalid local host');
-  const origin=req.headers.origin;
-  if(origin&&origin!=='http://'+host)throw Error('Cross-origin project write denied');
+  const address=req.socket.localAddress;
+  const host='127.0.0.1:'+req.socket.localPort;
+  if(address!=='127.0.0.1'||req.headers.host!==host||
+    req.headers.origin!=='http://'+host)
+    throw Error('Cross-origin project write denied');
 }
 function exact(o:Record<string,unknown>,keys:string[]){
   if(Object.keys(o).sort().join()!==keys.slice().sort().join())

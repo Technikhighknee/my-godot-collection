@@ -107,7 +107,12 @@ async function getDocument() {
     if (meta.height.width * meta.height.height * 4 !== heights.byteLength) throw new Error('Heightmap byte length mismatch');
     if (meta.surface.width * meta.surface.height !== surfaces.byteLength) throw new Error('Surface map byte length mismatch');
     if (meta.surface.width !== meta.height.width - 1 || meta.surface.height !== meta.height.height - 1) throw new Error('Surface grid does not match height grid');
-    return { readOnly: meta.readOnly, revision: meta.revision, mapFile: meta.mapFile, workspace: meta.workspace, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
+    let projectId=null;
+    try{
+      const response=await fetch('/api/projects/active',{cache:'no-store'});
+      if(response.ok)projectId=(await response.json()).project?.id??null;
+    }catch{/* Legacy map mode. */}
+    return { readOnly: meta.readOnly, revision: meta.revision, mapFile: meta.mapFile, workspace: meta.workspace, projectId, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
   }
   throw new Error('Active map changed repeatedly while loading. Reload the editor.');
 }
@@ -1683,7 +1688,10 @@ async function saveRoadEdits() {
     const body = { revision: currentDoc.revision, mapFile: currentDoc.mapFile, roads: edits.roads, buildings: edits.buildings, objects: edits.objects, water: edits.water, settlements: edits.settlements };
     if (edits.heightDirty) body.heights = encodeHeights(currentDoc.height.data);
     if (edits.surfaceDirty) body.surfaces = encodeBytes(currentDoc.surface.data);
-    const response = await fetch('/api/document', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch('/api/document', { method: 'PUT', headers: {
+      'Content-Type': 'application/json',
+      ...(currentDoc.projectId ? {'X-Project-Id':currentDoc.projectId} : {}),
+    }, body: JSON.stringify(body) });
     const result = await response.json();
     if (!response.ok) throw new Error(response.status === 409 ? `Save conflict: ${result.error}. Your browser edits are preserved.` : `Save failed: ${result.error}`);
     currentDoc.revision = result.revision;
@@ -1902,7 +1910,9 @@ function initializeMapManagement() {
     try {
       const response = await fetch(path, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',
+          ...(currentDoc.projectId ? {'X-Project-Id':currentDoc.projectId} : {}),
+        },
         body: JSON.stringify({ ...data, revision: currentDoc.revision, mapFile: currentDoc.mapFile }),
       });
       const result = await response.json();
@@ -1967,8 +1977,9 @@ try {
     const response=await fetch('/api/projects/active/assets',{cache:'no-store'});
     if(response.ok){
       const {assets}=await response.json();
-      for(const {source} of assets){
-        if(!['oak','fir'].includes(source.generator.id))continue;
+      for(const entry of assets){
+        const {source}=entry;
+        if(entry.kind!=='model')continue;
         const option=document.createElement('option');
         option.value='asset:'+source.id;
         option.label=source.name;

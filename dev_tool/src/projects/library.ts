@@ -2,11 +2,10 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readdir,readFile,writeFile,rename,rm,lstat,realpath,open} from 'node:fs/promises';
 import {join,resolve,dirname} from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {encodeExr} from '../../tools/map-editor/src/formats/exr.ts';
 import {encodeSurfacePng} from '../../tools/map-editor/src/formats/png.ts';
 import {MapWorkspace} from '../../tools/map-editor/src/editing/map-workspace.ts';
-import {loadMap} from '../../tools/map-editor/src/io/map-io.ts';
+import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 import {findGenerator} from '../../tools/asset-procgen/web/generators.mjs';
 import {validateSeed} from '../../tools/asset-procgen/web/seed-model.mjs';
 
@@ -14,6 +13,8 @@ const slugPattern=/^[a-z0-9][a-z0-9_-]{0,47}$/;
 const assetRef=/^asset:([a-z0-9][a-z0-9_-]{0,47})$/;
 const unique=<T>(array:T[])=>new Set(array).size===array.length;
 const hash=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
+const samePath=(a:string,b:string)=>process.platform==='win32'?
+  a.toLowerCase()===b.toLowerCase():a===b;
 function slug(value:unknown):string {
   if(typeof value!=='string'||!slugPattern.test(value))throw Error('Invalid resource ID (use lowercase letters, numbers, - or _)');
   return value;
@@ -24,13 +25,13 @@ function title(value:unknown):string {
 }
 async function regular(path:string):Promise<Buffer>{
   const info=await lstat(path);
-  if(!info.isFile()||info.isSymbolicLink()||await realpath(path)!==path)
+  if(!info.isFile()||info.isSymbolicLink()||!samePath(await realpath(path),path))
     throw Error('Project file redirected or replaced');
   return readFile(path);
 }
 async function directory(path:string):Promise<void>{
   const info=await lstat(path);
-  if(!info.isDirectory()||info.isSymbolicLink()||await realpath(path)!==path)
+  if(!info.isDirectory()||info.isSymbolicLink()||!samePath(await realpath(path),path))
     throw Error('Project directory redirected or replaced');
 }
 async function atomic(path:string,bytes:Buffer):Promise<void>{
@@ -47,7 +48,7 @@ export interface AssetSource {
   generator:{id:string;version:1;masterSeed:number;components:Record<string,number>};
   dependencies:string[];
 }
-export interface AssetEntry {source:AssetSource;revision:string;}
+export interface AssetEntry {source:AssetSource;revision:string;kind:'model'|'image';}
 export function validateSource(raw:unknown,expectedId?:string):AssetSource{
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid asset source');
   const x=raw as Record<string,unknown>;
@@ -63,6 +64,7 @@ export function validateSource(raw:unknown,expectedId?:string):AssetSource{
     gen.version!==1||typeof gen.id!=='string')throw Error('Unsupported generator recipe');
   const def=findGenerator(gen.id);
   if(!def)throw Error('Unknown generator: '+gen.id);
+  if(typeof gen.masterSeed!=='number')throw Error('Invalid master seed');
   validateSeed(gen.masterSeed);
   const comps=gen.components;
   if(!comps||typeof comps!=='object'||Array.isArray(comps))throw Error('Invalid component seeds');
@@ -110,13 +112,16 @@ export class ProjectLibrary {
   private activeId:string|null=null;
   private activeManifest:ProjectInfo|null=null;
   private activeWorkspace:MapWorkspace|null=null;
+  private definitions?:import('../../tools/map-editor/web/building-placement.mjs').PlacementDefinitions;
   private queue:Promise<void>=Promise.resolve();
-  private constructor(root:string){this.root=root;}
-  static async open(path:string):Promise<ProjectLibrary>{
+  private constructor(root:string,definitions?:import('../../tools/map-editor/web/building-placement.mjs').PlacementDefinitions){
+    this.root=root;this.definitions=definitions;
+  }
+  static async open(path:string,definitions?:import('../../tools/map-editor/web/building-placement.mjs').PlacementDefinitions):Promise<ProjectLibrary>{
     const root=resolve(path);
     await mkdir(root,{recursive:true});
     await directory(root);
-    const lib=new ProjectLibrary(root);
+    const lib=new ProjectLibrary(root,definitions);
     try{
       const bytes=await regular(join(root,'.active-project.json'));
       const active=JSON.parse(bytes.toString('utf8')) as {id?:string};
@@ -156,7 +161,7 @@ export class ProjectLibrary {
     const maps=await readdir(join(base,'maps'));
     const first=maps.filter(v=>slugPattern.test(v.replace(/\.map\.json$/,''))&&v.endsWith('.map.json')).sort()[0];
     if(!first)throw Error('Project has no map to open');
-    const workspace=await MapWorkspace.open(join(base,'maps',first));
+    const workspace=await MapWorkspace.open(join(base,'maps',first),this.definitions);
     if(persist)await atomic(join(this.root,'.active-project.json'),Buffer.from(JSON.stringify({id})+'\n'));
     this.activeId=id;this.activeManifest=p;this.activeWorkspace=workspace;
     return p;
@@ -197,14 +202,16 @@ export class ProjectLibrary {
       const id=entry.name.slice(0,-'.asset.json'.length);
       slug(id);
       const bytes=await regular(join(dir,entry.name));
-      result.push({source:validateSource(JSON.parse(bytes.toString('utf8')),id),revision:hash(bytes)});
+      const source=validateSource(JSON.parse(bytes.toString('utf8')),id);
+      result.push({source,revision:hash(bytes),kind:findGenerator(source.generator.id)!.kind});
     }
     return result.sort((a,b)=>a.source.name.localeCompare(b.source.name));
   }
   async asset(id:string):Promise<AssetEntry>{
     const target=join(this.requireActive(),'assets',slug(id)+'.asset.json');
     const bytes=await regular(target);
-    return {source:validateSource(JSON.parse(bytes.toString('utf8')),id),revision:hash(bytes)};
+    const source=validateSource(JSON.parse(bytes.toString('utf8')),id);
+    return {source,revision:hash(bytes),kind:findGenerator(source.generator.id)!.kind};
   }
   private async checkDependencies(source:AssetSource):Promise<void>{
     const entries=await this.assets();
@@ -230,7 +237,7 @@ export class ProjectLibrary {
       const target=join(this.requireActive(),'assets',id+'.asset.json');
       const bytes=Buffer.from(JSON.stringify(source,null,2)+'\n');
       await writeFile(target,bytes,{flag:'wx'});
-      return {source,revision:hash(bytes)};
+      return {source,revision:hash(bytes),kind:findGenerator(source.generator.id)!.kind};
     });
   }
   async updateAsset(id:string,input:unknown,revision:string):Promise<AssetEntry>{
@@ -239,6 +246,8 @@ export class ProjectLibrary {
       const old=await this.asset(id);
       if(old.revision!==revision)throw Error('Asset was modified; reload before saving');
       const source=makeSource(input,id);
+      if(source.generator.id!==old.source.generator.id)
+        throw Error('Cannot change generator of an existing asset; save a new asset');
       await this.checkDependencies(source);
       const target=join(this.requireActive(),'assets',id+'.asset.json');
       const bytes=Buffer.from(JSON.stringify(source,null,2)+'\n');
@@ -259,8 +268,9 @@ export class ProjectLibrary {
     for(const file of (await readdir(folder)).filter(x=>x.endsWith('.map.json'))){
       const id=file.slice(0,-'.map.json'.length);
       if(!slugPattern.test(id))continue;
-      const map=await loadMap(join(folder,file));
-      for(const item of [...map.map.buildings,...map.map.objects]){
+      const map=validateMap(JSON.parse(
+        (await regular(join(folder,file))).toString('utf8')));
+      for(const item of [...map.buildings,...map.objects]){
         const found=assetRef.exec(item.definition);
         if(found){
           edges.push({from:'map:'+id,to:item.definition});
