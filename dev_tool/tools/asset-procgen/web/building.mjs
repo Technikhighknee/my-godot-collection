@@ -132,11 +132,12 @@ function geometryBuilder(seed=0){
     const flip=variation(signature,0xa17b46c2)>.5?-1:1;
     const tint=wood?colorVariation(signature):null;
     const width=2*r*.70*scaleU;
-    // Constrain longitudinal coverage to less than one complete timber tile.
-    // This keeps the source's fine fibers crisp and prevents repeated knots
-    // on a single long structural beam. U stays completely straight: bending
-    // it along V distorted the grain and looked blurred at game camera range.
-    const along=wood?Math.min(length*.50*scaleV,.92):length*.50*scaleV;
+    // The shared beam image is a 4-section, 512x2048 longitudinal atlas.
+    // Divide world-space tiling by four: texels per metre stay high without
+    // repeating or stretching an individual 512px pattern across the joist.
+    // At extreme lengths, cap at one atlas to avoid any repeated landmarks.
+    // Keep U straight: UV bending previously made the grain look blurry.
+    const along=wood?Math.min(length*.50*scaleV/4,.92):length*.50*scaleV;
     // A few strips only for slow per-vertex tint variation. All strips sample
     // the same shared textures with LINEAR, continuous UVs; no UV warping.
     const sections=wood&&length>3.2?Math.ceil(length/1.3):1;
