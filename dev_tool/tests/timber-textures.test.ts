@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TIMBER_TEXTURE_SIZE,TIMBER_VIEWS,makeTimberAsset,paintTimberTexture}
+import {TIMBER_TEXTURE_SIZE,TIMBER_VIEWS,TIMBER_PROFILES,makeTimberAsset,paintTimberTexture}
   from '../tools/asset-procgen/web/timber-textures.mjs';
 
-function capture(seeds:{grain:number;color:number},view='albedo'){
+function capture(seeds:{grain:number;color:number},view='albedo',profile='beam'){
   const result:{bytes:Uint8ClampedArray|null}={bytes:null};
   const canvas={
     width:0,height:0,
@@ -13,7 +13,7 @@ function capture(seeds:{grain:number;color:number},view='albedo'){
       putImageData(image:{data:Uint8ClampedArray}){result.bytes=image.data;},
     };},
   };
-  paintTimberTexture(canvas as unknown as HTMLCanvasElement,seeds,view);
+  paintTimberTexture(canvas as unknown as HTMLCanvasElement,seeds,view,profile);
   assert.equal(canvas.width,512);
   assert.equal(canvas.height,512);
   assert.ok(result.bytes);
@@ -22,6 +22,7 @@ function capture(seeds:{grain:number;color:number},view='albedo'){
 test('timber creates deterministic independent PBR textures',()=>{
   assert.equal(TIMBER_TEXTURE_SIZE,512);
   assert.deepEqual(TIMBER_VIEWS,['albedo','normal','roughness']);
+  assert.deepEqual(TIMBER_PROFILES,['beam','end','panel']);
   const seeds={grain:37821,color:19257};
   const albedo=capture(seeds);
   assert.deepEqual(albedo,capture(seeds));
@@ -56,4 +57,25 @@ test('timber grain follows V and repeats without a hard border',()=>{
   assert.ok(across>along*2,'Wood grain must run along V, not across beams');
   assert.ok(seamU/size<across*2.5,'U seam must remain unobtrusive');
   assert.ok(seamV/size<along*2.5,'V seam must remain unobtrusive');
+});
+
+
+test('shared wood source has different crosscut and broad-face PBR profiles',()=>{
+  const seeds={grain:37821,color:19257};
+  const asset=makeTimberAsset(seeds);
+  assert.deepEqual(asset.profiles,['beam','end','panel']);
+  const colors=TIMBER_PROFILES.map(profile=>capture(seeds,'albedo',profile));
+  const normals=TIMBER_PROFILES.map(profile=>capture(seeds,'normal',profile));
+  const roughness=TIMBER_PROFILES.map(profile=>capture(seeds,'roughness',profile));
+  for(let i=0;i<colors.length;i++){
+    assert.deepEqual(colors[i],capture(seeds,'albedo',TIMBER_PROFILES[i]));
+    assert.notDeepEqual(normals[i],roughness[i]);
+    assert.notDeepEqual(normals[i],colors[i]);
+  }
+  assert.notDeepEqual(colors[0],colors[1],'Ends must show cut growth rings');
+  assert.notDeepEqual(colors[0],colors[2],'Broad wood must have a different figure');
+  assert.notDeepEqual(colors[1],colors[2]);
+  assert.throws(()=>capture(seeds,'albedo','invalid'),/profile/);
+  const profiles=new Set(asset.profiles);
+  assert.equal(profiles.size,3,'Fixed small profile set, never one texture per beam');
 });
