@@ -4,20 +4,20 @@ import {TIMBER_TEXTURE_SIZE,TIMBER_VIEWS,makeTimberAsset,paintTimberTexture}
   from '../tools/asset-procgen/web/timber-textures.mjs';
 
 function capture(seeds:{grain:number;color:number},view='albedo'){
-  let bytes:Uint8ClampedArray|null=null;
+  const result:{bytes:Uint8ClampedArray|null}={bytes:null};
   const canvas={
     width:0,height:0,
     getContext(){return {
       createImageData:(w:number,h:number)=>({
         data:new Uint8ClampedArray(w*h*4)}),
-      putImageData(image:{data:Uint8ClampedArray}){bytes=image.data;},
+      putImageData(image:{data:Uint8ClampedArray}){result.bytes=image.data;},
     };},
   };
   paintTimberTexture(canvas as unknown as HTMLCanvasElement,seeds,view);
   assert.equal(canvas.width,512);
   assert.equal(canvas.height,512);
-  assert.ok(bytes);
-  return bytes;
+  assert.ok(result.bytes);
+  return result.bytes;
 }
 test('timber creates deterministic independent PBR textures',()=>{
   assert.equal(TIMBER_TEXTURE_SIZE,512);
