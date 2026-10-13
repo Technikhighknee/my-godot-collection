@@ -168,7 +168,10 @@ export function createModelViewport(container,onChange=()=>{}){
   // Cache each material source by its generator ID and component seeds.
   const currentMaterials=new Map();
   function disposeSurfaceTextures(set){
-    if(set)for(const texture of Object.values(set))texture.dispose();
+    if(!set)return;
+    for(const entry of Object.values(set))
+      if(entry?.isTexture)entry.dispose();
+      else for(const texture of Object.values(entry))texture.dispose();
   }
   function updateSurfaceTextures(images){
     for(const [slot,image] of Object.entries(images)){
@@ -178,17 +181,22 @@ export function createModelViewport(container,onChange=()=>{}){
       if(currentMaterials.get(slot)?.key===key)continue;
       const fresh={};
       try{
-        for(const view of ['albedo','normal','roughness']){
-          const canvas=document.createElement('canvas');
-          image.paint(canvas,view);
-          const texture=new THREE.CanvasTexture(canvas);
-          texture.wrapS=THREE.RepeatWrapping;
-          texture.wrapT=THREE.RepeatWrapping;
-          texture.colorSpace=view==='albedo'?THREE.SRGBColorSpace:THREE.NoColorSpace;
-          texture.minFilter=THREE.LinearMipmapLinearFilter;
-          texture.magFilter=THREE.LinearFilter;
-          texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-          fresh[view]=texture;
+        for(const profile of image.profiles??[null]){
+          const maps={};
+          for(const view of ['albedo','normal','roughness']){
+            const canvas=document.createElement('canvas');
+            image.paint(canvas,view,profile??undefined);
+            const texture=new THREE.CanvasTexture(canvas);
+            texture.wrapS=THREE.RepeatWrapping;
+            texture.wrapT=THREE.RepeatWrapping;
+            texture.colorSpace=view==='albedo'?THREE.SRGBColorSpace:THREE.NoColorSpace;
+            texture.minFilter=THREE.LinearMipmapLinearFilter;
+            texture.magFilter=THREE.LinearFilter;
+            texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+            maps[view]=texture;
+          }
+          if(profile)fresh[profile]=maps;
+          else Object.assign(fresh,maps);
         }
       }catch(error){disposeSurfaceTextures(fresh);throw error;}
       const previous=currentMaterials.get(slot);
@@ -215,20 +223,28 @@ export function createModelViewport(container,onChange=()=>{}){
   function buildBuildingGroup(mesh){
     const next=new THREE.Group();
     for(const part of mesh.parts){
-      const sharedSlot=part.material==='timber'||part.material==='innerTimber'?
-        'timberWood':part.material;
-      const shared=currentMaterials.get(sharedSlot)?.maps;
+      const woodPart=/^(?:inner)?Timber(?:End|Panel)?$/.test(part.material)||
+        part.material==='timber'||part.material==='timberEnd'||
+        part.material==='timberPanel';
+      const sharedSlot=woodPart?'timberWood':part.material;
+      const source=currentMaterials.get(sharedSlot)?.maps;
+      const profile=part.material.endsWith('End')?'end':
+        part.material.endsWith('Panel')?'panel':'beam';
+      const shared=woodPart?source?.[profile]:source;
       const isRoof=part.material==='roofThatch'||part.material==='roofClay';
+      const base=woodPart?buildingColors.timber:
+        buildingColors[part.material]??0x978572;
       const material=new THREE.MeshStandardMaterial({
-        color:shared?0xffffff:(buildingColors[part.material]??0x978572),
-        map:shared?.albedo??buildingTextures.get(part.material),
+        color:shared?0xffffff:base,
+        map:shared?.albedo??buildingTextures.get(woodPart?'timber':part.material),
         normalMap:shared?.normal??null,roughnessMap:shared?.roughness??null,
         normalScale:new THREE.Vector2(.62,.62),
         roughness:part.material==='glass'||part.material==='innerGlass'?.37:
           shared?.96:isRoof?.98:.92,
+        vertexColors:!!part.colors,
         metalness:0,side:THREE.DoubleSide,
       });
-      const element=new THREE.Mesh(meshGeometry(part),material);
+      const element=new THREE.Mesh(meshGeometry(part,!!part.colors),material);
       element.castShadow=true;element.receiveShadow=true;
       element.userData.originalColor=material.color.getHex();
       next.add(element);
