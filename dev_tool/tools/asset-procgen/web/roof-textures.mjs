@@ -26,104 +26,99 @@ function periodicNoise(x,y,cells,seed){
   return mix(mix(a,b,fx),mix(c,d,fx),fy);
 }
 
-// Clay roof: overlapping, slightly crooked beaver-tail tiles, not bricks.
-// Each new course hides the heads of the course below. The exposed tails of
-// the course above have real scalloped outlines; there is no mortar grid.
-// A common height field drives normal and roughness, without painted light.
+// A beaver-tail clay roof is a layer of individual ceramic pieces, not a brick
+// pattern. Wrapped tile identities keep the same irregularity at image borders.
 function renderClay(seeds){
   const pattern=seeds.pattern>>>0,color=seeds.color>>>0;
   const albedo=new Float32Array(SIZE*SIZE*3);
   const height=new Float32Array(SIZE*SIZE);
   const roughness=new Float32Array(SIZE*SIZE);
-  const columns=11,rows=10;
-  const cellH=SIZE/rows;
-  const geomSalt=pattern^0x6c87a21f;
-  const toneSalt=color^0xb63d48a1;
-  // A single tile's local coordinate and identity across a continuous field;
-  // use wrapped IDs only for randomized features, never for position.
+  const columns=11,rows=10,course=SIZE/rows;
+  const geometrySeed=pattern^0x6c87a21f;
+  const colorSeed=color^0xb63d48a1;
+  const trait=(col,row,salt)=>hash(wrap(col,columns),wrap(row,rows),salt);
   function tileAt(x,y,row){
-    const shift=(row&1)*.5;
-    const lean=Math.sin(2*Math.PI*y*rows/SIZE)*.008;
-    const lane=x*columns/SIZE+shift+lean;
-    let col=Math.floor(lane);
     const cy=wrap(row,rows);
-    const joint=k=>k+(hash(wrap(k,columns),cy,geomSalt^0xe68af6ed)-.5)*.090;
+    const offset=(row&1)*.5+(trait(0,row,geometrySeed^0x92473e6b)-.5)*.11;
+    const lane=x*columns/SIZE+offset+
+      Math.sin(y*2*Math.PI/SIZE)*.009;
+    const joint=k=>k+(trait(k,row,geometrySeed^0xe68af6ed)-.5)*.18;
+    let col=Math.floor(lane);
     if(lane<joint(col))col--;
     else if(lane>=joint(col+1))col++;
-    const fx=(lane-joint(col))/(joint(col+1)-joint(col));
-    const cx=wrap(col,columns);
-    const wobble=hash(cx,cy,geomSalt);
-    const shade=hash(cx,cy,toneSalt);
-    const weather=hash(cx,cy,color^0x13f17ce9);
-    const bend=hash(cx,cy,pattern^0xf13ac780);
-    return {fx,col,cx,cy,wobble,shade,weather,bend};
+    const fx=clamp((lane-joint(col))/(joint(col+1)-joint(col)),0,1);
+    return {
+      fx,cy,
+      shape:trait(col,row,geometrySeed),
+      tip:trait(col,row,geometrySeed^0x396fa481),
+      twist:trait(col,row,geometrySeed^0x74ced816),
+      fired:trait(col,row,colorSeed),
+      faded:trait(col,row,colorSeed^0x2a18ee9d),
+      stain:trait(col,row,colorSeed^0x15d1e9a0),
+      fracture:trait(col,row,geometrySeed^0xe3981ab4),
+    };
+  }
+  function tail(t){
+    // Rounded lower tips, not points or perfect half-circles. Tile-to-tile
+    // shape changes are subtle but visible, especially along course edges.
+    const x=clamp(t.fx,0,1);
+    const skew=(t.twist-.5)*.13;
+    const symmetric=Math.max(0,1-Math.pow(2*(x-.5-skew),2));
+    return .10 + (.21+(t.tip-.5)*.075)*Math.pow(symmetric,.75) +
+      (t.shape-.5)*.035 + (x-.5)*(t.tip-.5)*.055;
   }
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x;
-    const ry=y/cellH;
-    const row=Math.floor(ry);
-    const frac=ry-row;
+    const row=Math.floor(y/course),fraction=fract(y/course);
     const upper=tileAt(x,y,row-1);
-    // The upper tile's tail hangs over the next course, varying by shape.
-    // A rounded bottom extends farther at the center than near its corners.
-    const arc=Math.pow(Math.sin(Math.PI*upper.fx),.75);
-    const tail=.095+.225*arc+(upper.wobble-.5)*.038;
-    const onUpper=frac<tail;
-    const tile=onUpper?upper:tileAt(x,y,row);
-    const localY=onUpper?frac+1:frac;
-    const faceX=tile.fx;
-    const left=Math.min(faceX,1-faceX);
-    // The center of a fired tile subtly crowns out of the roof plane.
-    // Narrow side grooves carry the water downhill along each course.
-    const ceramicBelly=.14+.40*Math.pow(Math.sin(Math.PI*clamp(faceX,0,1)),1.18)+
-      .055*Math.sin(Math.PI*localY/.95) + (tile.bend-.5)*.05;
-    const lip=onUpper?Math.exp(-Math.pow((frac-tail+.033)/.04,2))*.20:0;
-    const seamDepth=1-smooth(clamp((left-.014)/.075,0,1));
+    const visibleUpper=fraction<tail(upper);
+    const tile=visibleUpper?upper:tileAt(x,y,row);
+    const localY=visibleUpper?fraction+1:fraction;
+    const fx=tile.fx;
+    const edge=Math.min(fx,1-fx);
+    const edgeDepth=1-smooth(clamp((edge-.012)/.085,0,1));
+    const overhang=tail(upper);
+    const underlap=visibleUpper?0:Math.exp(-Math.pow((fraction-overhang)/.056,2));
+    const cutEnd=visibleUpper?Math.exp(-Math.pow((fraction-overhang)/.026,2)):0;
+    const belly=Math.pow(Math.sin(Math.PI*fx),1.55);
+    const warp=.038*Math.sin(Math.PI*localY)+(tile.shape-.5)*.038;
 
-    // Coherent, multi-scale ceramic pores, slips, firing spots and runoff.
-    const broad=periodicNoise(x,y,7,color^0x436f35e5)-.5;
-    const pits=periodicNoise(x,y,47,pattern^0x692be11d)-.5;
-    const blister=periodicNoise(x,y,83,color^0x6bec6291)-.5;
-    const pebbles=periodicNoise(x,y,102,color^0x594c2971)-.5;
+    // Multiple granular scales, no large muddy blotches or per-tile flat fills.
+    const kiln=periodicNoise(x,y,12,color^0x436f35e5)-.5;
+    const weather=periodicNoise(x,y,36,color^0x4b1d28c3)-.5;
+    const pores=periodicNoise(x,y,85,pattern^0x692be11d)-.5;
+    const grain=periodicNoise(x,y,137,color^0x6bec6291)-.5;
     const speck=hash(x,y,pattern^0x79f463df)-.5;
-    const grit=hash(x,y,color^0x5a642af0)-.5;
-    const worn=periodicNoise(x,y,25,color^0xcd56aa93)-.5;
-    // Subtle vertical firing / erosion trails, per tile, so they can't form
-    // horizontal bands or align across all shingles.
-    const run=periodicNoise(x,y,19,color^0x97ecb172)-.5;
-    const streak=Math.max(0,.23-Math.abs(faceX-(.22+.52*tile.weather+run*.10)))
-      *(.16+Math.max(0,worn)*.38);
-    const pores=Math.max(0,pits*.57+pebbles*.51+blister*.22+speck*.22-.09);
-    const clinker=Math.max(0,blister*.65+pits*.45+grit*.16-.12);
-    const salt=Math.max(0,-worn*.75-pebbles*.4+blister*.3-.11);
-    const moss=Math.max(0,blister*.60+broad*.55+worn*.48+(tile.weather-.5)*.18-.21);
-    const fractureX=.29+.31*tile.weather + .055*Math.sin(localY*5+tile.wobble*6);
-    const crack=tile.bend>.958 && localY>.35 && localY<1.04 &&
-      Math.abs(faceX-fractureX)<.018;
-    const chipped=tile.bend>.92 && left<.095 && localY>.75 &&
-      Math.abs(pits+pebbles*.7)>.21;
-    const h=ceramicBelly+lip-seamDepth*.17 - (onUpper?0:.13) +
-      pits*.045+pebbles*.024+blister*.026+speck*.017+
-      clinker*.022-pores*.05-(chipped?.12:0)-(crack?.07:0);
-    height[p]=h;
+    const salt=hash(x,y,color^0x5a642af0)-.5;
+    const runoff=periodicNoise(x,y,19,color^0x97ecb172)-.5;
+    const verticalDirt=Math.max(0,.14-Math.abs(fx-(.18+.61*tile.stain+runoff*.10))) *
+      Math.max(0,localY-.2);
+    const pit=Math.max(0,-pores*.9-grain*.5+salt*.12-.18);
+    const mold=Math.max(0,weather*.63+kiln*.3+grain*.2+(tile.stain-.5)*.17-.18);
+    const crack=tile.fracture>.965 && localY>.35 && localY<.97 &&
+      Math.abs(fx-(.24+.50*tile.fracture+.052*Math.sin(localY*8+tile.twist*4)))<.009;
+    const chip=tile.fracture>.926 && edge<.07 && localY>.78 &&
+      pores+grain*.6>.17;
+    height[p]=.18+belly*.31+warp+cutEnd*.17-edgeDepth*.13-
+      underlap*.16 + pores*.052+grain*.024+speck*.010-pit*.047-
+      (crack?.06:0)-(chip?.085:0);
 
-    // Clay is kiln-fired with locally varied ochre, brick and muted rose
-    // pigments. Grime gathers in narrow gaps and pits, not across bands.
-    const warm=(tile.shade-.5)*.18 + broad*.094 + worn*.095 + blister*.052;
-    const burnt=(tile.weather-.5)*.085 + (tile.wobble-.5)*.035;
-    const earth=Math.max(0,worn*.70+broad*.55+pits*.54+blister*.23+.02);
-    const dirt=pores*.28+clinker*.15+streak*.45+seamDepth*.14+
-      (chipped?.09:0)+(crack?.20:0)+moss*.25;
-    const lichens=moss*.40;
-    const fired=clinker*.22;
-    const chalk=salt*.29;
-    const ochre=[.56,.325,.194];
+    // Color remains a diffuse material property; the near-contact darkening
+    // reads as tight dirt-filled crevices rather than painted sunlight.
+    const firing=(tile.fired-.5)*.19 + (tile.faded-.5)*.055;
+    const fading=(tile.faded-.5)*.10 + kiln*.105 + weather*.075;
+    const soot=Math.max(0,-weather*.62-kiln*.28-.07);
+    const patina=underlap*.11 + edgeDepth*.08 + verticalDirt*.41+
+      pit*.23+soot*.13+(crack?.075:0)+(chip?.07:0);
+    const chippedWash=Math.max(0,grain*.5-pores*.46-.10);
+    const cold=mold*.22;
     const idx=p*3;
-    albedo[idx]=clamp(ochre[0]+warm+burnt-earth*.16-dirt*.50-fired*.36+chalk*.33-lichens*.27,.12,.78);
-    albedo[idx+1]=clamp(ochre[1]+warm*.72-burnt*.10-earth*.14-dirt*.42-fired*.30+chalk*.31-lichens*.09,.08,.56);
-    albedo[idx+2]=clamp(ochre[2]+warm*.55-burnt*.13-earth*.105-dirt*.37-fired*.25+chalk*.26-lichens*.34,.055,.43);
-    roughness[p]=clamp(.78+pores*.22+clinker*.12+Math.max(0,pits)*.10+
-      seamDepth*.12+streak*.38+moss*.26+(tile.weather-.5)*.06,.60,.99);
+    const base=[.555,.327,.205];
+    albedo[idx]=clamp(base[0]+firing+fading*.90+chippedWash*.18-patina*.48-cold*.25,.12,.83);
+    albedo[idx+1]=clamp(base[1]+firing*.70+fading*.72+chippedWash*.15-patina*.44+cold*.03,.075,.65);
+    albedo[idx+2]=clamp(base[2]+firing*.48+fading*.59+chippedWash*.13-patina*.38-cold*.13,.055,.50);
+    roughness[p]=clamp(.80+pit*.23+mold*.08+underlap*.12+edgeDepth*.05+
+      Math.max(0,pores)*.09+salt*.06+(tile.faded-.5)*.055,.57,.99);
   }
   return {albedo,height,roughness};
 }
