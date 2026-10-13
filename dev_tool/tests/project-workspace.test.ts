@@ -233,3 +233,35 @@ test('project API is isolated and rejects cross-origin modifications',async()=>{
     }
   });
 });
+
+
+test('timber material assets can be reused and reseeded across buildings',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('wood-work','Wood Work');
+    const wood=await lib.createAsset('oak-timber',{
+      name:'Old oak framework',generator:'timber-oak',masterSeed:37821,
+      components:{grain:37821,color:19257},
+    });
+    const recipe=(name:string)=>({
+      name,generator:'timber-building',masterSeed:19043,
+      components:{structure:19043,material:62191},
+      options:{width:9,depth:11,stories:1,roofPitch:43,interior:'shell'},
+      materials:{timberWood:'asset:oak-timber'},
+    });
+    const a=await lib.createAsset('tavern',recipe('Tavern'));
+    await lib.createAsset('bakery',recipe('Bakery'));
+    assert.deepEqual(a.source.dependencies,['asset:oak-timber']);
+    assert.deepEqual((await lib.graph()).edges.filter(e=>e.to==='asset:oak-timber')
+      .map(e=>e.from).sort(),['asset:bakery','asset:tavern']);
+    const updated=await lib.updateAsset('oak-timber',{
+      name:'Old oak framework',generator:'timber-oak',masterSeed:101,
+      components:{grain:101,color:19257},
+    },wood.revision);
+    assert.notEqual(updated.revision,wood.revision);
+    assert.equal((await lib.asset('tavern')).source.materials!.timberWood,'asset:oak-timber');
+    await assert.rejects(lib.createAsset('wrong-wood',{
+      ...recipe('Wrong'),materials:{timberWood:'asset:missing'},
+    }),/Material/);
+  });
+});
