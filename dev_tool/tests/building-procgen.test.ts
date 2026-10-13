@@ -169,3 +169,35 @@ test('authoring materials provide consistent wood, plaster and roof surfaces',()
   assert.equal(buildingSurfaceKind('interiorPlinth'),'stone');
   assert.equal(buildingSurfaceKind('metal'),null);
 });
+
+
+test('roof tiles run ridge-to-eave on both slopes and the offset wing',()=>{
+  // CanvasTexture.flipY=true maps its top image row to larger texture V.
+  // Textures are authored with the rounded tile tips pointing down the
+  // image, so each roof quad must decrease V toward the physical eave.
+  for(const level of [1,2,3]){
+    const exterior=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level)
+      .building.exterior;
+    const roof=exterior.parts.find(part=>part.material===
+      (level===1?'roofThatch':'roofClay'));
+    assert.ok(roof);
+    const expectedQuads=level===1?2:4; // Two main slopes + two wing slopes
+    assert.equal(roof.uvs.length,expectedQuads*8);
+    for(let q=0;q<expectedQuads;q++){
+      const at=q*8,p=q*12;
+      const ridgeV=roof.uvs[at+1],eaveV=roof.uvs[at+3];
+      assert.ok(eaveV<ridgeV,'UV must move down the texture at the eave');
+      assert.ok(Math.abs(roof.uvs[at+5]-eaveV)<1e-5,
+        'Same texture V along the eave');
+      assert.ok(Math.abs(roof.uvs[at+7]-ridgeV)<1e-5,
+        'Same texture V along the ridge');
+      const run=roof.positions[p+3]-roof.positions[p];
+      const fall=roof.positions[p+4]-roof.positions[p+1];
+      const expected=Math.hypot(run,fall)*.55;
+      assert.ok(Math.abs((ridgeV-eaveV)-expected)<1e-4,
+        'Use the current roof slope length, not absolute world X');
+      assert.ok(roof.uvs[at+4]>roof.uvs[at],
+        'Texture U must follow the roof ridge front to back');
+    }
+  }
+});
