@@ -397,7 +397,10 @@ window.addEventListener('message',event=>{
   }else if(msg.type==='studio:ready'){
     tab.ready=true;
     tab.frame.classList.remove('is-loading');
-    tab.loading.hidden=tab.key!==activeTab;
+    // A ready editor must never remain covered by its loading overlay.
+    // Inactive tabs are hidden by selectTab; on activation the ready flag
+    // ensures their loader remains hidden too.
+    tab.loading.hidden=true;
     if(tab.kind==='map'){sendPlacement();sendNewMap();}
   }else if(msg.type==='studio:focus-search'){
     focusSearch();
