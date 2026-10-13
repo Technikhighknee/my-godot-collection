@@ -45,14 +45,14 @@ function generatePlaster(seeds){
     const age=noise(x,y,15,17,wear^0xa159eb34)-.5;
     const dark=Math.max(0,age*.67+plaster*.4-.13);
     const tone=broad*.046+plaster*.032+edge*.020+
-      wash*.036+grains*.014+aggregate*.015+
-      grit*.012-dark*.046;
+      wash*.036+grains*.014+aggregate*.029+
+      grit*.020-dark*.046;
     height[p]=.49+broad*.042+plaster*.034+edge*.026+
-      aggregate*.017+grit*.009;
+      aggregate*.024+grit*.013;
     albedo[i]=clamp(.868+batch+tone,.62,.97);
     albedo[i+1]=clamp(.824+batch*.81+cream+tone*.89,.57,.95);
     albedo[i+2]=clamp(.720+batch*.70+cream*.8+tone*.75,.46,.88);
-    roughness[p]=clamp(.885+aggregate*.038+grit*.021+dark*.040,.80,.98);
+    roughness[p]=clamp(.885+aggregate*.055+grit*.029+dark*.040,.80,.98);
   }
 
   // Hand-troweled plaster forms overlapping irregular flat patches, not
