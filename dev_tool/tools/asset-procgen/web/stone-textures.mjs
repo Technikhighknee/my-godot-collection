@@ -61,8 +61,8 @@ function generateStone(seeds){
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*3;
     // Periodic distortions break mechanical cells without hard seams.
-    const wx=x+(noise(x,y,11,10,layout^0x98ac23d1)-.5)*11;
-    const wy=y+(noise(x,y,9,12,layout^0xb3e81a69)-.5)*12;
+    const wx=x+(noise(x,y,11,10,layout^0x98ac23d1)-.5)*21;
+    const wy=y+(noise(x,y,9,12,layout^0xb3e81a69)-.5)*22;
     const stone=stonesAt(wx,wy,layout);
     const id=stone.id;
     const tone=hash(id,4,mineral^0x195cb812)-.5;
@@ -70,10 +70,10 @@ function generateStone(seeds){
     const color=palette[type];
     // The nearest/second-nearest gap is zero at each Voronoi boundary.
     // Mortar is sunken; the bevel is a smoothly sloping stone lip.
-    const face=smooth(clamp((stone.edge-.055)/.21));
-    const bevel=smooth(clamp((stone.edge-.015)/.34));
-    const joint=1-face;
-    const cleft=Math.max(0,1-stone.edge/.22);
+    const chipped=(noise(x,y,34,30,layout^0x193ee70c)-.5)*.085;
+    const edge=stone.edge+chipped;
+    const face=smooth(clamp((edge-.020)/.155));
+    const bevel=smooth(clamp((edge-.005)/.29));
     const grain=noise(x,y,72,75,layout^0x3a7211dc)-.5;
     const medium=noise(x,y,30,34,layout^0xe5c1c991)-.5;
     const foliation=noise(x,y,12,15,layout^0xa7d20364)-.5;
@@ -82,20 +82,20 @@ function generateStone(seeds){
     const coarse=noise(x,y,19,21,mineral^0xb02e36af)-.5;
     // Thin crust fractures / minute surface chips. Not painted joints.
     const pits=Math.max(0,.16-noise(x,y,63,58,weather^0xc4a3e219));
-    const mineralTone=medium*.063+grain*.049+foliation*.070+
-      coarse*.033+porous*.022-stained*.067-pits*.26;
+    const mineralTone=medium*.100+grain*.067+foliation*.089+
+      coarse*.052+porous*.025-stained*.083-pits*.30;
     const mineralVari=tone*.23+batch+mineralTone;
     const mortarTone=grain*.037+stained*.045+porous*.025;
     for(let c=0;c<3;c++){
       const stoneColor=color[c]+mineralVari*[1,.94,.86][c];
-      const groutColor=[.365,.356,.319][c]+mortarTone;
+      const groutColor=[.435,.418,.371][c]+mortarTone;
       albedo[i+c]=clamp(mix(groutColor,stoneColor,face),.20,.83);
     }
     // Broad convex faces plus small genuinely granular relief, without
     // baked highlights. Mortar stays noticeably below the stone surfaces.
     height[p]=.14+bevel*(.37+
-      medium*.057+foliation*.077+grain*.047+porous*.018-
-      pits*.11)+face*(hash(id,5,layout^0xf78132ae)-.5)*.075;
+      medium*.078+foliation*.110+grain*.059+porous*.025-
+      pits*.14)+face*(hash(id,5,layout^0xf78132ae)-.5)*.074;
     roughness[p]=clamp(mix(.94,
       .85+grain*.044+porous*.035+pits*.085+stained*.02,
       face),.73,.99);
