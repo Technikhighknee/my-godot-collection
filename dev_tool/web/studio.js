@@ -106,8 +106,9 @@ function makeTab({key,kind,label,id}){
   tabs.set(key,value);
   tabbar.append(tab);region.append(frame);
   frame.addEventListener('load',()=>{
-    value.ready=true;
-    if(kind==='map'&&pendingPlacement)sendPlacement();
+    // The editor sends studio:ready after its document is initialized.
+    // A blank iframe load must never consume a pending placement command.
+    if(frame.getAttribute('src')?.startsWith('/tools/map-editor/'))value.ready=false;
   });
   selectTab(key);
   return value;
@@ -150,7 +151,7 @@ async function openMap(map){
     activeMap=map;
     const tab=makeTab({key:'map:active',kind:'map',id:map.file,label:map.name});
     if(tab.id!==map.file){
-      tab.id=map.file;tab.dirty=false;
+      tab.id=map.file;tab.dirty=false;tab.ready=false;
       tab.frame.src='/tools/map-editor/?embedded=1&map='+encodeURIComponent(map.file);
       renameTab(tab,map.name);
     }else if(!tab.frame.getAttribute('src')){
@@ -278,7 +279,8 @@ async function refreshResources(check=true){
     const [mapResult,assetResult,graphResult]=await Promise.all([
       api('/api/maps'),api('/api/projects/active/assets'),
       api('/api/projects/active/graph')]);
-    maps=mapResult.maps;assets=assetResult.assets.map(a=>({...a,name:a.source.name}));
+    maps=mapResult.maps.map(map=>({...map,kind:'map'}));
+    assets=assetResult.assets.map(a=>({...a,name:a.source.name}));
     graph=graphResult;
     activeMap=maps.find(m=>m.active)||null;
     if(selected){
@@ -426,7 +428,9 @@ window.addEventListener('focus',()=>{if(project)verifyProject().catch(e=>showErr
     byId('explorerProject').textContent=project.name;
     document.title=project.name+' · Dev Tool';
     await refreshResources(false);
-    const saved=JSON.parse(sessionStorage.getItem(cacheKey)||'null');
+    let saved=null;
+    try{saved=JSON.parse(sessionStorage.getItem(cacheKey)||'null');}
+    catch{/* Private browsing and disabled storage must not break Studio. */}
     if(saved?.project===project.id&&Array.isArray(saved.tabs)){
       for(const info of saved.tabs.slice(0,12)){
         if(info.kind==='map'&&activeMap?.file===info.id){

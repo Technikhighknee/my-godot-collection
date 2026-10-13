@@ -32,6 +32,7 @@ document.addEventListener('keydown',event=>{
   }
 });
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
+let loadedProjectAsset=null;
 let active=findGenerator('oak');
 let modelViewport,imageViewport;
 let library;
@@ -322,7 +323,6 @@ try{
 // Project asset sources are named, persistent recipes. The generator registry
 // is independent: loading a recipe simply restores its seeds.
 const projectAssets=new Map();
-let loadedProjectAsset=null;
 const projectEl=id=>document.getElementById(id);
 function assetStatus(message){projectEl('projectAssetStatus').textContent=message;}
 async function projectApi(path,options){
