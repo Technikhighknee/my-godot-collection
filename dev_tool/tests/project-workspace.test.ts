@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,readFile,readdir,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ProjectLibrary,validateSource} from '../src/projects/library.ts';
@@ -75,6 +75,18 @@ test('recipes validate known generators, seeds and revision conflicts',async()=>
     await assert.rejects(lib.updateAsset('fir-one',fir('Other'),first.revision),
       /modified/);
     assert.equal((await lib.asset('fir-one')).source.generator.id,'fir');
+    const material=await lib.createAsset('leaf',fir('Leaf'));
+    const reference=await lib.createAsset('linked',fir('Linked'));
+    const path=join(root,'test-world','assets','linked.asset.json');
+    await writeFile(path,JSON.stringify({...reference.source,dependencies:['asset:leaf']})+'\n');
+    const preserved=await lib.asset('linked');
+    const edited=await lib.updateAsset('linked',fir('Renamed'),preserved.revision);
+    assert.deepEqual(edited.source.dependencies,['asset:leaf']);
+    const leafPath=join(root,'test-world','assets','leaf.asset.json');
+    await writeFile(leafPath,JSON.stringify({...material.source,
+      dependencies:['asset:linked']})+'\n');
+    await assert.rejects(lib.updateAsset('linked',fir('Cycle'),edited.revision),
+      /dependency cycle/i);
     assert.throws(()=>validateSource({...first.source,dependencies:['asset:fir-one']}),
       /Invalid asset dependencies/);
   });
