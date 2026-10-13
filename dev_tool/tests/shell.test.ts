@@ -206,6 +206,8 @@ test('shared plaster, timber and roof materials expose persistent project textur
   assert.match(app,/materialAssignments/);
   assert.match(app,/changeSharedMaterial/);
   assert.match(renderer,/updateSurfaceTextures/);
+  assert.match(renderer,/facadePlaster/);
+  assert.match(renderer,/plasterTint/);
   assert.match(studio,/studio:project-assets-changed/);
   assert.match(server,/\/tools\/asset-procgen\/roof-textures.mjs/);
   assert.match(server,/\/tools\/asset-procgen\/timber-textures.mjs/);
