@@ -1,133 +1,30 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>1400 · Dev Tool</title>
-<link rel="stylesheet" href="/dev-tool.css">
-<script src="/dev-tool.js" type="module"></script>
+<link rel="stylesheet" href="/launcher.css">
+<script type="module" src="/dev-tool.js"></script>
 </head>
-<body class="dt-home">
-<header class="dt-header">
-  <a class="dt-brand" href="/" aria-label="1400 Dev Tool home">
-    <span class="dt-mark">14</span>
-    <span class="dt-brand-copy">1400 <strong>Dev Tool</strong><small>WORLD CREATION WORKSPACE</small></span>
-  </a>
-  <nav class="dt-nav" aria-label="Main navigation"><a href="/" aria-current="page">Tools</a></nav>
-  <span class="dt-local"><span class="dt-local-dot" aria-hidden="true"></span> LOCAL WORKSPACE</span>
-</header>
-<main class="dt-main">
-  <section class="dt-hero" aria-labelledby="dt-title">
-    <div class="dt-kicker"><span class="dt-kicker-line"></span> PROJECT-BASED PRODUCTION <span class="dt-kicker-count">/ SOURCE WORKSPACE</span></div>
-    <h1 id="dt-title">Make worlds.<br><span>Build what matters.</span></h1>
-    <p>Create assets, design worlds and reuse your production tools across projects. Source projects remain editable; generated game content comes next.</p>
+<body>
+<header class="topbar"><a class="brand" href="/" aria-label="Dev Tool projects"><span class="mark">◈</span><span>Dev Tool</span></a><span class="topbar-end"><span class="dot"></span>LOCAL WORKSPACE</span></header>
+<main class="launcher">
+  <div class="intro"><span class="eyebrow">YOUR WORKSPACES</span><h1>Projects</h1><p>Everything you make, in one place.</p></div>
+  <div id="alert" role="alert" class="alert" hidden></div>
+  <section class="collection" aria-label="Projects">
+    <div class="collection-top"><h2>Recent projects</h2><span id="projectCount" class="hint"></span></div>
+    <div id="projectList" class="projects" aria-live="polite"><div class="loading">Loading projects…</div></div>
   </section>
-  <section class="dt-projects" aria-labelledby="dt-projects-heading">
-    <div class="dt-section-heading">
-      <h2 id="dt-projects-heading">Projects <span class="dt-section-rule" aria-hidden="true"></span></h2>
-      <span class="dt-section-meta">SOURCE WORKSPACE / LOCAL DISK</span>
-    </div>
-    <div class="dt-project-layout">
-      <div class="dt-project-browser">
-        <div class="dt-project-browser-heading">YOUR PROJECTS</div>
-        <div id="dt-project-list" class="dt-project-list" aria-live="polite">Loading projects…</div>
-      </div>
-      <form id="dt-project-create" class="dt-project-create">
-        <h3>New project</h3>
-        <p>Create a self-contained source workspace with a starter map and room for procedural assets.</p>
-        <label for="dt-project-name">Project name</label>
-        <input id="dt-project-name" placeholder="My next game" required maxlength="100" autocomplete="off">
-        <label for="dt-project-id">Directory ID</label>
-        <input id="dt-project-id" placeholder="my-next-game" pattern="[a-z0-9][a-z0-9_-]{0,47}" required maxlength="48" autocomplete="off">
-        <button type="submit">Create project</button>
-        <div id="dt-project-error" role="alert"></div>
-      </form>
-    </div>
+  <section class="create" aria-labelledby="createHeading">
+    <div><span class="eyebrow">GET STARTED</span><h2 id="createHeading">New project</h2><p>A portable source workspace for worlds, assets, and everything you create next.</p></div>
+    <form id="createForm">
+      <div class="fields"><label>Project name<input id="projectName" type="text" maxlength="100" required placeholder="My game" autocomplete="off"></label>
+      <label>Directory ID<input id="projectId" type="text" maxlength="48" pattern="[a-z0-9][a-z0-9_-]{0,47}" required placeholder="my-game" autocomplete="off"></label></div>
+      <button type="submit" class="primary">Create & open project <span aria-hidden="true">→</span></button>
+    </form>
   </section>
-  <section class="dt-resources" aria-labelledby="dt-resources-heading" id="dt-resources" hidden>
-    <div class="dt-section-heading">
-      <h2 id="dt-resources-heading">Project sources <span class="dt-section-rule" aria-hidden="true"></span></h2>
-      <span class="dt-section-meta">EDITABLE CONTENT / REFERENCE GRAPH</span>
-    </div>
-    <div class="dt-resource-grid">
-      <div class="dt-resource-panel">
-        <h3>Maps</h3><div id="dt-maps" class="dt-resource-list"></div>
-      </div>
-      <div class="dt-resource-panel">
-        <h3>Procedural assets</h3><div id="dt-assets" class="dt-resource-list"></div>
-      </div>
-    </div>
-  </section>
-  <section class="dt-tools" aria-labelledby="dt-tools-heading">
-    <div class="dt-section-heading">
-      <h2 id="dt-tools-heading">Tools <span class="dt-section-rule" aria-hidden="true"></span></h2>
-      <span class="dt-section-meta">02 AVAILABLE <span aria-hidden="true">·</span> CURRENTLY BUILDING</span>
-    </div>
-    <div class="dt-card-grid">
-      <a class="dt-card dt-card-ready" href="/tools/map-editor/" aria-labelledby="dt-map-title">
-        <div class="dt-card-visual dt-map-visual" aria-hidden="true">
-          <svg viewBox="0 0 520 240" preserveAspectRatio="xMidYMid slice">
-            <defs>
-              <linearGradient id="dt-terrain" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0" stop-color="#384b43"/><stop offset="0.55" stop-color="#283b36"/><stop offset="1" stop-color="#1b2b2d"/>
-              </linearGradient>
-            </defs>
-            <rect width="520" height="240" fill="url(#dt-terrain)"/>
-            <g fill="none" stroke="#80937d" stroke-width="1.5" opacity=".36">
-              <path d="M-80 38C-6 9 18 67 93 41S213-23 269 8s79 71 151 41S504 18 573 40"/>
-              <path d="M-80 64C-2 32 23 95 104 65s100-65 164-35 87 78 156 48 95-33 147-10"/>
-              <path d="M-80 92C-4 60 31 126 111 91s105-59 162-29 83 78 152 52 97-36 146-10"/>
-              <path d="M-80 121C-4 90 41 158 120 122s106-64 161-28 82 74 150 51 95-31 140-15"/>
-              <path d="M-80 153C-4 121 49 185 127 151s105-61 157-25 87 69 154 48 94-28 133-15"/>
-              <path d="M-80 187C-4 155 55 215 137 181s96-63 147-27 93 70 158 50 93-27 131-14"/>
-              <path d="M-80 220C-4 189 66 245 149 211s88-60 138-27 96 72 161 49 91-24 125-14"/>
-            </g>
-            <path d="M-5 198C87 184 130 185 206 139S343 119 400 63 461 18 523 29" fill="none" stroke="#ad9a77" stroke-width="22" opacity=".14"/>
-            <path d="M-5 198C87 184 130 185 206 139S343 119 400 63 461 18 523 29" fill="none" stroke="#d7b887" stroke-width="3" stroke-dasharray="1 0" opacity=".9"/>
-            <g stroke="#d9ddc4" fill="#d9ddc4"><circle cx="206" cy="139" r="5"/><circle cx="206" cy="139" r="13" fill="none" opacity=".6"/></g>
-          </svg>
-          <span class="dt-visual-caption">TERRAIN / ROADS / SETTLEMENTS</span>
-        </div>
-        <div class="dt-card-body">
-          <div class="dt-card-overline"><span class="dt-ready-dot"></span> READY TO USE <span>01</span></div>
-          <h3 id="dt-map-title">Map Editor</h3>
-          <p>Sculpt terrain, paint surfaces and shape the world. Roads, water, settlements and placement in one canvas.</p>
-          <span class="dt-open">Open Map Editor <span aria-hidden="true">↗</span></span>
-        </div>
-      </a>
-      <a class="dt-card dt-card-ready dt-card-procgen" href="/tools/asset-procgen/" aria-labelledby="dt-procgen-title">
-        <div class="dt-card-visual dt-procgen-visual" aria-hidden="true">
-          <svg viewBox="0 0 520 240" preserveAspectRatio="xMidYMid meet">
-            <g stroke="#718477" stroke-width="1" opacity=".15" fill="none">
-              <path d="M0 205H520M0 160H520M0 115H520M0 70H520"/>
-              <path d="M85 0V240M175 0V240M265 0V240M355 0V240M445 0V240"/>
-            </g>
-            <g stroke="#aeb399" fill="none" stroke-linejoin="round" stroke-linecap="round">
-              <path d="M261 235Q259 190 263 140Q266 98 258 45" stroke-width="17"/>
-              <path d="M262 153Q235 116 191 99Q163 89 128 56" stroke-width="10"/>
-              <path d="M266 127Q310 94 343 80Q374 63 402 29" stroke-width="10"/>
-              <path d="M257 98Q225 66 218 24M278 116Q296 67 281 20" stroke-width="5"/>
-              <path d="M196 101Q175 66 148 40M178 90Q137 105 102 89M347 78Q359 43 351 17M362 66Q400 84 437 65M288 96Q317 61 326 23" stroke-width="3"/>
-              <path d="M150 42l-21-24M132 96L103 118M215 43l17-27M321 29L316 12M394 34l24-21M405 79l27 12" stroke-width="1.5"/>
-            </g>
-          </svg>
-          <span class="dt-visual-caption">PROCEDURAL GEOMETRY / ASSETS</span>
-        </div>
-        <div class="dt-card-body">
-          <div class="dt-card-overline"><span class="dt-ready-dot"></span> IN DEVELOPMENT <span>02</span></div>
-          <h3 id="dt-procgen-title">Asset ProcGen</h3>
-          <p>Procedural asset creation in progress. Currently: grow a branched oak skeleton with trunk, limbs and twigs in a 3D preview.</p>
-          <span class="dt-open">Open Asset ProcGen <span aria-hidden="true">↗</span></span>
-        </div>
-      </a>
-    </div>
-  </section>
-  <section class="dt-workspace" aria-labelledby="dt-workspace-heading">
-    <div><span class="dt-workspace-label" id="dt-workspace-heading">ACTIVE PROJECT / MAP</span><strong id="dt-map-name" aria-live="polite">Loading map…</strong></div>
-    <span class="dt-workspace-detail" id="dt-map-detail">Your tools run locally on this machine.</span>
-  </section>
+  <section id="legacy" class="legacy" hidden><h2>Legacy map workspace</h2><p>Project management is unavailable when the Dev Tool is started with an individual map.</p><a href="/tools/map-editor/">Open Map Editor →</a></section>
 </main>
-<footer class="dt-footer"><span>1400 DEV TOOL</span><span>LOCAL FIRST <span aria-hidden="true">·</span> BUILT FOR MAKING WORLDS</span></footer>
-</body>
-</html>
+<footer>DEV TOOL <span>LOCAL FIRST · PROJECT SOURCES STAY ON YOUR DISK</span></footer>
+</body></html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>Dev Tool · Studio</title>
+<link rel="stylesheet" href="/studio.css"><script type="module" src="/studio.js"></script></head>
+<body>
+<div class="studio" id="studio">
+  <header class="appbar">
+    <a class="studio-brand" href="/" title="Project launcher" aria-label="Project launcher"><span class="brand-mark">◈</span><span>Dev Tool</span></a>
+    <span class="divider"></span>
+    <button id="projectButton" class="project-select" type="button" title="Change project">
+      <span class="project-glyph">▧</span><span id="projectName">Opening project…</span><span class="chevron">⌄</span>
+    </button>
+    <div class="appbar-center"><span class="workspace-label">PROJECT WORKSPACE</span></div>
+    <button class="search-trigger" id="searchTrigger" type="button" title="Search resources (Ctrl+K)"><span>⌕</span> Search <kbd>Ctrl K</kbd></button>
+    <button id="refreshButton" class="icon-button" type="button" title="Refresh project sources" aria-label="Refresh resources">↻</button>
+  </header>
+  <div class="workbench">
+    <nav class="activity" aria-label="Workspaces">
+      <button class="activity-button active" type="button" id="explorerButton" title="Project explorer" aria-label="Project explorer" aria-pressed="true">▤</button>
+      <button class="activity-button" type="button" id="toolsButton" title="Available generators" aria-label="Generator catalog" aria-pressed="false">◇</button>
+      <div class="activity-spacer"></div>
+      <a class="activity-link" href="/" title="Projects" aria-label="Projects">⌂</a>
+    </nav>
+    <aside class="explorer" id="explorer" aria-label="Project resources">
+      <div class="pane-heading"><span id="explorerTitle">EXPLORER</span><button id="collapseExplorer" class="icon-button small" type="button" title="Collapse explorer">‹</button></div>
+      <div class="explorer-context"><strong id="explorerProject">—</strong><span id="explorerSubtitle">Project contents</span></div>
+      <label class="explorer-search"><span aria-hidden="true">⌕</span><input type="search" id="resourceSearch" placeholder="Filter resources…" autocomplete="off" aria-label="Filter resources"></label>
+      <div id="projectTree" class="tree" role="tree" aria-label="Project files"></div>
+      <div id="generatorTree" class="tree" role="tree" aria-label="Generator catalog" hidden></div>
+      <div class="explorer-footer"><span id="resourceCount">—</span><span class="footer-dot"></span><span>LOCAL</span></div>
+    </aside>
+    <main class="workspace" aria-label="Editors">
+      <div class="tabbar" id="tabbar" role="tablist" aria-label="Open documents">
+        <button type="button" class="tab overview-tab" id="overviewTab" role="tab" aria-selected="true" aria-controls="overview">
+          <span class="tab-icon">▦</span> Overview</button>
+      </div>
+      <div class="editor-region" id="editorRegion">
+        <section class="overview" id="overview" role="tabpanel" aria-labelledby="overviewTab">
+          <div class="overview-inner">
+            <div class="overview-top"><span class="eyebrow">YOUR PROJECT</span><h1 id="overviewTitle">Workspace</h1>
+              <p>Create, edit and reuse game content. Select a resource on the left to begin.</p></div>
+            <div class="overview-actions">
+              <button id="openMap" class="action-card" type="button"><span class="action-icon">▧</span><strong>Open a map</strong><small>Terrain · roads · placements</small><span class="action-arrow">↗</span></button>
+              <button id="createAsset" class="action-card" type="button"><span class="action-icon">◇</span><strong>Create an asset</strong><small>Procedural models & textures</small><span class="action-arrow">↗</span></button>
+            </div>
+            <div class="overview-bottom">
+              <div class="overview-heading"><h2>Project content</h2><span id="overviewCounts"></span></div>
+              <div class="overview-columns">
+                <div><h3>Maps</h3><div id="overviewMaps" class="summary-list"></div></div>
+                <div><h3>Recent assets</h3><div id="overviewAssets" class="summary-list"></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="statusbar"><span id="statusText">READY</span><span class="status-right" id="statusRight">SOURCE PROJECT · NO BUILD OUTPUT</span></div>
+    </main>
+    <aside class="details" id="details" aria-label="Selected resource details">
+      <div class="pane-heading">DETAILS</div>
+      <div class="details-inner">
+        <span class="details-icon" id="detailsIcon">▦</span>
+        <h2 id="detailsTitle">Project</h2>
+        <p id="detailsDescription">Choose a map or asset to inspect its source and open its editor.</p>
+        <dl id="detailsMetadata"></dl>
+        <div class="details-actions"><button id="detailsOpen" class="primary" type="button" hidden>Open source</button>
+          <button id="detailsPlace" type="button" hidden>Place in active map</button></div>
+      </div>
+    </aside>
+  </div>
+  <div id="toast" role="status" class="toast" hidden></div>
+</div>
+</body></html>

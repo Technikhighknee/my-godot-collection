@@ -6,6 +6,11 @@ import {fileURLToPath} from 'node:url';
 
 const root=resolve(fileURLToPath(new URL('../',import.meta.url)));
 const staticRoutes:Record<string,[string,string]>={
+  '/studio': ['web/studio.html', 'text/html; charset=utf-8'],
+  '/studio/': ['web/studio.html', 'text/html; charset=utf-8'],
+  '/studio.js': ['web/studio.js', 'text/javascript; charset=utf-8'],
+  '/studio.css': ['web/studio.css', 'text/css; charset=utf-8'],
+  '/launcher.css': ['web/launcher.css', 'text/css; charset=utf-8'],
   '/': ['web/index.html', 'text/html; charset=utf-8'],
   '/dev-tool.css': ['web/dev-tool.css', 'text/css; charset=utf-8'],
   '/dev-tool.js': ['web/dev-tool.js', 'text/javascript; charset=utf-8'],
@@ -57,7 +62,7 @@ export function createDevToolServer(api?:ToolApiHandler):Server{
     res.setHeader('Referrer-Policy','no-referrer');
     res.setHeader('Cache-Control','no-store');
     res.setHeader('Content-Security-Policy',
-      "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'");
+      "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-src 'self'; base-uri 'none'; form-action 'none'");
     const path=req.url?.split('?')[0];
     if(!path||!/^\/[A-Za-z0-9/_.-]*$/.test(path)||path.includes('..')||path.includes('//')){
       res.writeHead(404);res.end();return;
