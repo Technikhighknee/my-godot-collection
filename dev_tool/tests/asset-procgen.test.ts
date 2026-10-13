@@ -405,7 +405,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(library,/filterAssetLibrary/);
   assert.match(library,/buildAssetLibraryTree/);
   assert.match(library,/favoriteIds/);
-  assert.match(app,/generateAsset\(active,state.components\)/);
+  assert.match(app,/generateAsset\(active,state.components\s*,/);
   assert.match(app,/selectGenerator/);
   assert.match(library,/list\.append\(group/);
   assert.match(library,/button\.addEventListener\('click'/);
@@ -414,7 +414,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(catalog,/generateTree\(\{seed:seeds.geometry\}\)/);
   assert.match(catalog,/generateFir\(\{seed:seeds.geometry\}\)/);
   assert.match(catalog,/generateOakFoliage\(wood,\{seed:seeds.foliage\}\)/);
-  assert.match(catalog,/return definition\.generate\(componentSeeds\)/);
+  assert.match(catalog,/return definition\.generate\(componentSeeds,options,level\)/);
   assert.match(catalog,/kind:'image'/);
   assert.match(catalog,/generateOakSprigAsset/);
   assert.match(catalog,/generateOakBarkAsset/);

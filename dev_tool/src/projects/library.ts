@@ -63,9 +63,9 @@ export function validateSource(raw:unknown,expectedId?:string,
   lookup:GeneratorLookup=()=>null):AssetSource{
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid asset source');
   const x=raw as Record<string,unknown>;
-  const keys=Object.keys(x).sort().join();
-  if((keys!=='dependencies,format,generator,id,name,version'&&
-    keys!=='dependencies,format,generator,id,name,options,version')||
+  const sourceFields=Object.keys(x).sort().join();
+  if((sourceFields!=='dependencies,format,generator,id,name,version'&&
+    sourceFields!=='dependencies,format,generator,id,name,options,version')||
     x.format!=='devtool-asset'||x.version!==1)throw Error('Unsupported asset source');
   const id=slug(x.id);
   if(expectedId&&id!==expectedId)throw Error('Asset ID does not match filename');

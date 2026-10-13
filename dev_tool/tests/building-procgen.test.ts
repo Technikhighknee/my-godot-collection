@@ -20,7 +20,8 @@ test('three levels share one procedural family and are deterministic',()=>{
   assert.deepEqual(definition.defaultOptions,DEFAULT_BUILDING_OPTIONS);
   const sizes=[];
   for(let level=1;level<=3;level++){
-    const a=generateAsset(definition,seeds,DEFAULT_BUILDING_OPTIONS,level);
+    const a:ReturnType<typeof generateBuildingFamily>=
+      generateAsset(definition,seeds,DEFAULT_BUILDING_OPTIONS,level);
     const b=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level);
     assert.deepEqual(a,b);
     assert.equal(a.building.level,level);
