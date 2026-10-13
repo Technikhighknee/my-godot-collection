@@ -64,7 +64,7 @@ storage. No existing maps or Godot files were migrated or modified.
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. A searchable Asset Library groups oak/fir models, bark and leaf images by asset family; the preview automatically selects 3D or 2D rendering. Master and component seeds are independent. No recipes or exports.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. A searchable Asset Library groups oak/fir models, bark and leaf images by asset family; the preview automatically selects 3D or 2D rendering. Master and component seeds are independent. Project recipes can be saved; exports are not yet implemented.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 

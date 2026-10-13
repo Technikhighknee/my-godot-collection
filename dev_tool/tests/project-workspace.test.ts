@@ -72,6 +72,8 @@ test('recipes validate known generators, seeds and revision conflicts',async()=>
     assert.notEqual(second.revision,first.revision);
     await assert.rejects(lib.updateAsset('fir-one',oak(),second.revision),
       /Cannot change generator/);
+    await assert.rejects(lib.updateAsset('fir-one',fir('Other'),first.revision),
+      /modified/);
     assert.equal((await lib.asset('fir-one')).source.generator.id,'fir');
     assert.throws(()=>validateSource({...first.source,dependencies:['asset:fir-one']}),
       /Invalid asset dependencies/);

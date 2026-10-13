@@ -80,13 +80,13 @@ export function validateSource(raw:unknown,expectedId?:string):AssetSource{
       components:comps as Record<string,number>},
     dependencies:x.dependencies as string[]};
 }
-function makeSource(input:unknown,id:string):AssetSource{
+function makeSource(input:unknown,id:string,dependencies:string[]=[]):AssetSource{
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid asset request');
   const x=input as Record<string,unknown>;
   if(Object.keys(x).sort().join()!=='components,generator,masterSeed,name')throw Error('Invalid asset fields');
   return validateSource({format:'devtool-asset',version:1,id,name:x.name,
     generator:{id:x.generator,version:1,masterSeed:x.masterSeed,components:x.components},
-    dependencies:[]},id);
+    dependencies},id);
 }
 function parseProject(data:unknown,id:string):ProjectInfo{
   if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Invalid project manifest');
@@ -245,7 +245,7 @@ export class ProjectLibrary {
       id=slug(id);
       const old=await this.asset(id);
       if(old.revision!==revision)throw Error('Asset was modified; reload before saving');
-      const source=makeSource(input,id);
+      const source=makeSource(input,id,old.source.dependencies);
       if(source.generator.id!==old.source.generator.id)
         throw Error('Cannot change generator of an existing asset; save a new asset');
       await this.checkDependencies(source);
