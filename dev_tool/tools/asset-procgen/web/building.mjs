@@ -39,7 +39,7 @@ function geometryBuilder(){
     if(!parts.has(material))parts.set(material,{material,positions:[],normals:[],uvs:[],indices:[]});
     return parts.get(material);
   };
-  function face(material,a,b,c,d=null){
+  function face(material,a,b,c,d=null,uvCorners=null){
     const mesh=part(material),ab=b.map((v,i)=>v-a[i]),ac=c.map((v,i)=>v-a[i]);
     const n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
     const len=Math.hypot(...n)||1;
@@ -54,12 +54,13 @@ function geometryBuilder(){
     // not from world X=0: the attached wing has its own offset ridge.
     // Walls retain their original world-aligned planar projection.
     const roof=material==='roofThatch'||material==='roofClay';
-    for(const v of verts){
+    for(const [index,v] of verts.entries()){
       mesh.positions.push(...v);mesh.normals.push(...normal);
       const downhill=Math.hypot(v[0]-a[0],v[1]-a[1]);
       const uv=roof?[v[2],-downhill]:
         axis==='y'?[v[0],v[2]]:axis==='x'?[v[2],v[1]]:[v[0],v[1]];
-      mesh.uvs.push(uv[0]*(roof?.55:.85),uv[1]*(roof?.55:.85));
+      if(uvCorners)mesh.uvs.push(...uvCorners[index]);
+      else mesh.uvs.push(uv[0]*(roof?.55:.85),uv[1]*(roof?.55:.85));
     }
     mesh.indices.push(at,at+1,at+2);
     if(d)mesh.indices.push(at,at+2,at+3);
@@ -86,7 +87,12 @@ function geometryBuilder(){
     const corners=[[-1,-1],[1,-1],[1,1],[-1,1]];
     for(let i=0;i<4;i++){
       const p=corners[i],q=corners[(i+1)%4];
-      face(material,at(a,...p),at(b,...p),at(b,...q),at(a,...q));
+      // The wood's V axis follows the beam, regardless of its world direction.
+      // U repeats around each face at a scale suitable for narrow framing.
+      const grain=material==='timber'||material==='innerTimber';
+      const u=2*r*.70,v=length*.50;
+      face(material,at(a,...p),at(b,...p),at(b,...q),at(a,...q),
+        grain?[[0,0],[0,v],[u,v],[u,0]]:null);
     }
     face(material,...corners.map(p=>at(a,...p)));
     face(material,...corners.map(p=>at(b,...p)).reverse());
