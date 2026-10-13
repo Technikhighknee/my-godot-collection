@@ -183,20 +183,22 @@ export function createModelViewport(container,onChange=()=>{}){
       try{
         for(const profile of image.profiles??[null]){
           const maps={};
+          if(profile)fresh[profile]=maps;
           for(const view of ['albedo','normal','roughness']){
             const canvas=document.createElement('canvas');
             image.paint(canvas,view,profile??undefined);
             const texture=new THREE.CanvasTexture(canvas);
-            texture.wrapS=THREE.RepeatWrapping;
-            texture.wrapT=THREE.RepeatWrapping;
+            texture.wrapS=profile==='end'?
+              THREE.ClampToEdgeWrapping:THREE.RepeatWrapping;
+            texture.wrapT=profile==='end'?
+              THREE.ClampToEdgeWrapping:THREE.RepeatWrapping;
             texture.colorSpace=view==='albedo'?THREE.SRGBColorSpace:THREE.NoColorSpace;
             texture.minFilter=THREE.LinearMipmapLinearFilter;
             texture.magFilter=THREE.LinearFilter;
             texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
             maps[view]=texture;
           }
-          if(profile)fresh[profile]=maps;
-          else Object.assign(fresh,maps);
+          if(!profile)Object.assign(fresh,maps);
         }
       }catch(error){disposeSurfaceTextures(fresh);throw error;}
       const previous=currentMaterials.get(slot);
