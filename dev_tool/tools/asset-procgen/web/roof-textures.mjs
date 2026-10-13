@@ -16,32 +16,29 @@ const hash=(x,y,seed)=>{
 };
 function sampleClay(u,v,seeds){
   const pattern=seeds.pattern>>>0,color=seeds.color>>>0;
-  {
-    const cols=8,rows=8;
-    const r=Math.floor(v*rows),ry=fract(v*rows);
-    const stagger=((wrap(r,rows)%2)===1?.5:0);
-    const c=Math.floor(u*cols+stagger),rx=fract(u*cols+stagger);
-    const variation=hash(wrap(c,cols),wrap(r,rows),color);
-    const chipped=hash(wrap(c,cols),wrap(r,rows),pattern^0x4325);
-    const edge=Math.min(rx,1-rx);
-    // A curved pan tile, separated by mortar-shadow gaps. The upper lip
-    // overlaps the course below; lower tips are rounded, not square pixels.
-    const scallop=Math.sin(Math.PI*rx)**2;
-    const lip=Math.exp(-Math.pow((ry-.85)/.105,2));
-    const rim=Math.exp(-Math.pow((ry-.09)/.07,2));
-    const gap=clamp(edge*34,0,1);
-    const broken=(chipped>.91&&ry>.87&&rx>.78)?-.16:0;
-    const height=(.23+.52*scallop+.26*lip+.11*rim)*gap+broken;
-    const micro=(hash(wrap(Math.floor(u*SIZE),SIZE),
-      wrap(Math.floor(v*SIZE),SIZE),pattern^39)-.5)*.032;
-    const base=[.52,.28,.185].map((n,i)=>n+(.22*variation-.105)*[.90,.68,.52][i]+micro);
-    const crevice=gap<.3?.57+gap*1.2:ry<.065?.79:1;
-    return {height,base:base.map(n=>n*crevice),
-      roughness:clamp(.81+(.5-variation)*.14+micro,.57,.97)};
-  }
-
-  throw Error('Unsupported roof material: '+kind);
+  const cols=8,rows=8;
+  const r=Math.floor(v*rows),ry=fract(v*rows);
+  const stagger=((wrap(r,rows)%2)===1?.5:0);
+  const c=Math.floor(u*cols+stagger),rx=fract(u*cols+stagger);
+  const variation=hash(wrap(c,cols),wrap(r,rows),color);
+  const chipped=hash(wrap(c,cols),wrap(r,rows),pattern^0x4325);
+  const edge=Math.min(rx,1-rx);
+  // A curved pan tile, separated by mortar-shadow gaps. The upper lip
+  // overlaps the course below; lower tips are rounded, not square pixels.
+  const scallop=Math.sin(Math.PI*rx)**2;
+  const lip=Math.exp(-Math.pow((ry-.85)/.105,2));
+  const rim=Math.exp(-Math.pow((ry-.09)/.07,2));
+  const gap=clamp(edge*34,0,1);
+  const broken=(chipped>.91&&ry>.87&&rx>.78)?-.16:0;
+  const height=(.23+.52*scallop+.26*lip+.11*rim)*gap+broken;
+  const micro=(hash(wrap(Math.floor(u*SIZE),SIZE),
+    wrap(Math.floor(v*SIZE),SIZE),pattern^39)-.5)*.032;
+  const base=[.52,.28,.185].map((n,i)=>n+(.22*variation-.105)*[.90,.68,.52][i]+micro);
+  const crevice=gap<.3?.57+gap*1.2:ry<.065?.79:1;
+  return {height,base:base.map(n=>n*crevice),
+    roughness:clamp(.81+(.5-variation)*.14+micro,.57,.97)};
 }
+
 // Tileable value noise prevents a visible seam when the material repeats.
 // Fine scales supply fiber dust and weathering, not rows of shingles.
 function periodicNoise(x,y,cells,seed){
