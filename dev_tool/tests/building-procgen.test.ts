@@ -292,6 +292,37 @@ test('long beams dephase the same tile continuously without extra materials',()=
       assert.ok(Math.abs(side.colors[p+3+c]-side.colors[pn+c])<1e-5,
         'Macro tint must remain continuous across strips');
   }
+  // A tile sampled exactly one V-period later should no longer map to
+  // the same U. This catches a return to obvious copy/paste along a joist.
+  const runs:{v0:number;v1:number;u0:number;u1:number;start:number[];end:number[]}[][]=[];
+  let run:typeof runs[number]=[];
+  for(let j=0;j<strips;j++){
+    const p=j*48,v=j*32;
+    const start=[...side.positions.slice(p,p+3)];
+    const end=[...side.positions.slice(p+3,p+6)];
+    const last=run[run.length-1];
+    if(last&&Math.hypot(...start.map((n,i)=>n-last.end[i]))>1e-5){
+      runs.push(run);
+      run=[];
+    }
+    run.push({start,end,u0:side.uvs[v],v0:side.uvs[v+1],
+      u1:side.uvs[v+2],v1:side.uvs[v+3]});
+  }
+  if(run.length)runs.push(run);
+  const longest=runs.sort((a,b)=>b.length-a.length)[0]!;
+  const firstV=longest[0]!.v0,lastV=longest[longest.length-1]!.v1;
+  const sampleU=(v:number)=>{
+    const segment=longest.find(s=>v>=s.v0&&v<=s.v1)!;
+    return segment.u0+(segment.u1-segment.u0)*
+      (v-segment.v0)/(segment.v1-segment.v0);
+  };
+  let different=0,pairs=0;
+  for(let v=firstV+.15;v<lastV-1;v+=.25){
+    if(Math.abs(sampleU(v+1)-sampleU(v))>.05)different++;
+    pairs++;
+  }
+  assert.ok(pairs>8&&different>pairs*.55,
+    'Most one-tile-spaced samples on a long beam must differ');
   assert.ok(dephased>30,'Long beams must sample non-identical grain strips');
   assert.ok(continuous>30,'Long beams must have adjoining strips');
   assert.ok(maximumJump<.35,'No abrupt grain rotation');
