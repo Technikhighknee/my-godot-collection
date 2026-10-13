@@ -6,18 +6,18 @@ import {makePlasterAsset,PLASTER_TEXTURE_SIZE,PLASTER_VIEWS}
 const seeds={structure:47519,pigment:20468,wear:90571};
 function capture(recipe=seeds,view='albedo'){
   const asset=makePlasterAsset(recipe);
-  let rendered:Uint8ClampedArray|undefined;
+  const output:{pixels:Uint8ClampedArray|undefined}={pixels:undefined};
   const canvas={width:0,height:0,
     getContext(){return {
       createImageData:(w:number,h:number)=>({data:new Uint8ClampedArray(w*h*4)}),
-      putImageData:(image:{data:Uint8ClampedArray})=>{rendered=image.data;},
+      putImageData:(image:{data:Uint8ClampedArray})=>{output.pixels=image.data;},
     };},
   };
   asset.paint(canvas as unknown as HTMLCanvasElement,view);
   assert.equal(canvas.width,512);
   assert.equal(canvas.height,512);
-  assert.ok(rendered);
-  return rendered;
+  assert.ok(output.pixels);
+  return output.pixels;
 }
 test('lime plaster is a reusable seeded RGBA material with coherent maps',()=>{
   assert.equal(PLASTER_TEXTURE_SIZE,512);
