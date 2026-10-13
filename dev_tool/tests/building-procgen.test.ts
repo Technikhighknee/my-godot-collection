@@ -265,73 +265,57 @@ test('interior beams and broad wood have matching dedicated material groups',()=
 });
 
 
-test('long beams dephase the same tile continuously without extra materials',()=>{
+test('long beams preserve crisp grain, continuous tint and no full tile repetition',()=>{
   const mesh=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,3)
     .building.exterior;
   const side=mesh.parts.find(p=>p.material==='timber')!;
-  const ends=mesh.parts.find(p=>p.material==='timberEnd')!;
-  assert.ok(side.colors&&ends.colors);
-  let continuous=0,dephased=0,maximumJump=0,gradient=0;
+  const caps=mesh.parts.find(p=>p.material==='timberEnd')!;
+  assert.ok(side.colors&&caps.colors);
   const strips=side.uvs.length/32;
-  for(let j=0;j<strips;j++){
-    const v=j*32,p=j*48;
-    const [u0,v0,u1,v1,u2,v2,u3,v3]=side.uvs.slice(v,v+8);
-    assert.ok(v1>v0,'V must always advance along the beam');
-    assert.ok(Math.abs(v1-v2)<1e-5);
-    assert.ok(Math.abs(v0-v3)<1e-5);
-    assert.ok(Math.abs((u2-u1)-(u3-u0))<1e-5,
-      'Opposite edges must have identical longitudinal UV drift');
-    maximumJump=Math.max(maximumJump,Math.abs(u1-u0));
-    if(Math.abs(u1-u0)>.005)dephased++;
-    gradient+=Math.abs(side.colors[p]-side.colors[p+3]);
-    if(j+1>=strips)continue;
-    const pn=(j+1)*48,un=(j+1)*32;
-    const distance=Math.hypot(...[0,1,2].map(c=>
-      side.positions[p+3+c]-side.positions[pn+c]));
-    if(distance>1e-5)continue;
-    continuous++;
-    assert.ok(Math.abs(side.uvs[v+2]-side.uvs[un])<1e-5,
-      'UVs must meet seamlessly between strips');
-    assert.ok(Math.abs(side.uvs[v+3]-side.uvs[un+1])<1e-5);
-    for(let c=0;c<3;c++)
-      assert.ok(Math.abs(side.colors[p+3+c]-side.colors[pn+c])<1e-5,
-        'Macro tint must remain continuous across strips');
-  }
-  // A tile sampled exactly one V-period later should no longer map to
-  // the same U. This catches a return to obvious copy/paste along a joist.
-  const runs:{v0:number;v1:number;u0:number;u1:number;start:number[];end:number[]}[][]=[];
+  let adjacent=0,gradient=0,maxSpan=0;
+  const runs:{v0:number;v1:number;u:number;start:number[];end:number[]}[][]=[];
   let run:typeof runs[number]=[];
   for(let j=0;j<strips;j++){
-    const p=j*48,v=j*32;
+    const uv=j*32,p=j*48;
+    const [u0,v0,u1,v1,u2,v2,u3,v3]=side.uvs.slice(uv,uv+8);
+    // Unwarped wood grain: no sideways drifting, squeezing or distortion.
+    assert.ok(Math.abs(u0-u1)<1e-6,'U must stay fixed along the grain');
+    assert.ok(Math.abs(u2-u3)<1e-6,'Opposite edge must stay parallel');
+    assert.ok(Math.abs(v0-v3)<1e-5&&Math.abs(v1-v2)<1e-5);
+    assert.ok(v1>v0&&Math.abs(u2-u1)>.01);
     const start=[...side.positions.slice(p,p+3)];
     const end=[...side.positions.slice(p+3,p+6)];
-    const last=run[run.length-1];
-    if(last&&Math.hypot(...start.map((n,i)=>n-last.end[i]))>1e-5){
+    const previous=run[run.length-1];
+    if(previous&&Math.hypot(...start.map((n,i)=>n-previous.end[i]))>1e-5){
       runs.push(run);
       run=[];
     }
-    run.push({start,end,u0:side.uvs[v],v0:side.uvs[v+1],
-      u1:side.uvs[v+2],v1:side.uvs[v+3]});
+    if(previous&&run.length){
+      adjacent++;
+      assert.ok(Math.abs(previous.v1-v0)<1e-5,
+        'Adjacent sections must share the same texture coordinates');
+      assert.ok(Math.abs(previous.u-u0)<1e-6);
+      for(let c=0;c<3;c++)
+        assert.ok(Math.abs(side.colors[p-48+3+c]-side.colors[p+c])<1e-5,
+          'Color variation must be smooth between sections');
+    }
+    gradient+=Math.abs(side.colors[p]-side.colors[p+3]);
+    run.push({start,end,u:u0,v0,v1});
   }
   if(run.length)runs.push(run);
-  const longest=runs.sort((a,b)=>b.length-a.length)[0]!;
-  const firstV=longest[0]!.v0,lastV=longest[longest.length-1]!.v1;
-  const sampleU=(v:number)=>{
-    const segment=longest.find(s=>v>=s.v0&&v<=s.v1)!;
-    return segment.u0+(segment.u1-segment.u0)*
-      (v-segment.v0)/(segment.v1-segment.v0);
-  };
-  let different=0,pairs=0;
-  for(let v=firstV+.15;v<lastV-1;v+=.25){
-    if(Math.abs(sampleU(v+1)-sampleU(v))>.05)different++;
-    pairs++;
+  assert.equal(runs.length,caps.uvs.length/16,
+    'Every beam has one UV run and two actual end faces');
+  const longRuns=runs.filter(run=>run.length>=3);
+  assert.ok(longRuns.length>10&&adjacent>30);
+  for(const run of runs){
+    const span=run[run.length-1]!.v1-run[0]!.v0;
+    maxSpan=Math.max(maxSpan,span);
+    assert.ok(span>0&&span<=.92001,
+      'A single beam should never repeat the full timber tile');
   }
-  assert.ok(pairs>8&&different>pairs*.55,
-    'Most one-tile-spaced samples on a long beam must differ');
-  assert.ok(dephased>30,'Long beams must sample non-identical grain strips');
-  assert.ok(continuous>30,'Long beams must have adjoining strips');
-  assert.ok(maximumJump<.35,'No abrupt grain rotation');
-  assert.ok(gradient>0,'Macro tint gradient should exist');
-  assert.equal(mesh.parts.filter(p=>p.material==='timber').length,1);
-  assert.ok(mesh.triangles<13000,'Avoid over-tessellating buildings');
+  assert.ok(maxSpan>.85,'Long joists should still use most of the wood texture');
+  assert.ok(gradient>.1,'Macro tint variation remains visible');
+  assert.equal(mesh.parts.filter(p=>p.material==='timber').length,1,
+    'All beams must still share the same material');
+  assert.ok(mesh.triangles<13000);
 });
