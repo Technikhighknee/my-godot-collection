@@ -182,8 +182,10 @@ export function createImageViewport(container,onChange=()=>{}){
     // Painting or channel conversion may throw; the old visible asset survives.
     const fresh=document.createElement('canvas');
     const nextView=next.views?.includes(view)?view:(next.views?.[0]??null);
-    const nextProfile=next.profiles?.includes(profile)?profile:
-      (next.profiles?.[0]??null);
+    // A profile selection belongs to its asset. Preserve it on reseed,
+    // but select the new asset's default even if a name happens to match.
+    const nextProfile=asset?.id===next.id&&next.profiles?.includes(profile)?
+      profile:(next.profiles?.[0]??null);
     const dimensions=imageProfileSize(next,nextProfile);
     fresh.width=dimensions.width;fresh.height=dimensions.height;
     next.paint(fresh,nextView??undefined,nextProfile??undefined);
