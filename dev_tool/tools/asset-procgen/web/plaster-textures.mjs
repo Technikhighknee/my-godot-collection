@@ -54,9 +54,10 @@ function generatePlaster(seeds){
     height[p]=.49+raised-speck*.014;
     // Larger soft pigment shifts, smaller trowel patches and slight
     // individual mineral inclusions, not chaotic photo-like grain.
-    const tone=broad*.035+sweep*.029+sweep2*.017+
-      wash*.036+variation*.020+aggregate*.026+
-      fine*.012+pore*.012-exposed*.030-speck*.19;
+    const trowelPatch=Math.max(0,-sweep-.12)*.13;
+    const tone=broad*.068+sweep*.052+sweep2*.034+
+      wash*.061+variation*.031+aggregate*.029+
+      fine*.012+pore*.009-exposed*.047-trowelPatch-speck*.19;
     albedo[i]=clamp(.851+batch+tone,.64,.96);
     albedo[i+1]=clamp(.812+batch*.81+cream+tone*.91,.58,.94);
     albedo[i+2]=clamp(.719+batch*.70+cream*.8+tone*.77,.48,.88);
