@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {paintOakAtlas} from './oak-atlas.mjs';
 import {generateOakBarkMaterialSet,OAK_BARK_PROFILES} from './oak-bark.mjs';
+import {createBuildingTextures} from './building-materials.mjs';
 
 function meshGeometry(data,useColors=false){
   const geometry=new THREE.BufferGeometry();
@@ -162,6 +163,7 @@ export function createModelViewport(container,onChange=()=>{}){
       foliageMesh.geometry.setDrawRange(0,foliageData.indices.length);
     setVisibility();
   }
+  const buildingTextures=createBuildingTextures(renderer);
   const buildingColors={
     foundation:0x766b5b,stone:0x9a9282,brick:0x895f4c,
     plaster:0xd2c6a8,plasterWarm:0xbca88b,
@@ -183,7 +185,9 @@ export function createModelViewport(container,onChange=()=>{}){
     for(const part of mesh.parts){
       const material=new THREE.MeshStandardMaterial({
         color:buildingColors[part.material]??0x978572,
-        roughness:.87,metalness:0,side:THREE.DoubleSide,
+        map:buildingTextures.get(part.material),
+        roughness:part.material==='glass'||part.material==='innerGlass'?.37:.92,
+        metalness:0,side:THREE.DoubleSide,
       });
       const element=new THREE.Mesh(meshGeometry(part),material);
       element.castShadow=true;element.receiveShadow=true;

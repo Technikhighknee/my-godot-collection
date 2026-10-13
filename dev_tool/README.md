@@ -16,6 +16,14 @@ externally but are not modeled as interiors. Interior windows never
 appear on a wall where the exterior has none. Windows are opaque: no
 line-of-sight between exterior and interior scenes is implied.
 
+The revised preview uses structurally plausible half-timber bay framing,
+projecting storeys, differentiated gables, an attached service wing on
+higher levels, dormers and procedurally textured plaster/wood/roof tiles.
+The empty interior is displayed as an open-top cutaway: ground-level
+openings follow the exterior plan, with timber roof joists and, at the
+highest level, an architectural gallery. This is an artistic medieval
+building grammar, not a historically accurate reconstruction.
+
 The generated building is currently a source/preview, **not a GLB export**.
 No automatic furniture, stairs, room decoration or linked Godot scene is
 provided. Building assets are saved alongside other project recipes and

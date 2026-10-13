@@ -452,6 +452,7 @@ test('modular asset workspace keeps its existing controls and serves new modules
       '/tools/asset-procgen/oak-bark-uv.mjs',
       '/tools/asset-procgen/generators.mjs',
       '/tools/asset-procgen/building.mjs',
+      '/tools/asset-procgen/building-materials.mjs',
       '/tools/asset-procgen/asset-library.mjs',
       '/tools/asset-procgen/seed-model.mjs',
       '/tools/asset-procgen/viewport-3d.mjs',

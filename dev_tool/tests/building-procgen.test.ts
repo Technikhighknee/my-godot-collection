@@ -62,6 +62,8 @@ test('model meshes stay finite, indexed and within a compact envelope',()=>{
       let triangles=0;
       for(const part of allParts(mesh)){
         assert.equal(part.positions.length,part.normals.length);
+        assert.equal(part.uvs.length,part.positions.length/3*2);
+        assert.ok(part.uvs.every(Number.isFinite));
         assert.equal(part.positions.length%3,0);
         assert.equal(part.indices.length%3,0);
         assert.ok(part.positions.every(Number.isFinite));
@@ -110,4 +112,40 @@ test('seeded facade variation changes the exterior while preserving openings',()
   const recolored=generateBuildingFamily({structure:1,material:9});
   assert.notDeepEqual(a.building.exterior,recolored.building.exterior);
   assert.deepEqual(a.building.exteriorOpenings,recolored.building.exteriorOpenings);
+});
+
+test('evolving building levels have architectural character, not just scaled boxes',()=>{
+  const levels=[1,2,3].map(level=>
+    generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level).building);
+  const materials=mesh=>new Set(mesh.parts.map(part=>part.material));
+  for(const level of levels){
+    const used=materials(level.exterior);
+    for(const name of ['timber','plasterWarm','roofUnderlay','tile','stone','glass'])
+      assert.ok(used.has(name),'Expected architectural material '+name);
+    assert.ok(level.exterior.parts.every(part=>part.uvs.length===
+      part.positions.length/3*2));
+  }
+  assert.equal(levels[0].plan.wing,null,'First level is a simple core volume');
+  assert.ok(levels[1].plan.wing,'Upgrades can add architectural volumes');
+  assert.ok(levels[2].plan.wing);
+  assert.ok(levels[2].plan.jetty>levels[1].plan.jetty);
+  assert.ok(levels[2].exterior.triangles>levels[0].exterior.triangles);
+  assert.ok(!materials(levels[0].interior!).has('gallery'));
+  assert.ok(materials(levels[2].interior!).has('gallery'),
+    'An established building should have structural interior circulation');
+  assert.ok(levels[2].interior!.bounds.max[1]>levels[0].interior!.bounds.max[1]);
+});
+
+test('attached wing never blocks a facade window or invents an interior one',()=>{
+  for(const level of [2,3]){
+    const model=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level);
+    const plan=model.building.plan,wing=plan.wing!;
+    assert.ok(!plan.windows.some(o=>o.side==='right'&&o.level<=1&&
+      Math.abs(-o.center-wing.z)<wing.depth/2+.56));
+    assert.equal(plan.doors.filter(o=>o.side==='right').length,1);
+    assert.equal(model.building.interiorOpenings.length,
+      plan.openings.filter(o=>o.level===0).length);
+    assert.ok(model.building.interior!.parts.some(part=>
+      part.material==='innerTimber'));
+  }
 });
