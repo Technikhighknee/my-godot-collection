@@ -96,3 +96,17 @@ test('invalid family options and levels fail explicitly',()=>{
   assert.throws(()=>validateBuildingOptions({...DEFAULT_BUILDING_OPTIONS,
     roofPitch:NaN}),/roofPitch/);
 });
+
+test('seeded facade variation changes the exterior while preserving openings',()=>{
+  const a=generateBuildingFamily({structure:1,material:7});
+  const b=generateBuildingFamily({structure:2,material:7});
+  assert.notDeepEqual(a.building.plan.windows.map(x=>x.center),
+    b.building.plan.windows.map(x=>x.center));
+  for(const model of [a,b]){
+    const exterior=new Set(signature(model.building.exteriorOpenings));
+    assert.ok(signature(model.building.interiorOpenings).every(x=>exterior.has(x)));
+  }
+  const recolored=generateBuildingFamily({structure:1,material:9});
+  assert.notDeepEqual(a.building.exterior,recolored.building.exterior);
+  assert.deepEqual(a.building.exteriorOpenings,recolored.building.exteriorOpenings);
+});

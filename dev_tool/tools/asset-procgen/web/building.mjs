@@ -101,7 +101,9 @@ function layout(options,level,structureSeed){
       const span=side==='front'||side==='back'?width:depth;
       const count=clamp(Math.floor((span-1.7)/2.65),2,7);
       for(let i=0;i<count;i++){
-        const u=-span/2+(i+.5)*span/count;
+        // Small, seeded facade offsets: architectural rhythm remains intact,
+        // but separate source seeds no longer produce identical buildings.
+        const u=-span/2+(i+.5)*span/count+(random()-.5)*.16;
         if(side==='front'&&floor===0&&Math.abs(u)<1.25)continue;
         // The top floor uses the same facade rhythm as the lower floors.
         const opening={side,type:'window',level:floor,
@@ -158,6 +160,22 @@ function addWalls(mesh,plan,{interior=false}={}){
           floor*plan.storeyHeight+.10,.29,'wood');
       for(const u of [-span/2,span/2])
         wallBox(mesh,plan,side,u-.09,u+.09,.25,plan.wallHeight,.34,'wood');
+      // Mid-bay posts are placed only between openings, never through a
+      // window or doorway. The facade remains valid for any story count.
+      for(let floor=0;floor<plan.stories;floor++){
+        const openings=ops.filter(o=>o.level===floor)
+          .slice().sort((a,b)=>a.center-b.center);
+        for(let i=1;i<openings.length;i++){
+          const left=openings[i-1],right=openings[i];
+          const gapStart=left.center+left.width/2;
+          const gapEnd=right.center-right.width/2;
+          if(gapEnd-gapStart<.4)continue;
+          const u=(gapStart+gapEnd)/2;
+          wallBox(mesh,plan,side,u-.072,u+.072,
+            floor*plan.storeyHeight+.10,(floor+1)*plan.storeyHeight-.08,
+            .28,'wood',.13);
+        }
+      }
       // Half-timbering in solid corner bays avoids the window apertures.
       for(let floor=0;floor<plan.stories;floor++)
         for(const sign of [-1,1]){
