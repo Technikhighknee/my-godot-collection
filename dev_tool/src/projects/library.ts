@@ -105,15 +105,16 @@ export function validateSource(raw:unknown,expectedId?:string,
       materials[slot]=value;
     }
   }
-  if(!Array.isArray(x.dependencies)||!unique(x.dependencies)||x.dependencies.some(v=>
+  const dependencies=x.dependencies;
+  if(!Array.isArray(dependencies)||!unique(dependencies)||dependencies.some(v=>
     typeof v!=='string'||!assetRef.test(v)||v==='asset:'+id))
     throw Error('Invalid asset dependencies');
-  if(materials&&Object.values(materials).some(ref=>!x.dependencies.includes(ref)))
+  if(materials&&Object.values(materials).some(ref=>!dependencies.includes(ref)))
     throw Error('Material references must be project dependencies');
   return {format:'devtool-asset',version:1,id,name,
     generator:{id:gen.id,version:1,masterSeed:gen.masterSeed as number,
       components:comps as Record<string,number>},
-    dependencies:x.dependencies as string[],
+    dependencies:dependencies as string[],
     ...(options===undefined?{}:{options}),
     ...(materials===undefined?{}:{materials})};
 }
