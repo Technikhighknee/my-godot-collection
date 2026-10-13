@@ -228,7 +228,9 @@ export function createModelViewport(container,onChange=()=>{}){
       const woodPart=/^(?:inner)?Timber(?:End|Panel)?$/.test(part.material)||
         part.material==='timber'||part.material==='timberEnd'||
         part.material==='timberPanel';
-      const sharedSlot=woodPart?'timberWood':part.material;
+      const isPlaster=['plaster','plasterWarm','plasterOchre',
+        'plasterIvory'].includes(part.material);
+      const sharedSlot=woodPart?'timberWood':isPlaster?'facadePlaster':part.material;
       const source=currentMaterials.get(sharedSlot)?.maps;
       const profile=part.material.endsWith('End')?'end':
         part.material.endsWith('Panel')?'panel':'beam';
@@ -236,8 +238,12 @@ export function createModelViewport(container,onChange=()=>{}){
       const isRoof=part.material==='roofThatch'||part.material==='roofClay';
       const base=woodPart?buildingColors.timber:
         buildingColors[part.material]??0x978572;
+      // One shared plaster texture; retain warm facade variations by tint.
+      const plasterTint={plaster:0xf6efe0,plasterWarm:0xe8d5bd,
+        plasterOchre:0xe4c799,plasterIvory:0xfff9ee};
       const material=new THREE.MeshStandardMaterial({
-        color:shared?0xffffff:base,
+        color:isPlaster&&shared?plasterTint[part.material]:
+          shared?0xffffff:base,
         map:shared?.albedo??buildingTextures.get(woodPart?'timber':part.material),
         normalMap:shared?.normal??null,roughnessMap:shared?.roughness??null,
         normalScale:new THREE.Vector2(.62,.62),
@@ -276,7 +282,8 @@ export function createModelViewport(container,onChange=()=>{}){
   }
   function renderBuilding(asset,materialImages={}){
     const activeSlot=asset.building.level===1?'roofThatch':'roofClay';
-    updateSurfaceTextures({timberWood:materialImages.timberWood,
+    updateSurfaceTextures({facadePlaster:materialImages.facadePlaster,
+      timberWood:materialImages.timberWood,
       [activeSlot]:materialImages[activeSlot]});
     const previousAsset=buildingAsset,previousView=buildingView;
     buildingAsset=asset;assetId=asset.id;
