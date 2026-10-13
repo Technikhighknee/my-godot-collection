@@ -54,12 +54,13 @@ function sample(kind,u,v,seeds){
     const overlap=ry>.83?mix(1,.68,(ry-.83)/.17):ry<.09?.79+ry*2:1;
     const height=.14+.4*band+.19*Math.exp(-Math.pow((ry-.80)/.14,2))+fibers;
     const tone=hash(wrap(fiber,cols),wrap(r,rows),color);
-    const vTone=(tone-.5)*.18+(rough-.5)*.07+taper;
+    const vTone=(tone-.5)*.18+(rough-.5)*.07+taper+
+      (strand-.5)*.12;
     return {height,base:[
       (.39+vTone)*overlap,
       (.305+vTone*.71)*overlap,
       (.18+vTone*.48)*overlap,
-    ],roughness:clamp(.92+(tone-.5)*.08,.83,.99)};
+    ],roughness:clamp(.92+(tone-.5)*.08+(strand-.5)*.025,.83,.99)};
   }
   throw Error('Unsupported roof material: '+kind);
 }
