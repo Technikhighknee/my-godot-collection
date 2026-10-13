@@ -16,7 +16,7 @@ export interface GeneratedBuilding {
   building:{
     level:number;
     plan:{width:number;depth:number;stories:number;wallHeight:number;
-      openings:BuildingOpening[]};
+      windows:BuildingOpening[];doors:BuildingOpening[];openings:BuildingOpening[]};
     exterior:BuildingMesh;interior:BuildingMesh|null;
     exteriorOpenings:BuildingOpening[];interiorOpenings:BuildingOpening[];
   };

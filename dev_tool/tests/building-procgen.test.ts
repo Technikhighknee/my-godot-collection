@@ -4,12 +4,14 @@ import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from '../tools/asset-procgen/web/building.mjs';
 import {findGenerator,generateAsset}
   from '../tools/asset-procgen/web/generators.mjs';
+import type {BuildingOpening,BuildingMesh}
+  from '../tools/asset-procgen/web/building.mjs';
 
 const seeds={structure:19043,material:62191};
-const signature=o=>o.map(v=>[
+const signature=(o:BuildingOpening[])=>o.map(v=>[
   v.side,v.type,v.level,v.center,v.width,v.bottom,v.top,
 ].join(':'));
-const allParts=mesh=>mesh.parts.flatMap(part=>[part]);
+const allParts=(mesh:BuildingMesh)=>mesh.parts;
 
 test('three levels share one procedural family and are deterministic',()=>{
   const definition=findGenerator('timber-building');
@@ -37,7 +39,7 @@ test('interior windows and doors are a strict subset of exterior openings',()=>{
     const {plan,exteriorOpenings,interiorOpenings}=model.building;
     const known=new Set(signature(exteriorOpenings));
     for(const opening of interiorOpenings){
-      assert.ok(known.has(signature([opening] as never[])[0]),
+      assert.ok(known.has(signature([opening])[0]),
         'Interior cannot invent an opening: '+JSON.stringify(opening));
       assert.equal(opening.level,0,'Detached interior shell is ground floor only');
     }

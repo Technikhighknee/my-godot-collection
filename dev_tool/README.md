@@ -1,5 +1,26 @@
 # Dev Tool
 
+## Building families
+
+**Architecture → Buildings → Timber frame** opens the first building-family
+generator. Each editable recipe stores the base dimensions, starting number
+of storeys, roof pitch, structure/material seeds, and whether it has an
+empty interior shell. The Level 1–3 selector previews related upgrades of
+the same recipe; preview level is not a separate saved asset. A single source
+can regenerate each level.
+
+The exterior and optional **separate, unfurnished interior room shell**
+are generated from the same immutable door/window opening plan. The
+interior shows a ground-floor room only; upper floors may be visible
+externally but are not modeled as interiors. Interior windows never
+appear on a wall where the exterior has none. Windows are opaque: no
+line-of-sight between exterior and interior scenes is implied.
+
+The generated building is currently a source/preview, **not a GLB export**.
+No automatic furniture, stairs, room decoration or linked Godot scene is
+provided. Building assets are saved alongside other project recipes and
+listed under *Buildings* in the Studio explorer.
+
 ## Studio workbench
 
 The launcher at `/` creates and opens projects. Editing takes place in
