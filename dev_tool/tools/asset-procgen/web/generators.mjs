@@ -12,6 +12,7 @@ import {mapOakBarkWood} from './oak-bark-uv.mjs';
 import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
 import {makeRoofAsset} from './roof-textures.mjs';
+import {makeTimberAsset} from './timber-textures.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -103,6 +104,22 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
+    id:'timber-oak',kind:'image',symbol:'▤',
+    label:'Hewn oak timber',subtitle:'Weathered structural wood with longitudinal grain',
+    libraryPath:Object.freeze(['Textures','Wood']),
+    navLabel:'Hewn oak',navType:'Texture',
+    generate:seeds=>makeTimberAsset(seeds),
+    overline:'PROJECT TEXTURES / TIMBER',
+    title:'Hewn oak timber.',
+    description:'Tileable timber surface for solid framing beams, with lengthwise grain, sparse knots, subtle cracks and natural firing-brown variation. Separate albedo, normal and roughness maps.',
+    previewLabel:'Procedural weathered timber grain texture',
+    initialMasterSeed:37821,
+    components:Object.freeze([
+      Object.freeze({id:'grain',label:'Wood grain and knots',initialSeed:37821}),
+      Object.freeze({id:'color',label:'Wood coloration',initialSeed:19257}),
+    ]),
+  }),
+  Object.freeze({
     id:'timber-building',kind:'model',symbol:'⌂',
     label:'Timber-frame building',subtitle:'Three upgrade levels · optional empty interior',
     libraryPath:Object.freeze(['Architecture','Buildings','Timber frame']),
@@ -111,6 +128,8 @@ export const GENERATORS=Object.freeze([
     defaultOptions:DEFAULT_BUILDING_OPTIONS,
     validateOptions:validateBuildingOptions,
     materialSlots:Object.freeze([
+      Object.freeze({id:'timberWood',label:'Oak structural timber',
+        generators:Object.freeze(['timber-oak'])}),
       Object.freeze({id:'roofThatch',label:'Thatch · level 1',
         generators:Object.freeze(['roof-thatch'])}),
       Object.freeze({id:'roofClay',label:'Clay tiles · levels 2–3',
