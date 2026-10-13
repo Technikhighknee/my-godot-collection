@@ -211,3 +211,9 @@
 @media(max-width:580px){
  .studio-embedded .pg-workspace{grid-template-columns:minmax(0,1fr) 210px}
 }
+
+/* Embedded mode is applied before the first style calculation, independent
+   of async module loading or the iframe's breakpoints. */
+.studio-embedded body.pg-page{height:100vh;overflow:hidden}
+.studio-embedded .pg-stage{min-height:0;height:auto}
+.studio-embedded .pg-workspace{min-height:0;height:100vh}

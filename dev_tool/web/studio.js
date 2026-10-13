@@ -68,6 +68,7 @@ function selectTab(key){
   for(const tab of tabs.values()){
     const focused=tab.key===key;
     tab.frame.hidden=!focused;
+    tab.loading.hidden=!focused||tab.ready;
     tab.button.setAttribute('aria-selected',String(focused));
   }
   setStatus(key==='overview'?'PROJECT OVERVIEW':(tabs.get(key)?.label||'EDITOR').toUpperCase());
@@ -77,7 +78,7 @@ function removeTab(key){
   const tab=tabs.get(key);
   if(!tab)return;
   if(tab.dirty&&!confirm('Unsaved changes in '+tab.label+'. Close anyway?'))return;
-  tab.frame.remove();tab.button.remove();tabs.delete(key);
+  tab.frame.remove();tab.loading.remove();tab.button.remove();tabs.delete(key);
   if(activeTab===key)selectTab(tabs.keys().next().value||'overview');
   else persisted();
 }
@@ -102,14 +103,18 @@ function makeTab({key,kind,label,id}){
   frame.setAttribute('loading','eager');
   frame.setAttribute('referrerpolicy','same-origin');
   frame.hidden=true;
-  const value={key,kind,label,id,button:tab,frame,dirty:false,ready:false};
+  const loading=make('div','editor-loading');
+  loading.setAttribute('role','status');
+  loading.append(make('span','editor-loading-spinner'),
+    make('span',null,'Opening '+label+'…'));
+  loading.hidden=true;
+  frame.classList.add('is-loading');
+  const value={key,kind,label,id,button:tab,frame,loading,dirty:false,ready:false};
   tabs.set(key,value);
-  tabbar.append(tab);region.append(frame);
-  frame.addEventListener('load',()=>{
-    // The editor sends studio:ready after its document is initialized.
-    // A blank iframe load must never consume a pending placement command.
-    if(frame.getAttribute('src')?.startsWith('/tools/map-editor/'))value.ready=false;
-  });
+  tabbar.append(tab);region.append(frame,loading);
+  // The embedded editor, not iframe load, defines readiness.
+  // In particular, a saved asset must finish loading its requested recipe.
+
   selectTab(key);
   return value;
 }
@@ -152,6 +157,8 @@ async function openMap(map){
     const tab=makeTab({key:'map:active',kind:'map',id:map.file,label:map.name});
     if(tab.id!==map.file){
       tab.id=map.file;tab.dirty=false;tab.ready=false;
+      tab.frame.classList.add('is-loading');
+      tab.loading.hidden=false;
       tab.frame.src='/tools/map-editor/?embedded=1&map='+encodeURIComponent(map.file);
       renameTab(tab,map.name);
     }else if(!tab.frame.getAttribute('src')){
@@ -387,8 +394,11 @@ window.addEventListener('message',event=>{
   }else if(msg.type==='studio:open-asset'&&typeof msg.id==='string'){
     const found=assets.find(a=>a.source.id===msg.id);
     if(found)openAsset(found.source);else showError('Asset '+msg.id+' is not in this project');
-  }else if(msg.type==='studio:ready'&&tab.kind==='map'){
-    tab.ready=true;sendPlacement();sendNewMap();
+  }else if(msg.type==='studio:ready'){
+    tab.ready=true;
+    tab.frame.classList.remove('is-loading');
+    tab.loading.hidden=tab.key!==activeTab;
+    if(tab.kind==='map'){sendPlacement();sendNewMap();}
   }else if(msg.type==='studio:focus-search'){
     focusSearch();
   }

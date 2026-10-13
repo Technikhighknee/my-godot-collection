@@ -4,6 +4,10 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>1400 · Asset ProcGen</title>
+<script>
+if(new URLSearchParams(location.search).get('embedded')==='1')
+  document.documentElement.classList.add('studio-embedded');
+</script>
 <link rel="stylesheet" href="/dev-tool.css">
 <link rel="stylesheet" href="/tools/asset-procgen/style.css">
 <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>

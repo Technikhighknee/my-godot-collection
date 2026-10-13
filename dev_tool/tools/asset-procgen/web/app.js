@@ -33,7 +33,8 @@ document.addEventListener('keydown',event=>{
 });
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
 let loadedProjectAsset=null;
-let active=findGenerator('oak');
+const initialGenerator=new URLSearchParams(location.search).get('generator');
+let active=findGenerator(initialGenerator)||findGenerator('oak');
 let modelViewport,imageViewport;
 let library;
 const randomSeed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
@@ -363,7 +364,7 @@ function currentRecipe(){
   return {name:projectEl('projectAssetName').value.trim(),generator:active.id,
     masterSeed:state.masterSeed,components:state.components};
 }
-projectEl('loadProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
+async function loadSelectedProjectAsset(){
   const id=projectEl('savedProjectAssets').value;
   if(!id)throw Error('Select an asset to load');
   const entry=projectAssets.get(id);
@@ -378,7 +379,9 @@ projectEl('loadProjectAsset').addEventListener('click',()=>projectOperation(asyn
   selectGenerator(gen.id);
   setRecipeDirty(false);
   assetStatus('Loaded '+entry.source.name);
-}));
+}
+projectEl('loadProjectAsset').addEventListener('click',
+  ()=>projectOperation(loadSelectedProjectAsset));
 projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
   const id=projectEl('projectAssetId').value.trim();
   if(!id)throw Error('Enter a stable asset ID');
@@ -428,13 +431,15 @@ projectEl('savedProjectAssets').addEventListener('change',()=>{
     const requested=new URLSearchParams(location.search).get('asset');
     if(requested&&projectAssets.has(requested)){
       projectEl('savedProjectAssets').value=requested;
-      projectEl('loadProjectAsset').click();
+      await loadSelectedProjectAsset();
     }else{
       const generator=new URLSearchParams(location.search).get('generator');
       if(generator&&findGenerator(generator))selectGenerator(generator);
     }
+  }catch(error){
+    assetStatus('Project source unavailable: '+(error instanceof Error?error.message:String(error)));
+  }finally{
+    // Only reveal the iframe after the requested recipe has actually loaded.
     studioSignal({type:'studio:ready'});
-  }catch{
-    assetStatus('Project asset storage unavailable in legacy mode.');
   }
 })();

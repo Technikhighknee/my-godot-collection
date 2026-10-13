@@ -3,3 +3,13 @@
 .tab.modified .tab-label{color:#ebc48b}
 
 .pane-actions{display:flex;align-items:center;gap:2px}
+
+/* Prevent the old standalone editor from flashing before embedded setup. */
+.editor-view.is-loading{visibility:hidden}
+.editor-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:15px;color:#a7b9af;background:#112023;
+  font-size:12px;letter-spacing:.025em;z-index:2}
+.editor-loading[hidden]{display:none}
+.editor-loading-spinner{width:24px;height:24px;border:2px solid #51645c;
+  border-top-color:#d8b584;border-radius:50%;animation:studio-spin .8s linear infinite}
+@keyframes studio-spin{to{transform:rotate(360deg)}}

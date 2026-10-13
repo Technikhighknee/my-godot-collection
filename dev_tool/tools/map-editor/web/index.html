@@ -6,6 +6,10 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
 <title>1400 · Map Editor</title>
+<script>
+if(new URLSearchParams(location.search).get('embedded')==='1')
+  document.documentElement.classList.add('studio-embedded');
+</script>
 <link href="/style.css" rel="stylesheet"/>
 <link href="/dev-tool.css" rel="stylesheet"/>
 <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>

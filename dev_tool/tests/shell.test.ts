@@ -154,3 +154,23 @@ test('studio defines project resource navigation and editor bridge',()=>{
   assert.match(map,/studio:map-saved/);
   assert.match(map,/studio:map-opened/);
 });
+
+test('embedded editors use prepaint layout and studio waits for source readiness',()=>{
+  const assetHtml=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
+  const mapHtml=readFileSync(new URL('../tools/map-editor/web/index.html',import.meta.url),'utf8');
+  const assetJs=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
+  const assetCss=readFileSync(new URL('../tools/asset-procgen/web/style.css',import.meta.url),'utf8');
+  const studioJs=readFileSync(new URL('../web/studio.js',import.meta.url),'utf8');
+  const studioCss=readFileSync(new URL('../web/studio.css',import.meta.url),'utf8');
+  for(const html of [assetHtml,mapHtml]){
+    const bootstrap=html.indexOf("classList.add('studio-embedded')");
+    const sheet=html.indexOf('<link');
+    assert.ok(bootstrap>=0&&bootstrap<sheet,'Embedded mode must be set before styles are loaded');
+  }
+  assert.match(assetCss,/\.studio-embedded \.pg-workspace/);
+  assert.match(assetCss,/\.studio-embedded \.pg-stage\{min-height:0;height:auto\}/);
+  assert.match(assetJs,/await loadSelectedProjectAsset\(\)/);
+  assert.match(assetJs,/finally\s*\{[\s\S]*studioSignal\(\{type:'studio:ready'\}\)/);
+  assert.match(studioJs,/tab\.frame\.classList\.remove\('is-loading'\)/);
+  assert.match(studioCss,/\.editor-view\.is-loading\{visibility:hidden\}/);
+});
