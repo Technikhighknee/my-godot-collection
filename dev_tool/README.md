@@ -1,5 +1,65 @@
 # 1400 Dev Tool
 
+## Projects (source workspaces)
+
+The Dev Tool is now **project-centric**. Start with `npm start` from
+`dev_tool/` and open <http://127.0.0.1:4371/>. Create or select a project
+in the home screen. Local projects live under `dev_tool/projects/` by
+default (ignored by Git). Override the location with `--projects-dir DIR`.
+
+A new project is a standalone source directory, not a Godot project.
+It initially contains:
+
+```text
+project.json
+maps/
+  world.map.json
+  assets/world.height.exr
+  assets/world.surface.png
+assets/
+  <stable-id>.asset.json
+```
+
+- `project.json` identifies the source project (format/version, stable ID,
+  human-readable name).
+- `maps/` contains editable maps and their source height/surface images.
+  The existing Map Editor can open, create and edit these maps.
+- `assets/` contains editable procedural **recipes**. A recipe stores
+  its stable ID, generator ID/version, master seed, component seeds and
+  eventual dependencies. Saved trees, textures and sprites are recipes,
+  not exported GLB/PNG artifacts.
+- Asset IDs such as `asset:market-oak` can be used in Map Editor object
+  definitions. The map preserves these references. The project dependency
+  graph derives edges from actual map placements and saved asset sources.
+  Missing asset references are reported by the graph endpoint.
+
+Asset ProcGen now has a **Project Assets** panel: select a generator,
+choose seeds, save a new named recipe, load one or update a loaded recipe
+using revision conflict protection. Editing generator defaults does not
+silently alter saved recipes.
+
+Source files are authoritative. Exporting GLB, maps, scenes and engine-specific
+artifacts is **not implemented yet**. Existing placement markers do not yet
+render the referenced generated models in the Map Editor. This is a first
+real production-workspace slice, not a claim of finished asset builds.
+Likewise, the generator-version field introduces a compatibility contract;
+future algorithm changes will need explicit version migrations or frozen
+generator implementations to preserve identical output.
+
+API: `GET/POST /api/projects`, `GET/PUT /api/projects/active`,
+`GET/POST /api/projects/active/assets`,
+`GET/PUT /api/projects/active/assets/<id>` and
+`GET /api/projects/active/graph`. The server accepts write requests
+only from the local same-origin interface, validates IDs and recipes,
+and uses optimistic revision checks when updating asset sources.
+Source data remains portable; the project API is only a local workspace
+controller.
+
+To keep working with an existing standalone map without moving it,
+`npm start -- ../map_system/coastal_relief.map.json` still starts the
+legacy single-map workspace. That mode does not provide project asset
+storage. No existing maps or Godot files were migrated or modified.
+
 ## Tools
 
 - **Home:** the start page at `/` lists available tools and shows the active map workspace.

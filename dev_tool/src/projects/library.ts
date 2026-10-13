@@ -253,7 +253,7 @@ export class ProjectLibrary {
       const bytes=Buffer.from(JSON.stringify(source,null,2)+'\n');
       if(hash(await regular(target))!==revision)throw Error('Asset changed on disk');
       await atomic(target,bytes);
-      return {source,revision:hash(bytes)};
+      return {source,revision:hash(bytes),kind:findGenerator(source.generator.id)!.kind};
     });
   }
   async graph(){
