@@ -6,7 +6,7 @@ const search=byId('resourceSearch');
 const tabs=new Map();
 let project=null,assets=[],maps=[],graph={edges:[],missing:[]},activeMap=null;
 let selected=null,activeTab='overview',mode='explorer',collapsed=false;
-let pendingPlacement=null,blocked=false,requesting=false;
+let pendingPlacement=null,pendingNewMap=false,blocked=false,requesting=false;
 const cacheKey='devtool.studio.openTabs';
 function showError(message){
   const toast=byId('toast');
@@ -168,6 +168,19 @@ function sendPlacement(){
     type:'studio:place-asset',id:pendingPlacement,projectId:project.id,
   },location.origin);
   pendingPlacement=null;
+}
+function sendNewMap(){
+  const tab=tabs.get('map:active');
+  if(!pendingNewMap||!tab?.ready)return;
+  tab.frame.contentWindow.postMessage({type:'studio:create-map',
+    projectId:project.id},location.origin);
+  pendingNewMap=false;
+}
+async function newMap(){
+  if(!activeMap)throw Error('This project has no starter map');
+  pendingNewMap=true;
+  await openMap(activeMap);
+  sendNewMap();
 }
 async function placeAsset(source){
   if(!source||source.kind!=='model')return;
@@ -369,8 +382,8 @@ window.addEventListener('message',event=>{
   }else if(msg.type==='studio:open-asset'&&typeof msg.id==='string'){
     const found=assets.find(a=>a.source.id===msg.id);
     if(found)openAsset(found.source);else showError('Asset '+msg.id+' is not in this project');
-  }else if(msg.type==='studio:ready'&&tab.kind==='map'&&pendingPlacement){
-    tab.ready=true;sendPlacement();
+  }else if(msg.type==='studio:ready'&&tab.kind==='map'){
+    tab.ready=true;sendPlacement();sendNewMap();
   }else if(msg.type==='studio:focus-search'){
     focusSearch();
   }
@@ -381,6 +394,10 @@ byId('openMap').addEventListener('click',()=>{
   else showError('This project has no maps yet.');
 });
 byId('createAsset').addEventListener('click',()=>openCatalog().catch(e=>showError(e.message)));
+byId('newResource').addEventListener('click',()=>{
+  if(mode==='generators'){openCatalog().catch(e=>showError(e.message));return;}
+  newMap().catch(e=>showError(e.message));
+});
 byId('projectButton').addEventListener('click',()=>{
   if(warnBeforeSwitch())location.assign('/');
 });

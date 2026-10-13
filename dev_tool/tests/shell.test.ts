@@ -146,6 +146,7 @@ test('studio defines project resource navigation and editor bridge',()=>{
   assert.match(studio,/PROJECT WORKSPACE/);
   assert.match(code,/sessionStorage/);
   assert.match(code,/studio:place-asset/);
+  assert.match(code,/studio:create-map/);
   assert.match(code,/studio:dirty/);
   assert.match(styles,/\.studio\.editing/);
   assert.match(asset,/studio:asset-saved/);

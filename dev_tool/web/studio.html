@@ -23,7 +23,9 @@
       <a class="activity-link" href="/" title="Projects" aria-label="Projects">⌂</a>
     </nav>
     <aside class="explorer" id="explorer" aria-label="Project resources">
-      <div class="pane-heading"><span id="explorerTitle">EXPLORER</span><button id="collapseExplorer" class="icon-button small" type="button" title="Collapse explorer">‹</button></div>
+      <div class="pane-heading"><span id="explorerTitle">EXPLORER</span>
+        <span class="pane-actions"><button id="newResource" class="icon-button small" type="button" title="Create a map" aria-label="Create map">＋</button>
+        <button id="collapseExplorer" class="icon-button small" type="button" title="Collapse explorer">‹</button></span></div>
       <div class="explorer-context"><strong id="explorerProject">—</strong><span id="explorerSubtitle">Project contents</span></div>
       <label class="explorer-search"><span aria-hidden="true">⌕</span><input type="search" id="resourceSearch" placeholder="Filter resources…" autocomplete="off" aria-label="Filter resources"></label>
       <div id="projectTree" class="tree" role="tree" aria-label="Project files"></div>

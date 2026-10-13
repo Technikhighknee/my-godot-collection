@@ -2030,8 +2030,13 @@ if(embedded){
   window.addEventListener('message',event=>{
     if(event.origin!==location.origin||event.source!==window.parent)return;
     const value=event.data;
+    if(value?.projectId!==currentDoc?.projectId||!currentDoc||currentDoc.readOnly)return;
+    if(value.type==='studio:create-map'){
+      el('workspaceToggle').click();
+      el('newMapName').focus();
+      return;
+    }
     if(value?.type!=='studio:place-asset'||typeof value.id!=='string')return;
-    if(value.projectId!==currentDoc?.projectId||!currentDoc||currentDoc.readOnly)return;
     selectEntity('objects',null);
     el('entityDefinition').value='asset:'+value.id;
     setEditMode('place-entity');
