@@ -6,7 +6,8 @@ export interface BuildingOpening {
   center:number;width:number;bottom:number;top:number;
 }
 export interface BuildingPart {
-  material:string;positions:Float32Array;normals:Float32Array;indices:Uint32Array;
+  material:string;positions:Float32Array;normals:Float32Array;
+  uvs:Float32Array;indices:Uint32Array;
 }
 export interface BuildingMesh {
   parts:BuildingPart[];bounds:{min:number[];max:number[]};triangles:number;

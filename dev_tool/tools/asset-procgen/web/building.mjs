@@ -36,7 +36,7 @@ const boundsOf=parts=>{
 function geometryBuilder(){
   const parts=new Map();
   const part=material=>{
-    if(!parts.has(material))parts.set(material,{material,positions:[],normals:[],indices:[]});
+    if(!parts.has(material))parts.set(material,{material,positions:[],normals:[],uvs:[],indices:[]});
     return parts.get(material);
   };
   function face(material,a,b,c,d=null){
@@ -44,7 +44,16 @@ function geometryBuilder(){
     const n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
     const len=Math.hypot(...n)||1;
     const verts=d?[a,b,c,d]:[a,b,c],at=mesh.positions.length/3;
-    for(const v of verts){mesh.positions.push(...v);mesh.normals.push(...n.map(x=>x/len));}
+    const normal=n.map(x=>x/len);
+    const axis=Math.abs(normal[1])>=Math.max(Math.abs(normal[0]),Math.abs(normal[2]))?
+      'y':Math.abs(normal[0])>Math.abs(normal[2])?'x':'z';
+    // Repeatable world-aligned planar UVs avoid one-off atlas bookkeeping.
+    // Walls map horizontally + vertically; sloped roofs map across their plane.
+    for(const v of verts){
+      mesh.positions.push(...v);mesh.normals.push(...normal);
+      const uv=axis==='y'?[v[0],v[2]]:axis==='x'?[v[2],v[1]]:[v[0],v[1]];
+      mesh.uvs.push(uv[0]*.85,uv[1]*.85);
+    }
     mesh.indices.push(at,at+1,at+2);
     if(d)mesh.indices.push(at,at+2,at+3);
   }
@@ -78,7 +87,8 @@ function geometryBuilder(){
   function finish(){
     const finished=[...parts.values()].map(p=>({
       material:p.material,positions:new Float32Array(p.positions),
-      normals:new Float32Array(p.normals),indices:new Uint32Array(p.indices),
+      normals:new Float32Array(p.normals),uvs:new Float32Array(p.uvs),
+      indices:new Uint32Array(p.indices),
     }));
     return {parts:finished,bounds:boundsOf(finished),
       triangles:finished.reduce((sum,p)=>sum+p.indices.length/3,0)};
