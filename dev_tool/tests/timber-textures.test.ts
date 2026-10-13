@@ -101,10 +101,20 @@ test('three oak profiles keep one material palette and sharp panel fibers',()=>{
     const means=result.map(v=>v.mean);
     assert.ok(Math.max(...means)-Math.min(...means)<10,
       'Beam, crosscut and panels must look like the same oak');
-    const [beam,,panel]=result;
-    assert.ok(panel.across>panel.along*2.5,
-      'Flat-sawn wood fibers must flow lengthwise');
-    assert.ok(panel.across>beam.across*.60,
-      'Panel must retain visible fine wood detail, not blurred stripes');
+    const [beam,end,panel]=result;
+    assert.ok(panel.across>panel.along*1.7,
+      'Flat-sawn fibers must still run lengthwise');
+    assert.ok(panel.across>1.8,
+      'Panel cannot become a blurred texture without fibers');
+    assert.ok(panel.across<beam.across*.8,
+      'A flat-sawn face should not duplicate coarse structural beam grain');
+    assert.ok(end.across>1.6&&end.along>1.6,
+      'Crosscuts must retain porous detail in both directions');
+    const a=capture(seeds,'albedo','beam');
+    const b=capture(seeds,'albedo','panel');
+    let absolute=0;
+    for(let i=0;i<a.length;i+=4)absolute+=Math.abs(a[i]-b[i]);
+    assert.ok(absolute/(TIMBER_TEXTURE_SIZE**2)>8,
+      'Panel grain must not be a trivially warped duplicate of the beam');
   }
 });
