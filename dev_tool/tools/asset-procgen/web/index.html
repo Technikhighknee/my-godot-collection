@@ -104,6 +104,20 @@
     <p class="pg-seed-note">Master seed creates a reproducible combination. You can also change each component independently.</p>
     <div class="pg-settings-title pg-component-title"><span>COMPONENT SEEDS</span></div>
     <div id="componentSeeds" class="pg-component-seeds" aria-label="Independent generator component seeds"></div>
+    <section id="projectSources" class="pg-project-sources" aria-label="Saved project assets">
+      <div class="pg-settings-title"><span>PROJECT ASSETS</span></div>
+      <p id="projectAssetStatus" class="pg-seed-note">Checking project…</p>
+      <label for="savedProjectAssets">Saved sources</label>
+      <select id="savedProjectAssets"><option value="">New asset</option></select>
+      <button id="loadProjectAsset" type="button">Load selected</button>
+      <label for="projectAssetName">Asset name</label>
+      <input id="projectAssetName" type="text" maxlength="100" placeholder="Oak — Market Square">
+      <label for="projectAssetId">Stable ID</label>
+      <input id="projectAssetId" type="text" maxlength="48" placeholder="oak-market-square"
+        pattern="[a-z0-9][a-z0-9_-]{0,47}">
+      <button id="saveProjectAsset" type="button">Save as new asset</button>
+      <button id="updateProjectAsset" type="button">Update selected asset</button>
+    </section>
     <div class="pg-settings-bottom"><span id="status" role="status">Generating…</span></div>
   </aside>
 </main>

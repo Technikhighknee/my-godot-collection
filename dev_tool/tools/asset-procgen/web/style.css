@@ -182,3 +182,18 @@
 
 /* Keep the map selector absent for sprites and atlases without map views. */
 .pg-image-tool-row[hidden]{display:none}
+
+/* Project source editing; generator catalog remains reusable across projects. */
+.pg-project-sources{margin-top:24px;display:flex;flex-direction:column;gap:8px;
+  padding:14px 0;border-top:1px solid #40514d}
+.pg-project-sources .pg-settings-title{margin:0}
+.pg-project-sources label{font-size:10px;font-weight:700;letter-spacing:.07em;color:#aabcb2}
+.pg-project-sources input,.pg-project-sources select{width:100%;min-width:0;border:1px solid #566c61;
+  border-radius:6px;background:#142326;color:#e5e9e2;font:inherit;font-size:12px;padding:10px}
+.pg-project-sources button{padding:9px;border:1px solid #617968;border-radius:6px;
+  background:#30473e;color:#e8eee4;font-weight:650;font-size:12px}
+.pg-project-sources button:hover{background:#405a4d}
+.pg-project-sources button:disabled{opacity:.45;cursor:default}
+.pg-project-sources #saveProjectAsset{background:#b8a27a;color:#17201e}
+.pg-project-sources #projectAssetStatus{min-height:15px;margin:0 0 5px}
+.pg-project-sources[hidden]{display:none}

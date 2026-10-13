@@ -293,3 +293,103 @@ try{
   byId('status').textContent='Preview unavailable';
   console.error(error);
 }
+
+// Project asset sources are named, persistent recipes. The generator registry
+// is independent: loading a recipe simply restores its seeds.
+const projectAssets=new Map();
+let loadedProjectAsset=null;
+const projectEl=id=>document.getElementById(id);
+function assetStatus(message){projectEl('projectAssetStatus').textContent=message;}
+async function projectApi(path,options){
+  const response=await fetch(path,{cache:'no-store',...options});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'HTTP '+response.status);
+  return result;
+}
+async function reloadProjectAssets(){
+  const {assets}=await projectApi('/api/projects/active/assets');
+  projectAssets.clear();
+  const selector=projectEl('savedProjectAssets');
+  const previous=loadedProjectAsset?.source.id??selector.value;
+  selector.replaceChildren();
+  const fresh=document.createElement('option');
+  fresh.value='';fresh.textContent='Choose a saved asset';selector.append(fresh);
+  for(const entry of assets){
+    projectAssets.set(entry.source.id,entry);
+    const option=document.createElement('option');
+    option.value=entry.source.id;
+    option.textContent=entry.source.name+' · '+entry.source.generator.id;
+    selector.append(option);
+  }
+  selector.value=projectAssets.has(previous)?previous:'';
+  if(loadedProjectAsset&&!projectAssets.has(loadedProjectAsset.source.id))
+    loadedProjectAsset=null;
+  assetStatus(assets.length+' saved project assets');
+}
+async function projectOperation(action){
+  try{await action();}catch(error){assetStatus(error instanceof Error?error.message:String(error));}
+}
+function currentRecipe(){
+  const state=seeds();
+  return {name:projectEl('projectAssetName').value.trim(),generator:active.id,
+    masterSeed:state.masterSeed,components:state.components};
+}
+projectEl('loadProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
+  const id=projectEl('savedProjectAssets').value;
+  if(!id)throw Error('Select an asset to load');
+  const entry=projectAssets.get(id);
+  if(!entry)throw Error('Asset is no longer in this project');
+  const gen=findGenerator(entry.source.generator.id);
+  if(!gen)throw Error('Generator is unavailable');
+  states.set(gen.id,{masterSeed:entry.source.generator.masterSeed,
+    components:{...entry.source.generator.components}});
+  loadedProjectAsset=entry;
+  projectEl('projectAssetName').value=entry.source.name;
+  projectEl('projectAssetId').value=id;
+  selectGenerator(gen.id);
+  assetStatus('Loaded '+entry.source.name);
+}));
+projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
+  const id=projectEl('projectAssetId').value.trim();
+  if(!id)throw Error('Enter a stable asset ID');
+  const entry=await projectApi('/api/projects/active/assets',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id,...currentRecipe()}),
+  });
+  loadedProjectAsset=entry;
+  await reloadProjectAssets();
+  assetStatus('Saved '+entry.source.name+' as asset:'+id);
+}));
+projectEl('updateProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
+  if(!loadedProjectAsset)throw Error('Load an existing asset before updating it');
+  const id=loadedProjectAsset.source.id;
+  if(projectEl('projectAssetId').value!==id)
+    throw Error('Asset ID is immutable; use Save as new asset for a new ID');
+  const entry=await projectApi('/api/projects/active/assets/'+id,{
+    method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({revision:loadedProjectAsset.revision,...currentRecipe()}),
+  });
+  loadedProjectAsset=entry;
+  await reloadProjectAssets();
+  assetStatus('Updated '+entry.source.name);
+}));
+projectEl('projectAssetName').addEventListener('input',()=>{
+  if(!loadedProjectAsset){
+    projectEl('projectAssetId').value=projectEl('projectAssetName').value
+      .toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,48);
+  }
+});
+projectEl('savedProjectAssets').addEventListener('change',()=>{
+  const id=projectEl('savedProjectAssets').value;
+  assetStatus(id?'Load selected to edit its source':'Select a saved asset');
+});
+(async()=>{
+  try{
+    const {project}=await projectApi('/api/projects/active');
+    if(!project){assetStatus('Create a project on the home page to save assets.');return;}
+    await reloadProjectAssets();
+  }catch{
+    assetStatus('Project asset storage unavailable in legacy mode.');
+  }
+})();
