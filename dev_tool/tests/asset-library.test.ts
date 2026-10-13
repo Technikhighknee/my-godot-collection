@@ -7,9 +7,10 @@ import {buildAssetLibraryTree,filterAssetLibrary,createAssetLibrary}
 test('library metadata groups 3D and 2D components under the same asset family',()=>{
   const root=buildAssetLibraryTree(GENERATORS);
   assert.deepEqual(root.groups.map(g=>g.name),['Textures','Architecture','Vegetation']);
-  assert.deepEqual(root.groups[0]!.groups.map(g=>g.name),['Roofs']);
+  assert.deepEqual(root.groups[0]!.groups.map(g=>g.name),['Roofs','Wood']);
   assert.deepEqual(root.groups[0]!.groups[0]!.assets.map(d=>d.id),
     ['roof-thatch','roof-clay']);
+  assert.deepEqual(root.groups[0]!.groups[1]!.assets.map(d=>d.id),['timber-oak']);
   assert.deepEqual(root.groups[1]!.groups.map(g=>g.name),['Buildings']);
   assert.deepEqual(root.groups[1]!.groups[0]!.groups[0]!.assets.map(d=>d.id),
     ['timber-building']);
@@ -45,7 +46,7 @@ test('search matches family, generator, output type and multiple terms',()=>{
   assert.deepEqual(lookup('Architecture buildings'),['timber-building']);
   assert.deepEqual(lookup('building','model'),['timber-building']);
   assert.deepEqual(lookup('atlas'),['oak-atlas']);
-  assert.deepEqual(lookup('texture'),['roof-thatch','roof-clay','oak-bark']);
+  assert.deepEqual(lookup('texture'),['roof-thatch','roof-clay','timber-oak','oak-bark']);
   assert.deepEqual(lookup('tree','model'),['oak','fir']);
   assert.deepEqual(lookup('  UNMATCHED '),[]);
   assert.throws(()=>filterAssetLibrary(GENERATORS,{kind:'invalid' as never}),
@@ -131,7 +132,7 @@ test('navigation supports selecting, filtering, favorites, recents and Ctrl+K',(
       count:count as unknown as HTMLElement,
       onSelect(id){clicked.push(id);library.select(id);},
     });
-    assert.equal(count.textContent,'8 assets');
+    assert.equal(count.textContent,'9 assets');
     assert.equal(library.select('oak'),true);
     assert.equal(library.select('invalid'),false);
     // A selected asset can appear both in Recent and in the category
@@ -150,7 +151,7 @@ test('navigation supports selecting, filtering, favorites, recents and Ctrl+K',(
     assert.ok(find(list,node=>node.textContent==='FAVORITES'));
 
     filters.children[2]!.fire('click');
-    assert.equal(count.textContent,'5 assets');
+    assert.equal(count.textContent,'6 assets');
     assert.equal(filters.children[2]!.attributes['aria-pressed'],'true');
     search.value='oak bark';
     search.fire('input');
@@ -175,7 +176,7 @@ test('navigation supports selecting, filtering, favorites, recents and Ctrl+K',(
     shortcut({ctrlKey:false,metaKey:false,key:'Escape'});
     assert.equal(search.value,'');
     assert.equal(search.focused,false);
-    assert.equal(count.textContent,'5 assets');
+    assert.equal(count.textContent,'6 assets');
 
     // The most recent selection stays available without a fresh search.
     filters.children[0]!.fire('click');
