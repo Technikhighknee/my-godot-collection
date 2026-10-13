@@ -111,7 +111,7 @@ export const GENERATORS=Object.freeze([
     generate:seeds=>makeTimberAsset(seeds),
     overline:'PROJECT TEXTURES / TIMBER',
     title:'Hewn oak timber.',
-    description:'Tileable timber surface for solid framing beams, with lengthwise grain, sparse knots, subtle cracks and natural firing-brown variation. Separate albedo, normal and roughness maps.',
+    description:'One reusable hewn oak asset with three surface profiles: beam grain, crosscut end grain and broad flat-sawn wood. Each includes albedo, normal and roughness maps; buildings vary UV sampling per beam.',
     previewLabel:'Procedural weathered timber grain texture',
     initialMasterSeed:37821,
     components:Object.freeze([
