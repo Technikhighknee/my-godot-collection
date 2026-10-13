@@ -266,9 +266,16 @@ test('image preview supports alpha, tile isolation and retains a failed render',
         target.pixels[0]=profile==='young'?33:profile==='limb'?77:155;
       },
     };
+    // A different asset resets to its default, even when a profile name
+    // coincides with the previously selected asset's profile.
     preview.render(tallProfile);
+    assert.equal(preview.state().profile,'trunk');
     assert.deepEqual([preview.state().width,preview.state().height],[4,8]);
     preview.setProfile('young');
+    assert.deepEqual([preview.state().width,preview.state().height],[4,4]);
+    // Reseeding the SAME asset keeps its currently selected profile.
+    preview.render({...tallProfile});
+    assert.equal(preview.state().profile,'young');
     assert.deepEqual([preview.state().width,preview.state().height],[4,4]);
     preview.setView('normal');
     assert.equal((mat.children[0] as Canvas).pixels[0],33);
