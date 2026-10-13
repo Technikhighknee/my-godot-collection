@@ -92,6 +92,38 @@ test('recipes validate known generators, seeds and revision conflicts',async()=>
       /Invalid asset dependencies/);
   });
 });
+test('building sources persist configurable three-level families without altering legacy recipes',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('buildings','Buildings');
+    const building={
+      name:'Tavern',generator:'timber-building',masterSeed:19043,
+      components:{structure:19043,material:62191},
+      options:{width:10,depth:14,stories:1,roofPitch:43,interior:'shell'},
+    };
+    const original=await lib.createAsset('tavern',building);
+    assert.deepEqual(original.source.options,building.options);
+    const reopened=await ProjectLibrary.open(root,undefined,findGenerator);
+    const restored=await reopened.asset('tavern');
+    assert.deepEqual(restored.source.options,building.options);
+    const revised=await reopened.updateAsset('tavern',{
+      ...building,options:{...building.options,interior:'none'},
+    },restored.revision);
+    assert.equal((revised.source.options as {interior:string}).interior,'none');
+    await assert.rejects(reopened.createAsset('invalid',{
+      ...building,options:{...building.options,width:100},
+    }),/width/);
+    await assert.rejects(reopened.createAsset('invalid',{
+      ...building,options:{...building.options,furniture:'no'},
+    }),/options/);
+    await assert.rejects(reopened.createAsset('invalid',{
+      ...building,generator:'fir',components:{geometry:101},
+    }),/options/);
+    const tree=await reopened.createAsset('fir',fir());
+    assert.equal(tree.source.options,undefined);
+  });
+});
+
 test('project API is isolated and rejects cross-origin modifications',async()=>{
   await temporary(async root=>{
     const lib=await ProjectLibrary.open(root,undefined,findGenerator);

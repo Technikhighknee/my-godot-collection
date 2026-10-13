@@ -178,3 +178,18 @@ test('embedded editors use prepaint layout and studio waits for source readiness
     'Active editor must not keep its loading overlay visible');
   assert.match(studioCss,/\.editor-view\.is-loading\{visibility:hidden\}/);
 });
+
+test('building family editor exposes shell/level controls and serves building source',async()=>{
+  const html=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
+  const renderer=readFileSync(new URL('../tools/asset-procgen/web/viewport-3d.mjs',import.meta.url),'utf8');
+  const host=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
+  for(const id of ['buildingSettings','buildingLevel','buildingWidth','buildingDepth',
+    'buildingStories','buildingRoofPitch','buildingInteriorMode',
+    'buildingExterior','buildingInterior'])
+    assert.match(html,new RegExp('id="'+id+'"'));
+  assert.match(app,/optionsByGenerator/);
+  assert.match(app,/currentBuildingView/);
+  assert.match(renderer,/setBuildingView/);
+  assert.match(host,/\/tools\/asset-procgen\/building.mjs/);
+});
