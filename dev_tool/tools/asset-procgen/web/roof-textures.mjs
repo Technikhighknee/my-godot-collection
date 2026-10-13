@@ -14,31 +14,6 @@ const hash=(x,y,seed)=>{
   n=Math.imul(n^(n>>>13),1274126177)>>>0;
   return ((n^(n>>>16))>>>0)/4294967295;
 };
-function sampleClay(u,v,seeds){
-  const pattern=seeds.pattern>>>0,color=seeds.color>>>0;
-  const cols=8,rows=8;
-  const r=Math.floor(v*rows),ry=fract(v*rows);
-  const stagger=((wrap(r,rows)%2)===1?.5:0);
-  const c=Math.floor(u*cols+stagger),rx=fract(u*cols+stagger);
-  const variation=hash(wrap(c,cols),wrap(r,rows),color);
-  const chipped=hash(wrap(c,cols),wrap(r,rows),pattern^0x4325);
-  const edge=Math.min(rx,1-rx);
-  // A curved pan tile, separated by mortar-shadow gaps. The upper lip
-  // overlaps the course below; lower tips are rounded, not square pixels.
-  const scallop=Math.sin(Math.PI*rx)**2;
-  const lip=Math.exp(-Math.pow((ry-.85)/.105,2));
-  const rim=Math.exp(-Math.pow((ry-.09)/.07,2));
-  const gap=clamp(edge*34,0,1);
-  const broken=(chipped>.91&&ry>.87&&rx>.78)?-.16:0;
-  const height=(.23+.52*scallop+.26*lip+.11*rim)*gap+broken;
-  const micro=(hash(wrap(Math.floor(u*SIZE),SIZE),
-    wrap(Math.floor(v*SIZE),SIZE),pattern^39)-.5)*.032;
-  const base=[.52,.28,.185].map((n,i)=>n+(.22*variation-.105)*[.90,.68,.52][i]+micro);
-  const crevice=gap<.3?.57+gap*1.2:ry<.065?.79:1;
-  return {height,base:base.map(n=>n*crevice),
-    roughness:clamp(.81+(.5-variation)*.14+micro,.57,.97)};
-}
-
 // Tileable value noise prevents a visible seam when the material repeats.
 // Fine scales supply fiber dust and weathering, not rows of shingles.
 function periodicNoise(x,y,cells,seed){
@@ -49,6 +24,114 @@ function periodicNoise(x,y,cells,seed){
   const c=hash(wrap(cx,cells),wrap(cy+1,cells),seed);
   const d=hash(wrap(cx+1,cells),wrap(cy+1,cells),seed);
   return mix(mix(a,b,fx),mix(c,d,fx),fy);
+}
+
+// Clay roof: overlapping, slightly crooked beaver-tail tiles, not bricks.
+// Each new course hides the heads of the course below. The exposed tails of
+// the course above have real scalloped outlines; there is no mortar grid.
+// A common height field drives normal and roughness, without painted light.
+function renderClay(seeds){
+  const pattern=seeds.pattern>>>0,color=seeds.color>>>0;
+  const albedo=new Float32Array(SIZE*SIZE*3);
+  const height=new Float32Array(SIZE*SIZE);
+  const roughness=new Float32Array(SIZE*SIZE);
+  const columns=11,rows=10;
+  const cellH=SIZE/rows;
+  const geomSalt=pattern^0x6c87a21f;
+  const toneSalt=color^0xb63d48a1;
+  // A single tile's local coordinate and identity across a continuous field;
+  // use wrapped IDs only for randomized features, never for position.
+  function tileAt(x,y,row){
+    const shift=(row&1)*.5;
+    const lean=Math.sin(2*Math.PI*y*rows/SIZE)*.008;
+    const lane=x*columns/SIZE+shift+lean;
+    let col=Math.floor(lane);
+    const cy=wrap(row,rows);
+    const joint=k=>k+(hash(wrap(k,columns),cy,geomSalt^0xe68af6ed)-.5)*.090;
+    if(lane<joint(col))col--;
+    else if(lane>=joint(col+1))col++;
+    const fx=(lane-joint(col))/(joint(col+1)-joint(col));
+    const cx=wrap(col,columns);
+    const wobble=hash(cx,cy,geomSalt);
+    const shade=hash(cx,cy,toneSalt);
+    const weather=hash(cx,cy,color^0x13f17ce9);
+    const bend=hash(cx,cy,pattern^0xf13ac780);
+    return {fx,col,cx,cy,wobble,shade,weather,bend};
+  }
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+    const p=y*SIZE+x;
+    const ry=y/cellH;
+    const row=Math.floor(ry);
+    const frac=ry-row;
+    const upper=tileAt(x,y,row-1);
+    // The upper tile's tail hangs over the next course, varying by shape.
+    // A rounded bottom extends farther at the center than near its corners.
+    const arc=Math.pow(Math.sin(Math.PI*upper.fx),.75);
+    const tail=.095+.225*arc+(upper.wobble-.5)*.038;
+    const onUpper=frac<tail;
+    const tile=onUpper?upper:tileAt(x,y,row);
+    const localY=onUpper?frac+1:frac;
+    const faceX=tile.fx;
+    const left=Math.min(faceX,1-faceX);
+    // The center of a fired tile subtly crowns out of the roof plane.
+    // Narrow side grooves carry the water downhill along each course.
+    const ceramicBelly=.14+.40*Math.pow(Math.sin(Math.PI*clamp(faceX,0,1)),1.18)+
+      .055*Math.sin(Math.PI*localY/.95) + (tile.bend-.5)*.05;
+    const lip=onUpper?Math.exp(-Math.pow((frac-tail+.033)/.04,2))*.20:0;
+    const seamDepth=1-smooth(clamp((left-.014)/.075,0,1));
+
+    // Coherent, multi-scale ceramic pores, slips, firing spots and runoff.
+    const broad=periodicNoise(x,y,7,color^0x436f35e5)-.5;
+    const pits=periodicNoise(x,y,47,pattern^0x692be11d)-.5;
+    const blister=periodicNoise(x,y,83,color^0x6bec6291)-.5;
+    const pebbles=periodicNoise(x,y,102,color^0x594c2971)-.5;
+    const speck=hash(x,y,pattern^0x79f463df)-.5;
+    const grit=hash(x,y,color^0x5a642af0)-.5;
+    const worn=periodicNoise(x,y,25,color^0xcd56aa93)-.5;
+    // Subtle vertical firing / erosion trails, per tile, so they can't form
+    // horizontal bands or align across all shingles.
+    const run=periodicNoise(x,y,19,color^0x97ecb172)-.5;
+    const streak=Math.max(0,.23-Math.abs(faceX-(.22+.52*tile.weather+run*.10)))
+      *(.16+Math.max(0,worn)*.38);
+    const pores=Math.max(0,pits*.57+pebbles*.51+blister*.22+speck*.22-.09);
+    const clinker=Math.max(0,blister*.65+pits*.45+grit*.16-.12);
+    const salt=Math.max(0,-worn*.75-pebbles*.4+blister*.3-.11);
+    const moss=Math.max(0,blister*.60+broad*.55+worn*.48+(tile.weather-.5)*.18-.21);
+    const fractureX=.29+.31*tile.weather + .055*Math.sin(localY*5+tile.wobble*6);
+    const crack=tile.bend>.958 && localY>.35 && localY<1.04 &&
+      Math.abs(faceX-fractureX)<.018;
+    const chipped=tile.bend>.92 && left<.095 && localY>.75 &&
+      Math.abs(pits+pebbles*.7)>.21;
+    const h=ceramicBelly+lip-seamDepth*.17 - (onUpper?0:.13) +
+      pits*.045+pebbles*.024+blister*.026+speck*.017+
+      clinker*.022-pores*.05-(chipped?.12:0)-(crack?.07:0);
+    height[p]=h;
+
+    // Clay is kiln-fired with locally varied ochre, brick and muted rose
+    // pigments. Grime gathers in narrow gaps and pits, not across bands.
+    const warm=(tile.shade-.5)*.18 + broad*.094 + worn*.095 + blister*.052;
+    const burnt=(tile.weather-.5)*.085 + (tile.wobble-.5)*.035;
+    const earth=Math.max(0,worn*.70+broad*.55+pits*.54+blister*.23+.02);
+    const dirt=pores*.28+clinker*.15+streak*.45+seamDepth*.14+
+      (chipped?.09:0)+(crack?.20:0)+moss*.25;
+    const lichens=moss*.40;
+    const fired=clinker*.22;
+    const chalk=salt*.29;
+    const ochre=[.56,.325,.194];
+    const idx=p*3;
+    albedo[idx]=clamp(ochre[0]+warm+burnt-earth*.16-dirt*.50-fired*.36+chalk*.33-lichens*.27,.12,.78);
+    albedo[idx+1]=clamp(ochre[1]+warm*.72-burnt*.10-earth*.14-dirt*.42-fired*.30+chalk*.31-lichens*.09,.08,.56);
+    albedo[idx+2]=clamp(ochre[2]+warm*.55-burnt*.13-earth*.105-dirt*.37-fired*.25+chalk*.26-lichens*.34,.055,.43);
+    roughness[p]=clamp(.78+pores*.22+clinker*.12+Math.max(0,pits)*.10+
+      seamDepth*.12+streak*.38+moss*.26+(tile.weather-.5)*.06,.60,.99);
+  }
+  return {albedo,height,roughness};
+}
+let lastClay=null;
+function clayData(seeds){
+  if(!lastClay||lastClay.pattern!==seeds.pattern||lastClay.color!==seeds.color)
+    lastClay={pattern:seeds.pattern,color:seeds.color,data:renderClay(seeds)};
+  return lastClay.data;
 }
 
 // Overlapping bundles of fine, tapered stems. Bundles have independent
@@ -147,36 +230,24 @@ export function paintRoofTexture(canvas,kind,seeds,view='albedo'){
   const ctx=canvas.getContext('2d');
   if(!ctx)throw Error('2D canvas context required');
   const data=ctx.createImageData(SIZE,SIZE);
-  const thatch=kind==='thatch'?thatchData(seeds):null;
+  const material=kind==='thatch'?thatchData(seeds):clayData(seeds);
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
-    const i=(y*SIZE+x)*4,p=y*SIZE+x;
+    const i=(y*SIZE+x)*4;
+    const p=y*SIZE+x;
     if(view==='albedo'){
-      const base=thatch?[
-        thatch.albedo[p*3],thatch.albedo[p*3+1],thatch.albedo[p*3+2]
-      ]:sampleClay((x+.5)/SIZE,(y+.5)/SIZE,seeds).base;
+      const base=[material.albedo[p*3],material.albedo[p*3+1],material.albedo[p*3+2]];
       for(let j=0;j<3;j++)data.data[i+j]=Math.round(clamp(base[j]*255));
     }else if(view==='normal'){
-      let dx,dy;
-      if(thatch){
-        dx=(thatch.height[y*SIZE+wrap(x+1,SIZE)]-
-          thatch.height[y*SIZE+wrap(x-1,SIZE)])*1.8;
-        dy=(thatch.height[wrap(y+1,SIZE)*SIZE+x]-
-          thatch.height[wrap(y-1,SIZE)*SIZE+x])*1.8;
-      }else{
-        const u=(x+.5)/SIZE,v=(y+.5)/SIZE,delta=1/SIZE;
-        dx=(sampleClay(u+delta,v,seeds).height-
-          sampleClay(u-delta,v,seeds).height)*1.8;
-        dy=(sampleClay(u,v+delta,seeds).height-
-          sampleClay(u,v-delta,seeds).height)*1.8;
-      }
+      const dx=(material.height[y*SIZE+wrap(x+1,SIZE)]-
+        material.height[y*SIZE+wrap(x-1,SIZE)])*1.8;
+      const dy=(material.height[wrap(y+1,SIZE)*SIZE+x]-
+        material.height[wrap(y-1,SIZE)*SIZE+x])*1.8;
       const length=Math.hypot(dx,dy,1);
       data.data[i]=Math.round((1-dx/length)*127.5);
       data.data[i+1]=Math.round((1-dy/length)*127.5);
       data.data[i+2]=Math.round((1+1/length)*127.5);
     }else{
-      const rough=thatch?thatch.roughness[p]:
-        sampleClay((x+.5)/SIZE,(y+.5)/SIZE,seeds).roughness;
-      const value=Math.round(255*clamp(rough,0,1));
+      const value=Math.round(255*clamp(material.roughness[p],0,1));
       data.data[i]=value;data.data[i+1]=value;data.data[i+2]=value;
     }
     data.data[i+3]=255;
