@@ -209,3 +209,12 @@ test('shared roof material UI exposes both persistent project texture slots',()=
   assert.match(studio,/studio:project-assets-changed/);
   assert.match(server,/\/tools\/asset-procgen\/roof-textures.mjs/);
 });
+
+
+test('project texture changes refresh clean editors without losing dirty recipes',()=>{
+  const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
+  const studio=readFileSync(new URL('../web/studio.js',import.meta.url),'utf8');
+  assert.match(app,/latest&&\!recipeDirty&&latest\.revision!==loadedProjectAsset\.revision/);
+  assert.match(app,/await loadSelectedProjectAsset\(\)/);
+  assert.match(studio,/broadcastProjectAssets/);
+});

@@ -546,7 +546,14 @@ async function changeSharedRoof(slot,action){
   }
   if(!entry)throw Error('Select a saved texture first');
   if(action==='edit'){
-    studioSignal({type:'studio:open-asset',id:entry.source.id});
+    if(embedded){
+      studioSignal({type:'studio:open-asset',id:entry.source.id});
+    }else{
+      // The standalone editor has no Studio parent to open a document tab.
+      location.assign('/tools/asset-procgen/?asset='+
+        encodeURIComponent(entry.source.id)+'&generator='+
+        encodeURIComponent(definition.id));
+    }
     return;
   }
   if(action==='reseed'){
@@ -588,7 +595,15 @@ window.addEventListener('message',event=>{
     event.data.projectId!==projectId)return;
   projectOperation(async()=>{
     await reloadProjectAssets();
-    if(isBuilding())build();
+    const id=loadedProjectAsset?.source.id;
+    const latest=id?projectAssets.get(id):null;
+    if(latest&&!recipeDirty&&latest.revision!==loadedProjectAsset.revision){
+      // Clean document: pull the changed shared source into the editor.
+      // Dirty documents retain their local work and optimistic revision;
+      // a later save will surface a conflict instead of overwriting it.
+      projectEl('savedProjectAssets').value=id;
+      await loadSelectedProjectAsset();
+    }else if(isBuilding())build();
   });
 });
 

@@ -329,7 +329,10 @@ export class ProjectLibrary {
     const edges:{from:string;to:string}[]=[];
     const missing=new Set<string>();
     for(const a of assets)
-      for(const ref of a.source.dependencies)edges.push({from:'asset:'+a.source.id,to:ref});
+      for(const ref of a.source.dependencies){
+        edges.push({from:'asset:'+a.source.id,to:ref});
+        if(!known.has(ref.slice('asset:'.length)))missing.add(ref);
+      }
     const folder=join(project,'maps');
     for(const file of (await readdir(folder)).filter(x=>x.endsWith('.map.json'))){
       const id=file.slice(0,-'.map.json'.length);
