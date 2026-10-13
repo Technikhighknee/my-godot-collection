@@ -124,6 +124,63 @@ test('building sources persist configurable three-level families without alterin
   });
 });
 
+test('project roof textures are shared validated dependencies across buildings',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('material-links','Material Links');
+    const thatch=await lib.createAsset('thatch-a',{
+      name:'Village thatch',generator:'roof-thatch',masterSeed:11,
+      components:{pattern:11,color:13},
+    });
+    const clay=await lib.createAsset('tiles-a',{
+      name:'Town clay tiles',generator:'roof-clay',masterSeed:19,
+      components:{pattern:19,color:23},
+    });
+    assert.equal(thatch.kind,'image');
+    assert.equal(clay.kind,'image');
+    const recipe=(name:string)=>({
+      name,generator:'timber-building',masterSeed:19043,
+      components:{structure:19043,material:62191},
+      options:{width:9,depth:11,stories:1,roofPitch:43,interior:'shell'},
+      materials:{roofThatch:'asset:thatch-a',roofClay:'asset:tiles-a'},
+    });
+    const one=await lib.createAsset('tavern',recipe('Tavern'));
+    const two=await lib.createAsset('bakery',recipe('Bakery'));
+    assert.deepEqual(one.source.materials,recipe('Tavern').materials);
+    assert.deepEqual(one.source.dependencies,['asset:thatch-a','asset:tiles-a']);
+    assert.deepEqual((await lib.graph()).edges.filter(x=>x.to==='asset:tiles-a')
+      .map(x=>x.from).sort(),['asset:bakery','asset:tavern']);
+    const modified=await lib.updateAsset('tiles-a',{
+      name:'Town clay tiles',generator:'roof-clay',masterSeed:31,
+      components:{pattern:31,color:37},
+    },clay.revision);
+    assert.notEqual(modified.revision,clay.revision);
+    assert.equal((await lib.asset('tavern')).source.materials!.roofClay,'asset:tiles-a');
+    assert.equal((await lib.asset('bakery')).source.materials!.roofClay,'asset:tiles-a');
+    await assert.rejects(lib.createAsset('broken',{
+      ...recipe('Broken'),materials:{roofClay:'asset:missing'},
+    }),/Material/);
+    await assert.rejects(lib.createAsset('broken',{
+      ...recipe('Broken'),materials:{roofClay:'asset:thatch-a'},
+    }),/Material/);
+    await assert.rejects(lib.createAsset('broken',{
+      ...recipe('Broken'),materials:{roofThatch:'asset:tiles-a'},
+    }),/Material/);
+    await assert.rejects(lib.createAsset('broken',{
+      ...recipe('Broken'),materials:{chimney:'asset:tiles-a'},
+    }),/Invalid material reference/);
+    const unlinked=await lib.updateAsset('tavern',{
+      ...recipe('Tavern'),materials:{roofClay:'asset:tiles-a'},
+    },one.revision);
+    assert.deepEqual(unlinked.source.dependencies,['asset:tiles-a']);
+    assert.deepEqual(unlinked.source.materials,{roofClay:'asset:tiles-a'});
+    assert.equal((await lib.graph()).edges.filter(x=>x.from==='asset:tavern').length,1);
+    const disk=JSON.parse(await readFile(join(root,'material-links','assets',
+      'tavern.asset.json'),'utf8'));
+    assert.deepEqual(disk.materials,{roofClay:'asset:tiles-a'});
+  });
+});
+
 test('project API is isolated and rejects cross-origin modifications',async()=>{
   await temporary(async root=>{
     const lib=await ProjectLibrary.open(root,undefined,findGenerator);

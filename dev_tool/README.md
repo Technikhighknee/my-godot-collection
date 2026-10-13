@@ -1,5 +1,26 @@
 # Dev Tool
 
+## Shared project textures
+
+Project textures are ordinary, seed-reproducible project assets, independently
+saved under the Studio *Textures* section. The generator catalog offers
+**Textures → Roofs → Thatch** and **Clay tiles**, each with inspectable albedo,
+normal and roughness channels. No downloaded textures or baked sunlight.
+
+The building generator exposes two reusable material slots: **Thatch (level 1)**
+and **Clay tiles (levels 2 and 3)**. Each slot can select an existing saved
+compatible texture, create a new project texture, open its texture editor or
+reseed the shared asset (with revision conflict protection). Reassignments
+belong to the building recipe: save the building to persist the reference.
+Reseeding a texture modifies its single saved source and updates *all*
+referencing buildings, including other open Studio asset tabs.
+
+References are stored as validated `asset:<id>` material bindings and tracked
+in the project dependency graph. A wrong generator type, missing texture,
+unknown slot or cyclic dependency is rejected. The geometry preview defaults
+to deterministic built-in textures until a project texture is assigned.
+Texture baking/export to Godot is intentionally not part of this change.
+
 ## Building families
 
 **Architecture → Buildings → Timber frame** opens the first building-family

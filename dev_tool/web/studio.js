@@ -30,9 +30,12 @@ function make(tag,className,text){
   if(text!==undefined)element.textContent=text;
   return element;
 }
-function assetType(asset){return asset.kind==='model'?'3D model':'2D image';}
+function assetType(asset){
+  return asset.source.generator.id.startsWith('roof-')?'Project texture':
+    asset.kind==='model'?'3D model':'2D image';
+}
 function resourceIcon(kind){
-  return kind==='map'?'▧':kind==='building'?'⌂':
+  return kind==='map'?'▧':kind==='texture'?'▤':kind==='building'?'⌂':
     kind==='model'?'⬡':kind==='image'?'▨':'◇';
 }
 function persisted(){
@@ -276,7 +279,10 @@ function renderTree(){
       a.source.generator.id==='timber-building'),'building'),
     section('Models & Vegetation',filteredAssets.filter(a=>
       a.kind==='model'&&a.source.generator.id!=='timber-building'),'model'),
-    section('Images & Materials',filteredAssets.filter(a=>a.kind==='image'),'image'));
+    section('Textures',filteredAssets.filter(a=>a.kind==='image'&&
+      a.source.generator.id.startsWith('roof-')),'texture'),
+    section('Images & Materials',filteredAssets.filter(a=>a.kind==='image'&&
+      !a.source.generator.id.startsWith('roof-')),'image'));
   byId('resourceCount').textContent=(maps.length+assets.length)+' SOURCES';
 }
 function summaryButton(label,kind,action){
