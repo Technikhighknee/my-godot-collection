@@ -217,3 +217,21 @@
 .studio-embedded body.pg-page{height:100vh;overflow:hidden}
 .studio-embedded .pg-stage{min-height:0;height:auto}
 .studio-embedded .pg-workspace{min-height:0;height:100vh}
+
+/* Building-specific controls are resource controls, not another tool shell. */
+.pg-building-settings{display:flex;flex-direction:column;gap:14px;margin:16px 0 23px}
+.pg-building-settings[hidden],.pg-building-view[hidden]{display:none}
+.pg-building-settings>.pg-settings-title{margin-bottom:3px}
+.pg-building-settings label{display:flex;flex-direction:column;gap:7px;
+  color:#bdc9be;font-size:10px;font-weight:700;letter-spacing:.045em}
+.pg-building-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pg-building-settings select,.pg-building-settings input{
+  width:100%;min-width:0;padding:10px;border:1px solid #53675f;
+  border-radius:6px;background:#132123;color:#e5e7dc;
+  font:600 12px "Segoe UI",system-ui,sans-serif}
+.pg-building-settings .pg-building-note{color:#94a99d;font-size:11px;
+  line-height:1.65;margin:0}
+.pg-building-view{display:inline-flex;gap:5px;pointer-events:auto}
+.pg-building-view button[aria-pressed=true]{background:#625541;
+  border-color:#d7b689;color:#f7e2bf}
+.pg-camera-tools .pg-building-view button{padding:8px}

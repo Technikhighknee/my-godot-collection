@@ -32,6 +32,41 @@ document.addEventListener('keydown',event=>{
   }
 });
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
+const optionsByGenerator=new Map(GENERATORS.filter(def=>def.defaultOptions)
+  .map(def=>[def.id,{...def.defaultOptions}]));
+let currentBuildingView='exterior';
+const isBuilding=()=>active.id==='timber-building';
+const currentBuildingOptions=()=>optionsByGenerator.get(active.id);
+function renderBuildingControls(){
+  const show=isBuilding();
+  byId('buildingSettings').hidden=!show;
+  byId('buildingViewButtons').hidden=!show;
+  byId('foot').hidden=show;
+  byId('crown').hidden=show;
+  byId('whole').textContent=show?'Fit building':'Whole tree';
+  if(!show)return;
+  const o=currentBuildingOptions();
+  for(const [property,id] of [
+    ['width','buildingWidth'],['depth','buildingDepth'],
+    ['stories','buildingStories'],['roofPitch','buildingRoofPitch'],
+    ['interior','buildingInteriorMode']])
+    byId(id).value=String(o[property]);
+  byId('buildingInterior').disabled=o.interior==='none';
+  if(o.interior==='none')currentBuildingView='exterior';
+  const view=currentBuildingView;
+  byId('buildingExterior').setAttribute('aria-pressed',String(view==='exterior'));
+  byId('buildingInterior').setAttribute('aria-pressed',String(view==='interior'));
+}
+function updateBuildingView(view){
+  if(!isBuilding()||!modelViewport)return;
+  if(view==='interior'&&currentBuildingOptions().interior==='none')return;
+  currentBuildingView=view;
+  modelViewport.setBuildingView(view);
+  for(const [id,kind] of [['buildingExterior','exterior'],['buildingInterior','interior']])
+    byId(id).setAttribute('aria-pressed',String(view===kind));
+  modelViewport.focus('whole');
+}
+
 let loadedProjectAsset=null;
 const initialGenerator=new URLSearchParams(location.search).get('generator');
 let active=findGenerator(initialGenerator)||findGenerator('oak');
@@ -49,7 +84,9 @@ function updatePreviewControls(state){
   leaves.setAttribute('aria-pressed',String(oak&&state.foliageVisible));
   for(const id of ['inspectCard','inspectClump'])
     byId(id).hidden=!oak;
-  byId('stageContent').textContent=state.inspectMode==='card'?
+  byId('stageContent').textContent=state.assetId==='timber-building'?
+    (state.buildingView==='interior'?'EMPTY ROOM SHELL':'TIMBER EXTERIOR'):
+    state.inspectMode==='card'?
     'LEAF CARD / ATLAS':state.inspectMode==='clump'?
     'ONE FOLIAGE CLUMP':oak&&state.foliageVisible?
     'WOOD + FOLIAGE':'WOOD ONLY';
@@ -116,15 +153,28 @@ function build(state=seeds()){
   try{
     const started=performance.now();
     // Generate first, then replace the preview atomically.
-    const asset=generateAsset(active,state.components);
+    const asset=generateAsset(active,state.components,
+      active.defaultOptions?currentBuildingOptions():undefined,
+      isBuilding()?Number(byId('buildingLevel').value):1);
     let stats;
     if(asset.kind==='model'){
       if(!modelViewport)
         modelViewport=createModelViewport(byId('viewport'),updatePreviewControls);
       stats=modelViewport.render(asset);
-      byId('meshStats').textContent=stats.axes+' WOOD AXES · '+
-        (stats.cards?stats.cards+' FOLIAGE CARDS · ':'')+
-        stats.triangles.toLocaleString()+' TRIS';
+      if(asset.building){
+        if(currentBuildingView==='interior'&&asset.building.interior)
+          modelViewport.setBuildingView('interior');
+        byId('meshStats').textContent=stats.label;
+        byId('buildingOpeningInfo').textContent=
+          asset.building.plan.width+' × '+asset.building.plan.depth+' m · '+
+          asset.building.plan.stories+' storey(s) · '+
+          asset.building.plan.windows.length+' exterior windows · '+
+          (asset.building.interior?'shell shares the ground-floor openings':'no interior');
+      }else{
+        byId('meshStats').textContent=stats.axes+' WOOD AXES · '+
+          (stats.cards?stats.cards+' FOLIAGE CARDS · ':'')+
+          stats.triangles.toLocaleString()+' TRIS';
+      }
     }else if(asset.kind==='image'){
       if(!imageViewport)
         imageViewport=createImageViewport(byId('imageViewport'),updateImageControls);
@@ -228,6 +278,7 @@ function selectGenerator(id){
   byId(def.kind==='model'?'viewport':'imageViewport')
     .setAttribute('aria-label',def.previewLabel);
   byId('modelStage').hidden=def.kind!=='model';
+  renderBuildingControls();
   byId('imageStage').hidden=def.kind!=='image';
   byId('stageKind').textContent=def.kind==='model'?'3D MODEL':'2D ASSET';
   byId('viewportHint').textContent=def.kind==='model'?
@@ -248,6 +299,33 @@ library=createAssetLibrary({
 });
 byId('speciesSelect').addEventListener('change',
   e=>selectGenerator(e.target.value));
+for(const [id,view] of [['buildingExterior','exterior'],
+  ['buildingInterior','interior']])
+  byId(id).addEventListener('click',()=>updateBuildingView(view));
+byId('buildingLevel').addEventListener('change',()=>{
+  if(isBuilding()&&build())modelViewport.focus('whole');
+});
+for(const [id,key] of [
+  ['buildingWidth','width'],['buildingDepth','depth'],
+  ['buildingStories','stories'],['buildingRoofPitch','roofPitch'],
+  ['buildingInteriorMode','interior']]){
+  byId(id).addEventListener('change',()=>{
+    if(!isBuilding())return;
+    const previous=currentBuildingOptions();
+    const raw=byId(id).value;
+    const next={...previous,[key]:key==='interior'?raw:Number(raw)};
+    try{
+      const validated=active.validateOptions(next);
+      optionsByGenerator.set(active.id,validated);
+      renderBuildingControls();
+      setRecipeDirty(true);
+      if(build())modelViewport.focus('whole');
+    }catch(error){
+      byId(id).value=String(previous[key]);
+      byId('status').textContent=error.message;
+    }
+  });
+}
 byId('seedValue').addEventListener('change',()=>{
   const input=byId('seedValue');
   updateSeedInput(input,value=>applySeeds(
@@ -362,7 +440,8 @@ async function projectOperation(action){
 function currentRecipe(){
   const state=seeds();
   return {name:projectEl('projectAssetName').value.trim(),generator:active.id,
-    masterSeed:state.masterSeed,components:state.components};
+    masterSeed:state.masterSeed,components:state.components,
+    ...(active.defaultOptions?{options:currentBuildingOptions()}:{})};
 }
 async function loadSelectedProjectAsset(){
   const id=projectEl('savedProjectAssets').value;
@@ -373,6 +452,11 @@ async function loadSelectedProjectAsset(){
   if(!gen)throw Error('Generator is unavailable');
   states.set(gen.id,{masterSeed:entry.source.generator.masterSeed,
     components:{...entry.source.generator.components}});
+  if(gen.defaultOptions)
+    optionsByGenerator.set(gen.id,gen.validateOptions(
+      entry.source.options??gen.defaultOptions));
+  currentBuildingView='exterior';
+  byId('buildingLevel').value='1';
   loadedProjectAsset=entry;
   projectEl('projectAssetName').value=entry.source.name;
   projectEl('projectAssetId').value=id;

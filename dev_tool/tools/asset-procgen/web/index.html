@@ -50,6 +50,10 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
       <button id="crown" type="button">Inspect crown</button>
       <button id="inspectCard" type="button">Inspect leaf card</button>
       <button id="inspectClump" type="button">Inspect clump</button>
+      <span id="buildingViewButtons" class="pg-building-view" hidden>
+        <button id="buildingExterior" type="button" aria-pressed="true">Exterior</button>
+        <button id="buildingInterior" type="button" aria-pressed="false">Empty interior</button>
+      </span>
       <button id="foliageToggle" type="button" aria-pressed="true">Hide leaves</button>
       <button id="silhouette" type="button" aria-pressed="false">Silhouette</button>
       <button id="turntable" type="button" aria-pressed="false">Turntable</button>
@@ -100,6 +104,40 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
     <span id="assetOverline" class="pg-overline">OAK / WOOD + FOLIAGE</span>
     <h1 id="assetTitle">Oak in leaf.</h1>
     <p id="assetDescription">A European oak with branch-supported foliage. No bark texture or export.</p>
+    <section id="buildingSettings" class="pg-building-settings" hidden
+      aria-label="Building family controls">
+      <div class="pg-settings-title"><span>BUILDING FAMILY</span></div>
+      <p class="pg-building-note">One editable source. Three related upgrade levels.
+        Interior is a separate, empty shell built from the same door and window plan.</p>
+      <label for="buildingLevel">Preview level
+        <select id="buildingLevel">
+          <option value="1">Level 1 · Basic</option>
+          <option value="2">Level 2 · Expanded</option>
+          <option value="3">Level 3 · Established</option>
+        </select>
+      </label>
+      <div class="pg-building-grid">
+        <label for="buildingWidth">Base width (m)
+          <input id="buildingWidth" type="number" min="6" max="18" step="1" value="9">
+        </label>
+        <label for="buildingDepth">Base depth (m)
+          <input id="buildingDepth" type="number" min="7" max="22" step="1" value="11">
+        </label>
+        <label for="buildingStories">Base storeys
+          <select id="buildingStories"><option value="1">1</option><option value="2">2</option></select>
+        </label>
+        <label for="buildingRoofPitch">Roof pitch (°)
+          <input id="buildingRoofPitch" type="number" min="30" max="60" step="1" value="43">
+        </label>
+      </div>
+      <label for="buildingInteriorMode">Interior generation
+        <select id="buildingInteriorMode">
+          <option value="shell">Empty shell (separate scene)</option>
+          <option value="none">Exterior only</option>
+        </select>
+      </label>
+      <p id="buildingOpeningInfo" class="pg-building-note"></p>
+    </section>
     <div class="pg-settings-title"><span>MASTER SEED</span></div>
     <label class="pg-seed" for="seedValue"><span>MASTER</span>
       <input id="seedValue" type="number" min="0" max="4294967295" step="1" aria-label="Asset master seed">
