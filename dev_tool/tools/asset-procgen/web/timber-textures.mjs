@@ -23,57 +23,121 @@ function generateTimber(seeds){
   const albedo=new Float32Array(SIZE*SIZE*3);
   const height=new Float32Array(SIZE*SIZE);
   const roughness=new Float32Array(SIZE*SIZE);
-  // Sparse, elongated knots distort the grain instead of stamping circles.
+  // Knots distort surrounding fibers rather than being pasted onto planks.
   const knots=[];
-  for(let i=0;i<8;i++){
-    const x=hash(i,0,pattern^0x1f26c8a2)*SIZE;
-    const y=hash(i,1,pattern^0x629bf38c)*SIZE;
+  for(let i=0;i<10;i++){
     const strength=hash(i,2,pattern^0x91a47322);
-    if(strength<.35)continue;
-    knots.push({x,y,rx:6+strength*7,ry:14+strength*15,
-      strength:.45+strength*.55});
+    if(strength<.36)continue;
+    knots.push({x:hash(i,0,pattern^0x1f26c8a2)*SIZE,
+      y:hash(i,1,pattern^0x629bf38c)*SIZE,
+      rx:7+strength*10,ry:14+strength*23,strength});
   }
+  const shortest=(a,b)=>((a-b+SIZE*1.5)%SIZE)-SIZE*.5;
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
-    const p=y*SIZE+x;
-    const broad=noise(x,y,7,5,color^0x125a33af)-.5;
-    const tide=noise(x,y,18,9,pattern^0x62726a19)-.5;
-    const drift=noise(x,y,13,5,pattern^0xc125af90)-.5;
-    const warpedX=x+drift*12+Math.sin(y/SIZE*Math.PI*4)*1.8;
-    let knotDepth=0,knotPigment=0,knotBend=0;
-    for(const k of knots){
-      const dx=((x-k.x+SIZE*1.5)%SIZE)-SIZE*.5;
-      const dy=((y-k.y+SIZE*1.5)%SIZE)-SIZE*.5;
-      const radius=Math.hypot(dx/k.rx,dy/k.ry);
-      if(radius<3.4){
-        knotBend+=dx*Math.exp(-radius*radius*.55)*k.strength*.9;
-        const eye=Math.exp(-Math.pow(radius/.47,2))*k.strength;
-        const ring=Math.exp(-Math.pow((radius-1)/.17,2))*k.strength;
-        knotDepth+=ring*.055-eye*.10;
-        knotPigment+=ring*.07+eye*.18;
+    const p=y*SIZE+x,idx=p*3;
+    const large=noise(x,y,6,4,pattern^0xe9812c37)-.5;
+    const drift=noise(x,y,13,5,pattern^0x5b319eac)-.5;
+    const sway=noise(x,y,23,7,pattern^0x63e274f0)-.5;
+    let warp=large*19+drift*10+sway*2.5;
+    let eye=0,ring=0,swirl=0;
+    for(const knot of knots){
+      const dx=shortest(x,knot.x),dy=shortest(y,knot.y);
+      const u=dx/knot.rx,v=dy/knot.ry;
+      const rad=Math.hypot(u,v);
+      if(rad>3.0)continue;
+      const fall=Math.exp(-rad*rad*.65);
+      warp+=Math.sign(dx||1)*knot.rx*.63*fall*knot.strength;
+      swirl+=fall*.45*Math.sin(Math.atan2(v,u)*2)*knot.strength;
+      eye+=Math.exp(-rad*rad*8.5)*knot.strength;
+      ring+=Math.exp(-Math.pow((rad-.93)/.22,2))*knot.strength;
+    }
+    const wx=x+warp;
+    // Long, irregular anisotropic bands instead of identical sine stripes.
+    const band=noise(wx,y,54,5,pattern^0x714852df)-.5;
+    const timber=noise(wx,y,29,4,pattern^0x384dcab1)-.5;
+    const fine=noise(wx,y,112,9,pattern^0x2de391a6)-.5;
+    const pores=noise(wx,y,153,24,pattern^0x7260b7d4)-.5;
+    const cross=noise(x,y,21,17,color^0xb8c2153a)-.5;
+    const wash=noise(x,y,10,9,color^0x125a33af)-.5;
+    const worn=noise(x,y,37,16,color^0x93792d71)-.5;
+    const micro=hash(x,y,pattern^0xaed1437b)-.5;
+    const darkFiber=Math.max(0,-band-.075);
+    const splinter=Math.max(0,-fine-.25)*Math.max(0,-timber+.3);
+    const splitMask=Math.max(0,-fine-.40)*Math.max(0,-timber+.12);
+    const check=Math.pow(clamp(splitMask*5,0,1),2)*.42;
+    height[p]=.30+band*.032+timber*.035+fine*.045+pores*.009+
+      swirl*.014-eye*.10+ring*.045-check*.057+micro*.004;
+    const colorTone=band*.060+timber*.075+fine*.046+wash*.058+
+      worn*.035+cross*.022+micro*.013-swirl*.035-eye*.20-ring*.07-
+      check*.10-darkFiber*.035-splinter*.024;
+    // Diffuse material pigment; shading is left to the normal map.
+    albedo[idx]=clamp(.365+colorTone,.125,.60);
+    albedo[idx+1]=clamp(.271+colorTone*.78,.080,.49);
+    albedo[idx+2]=clamp(.181+colorTone*.62,.052,.35);
+    roughness[p]=clamp(.81+check*.23+eye*.12+
+      pores*.07+micro*.036+worn*.05,.63,.98);
+  }
+  // Broken fibers, drying checks and shallow hand-hewn tool marks.
+  // All rasterized strokes wrap at both image edges to remain tileable.
+  let state=(pattern^0xa19fc811)>>>0;
+  const random=()=>{
+    state=(state+0x6d2b79f5)>>>0;
+    let z=state;
+    z=Math.imul(z^(z>>>15),z|1);
+    z^=z+Math.imul(z^(z>>>7),z|61);
+    return ((z^(z>>>14))>>>0)/4294967296;
+  };
+  function stroke(x,y,len,dx,dy,width,strength,rise,red,green,blue,rough){
+    const steps=Math.ceil(len);
+    const bow=(random()-.5)*3.5;
+    for(let step=0;step<steps;step++){
+      const t=step/steps;
+      const envelope=Math.min(1,step/4,(steps-step)/6);
+      if(envelope<=0)continue;
+      const sx=x+dx*step+bow*Math.sin(t*Math.PI);
+      const sy=y+dy*step;
+      const cx=Math.floor(sx),cy=wrap(Math.floor(sy));
+      for(let offset=-2;offset<=2;offset++){
+        const xx=cx+offset;
+        const distance=Math.abs(xx+.5-sx);
+        const alpha=clamp(width+.5-distance,0,1)*envelope*strength;
+        if(alpha===0)continue;
+        const px=wrap(xx),p=cy*SIZE+px,i=p*3;
+        albedo[i]=clamp(albedo[i]+red*alpha);
+        albedo[i+1]=clamp(albedo[i+1]+green*alpha);
+        albedo[i+2]=clamp(albedo[i+2]+blue*alpha);
+        height[p]+=rise*alpha;
+        roughness[p]=clamp(roughness[p]+rough*alpha);
       }
     }
-    const fiberX=warpedX+knotBend;
-    const long=noise(fiberX,y,57,5,pattern^0x714852df)-.5;
-    const fine=noise(fiberX,y,119,13,pattern^0x2de391a6)-.5;
-    const fleck=noise(fiberX,y,101,36,pattern^0x7260b7d4)-.5;
-    const micro=hash(x,y,pattern^0xaed1437b)-.5;
-    const phase=(fiberX/SIZE*39+long*.47+tide*.13)*Math.PI*2;
-    const grain=Math.sin(phase)*.55+Math.sin(phase*1.89+fine*2.0)*.19+
-      long*.82+fine*.28;
-    const split=Math.max(0,-grain-.71)*.52;
-    const surface=grain*.042+fine*.027+fleck*.013+micro*.007+
-      tide*.023+knotDepth-split*.13;
-    height[p]=.30+surface;
-    const age=noise(x,y,15,14,color^0x1497eb2d)-.5;
-    const stain=Math.max(0,-age-.10)*.07;
-    const tone=grain*.073+long*.047+fine*.027+broad*.070+
-      age*.036+micro*.012-knotPigment*.52-split*.11-stain;
-    // Warm, dry, weathered oak, matching the roof texture palette.
-    albedo[p*3]=clamp(.35+tone,.12,.57);
-    albedo[p*3+1]=clamp(.257+tone*.77,.08,.44);
-    albedo[p*3+2]=clamp(.173+tone*.61,.05,.34);
-    roughness[p]=clamp(.84+split*.17+knotPigment*.25+
-      fleck*.07+micro*.024-age*.045,.65,.99);
+  }
+  for(let i=0;i<6400;i++){
+    const x=random()*SIZE,y=random()*SIZE;
+    const len=6+Math.pow(random(),1.35)*95;
+    const width=.32+random()*1.05;
+    const strength=.20+random()*.58;
+    const dark=random()<.62;
+    const delta=(dark?-1:1)*(.021+random()*.055);
+    const tilt=(random()-.5)*.16;
+    stroke(x,y,len,tilt,1,width,strength,-delta*.24,
+      delta,delta*.80,delta*.60,dark?.023:-.013);
+  }
+  for(let i=0;i<42;i++){
+    const x=random()*SIZE,y=random()*SIZE;
+    const len=10+random()*65;
+    const tilt=(random()-.5)*.21;
+    const strength=.24+random()*.51;
+    stroke(x,y,len,tilt,1,.35+random()*.36,strength,-.077,
+      -.17,-.145,-.12,.064);
+    stroke(x+1.5,y,len*.86,tilt,1,.33,strength*.45,.025,
+      .045,.037,.024,-.014);
+  }
+  for(let i=0;i<90;i++){
+    const x=random()*SIZE,y=random()*SIZE;
+    const len=5+random()*20;
+    const strength=.14+random()*.24;
+    stroke(x,y,len,.8+(random()-.5)*.4,.15,.45+random()*.52,
+      strength,-.02,-.045,-.035,-.026,.025);
   }
   return {albedo,height,roughness};
 }
