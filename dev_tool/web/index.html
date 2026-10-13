@@ -23,6 +23,28 @@
     <h1 id="dt-title">Make worlds.<br><span>Build what matters.</span></h1>
     <p>One workspace for designing maps, creating assets and building the world behind 1400. Choose a tool to get started.</p>
   </section>
+  <section class="dt-projects" aria-labelledby="dt-projects-heading">
+    <div class="dt-section-heading">
+      <h2 id="dt-projects-heading">Projects <span class="dt-section-rule" aria-hidden="true"></span></h2>
+      <span class="dt-section-meta">SOURCE WORKSPACE / LOCAL DISK</span>
+    </div>
+    <div class="dt-project-layout">
+      <div class="dt-project-browser">
+        <div class="dt-project-browser-heading">YOUR PROJECTS</div>
+        <div id="dt-project-list" class="dt-project-list" aria-live="polite">Loading projects…</div>
+      </div>
+      <form id="dt-project-create" class="dt-project-create">
+        <h3>New project</h3>
+        <p>Create a self-contained source workspace with a starter map and room for procedural assets.</p>
+        <label for="dt-project-name">Project name</label>
+        <input id="dt-project-name" placeholder="My next game" required maxlength="100" autocomplete="off">
+        <label for="dt-project-id">Directory ID</label>
+        <input id="dt-project-id" placeholder="my-next-game" pattern="[a-z0-9][a-z0-9_-]{0,47}" required maxlength="48" autocomplete="off">
+        <button type="submit">Create project</button>
+        <div id="dt-project-error" role="alert"></div>
+      </form>
+    </div>
+  </section>
   <section class="dt-tools" aria-labelledby="dt-tools-heading">
     <div class="dt-section-heading">
       <h2 id="dt-tools-heading">Tools <span class="dt-section-rule" aria-hidden="true"></span></h2>
@@ -88,7 +110,7 @@
     </div>
   </section>
   <section class="dt-workspace" aria-labelledby="dt-workspace-heading">
-    <div><span class="dt-workspace-label" id="dt-workspace-heading">CURRENT MAP WORKSPACE</span><strong id="dt-map-name" aria-live="polite">Loading map…</strong></div>
+    <div><span class="dt-workspace-label" id="dt-workspace-heading">ACTIVE PROJECT / MAP</span><strong id="dt-map-name" aria-live="polite">Loading map…</strong></div>
     <span class="dt-workspace-detail" id="dt-map-detail">Your tools run locally on this machine.</span>
   </section>
 </main>

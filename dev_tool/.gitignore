@@ -3,3 +3,6 @@ dist/
 coverage/
 *.log
 .DS_Store
+
+# Project source files belong to local workspaces, not the Dev Tool repository.
+projects/

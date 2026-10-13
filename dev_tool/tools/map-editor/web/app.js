@@ -1962,6 +1962,20 @@ try {
   for (const definition of currentDoc.definitions.buildings) {
     const option = document.createElement('option'); option.value = definition.id; choices.append(option);
   }
+  // Saved project models have stable definition IDs shared with other tools.
+  try{
+    const response=await fetch('/api/projects/active/assets',{cache:'no-store'});
+    if(response.ok){
+      const {assets}=await response.json();
+      for(const {source} of assets){
+        if(!['oak','fir'].includes(source.generator.id))continue;
+        const option=document.createElement('option');
+        option.value='asset:'+source.id;
+        option.label=source.name;
+        choices.append(option);
+      }
+    }
+  }catch{/* Legacy map mode has no project assets. */}
   initializeEntityEditing();
   initializePolygonEditing();
   initializeWaterEditing();

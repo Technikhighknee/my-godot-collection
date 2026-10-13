@@ -71,3 +71,26 @@
 @media(max-width:740px){.dt-header{height:64px;padding:0 22px;gap:14px}.dt-header .dt-brand{min-width:0}.dt-header .dt-brand-copy small,.dt-local{display:none}.dt-nav{margin-left:auto}.dt-main{width:calc(100% - 40px);padding:58px 0 58px}.dt-hero{margin-bottom:43px}.dt-hero p{font-size:14px}.dt-card-grid{grid-template-columns:1fr;gap:18px}.dt-card{min-height:0}.dt-card-visual{height:190px}.dt-workspace{align-items:flex-start;flex-direction:column;gap:10px}.dt-workspace-detail{text-align:left}.dt-footer{margin:0 20px}.dt-section-meta{font-size:9px}}
 @media(max-width:380px){.dt-header .dt-brand-copy{display:none}.dt-main{width:calc(100% - 32px)}.dt-card-body{padding:21px}.dt-section-rule{width:20px}.dt-section-meta{font-size:8px}.dt-footer{flex-direction:column;gap:7px}}
 @media(prefers-reduced-motion:reduce){.dt-card-ready,.dt-mark,.dt-open span{transition:none}}
+
+/* Source projects are the primary workspace, not a tool-specific switcher. */
+.dt-projects{margin:34px 0 36px}
+.dt-project-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(270px,1fr);gap:18px}
+.dt-project-browser,.dt-project-create{background:#172326;border:1px solid #394b48;border-radius:12px;padding:22px;min-width:0}
+.dt-project-browser-heading{color:#9dabaa;font-size:10px;font-weight:750;letter-spacing:.13em;margin-bottom:15px}
+.dt-project-list{display:flex;flex-direction:column;gap:8px;color:#a5b4b0;font-size:13px}
+.dt-project-entry{display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;
+  border:1px solid #3b524d;border-radius:8px;padding:14px 16px;background:#1c2b2b;color:#e6eeeb;cursor:pointer;font:inherit}
+.dt-project-entry:hover{border-color:#a4a587}
+.dt-project-entry[aria-pressed=true]{border-color:#d3b07b;background:#30392e}
+.dt-project-entry strong{font-size:14px}
+.dt-project-entry small{color:#95a7a0;font-size:11px}
+.dt-project-create{display:flex;flex-direction:column;gap:9px}
+.dt-project-create h3{margin:0;font-size:18px}
+.dt-project-create p{font-size:12px;line-height:1.5;color:#a8b5af;margin:0 0 8px}
+.dt-project-create label{font-size:10px;letter-spacing:.08em;color:#bec8bf;font-weight:700}
+.dt-project-create input{width:100%;padding:11px 12px;border:1px solid #57645c;
+ border-radius:6px;background:#111d1f;color:#e8ece7;font:inherit;font-size:13px}
+.dt-project-create button{margin-top:9px;border:1px solid #a79773;background:#c4ad82;
+ color:#111c1a;padding:11px 14px;border-radius:7px;font-weight:750;cursor:pointer}
+#dt-project-error{font-size:12px;color:#efa7a0;min-height:1em}
+@media(max-width:700px){.dt-project-layout{grid-template-columns:1fr}}
