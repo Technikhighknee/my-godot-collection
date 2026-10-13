@@ -11,6 +11,7 @@ export interface GeneratorDescriptor {
   kind:'model'|'image';components:readonly {id:string}[];
   defaultOptions?:object;
   validateOptions?:(value:unknown)=>object;
+  materialSlots?:readonly {id:string;generators:readonly string[]}[];
 }
 export type GeneratorLookup=(id:string)=>GeneratorDescriptor|null;
 function validateSeed(value:unknown):void{
@@ -57,6 +58,7 @@ export interface AssetSource {
   generator:{id:string;version:1;masterSeed:number;components:Record<string,number>};
   dependencies:string[];
   options?:object;
+  materials?:Record<string,string>;
 }
 export interface AssetEntry {source:AssetSource;revision:string;kind:'model'|'image';}
 export function validateSource(raw:unknown,expectedId?:string,
@@ -64,8 +66,10 @@ export function validateSource(raw:unknown,expectedId?:string,
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid asset source');
   const x=raw as Record<string,unknown>;
   const sourceFields=Object.keys(x).sort().join();
-  if((sourceFields!=='dependencies,format,generator,id,name,version'&&
-    sourceFields!=='dependencies,format,generator,id,name,options,version')||
+  const validFields=['dependencies','format','generator','id','name','version'];
+  if(!validFields.every(k=>Object.hasOwn(x,k))||
+    Object.keys(x).some(k=>!validFields.includes(k)&&
+      k!=='options'&&k!=='materials')||
     x.format!=='devtool-asset'||x.version!==1)throw Error('Unsupported asset source');
   const id=slug(x.id);
   if(expectedId&&id!==expectedId)throw Error('Asset ID does not match filename');
@@ -89,26 +93,52 @@ export function validateSource(raw:unknown,expectedId?:string,
     throw Error('Generator does not support options');
   const options=def.validateOptions?
     def.validateOptions(x.options??def.defaultOptions):undefined;
+  let materials:Record<string,string>|undefined;
+  if(x.materials!==undefined){
+    if(!def.materialSlots||!x.materials||typeof x.materials!=='object'||
+      Array.isArray(x.materials))throw Error('Generator has no material slots');
+    const rawMaterials=x.materials as Record<string,unknown>;
+    materials={};
+    for(const [slot,value] of Object.entries(rawMaterials)){
+      if(!def.materialSlots.some(entry=>entry.id===slot)||
+        typeof value!=='string'||!assetRef.test(value))
+        throw Error('Invalid material reference: '+slot);
+      materials[slot]=value;
+    }
+  }
   if(!Array.isArray(x.dependencies)||!unique(x.dependencies)||x.dependencies.some(v=>
     typeof v!=='string'||!assetRef.test(v)||v==='asset:'+id))
     throw Error('Invalid asset dependencies');
+  if(materials&&Object.values(materials).some(ref=>!x.dependencies.includes(ref)))
+    throw Error('Material references must be project dependencies');
   return {format:'devtool-asset',version:1,id,name,
     generator:{id:gen.id,version:1,masterSeed:gen.masterSeed as number,
       components:comps as Record<string,number>},
     dependencies:x.dependencies as string[],
-    ...(options===undefined?{}:{options})};
+    ...(options===undefined?{}:{options}),
+    ...(materials===undefined?{}:{materials})};
 }
 function makeSource(input:unknown,id:string,lookup:GeneratorLookup,
-  dependencies:string[]=[]):AssetSource{
+  dependencies:string[]=[],oldMaterials:Record<string,string>={}):AssetSource{
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Invalid asset request');
   const x=input as Record<string,unknown>;
-  const keys=Object.keys(x).sort().join();
-  if(keys!=='components,generator,masterSeed,name'&&
-     keys!=='components,generator,masterSeed,name,options')
+  const required=['components','generator','masterSeed','name'];
+  if(!required.every(k=>Object.hasOwn(x,k))||
+    Object.keys(x).some(k=>!required.includes(k)&&k!=='options'&&k!=='materials'))
     throw Error('Invalid asset fields');
+  const newMaterials=x.materials;
+  if(newMaterials!==undefined&&(!newMaterials||typeof newMaterials!=='object'||
+    Array.isArray(newMaterials)))throw Error('Invalid materials');
+  const refs=Object.values(newMaterials??{}) as unknown[];
+  const nextDeps=[...new Set([
+    ...dependencies.filter(ref=>!Object.values(oldMaterials).includes(ref)),
+    ...refs.filter((ref):ref is string=>typeof ref==='string'),
+  ])];
   return validateSource({format:'devtool-asset',version:1,id,name:x.name,
     generator:{id:x.generator,version:1,masterSeed:x.masterSeed,components:x.components},
-    dependencies,...(x.options===undefined?{}:{options:x.options})},id,lookup);
+    dependencies:nextDeps,
+    ...(x.options===undefined?{}:{options:x.options}),
+    ...(newMaterials===undefined?{}:{materials:newMaterials})},id,lookup);
 }
 function parseProject(data:unknown,id:string):ProjectInfo{
   if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Invalid project manifest');
@@ -242,6 +272,15 @@ export class ProjectLibrary {
   }
   private async checkDependencies(source:AssetSource):Promise<void>{
     const entries=await this.assets();
+    const byId=new Map(entries.map(x=>[x.source.id,x]));
+    const def=this.lookup(source.generator.id);
+    for(const [slot,ref] of Object.entries(source.materials??{})){
+      const target=byId.get(ref.slice('asset:'.length));
+      const allowed=def?.materialSlots?.find(s=>s.id===slot);
+      if(!target||!allowed?.generators.includes(target.source.generator.id)||
+        target.kind!=='image')
+        throw Error('Material '+slot+' requires an existing compatible texture asset');
+    }
     const graph=new Map(entries.map(x=>[x.source.id,x.source.dependencies]));
     graph.set(source.id,source.dependencies);
     const seen=new Set<string>(),stack=new Set<string>();
@@ -272,7 +311,8 @@ export class ProjectLibrary {
       id=slug(id);
       const old=await this.asset(id);
       if(old.revision!==revision)throw Error('Asset was modified; reload before saving');
-      const source=makeSource(input,id,this.lookup,old.source.dependencies);
+      const source=makeSource(input,id,this.lookup,old.source.dependencies,
+        old.source.materials);
       if(source.generator.id!==old.source.generator.id)
         throw Error('Cannot change generator of an existing asset; save a new asset');
       await this.checkDependencies(source);

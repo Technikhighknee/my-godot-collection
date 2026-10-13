@@ -61,7 +61,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       if(path==='/api/projects/active/assets'){
         if(req.method==='GET')return send(res,200,{assets:await library.assets()});
         if(req.method==='POST'){
-          const x=await body(req);exact(x,['id','name','generator','masterSeed','components'],['options']);
+          const x=await body(req);exact(x,['id','name','generator','masterSeed','components'],['options','materials']);
           const {id,...input}=x;
           return send(res,201,await library.createAsset(id as string,input));
         }
@@ -70,7 +70,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       if(match){
         if(req.method==='GET')return send(res,200,await library.asset(match[1]));
         if(req.method==='PUT'){
-          const x=await body(req);exact(x,['revision','name','generator','masterSeed','components'],['options']);
+          const x=await body(req);exact(x,['revision','name','generator','masterSeed','components'],['options','materials']);
           const {revision,...input}=x;
           if(typeof revision!=='string')throw Error('Missing revision');
           return send(res,200,await library.updateAsset(match[1],input,revision));
