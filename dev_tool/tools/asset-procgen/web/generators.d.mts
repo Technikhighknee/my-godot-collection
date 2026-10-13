@@ -1,6 +1,7 @@
 import type {GeneratorComponent} from './seed-model.mjs';
 import type {TreeMesh} from './tree.mjs';
 import type {OakFoliageMesh} from './oak-foliage.mjs';
+import type {BuildingOptions,GeneratedBuilding} from './building.mjs';
 
 export interface GeneratedModel {
   id:string;kind:'model';wood:TreeMesh;foliage:OakFoliageMesh|null;
@@ -14,27 +15,30 @@ export interface GeneratedImage {
   views?:readonly string[];profiles?:readonly string[];
   paint:(canvas:HTMLCanvasElement,view?:string,profile?:string)=>unknown;
 }
-export type GeneratedAsset=GeneratedModel|GeneratedImage;
+export type GeneratedAsset=GeneratedModel|GeneratedImage|GeneratedBuilding;
 interface GeneratorMeta {
   id:string;symbol:string;label:string;subtitle:string;
   libraryPath:readonly string[];navLabel:string;navType:string;
   overline:string;title:string;description:string;previewLabel:string;
   initialMasterSeed:number;components:readonly GeneratorComponent[];
+  defaultOptions?:BuildingOptions;
+  validateOptions?:(value:unknown)=>BuildingOptions;
 }
 export interface ModelGeneratorDefinition extends GeneratorMeta {
-  kind:'model';generate:(seeds:Record<string,number>)=>GeneratedModel;
+  kind:'model';generate:(seeds:Record<string,number>,
+    options?:BuildingOptions,level?:number)=>GeneratedModel|GeneratedBuilding;
 }
 export interface ImageGeneratorDefinition extends GeneratorMeta {
   kind:'image';generate:(seeds:Record<string,number>)=>GeneratedImage;
 }
 export type GeneratorDefinition=ModelGeneratorDefinition|ImageGeneratorDefinition;
 export const GENERATORS:readonly GeneratorDefinition[];
-export function findGenerator(id:'oak'|'fir'):ModelGeneratorDefinition|null;
+export function findGenerator(id:'oak'|'fir'|'timber-building'):ModelGeneratorDefinition|null;
 export function findGenerator(id:'oak-atlas'|'oak-sprig'|'oak-bark'):ImageGeneratorDefinition|null;
 export function findGenerator(id:string):GeneratorDefinition|null;
 export function generateAsset(definition:ModelGeneratorDefinition,
-  componentSeeds:Record<string,number>):GeneratedModel;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedModel|GeneratedBuilding;
 export function generateAsset(definition:ImageGeneratorDefinition,
-  componentSeeds:Record<string,number>):GeneratedImage;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedImage;
 export function generateAsset(definition:GeneratorDefinition,
-  componentSeeds:Record<string,number>):GeneratedAsset;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedAsset;

@@ -81,8 +81,9 @@ export function createModelViewport(container,onChange=()=>{}){
   let atlasCanvas=null,atlasTexture=null,atlasSeed=null;
   let barkTextures=null,barkSeedKey=null;
   let spinning=false,silhouette=false,foliageVisible=true,inspectMode='tree';
+  let buildingAsset=null,buildingView='exterior';
 
-  const state=()=>({assetId,spinning,silhouette,foliageVisible,inspectMode});
+  const state=()=>({assetId,spinning,silhouette,foliageVisible,inspectMode,buildingView});
   const changed=()=>onChange(state());
   controls.addEventListener('start',()=>{spinning=false;changed();});
   new ResizeObserver(()=>{
@@ -161,7 +162,65 @@ export function createModelViewport(container,onChange=()=>{}){
       foliageMesh.geometry.setDrawRange(0,foliageData.indices.length);
     setVisibility();
   }
+  const buildingColors={
+    stone:0x827b6c,plaster:0xd4c8ac,interior:0xd9cdb6,
+    wood:0x4a3020,door:0x593c27,innerTrim:0x6c5035,
+    metal:0xbba568,glass:0x648687,innerGlass:0x657779,
+    roofBase:0x553f37,roofTileA:0x78473c,roofTileB:0x8b5142,
+    ridge:0x44342e,chimney:0x252521,floor:0x947653,
+  };
+  function buildBuildingGroup(mesh){
+    const next=new THREE.Group();
+    for(const part of mesh.parts){
+      const material=new THREE.MeshStandardMaterial({
+        color:buildingColors[part.material]??0x978572,
+        roughness:.87,metalness:0,side:THREE.DoubleSide,
+      });
+      const element=new THREE.Mesh(meshGeometry(part),material);
+      element.castShadow=true;element.receiveShadow=true;
+      element.userData.originalColor=material.color.getHex();
+      next.add(element);
+    }
+    return next;
+  }
+  function setBuildingView(nextView){
+    if(!buildingAsset)return false;
+    if(nextView!=='exterior'&&nextView!=='interior')
+      throw Error('Unknown building view');
+    const mesh=nextView==='interior'?buildingAsset.building.interior:
+      buildingAsset.building.exterior;
+    if(!mesh)return false;
+    const next=buildBuildingGroup(mesh);
+    if(group)next.rotation.copy(group.rotation);
+    scene.add(next);
+    const previous=group;group=next;
+    woodMesh=null;foliageMesh=null;foliageData=null;
+    woodBounds=mesh.bounds;foliageBounds=null;extents=mesh.bounds;
+    buildingView=nextView;inspectMode='tree';
+    if(previous){scene.remove(previous);disposeGroup(previous);}
+    if(silhouette)group.traverse(obj=>{
+      if(obj.isMesh)obj.material.color.setHex(0x050909);
+    });
+    changed();
+    return true;
+  }
+  function renderBuilding(asset){
+    const previousAsset=buildingAsset,previousView=buildingView;
+    buildingAsset=asset;assetId=asset.id;
+    const desired=previousAsset&&previousAsset.id===asset.id?
+      previousView:'exterior';
+    const chosen=desired==='interior'&&asset.building.interior?'interior':'exterior';
+    setBuildingView(chosen);
+    return {
+      axes:0,cards:0,triangles:asset.building.exterior.triangles,
+      label:'LEVEL '+asset.building.level+
+        ' · '+asset.building.exterior.triangles.toLocaleString()+' TRIS'+
+        (asset.building.interior?' · INTERIOR SHELL':' · NO INTERIOR'),
+    };
+  }
   function render(asset){
+    if(asset.building)return renderBuilding(asset);
+    buildingAsset=null;buildingView='exterior';
     if(asset.kind!=='model'||!asset.wood)throw Error('Expected model asset');
     const replacement=new THREE.Group();
     let freshAtlas=null,freshBark=null;
@@ -299,6 +358,10 @@ export function createModelViewport(container,onChange=()=>{}){
   }
   function toggleSilhouette(){
     silhouette=!silhouette;
+    if(buildingAsset&&group)group.traverse(obj=>{
+      if(obj.isMesh)obj.material.color.setHex(
+        silhouette?0x050909:obj.userData.originalColor);
+    });
     if(woodMesh)for(const material of [].concat(woodMesh.material))
       material.color.setHex(silhouette?0x050909:
         material.map?0xffffff:0xa49c8e);
@@ -313,5 +376,5 @@ export function createModelViewport(container,onChange=()=>{}){
     changed();
   }
   return {render,focus,inspectCard,inspectClump,toggleLeaves,
-    toggleSilhouette,toggleTurntable,state};
+    toggleSilhouette,toggleTurntable,setBuildingView,state};
 }

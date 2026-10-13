@@ -9,6 +9,8 @@ import {generateOakSprig,paintOakSprig,OAK_SPRIG_SIZE} from './oak-sprig.mjs';
 import {OAK_BARK_SIZE,OAK_BARK_MAPS,OAK_BARK_PROFILES,
   generateOakBarkMaterial,paintGeneratedOakBarkMap} from './oak-bark.mjs';
 import {mapOakBarkWood} from './oak-bark-uv.mjs';
+import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
+  from './building.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -67,6 +69,24 @@ function generateOakBarkAsset(seeds){
   };
 }
 export const GENERATORS=Object.freeze([
+  Object.freeze({
+    id:'timber-building',kind:'model',symbol:'⌂',
+    label:'Timber-frame building',subtitle:'Three upgrade levels · optional empty interior',
+    libraryPath:Object.freeze(['Architecture','Buildings','Timber frame']),
+    navLabel:'Building family',navType:'3D',
+    generate:generateBuildingFamily,
+    defaultOptions:DEFAULT_BUILDING_OPTIONS,
+    validateOptions:validateBuildingOptions,
+    overline:'ARCHITECTURE / TIMBER-FRAME FAMILY',
+    title:'Timber-frame building.',
+    description:'Three related exterior levels, a shared facade opening plan and optional empty interior shell. Doors and windows cannot appear inside where none exist outside. Furniture and engine export come later.',
+    previewLabel:'Procedural timber frame building with optional interior preview',
+    initialMasterSeed:19043,
+    components:Object.freeze([
+      Object.freeze({id:'structure',label:'Building proportions',initialSeed:19043}),
+      Object.freeze({id:'material',label:'Roof and surface variation',initialSeed:62191}),
+    ]),
+  }),
   Object.freeze({
     id:'oak',kind:'model',symbol:'♠',label:'Oak tree',subtitle:'Oak wood & leaves',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Tree',navType:'3D',
@@ -145,9 +165,9 @@ export function findGenerator(id){
 // One explicit input per generated part. Geometry is always recomputed
 // first; attached foliage is placed against that actual wood, using its
 // own independent variation seed.
-export function generateAsset(definition,componentSeeds){
+export function generateAsset(definition,componentSeeds,options,level=1){
   if(!GENERATORS.includes(definition))throw Error('Unknown generator');
   for(const component of definition.components)
     validateSeed(componentSeeds?.[component.id]);
-  return definition.generate(componentSeeds);
+  return definition.generate(componentSeeds,options,level);
 }
