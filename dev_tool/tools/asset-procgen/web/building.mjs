@@ -80,8 +80,9 @@ function geometryBuilder(seed=0){
       else mesh.uvs.push(uv[0]*(roof?.55:.85),uv[1]*(roof?.55:.85));
     }
     if(woodMaterials.has(material)){
-      const color=tint??[1,1,1];
-      for(let i=0;i<verts.length;i++)mesh.colors.push(...color);
+      const perVertex=Array.isArray(tint?.[0]);
+      for(let i=0;i<verts.length;i++)
+        mesh.colors.push(...(perVertex?tint[i]:tint??[1,1,1]));
     }
     mesh.indices.push(at,at+1,at+2);
     if(d)mesh.indices.push(at,at+2,at+3);
@@ -132,15 +133,43 @@ function geometryBuilder(seed=0){
     const tint=wood?colorVariation(signature):null;
     const width=2*r*.70*scaleU;
     const along=length*.50*scaleV;
-    for(let i=0;i<4;i++){
-      const p=corners[i],q=corners[(i+1)%4];
-      // One texture set, but a stable different crop and scale for each beam.
-      // V is always parallel to the actual length, including diagonal braces.
-      const u0=offsetU+flip*i*width,u1=u0+flip*width;
-      const coords=wood?
-        [[u0,offsetV],[u0,offsetV+along],[u1,offsetV+along],[u1,offsetV]]:null;
-      face(material,at(a,...p),at(b,...p),at(b,...q),at(a,...q),
-        coords,tint);
+    // A single long quad samples an identical wood tile each time V crosses
+    // an integer. Split only long structural beams into coarse strips so UVs
+    // can gently drift across the source tile. No extra textures, draw calls
+    // or shaders; the same UVs are used by all three PBR maps in Godot too.
+    const sections=wood&&length>3.2?Math.ceil(length/1.3):1;
+    const phases=[
+      variation(signature,0xc3b413af)*Math.PI*2,
+      variation(signature,0x8b397fc5)*Math.PI*2,
+      variation(signature,0x73b92d48)*Math.PI*2,
+    ];
+    const bendU=t=>sections===1?0:
+      .20*Math.sin(t*Math.PI*2*1.31+phases[0])+
+      .12*Math.sin(t*Math.PI*2*.57+phases[1]);
+    const bendV=t=>sections===1?0:
+      .065*Math.sin(t*Math.PI*2*1.79+phases[2]);
+    const shade=t=>sections===1?1:1+
+      .047*Math.sin(t*Math.PI*2*1.13+phases[1])+
+      .026*Math.sin(t*Math.PI*2*2.21+phases[2]);
+    const segmentTint=t=>tint?.map(channel=>channel*shade(t))??null;
+    const between=t=>a.map((value,i)=>value+(b[i]-value)*t);
+    for(let k=0;k<sections;k++){
+      const t0=k/sections,t1=(k+1)/sections;
+      const a0=between(t0),a1=between(t1);
+      const tint0=segmentTint(t0),tint1=segmentTint(t1);
+      for(let i=0;i<4;i++){
+        const p=corners[i],q=corners[(i+1)%4];
+        const u0=offsetU+flip*i*width,u1=u0+flip*width;
+        const coords=wood?[
+          [u0+bendU(t0),offsetV+along*t0+bendV(t0)],
+          [u0+bendU(t1),offsetV+along*t1+bendV(t1)],
+          [u1+bendU(t1),offsetV+along*t1+bendV(t1)],
+          [u1+bendU(t0),offsetV+along*t0+bendV(t0)],
+        ]:null;
+        face(material,at(a0,...p),at(a1,...p),
+          at(a1,...q),at(a0,...q),coords,
+          wood?[tint0,tint1,tint1,tint0]:null);
+      }
     }
     const capMaterial=wood?material+'End':material;
     const turn=wood?Math.floor(variation(signature,0x715c8341)*4):0;
