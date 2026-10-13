@@ -203,21 +203,55 @@ test('roof tiles run ridge-to-eave on both slopes and the offset wing',()=>{
 });
 
 
-test('structural timber maps grain along each beam axis, including braces',()=>{
+test('individual beams vary crop and tint while their grain follows the axis',()=>{
   for(const level of [1,2,3]){
-    const part=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level)
-      .building.exterior.parts.find(p=>p.material==='timber');
-    assert.ok(part);
-    let oriented=0;
-    // Beam side quads use [0,0], [0,length], [width,length], [width,0]
-    // regardless of whether the beam runs vertically or diagonally.
-    for(let i=0;i+7<part.uvs.length;i+=2){
-      const [u0,v0,u1,v1,u2,v2,u3,v3]=part.uvs.slice(i,i+8);
-      if(Math.abs(u0)<1e-6&&Math.abs(v0)<1e-6&&
-        Math.abs(u1)<1e-6&&Math.abs(v2-v1)<1e-5&&
-        Math.abs(u3-u2)<1e-5&&Math.abs(v3)<1e-6&&
-        u2>.07&&v1>.20)oriented++;
+    const building=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level).building;
+    const exterior=building.exterior;
+    const timber=exterior.parts.find(p=>p.material==='timber')!;
+    const ends=exterior.parts.find(p=>p.material==='timberEnd')!;
+    const panels=exterior.parts.find(p=>p.material==='timberPanel')!;
+    assert.ok(timber&&ends&&panels,'Dedicated wood surface groups must exist');
+    assert.ok(timber.colors&&ends.colors&&panels.colors);
+    const offsets=new Set<string>(),tints=new Set<string>();
+    assert.equal(timber.uvs.length%32,0,'Four side faces per beam');
+    assert.equal(ends.uvs.length,timber.uvs.length/2,'Two end faces per beam');
+    assert.ok(ends.uvs.every(uv=>uv>=0&&uv<=1),'End grain uses local cap UVs');
+    for(let beam=0;beam<timber.uvs.length/32;beam++){
+      const i=beam*32;
+      const first=timber.uvs.slice(i,i+8);
+      const [u0,v0,u1,v1,u2,v2,u3,v3]=first;
+      assert.ok(Math.abs(u0-u1)<1e-5,'U remains constant along beam length');
+      assert.ok(Math.abs(v1-v2)<1e-5,'V constant across far edge');
+      assert.ok(Math.abs(u2-u3)<1e-5,'U constant at far side');
+      assert.ok(Math.abs(v0-v3)<1e-5,'V constant at near end');
+      assert.ok(v1>v0,'V follows the length of every beam');
+      assert.ok(Math.abs(u2-u0)>.01,'Beam side must have usable width');
+      offsets.add([u0,v0].map(x=>x.toFixed(3)).join(':'));
+      const c=timber.colors!.slice(beam*48,beam*48+3);
+      tints.add([...c].map(x=>x.toFixed(3)).join(':'));
     }
-    assert.ok(oriented>30,'Framing beams need local lengthwise grain UVs');
+    assert.ok(offsets.size>35,'Per-beam texture sampling must be distinct');
+    assert.ok(tints.size>35,'Per-beam tint must vary subtly');
+    assert.ok(exterior.parts.filter(p=>p.material.startsWith('timber')).length<=3,
+      'Variation must not create per-beam material instances');
+    for(const part of [timber,ends,panels])
+      assert.equal(part.colors!.length,part.positions.length);
+    // All profiles still use the same project material; no extra
+    // dependencies or texture assets are needed for individual beams.
   }
+});
+
+test('interior beams and broad wood have matching dedicated material groups',()=>{
+  const mesh=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,3).building.interior!;
+  for(const kind of ['innerTimber','innerTimberEnd','innerTimberPanel']){
+    const part=mesh.parts.find(p=>p.material===kind);
+    assert.ok(part,kind+' must be generated');
+    assert.equal(part.colors?.length,part.positions.length);
+  }
+  const other=generateBuildingFamily({...seeds,structure:19234},
+    DEFAULT_BUILDING_OPTIONS,3).building.exterior;
+  const a=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,3).building.exterior;
+  const timber=(m:BuildingMesh)=>m.parts.find(p=>p.material==='timber')!;
+  assert.notDeepEqual(timber(a).uvs,timber(other).uvs);
+  assert.notDeepEqual(timber(a).colors,timber(other).colors);
 });
