@@ -301,3 +301,39 @@ test('one lime plaster material is reusable across building facade variants',asy
     }),/Material/);
   });
 });
+
+
+test('rubble stone is a reusable validated foundation texture dependency',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('stone-work','Stone Work');
+    const stone=await lib.createAsset('stone-masonry',{
+      name:'Foundation rubble',generator:'stone-rubble',masterSeed:71803,
+      components:{layout:71803,mineral:30192,weather:58212},
+    });
+    const house=(name:string)=>({
+      name,generator:'timber-building',masterSeed:19043,
+      components:{structure:19043,material:62191},
+      options:{width:9,depth:11,stories:1,roofPitch:43,interior:'shell'},
+      materials:{foundationStone:'asset:stone-masonry'},
+    });
+    const tavern=await lib.createAsset('tavern',house('Tavern'));
+    await lib.createAsset('bakery',house('Bakery'));
+    assert.deepEqual(tavern.source.dependencies,['asset:stone-masonry']);
+    assert.deepEqual((await lib.graph()).edges.filter(e=>e.to==='asset:stone-masonry')
+      .map(e=>e.from).sort(),['asset:bakery','asset:tavern']);
+    const updated=await lib.updateAsset('stone-masonry',{
+      name:'Foundation rubble',generator:'stone-rubble',masterSeed:71804,
+      components:{layout:71804,mineral:30192,weather:58212},
+    },stone.revision);
+    assert.notEqual(updated.revision,stone.revision);
+    assert.equal((await lib.asset('bakery')).source.materials!.foundationStone,
+      'asset:stone-masonry');
+    await assert.rejects(lib.createAsset('missing-stone',{
+      ...house('Wrong'),materials:{foundationStone:'asset:missing'},
+    }),/Material/);
+    await assert.rejects(lib.createAsset('wrong-stone',{
+      ...house('Wrong'),materials:{timberWood:'asset:stone-masonry'},
+    }),/Material/);
+  });
+});
