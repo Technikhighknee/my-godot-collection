@@ -6,6 +6,8 @@ import {findGenerator,generateAsset}
   from '../tools/asset-procgen/web/generators.mjs';
 import type {BuildingOpening,BuildingMesh}
   from '../tools/asset-procgen/web/building.mjs';
+import {buildingSurfaceKind}
+  from '../tools/asset-procgen/web/building-materials.mjs';
 
 const seeds={structure:19043,material:62191};
 const signature=(o:BuildingOpening[])=>o.map(v=>[
@@ -148,4 +150,16 @@ test('attached wing never blocks a facade window or invents an interior one',()=
     assert.ok(model.building.interior!.parts.some(part=>
       part.material==='innerTimber'));
   }
+});
+
+test('authoring materials provide consistent wood, plaster and roof surfaces',()=>{
+  assert.equal(buildingSurfaceKind('plasterIvory'),'plaster');
+  assert.equal(buildingSurfaceKind('interior'),'plaster');
+  assert.equal(buildingSurfaceKind('innerTimber'),'wood');
+  assert.equal(buildingSurfaceKind('innerTrim'),'wood');
+  assert.equal(buildingSurfaceKind('gallery'),'wood');
+  assert.equal(buildingSurfaceKind('roofUnderlay'),'roof');
+  assert.equal(buildingSurfaceKind('tileMoss'),'roof');
+  assert.equal(buildingSurfaceKind('interiorPlinth'),'stone');
+  assert.equal(buildingSurfaceKind('metal'),null);
 });

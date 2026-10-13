@@ -19,11 +19,12 @@ function noise(x,y,step,seed){
   return (a*(1-ax)+b*ax)*(1-ay)+(c*(1-ax)+d*ax)*ay;
 }
 export function buildingSurfaceKind(material){
-  if(/plaster|interior$/.test(material))return 'plaster';
-  if(/timber|trim|shutter|door|wood|gallery/.test(material))return 'wood';
-  if(/tile|roof|ridge/.test(material))return 'roof';
-  if(/foundation|stone|brick|plinth/.test(material))return 'stone';
-  if(/floor/.test(material))return 'floor';
+  const name=material.toLowerCase();
+  if(/plaster|interior$/.test(name))return 'plaster';
+  if(/timber|trim|shutter|door|wood|gallery/.test(name))return 'wood';
+  if(/tile|roof|ridge/.test(name))return 'roof';
+  if(/foundation|stone|brick|plinth/.test(name))return 'stone';
+  if(/floor/.test(name))return 'floor';
   return null;
 }
 function paint(kind){
