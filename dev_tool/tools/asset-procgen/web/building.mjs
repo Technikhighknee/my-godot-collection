@@ -77,7 +77,13 @@ function geometryBuilder(seed=0){
       const uv=roof?[v[2],-downhill]:
         axis==='y'?[v[0],v[2]]:axis==='x'?[v[2],v[1]]:[v[0],v[1]];
       if(uvCorners)mesh.uvs.push(...uvCorners[index]);
-      else mesh.uvs.push(uv[0]*(roof?.55:.85),uv[1]*(roof?.55:.85));
+      else {
+        // Scale rubble masonry to roughly hand-sized foundation stones:
+        // a 7x8 stone atlas spans ~2.5m, not the usual metre-wide tile.
+        const stone=material==='foundation'||material==='stone';
+        const repeat=roof?.55:stone?.35:.85;
+        mesh.uvs.push(uv[0]*repeat,uv[1]*repeat);
+      }
     }
     if(woodMaterials.has(material)){
       const perVertex=Array.isArray(tint?.[0]);
