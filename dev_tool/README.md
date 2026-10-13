@@ -15,6 +15,8 @@ editor session; sessionStorage restores open documents after reload, but
 - Map placements with a saved `asset:<id>` reference can open their source.
   The studio can select a saved model to place as a **point marker**. The
   full generated mesh is not yet previewed inside the map.
+- The project explorer's **+** action opens the Map Editor's create-map
+  interface. Creating or switching maps refreshes resource names in the studio.
 - Map documents still use one globally active map from the existing Map
   Workspace API. The studio therefore keeps one map editor session but
   supports multiple asset editor tabs. Changing the map prompts if there

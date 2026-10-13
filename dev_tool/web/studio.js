@@ -379,6 +379,10 @@ window.addEventListener('message',event=>{
   }else if(msg.type==='studio:map-saved'){
     tab.dirty=false;
     refreshResources().catch(e=>showError(e.message));
+  }else if(msg.type==='studio:map-opened'&&tab.kind==='map'){
+    tab.id=msg.file;
+    renameTab(tab,msg.name);
+    refreshResources().catch(e=>showError(e.message));
   }else if(msg.type==='studio:open-asset'&&typeof msg.id==='string'){
     const found=assets.find(a=>a.source.id===msg.id);
     if(found)openAsset(found.source);else showError('Asset '+msg.id+' is not in this project');

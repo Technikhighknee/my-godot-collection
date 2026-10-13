@@ -152,4 +152,5 @@ test('studio defines project resource navigation and editor bridge',()=>{
   assert.match(asset,/studio:asset-saved/);
   assert.match(map,/studio:open-asset/);
   assert.match(map,/studio:map-saved/);
+  assert.match(map,/studio:map-opened/);
 });

@@ -2018,6 +2018,7 @@ try {
   renderEditorChrome();
   syncDirty();
   studioSignal({type:'studio:ready'});
+  studioSignal({type:'studio:map-opened',file:currentDoc.mapFile,name:currentDoc.map.name});
   loading.remove();
 } catch (error) {
   el('loadingText').textContent = `Cannot open map: ${error instanceof Error ? error.message : String(error)}`;
