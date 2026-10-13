@@ -126,7 +126,13 @@ npm run typecheck
 npm start
 ```
 
-Open <http://127.0.0.1:4371/> for the Dev Tool main menu, then choose **Map Editor** (or open <http://127.0.0.1:4371/tools/map-editor/> directly). The **Maps** button in the editor can open or create maps in the startup map’s directory. To choose a different workspace, select its initial map on startup:
+Open <http://127.0.0.1:4371/> to create or choose a project.
+Opening a project enters the **Studio** at <http://127.0.0.1:4371/studio/>,
+where project resources, generators and editor tabs share one workspace.
+The Map Editor's existing **Maps** panel can create or open maps; the
+Studio's project explorer also offers a create-map shortcut.
+
+Existing standalone maps can still be edited in the compatibility mode:
 
 ```sh
 npm start -- ../map_system/example.map.json --port 4372
