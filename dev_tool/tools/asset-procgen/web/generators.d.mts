@@ -43,7 +43,7 @@ export type GeneratorDefinition=ModelGeneratorDefinition|ImageGeneratorDefinitio
 export const GENERATORS:readonly GeneratorDefinition[];
 export function findGenerator(id:'oak'|'fir'):TreeGeneratorDefinition|null;
 export function findGenerator(id:'timber-building'):BuildingGeneratorDefinition|null;
-export function findGenerator(id:'oak-atlas'|'oak-sprig'|'oak-bark'|'roof-thatch'|'roof-clay'):ImageGeneratorDefinition|null;
+export function findGenerator(id:'oak-atlas'|'oak-sprig'|'oak-bark'|'roof-thatch'|'roof-clay'|'timber-oak'):ImageGeneratorDefinition|null;
 export function findGenerator(id:string):GeneratorDefinition|null;
 export function generateAsset(definition:TreeGeneratorDefinition,
   componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedModel;
