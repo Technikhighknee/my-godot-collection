@@ -79,3 +79,32 @@ test('shared wood source has different crosscut and broad-face PBR profiles',()=
   const profiles=new Set(asset.profiles);
   assert.equal(profiles.size,3,'Fixed small profile set, never one texture per beam');
 });
+
+
+test('three oak profiles keep one material palette and sharp panel fibers',()=>{
+  for(const seeds of [{grain:37821,color:19257},{grain:111,color:123}]){
+    const result=TIMBER_PROFILES.map(profile=>{
+      const image=capture(seeds,'albedo',profile);
+      let sum=0,across=0,along=0;
+      for(let y=0;y<TIMBER_TEXTURE_SIZE;y++)
+        for(let x=0;x<TIMBER_TEXTURE_SIZE;x++){
+          const i=(y*TIMBER_TEXTURE_SIZE+x)*4;
+          sum+=image[i];
+          if(x)across+=Math.abs(image[i]-image[i-4]);
+          if(y)along+=Math.abs(image[i]-
+            image[i-TIMBER_TEXTURE_SIZE*4]);
+        }
+      const pixels=TIMBER_TEXTURE_SIZE**2;
+      return {mean:sum/pixels,across:across/(pixels-TIMBER_TEXTURE_SIZE),
+        along:along/(pixels-TIMBER_TEXTURE_SIZE)};
+    });
+    const means=result.map(v=>v.mean);
+    assert.ok(Math.max(...means)-Math.min(...means)<10,
+      'Beam, crosscut and panels must look like the same oak');
+    const [beam,,panel]=result;
+    assert.ok(panel.across>panel.along*2.5,
+      'Flat-sawn wood fibers must flow lengthwise');
+    assert.ok(panel.across>beam.across*.60,
+      'Panel must retain visible fine wood detail, not blurred stripes');
+  }
+});
