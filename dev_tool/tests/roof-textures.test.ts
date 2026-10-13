@@ -90,3 +90,34 @@ test('thatch is a seamless, fine-grained fiber material without horizontal cours
     capture('thatch',{pattern:422,color:837},'roughness'));
   assert.notDeepEqual(albedo,other);
 });
+
+
+test('clay tiles form weathered seamless courses, not flat brick blocks',()=>{
+  const seeds={pattern:421,color:837};
+  const albedo=capture('clay',seeds,'albedo');
+  const normal=capture('clay',seeds,'normal');
+  const roughness=capture('clay',seeds,'roughness');
+  const size=ROOF_TEXTURE_SIZE;
+  // The material must have fine color/height/roughness structure even inside
+  // a single tile, not only a different flat fill for each repeating rectangle.
+  for(const channel of [albedo,normal,roughness]){
+    const samples:number[]=[];
+    for(let y=30;y<45;y++)for(let x=13;x<31;x++)
+      samples.push(channel[(y*size+x)*4]);
+    assert.ok(Math.max(...samples)-Math.min(...samples)>12,
+      'Ceramic surface is missing local material detail');
+  }
+  let seamU=0,seamV=0,neighborU=0,neighborV=0;
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const here=albedo[(y*size+x)*4];
+    if(x===0)seamU+=Math.abs(here-albedo[(y*size+size-1)*4]);
+    else neighborU+=Math.abs(here-albedo[(y*size+x-1)*4]);
+    if(y===0)seamV+=Math.abs(here-albedo[((size-1)*size+x)*4]);
+    else neighborV+=Math.abs(here-albedo[((y-1)*size+x)*4]);
+  }
+  const regularU=neighborU/(size*(size-1)),regularV=neighborV/(size*(size-1));
+  assert.ok(seamU/size<regularU*2.5,'Visible seam across U repetition');
+  assert.ok(seamV/size<regularV*2.5,'Visible seam across V repetition');
+  assert.notDeepEqual(normal,capture('clay',{...seeds,pattern:422},'normal'));
+  assert.notDeepEqual(roughness,capture('clay',{...seeds,color:838},'roughness'));
+});
