@@ -213,16 +213,19 @@ test('individual beams vary crop and tint while their grain follows the axis',()
     assert.ok(timber&&ends&&panels,'Dedicated wood surface groups must exist');
     assert.ok(timber.colors&&ends.colors&&panels.colors);
     const offsets=new Set<string>(),tints=new Set<string>();
-    assert.equal(timber.uvs.length%32,0,'Four side faces per beam');
-    assert.equal(ends.uvs.length,timber.uvs.length/2,'Two end faces per beam');
+    assert.equal(timber.uvs.length%32,0,'Four side faces per lengthwise section');
+    assert.ok(ends.uvs.length<=timber.uvs.length/2,
+      'Long beams add side strips, but only two end faces each');
+    assert.equal(ends.uvs.length%16,0,'Each beam has two end faces');
     assert.ok(ends.uvs.every(uv=>uv>=0&&uv<=1),'End grain uses local cap UVs');
     for(let beam=0;beam<timber.uvs.length/32;beam++){
       const i=beam*32;
       const first=timber.uvs.slice(i,i+8);
       const [u0,v0,u1,v1,u2,v2,u3,v3]=first;
-      assert.ok(Math.abs(u0-u1)<1e-5,'U remains constant along beam length');
+      assert.ok(Math.abs(u0-u1)<.35,
+        'UV drift must stay gentle enough to preserve lengthwise wood fibers');
       assert.ok(Math.abs(v1-v2)<1e-5,'V constant across far edge');
-      assert.ok(Math.abs(u2-u3)<1e-5,'U constant at far side');
+      assert.ok(Math.abs(u2-u3)<.35,'Same controlled drift at opposite edge');
       assert.ok(Math.abs(v0-v3)<1e-5,'V constant at near end');
       assert.ok(v1>v0,'V follows the length of every beam');
       assert.ok(Math.abs(u2-u0)>.01,'Beam side must have usable width');
@@ -254,4 +257,45 @@ test('interior beams and broad wood have matching dedicated material groups',()=
   const timber=(m:BuildingMesh)=>m.parts.find(p=>p.material==='timber')!;
   assert.notDeepEqual(timber(a).uvs,timber(other).uvs);
   assert.notDeepEqual(timber(a).colors,timber(other).colors);
+});
+
+
+test('long beams dephase the same tile continuously without extra materials',()=>{
+  const mesh=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,3)
+    .building.exterior;
+  const side=mesh.parts.find(p=>p.material==='timber')!;
+  const ends=mesh.parts.find(p=>p.material==='timberEnd')!;
+  assert.ok(side.colors&&ends.colors);
+  let continuous=0,dephased=0,maximumJump=0,gradient=0;
+  const strips=side.uvs.length/32;
+  for(let j=0;j<strips;j++){
+    const v=j*32,p=j*48;
+    const [u0,v0,u1,v1,u2,v2,u3,v3]=side.uvs.slice(v,v+8);
+    assert.ok(v1>v0,'V must always advance along the beam');
+    assert.ok(Math.abs(v1-v2)<1e-5);
+    assert.ok(Math.abs(v0-v3)<1e-5);
+    assert.ok(Math.abs((u2-u1)-(u3-u0))<1e-5,
+      'Opposite edges must have identical longitudinal UV drift');
+    maximumJump=Math.max(maximumJump,Math.abs(u1-u0));
+    if(Math.abs(u1-u0)>.005)dephased++;
+    gradient+=Math.abs(side.colors[p]-side.colors[p+3]);
+    if(j+1>=strips)continue;
+    const pn=(j+1)*48,un=(j+1)*32;
+    const distance=Math.hypot(...[0,1,2].map(c=>
+      side.positions[p+3+c]-side.positions[pn+c]));
+    if(distance>1e-5)continue;
+    continuous++;
+    assert.ok(Math.abs(side.uvs[v+2]-side.uvs[un])<1e-5,
+      'UVs must meet seamlessly between strips');
+    assert.ok(Math.abs(side.uvs[v+3]-side.uvs[un+1])<1e-5);
+    for(let c=0;c<3;c++)
+      assert.ok(Math.abs(side.colors[p+3+c]-side.colors[pn+c])<1e-5,
+        'Macro tint must remain continuous across strips');
+  }
+  assert.ok(dephased>30,'Long beams must sample non-identical grain strips');
+  assert.ok(continuous>30,'Long beams must have adjoining strips');
+  assert.ok(maximumJump<.35,'No abrupt grain rotation');
+  assert.ok(gradient>0,'Macro tint gradient should exist');
+  assert.equal(mesh.parts.filter(p=>p.material==='timber').length,1);
+  assert.ok(mesh.triangles<13000,'Avoid over-tessellating buildings');
 });
