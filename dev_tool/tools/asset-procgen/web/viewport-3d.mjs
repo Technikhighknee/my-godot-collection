@@ -164,32 +164,37 @@ export function createModelViewport(container,onChange=()=>{}){
     setVisibility();
   }
   const buildingTextures=createBuildingTextures(renderer);
-  let currentRoofKey=null,currentRoofTextures=null;
-  function disposeRoofTextures(set){
+  // Project materials are independent and may be assigned to several models.
+  // Cache each material source by its generator ID and component seeds.
+  const currentMaterials=new Map();
+  function disposeSurfaceTextures(set){
     if(set)for(const texture of Object.values(set))texture.dispose();
   }
-  function updateRoofTexture(image){
-    if(!image)return;
-    const key=image.id+':'+image.sourceSeeds.pattern+':'+image.sourceSeeds.color;
-    if(currentRoofKey===key)return;
-    const fresh={};
-    try{
-      for(const view of ['albedo','normal','roughness']){
-        const canvas=document.createElement('canvas');
-        image.paint(canvas,view);
-        const texture=new THREE.CanvasTexture(canvas);
-        texture.wrapS=THREE.RepeatWrapping;
-        texture.wrapT=THREE.RepeatWrapping;
-        texture.colorSpace=view==='albedo'?THREE.SRGBColorSpace:THREE.NoColorSpace;
-        texture.minFilter=THREE.LinearMipmapLinearFilter;
-        texture.magFilter=THREE.LinearFilter;
-        texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
-        fresh[view]=texture;
-      }
-    }catch(error){disposeRoofTextures(fresh);throw error;}
-    const old=currentRoofTextures;
-    currentRoofTextures=fresh;currentRoofKey=key;
-    disposeRoofTextures(old);
+  function updateSurfaceTextures(images){
+    for(const [slot,image] of Object.entries(images)){
+      if(!image)continue;
+      const key=image.id+':'+Object.entries(image.sourceSeeds??{})
+        .map(([name,value])=>name+'='+value).join(':');
+      if(currentMaterials.get(slot)?.key===key)continue;
+      const fresh={};
+      try{
+        for(const view of ['albedo','normal','roughness']){
+          const canvas=document.createElement('canvas');
+          image.paint(canvas,view);
+          const texture=new THREE.CanvasTexture(canvas);
+          texture.wrapS=THREE.RepeatWrapping;
+          texture.wrapT=THREE.RepeatWrapping;
+          texture.colorSpace=view==='albedo'?THREE.SRGBColorSpace:THREE.NoColorSpace;
+          texture.minFilter=THREE.LinearMipmapLinearFilter;
+          texture.magFilter=THREE.LinearFilter;
+          texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+          fresh[view]=texture;
+        }
+      }catch(error){disposeSurfaceTextures(fresh);throw error;}
+      const previous=currentMaterials.get(slot);
+      currentMaterials.set(slot,{key,maps:fresh});
+      disposeSurfaceTextures(previous?.maps);
+    }
   }
   const buildingColors={
     foundation:0x766b5b,stone:0x9a9282,brick:0x895f4c,
@@ -210,15 +215,17 @@ export function createModelViewport(container,onChange=()=>{}){
   function buildBuildingGroup(mesh){
     const next=new THREE.Group();
     for(const part of mesh.parts){
+      const sharedSlot=part.material==='timber'||part.material==='innerTimber'?
+        'timberWood':part.material;
+      const shared=currentMaterials.get(sharedSlot)?.maps;
       const isRoof=part.material==='roofThatch'||part.material==='roofClay';
-      const roof=isRoof?currentRoofTextures:null;
       const material=new THREE.MeshStandardMaterial({
-        color:isRoof?0xffffff:(buildingColors[part.material]??0x978572),
-        map:roof?.albedo??buildingTextures.get(part.material),
-        normalMap:roof?.normal??null,roughnessMap:roof?.roughness??null,
+        color:shared?0xffffff:(buildingColors[part.material]??0x978572),
+        map:shared?.albedo??buildingTextures.get(part.material),
+        normalMap:shared?.normal??null,roughnessMap:shared?.roughness??null,
         normalScale:new THREE.Vector2(.62,.62),
         roughness:part.material==='glass'||part.material==='innerGlass'?.37:
-          isRoof?.98:.92,
+          shared?.96:isRoof?.98:.92,
         metalness:0,side:THREE.DoubleSide,
       });
       const element=new THREE.Mesh(meshGeometry(part),material);
@@ -251,7 +258,8 @@ export function createModelViewport(container,onChange=()=>{}){
   }
   function renderBuilding(asset,materialImages={}){
     const activeSlot=asset.building.level===1?'roofThatch':'roofClay';
-    updateRoofTexture(materialImages[activeSlot]);
+    updateSurfaceTextures({timberWood:materialImages.timberWood,
+      [activeSlot]:materialImages[activeSlot]});
     const previousAsset=buildingAsset,previousView=buildingView;
     buildingAsset=asset;assetId=asset.id;
     const desired=previousAsset&&previousAsset.id===asset.id?
