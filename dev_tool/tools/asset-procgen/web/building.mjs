@@ -447,13 +447,17 @@ function annex(g,plan,materialSeed){
   g.beam('ridge',[x,peak,z0],[x,peak,z1],.12);
 }
 function interiorShell(g,plan){
-  const h=floorHeight;
+  // A grander building gets a taller hall while the adjoining service
+  // room remains ordinary height. The interior is a detached gameplay scene.
+  const h=plan.level===1?floorHeight:plan.level===2?4.10:4.72;
   // Playable, deliberately roofless cutaway of a separate interior scene.
   g.box('floor',0,.13,0,plan.width-.27,.25,plan.depth-.28);
   g.box('stone',0,.30,plan.depth*.28,plan.width-.27,.17,plan.depth*.33);
   for(const side of SIDES){
     plasterWall(g,plan,side,0,'interior',-.12);
     const len=span(plan,side);
+    if(h>floorHeight)facadeBox(g,plan,side,-len/2,len/2,
+      floorHeight-.01,h,.20,'interior',-.12);
     // Interior wainscot stops at doorways rather than sealing them.
     const doors=plan.openings.filter(o=>o.side===side&&o.level===0&&o.type==='door');
     const limits=[-len/2,len/2,...doors.flatMap(o=>[o.center-o.width/2,o.center+o.width/2])]
@@ -463,20 +467,43 @@ function interiorShell(g,plan){
       if(doors.some(o=>Math.abs(mid-o.center)<o.width/2))continue;
       facadeBox(g,plan,side,a,b,.30,.82,.14,'interiorPlinth',-.24);
     }
-    facadeBeam(g,plan,side,-len/2,2.85,len/2,2.85,.11,'innerTrim',-.20);
+    facadeBeam(g,plan,side,-len/2,h-.27,len/2,h-.27,.11,'innerTrim',-.20);
     for(const o of plan.openings.filter(o=>o.side===side&&o.level===0))
       trimOpening(g,plan,o,true,-.12);
     for(const u of [-len/2+.12,len/2-.12]){
-      facadeBeam(g,plan,side,u,.28,u,2.91,.13,'innerTimber',-.21);
+      facadeBeam(g,plan,side,u,.28,u,h-.15,.13,'innerTimber',-.21);
     }
   }
   // Unfurnished interior architecture: ceiling joists, posts, open service bay.
   const left=-plan.width/2+.34,right=plan.width/2-.34;
-  for(let z=-plan.depth/2+.60;z<plan.depth/2-.20;z+=1.18)
+  for(let z=-plan.depth/2+.60;z<plan.depth/2-.20;z+=1.18){
     g.beam('innerTimber',[left,h-.15,z],[right,h-.15,z],.13);
+    if(plan.level>=2){
+      // Visible knee braces under the taller hall's roofline.
+      g.beam('innerTimber',[left,h-1.00,z],[left+.83,h-.15,z],.09);
+      g.beam('innerTimber',[right,h-1.00,z],[right-.83,h-.15,z],.09);
+    }
+  }
   for(const x of [left+.12,right-.12])
     g.beam('innerTimber',[x,h-.16,-plan.depth/2+.3],
       [x,h-.16,plan.depth/2-.3],.12);
+  if(plan.level===3){
+    // Built-in gallery: architectural circulation, not furnishing.
+    const rear=plan.depth/2-.21,front=rear-1.42,deck=2.73;
+    g.box('gallery',0,deck, (front+rear)/2,plan.width-.65,.19,rear-front);
+    for(const x of [-plan.width/2+.58,plan.width/2-.58]){
+      g.beam('innerTimber',[x,.31,front],[x,deck+.08,front],.13);
+      g.beam('innerTimber',[x,deck-.43,front-.48],[x,deck+.08,front],.10);
+    }
+    g.beam('innerTimber',[left,deck-.05,front],
+      [right,deck-.05,front],.17);
+    // Railing with realistic gaps and a rail high enough to read clearly.
+    g.beam('innerTimber',[left,deck+1.0,front],
+      [right,deck+1.0,front],.085);
+    for(let x=left;x<=right+.001;x+=.80)
+      g.beam('innerTimber',[x,deck+.10,front],
+        [x,deck+.97,front],.045);
+  }
   const archZ=plan.depth*.20;
   const width=plan.width*.33;
   for(const x of [-width,width]){

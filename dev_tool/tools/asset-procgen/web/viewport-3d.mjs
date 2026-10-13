@@ -174,7 +174,7 @@ export function createModelViewport(container,onChange=()=>{}){
     roofUnderlay:0x43342f,roofBase:0x64443b,
     tile:0x9e5b46,tileWarm:0xbb7857,
     tileDark:0x73483d,tileMoss:0x71715a,
-    ridge:0x5c453b,chimney:0x2d2520,floor:0x967654,
+    ridge:0x5c453b,chimney:0x2d2520,floor:0x967654,gallery:0x806047,
     // Existing standalone tree previews retain their own materials.
     wood:0x4a3325,roofTileA:0x9e5b46,roofTileB:0xbb7857,
   };
