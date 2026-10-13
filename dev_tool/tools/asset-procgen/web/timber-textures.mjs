@@ -248,25 +248,25 @@ function generateWideWood(seeds,oak){
     const pores=noise(x,y,140,31,grain^0x29ab5fce)-.5;
     const wash=noise(x,y,8,7,color^0x1da58e73)-.5;
     const xFlow=x+large*23+drift*7;
-    // Two long nested cathedral arches rise at the center of the board,
-    // falling away toward its sides. They fade toward the tile boundaries.
-    let cathedral=0,cut=0;
+    // Broad, curved cathedral figure, with gentle growth bands rather
+    // than repeating chevrons. The two faint cathedrals are independent,
+    // distorted, and fade out before reaching the tile's side borders.
+    let cathedral=0;
     for(let j=0;j<2;j++){
-      const center=axisX+(j?37:-32);
-      const peakY=(j?326:93)+ (hash(j,9,grain)-.5)*65;
-      const dist=Math.abs(x-center)/180;
-      const width=Math.max(0,1-dist);
-      const arch=145*Math.pow(1-width,1.30);
-      const distance=(y-peakY-arch)+
-        large*8+drift*2;
-      const extent=smooth(clamp((width-.07)/.31))*
-        smooth(clamp((140-Math.abs(distance))/50));
-      const phase=distance/31;
-      // A handful of real growth lines, with soft transitions rather
-      // than thick, regularly spaced graphical stripes.
-      const ridge=Math.pow(Math.max(0,Math.cos(phase*Math.PI*2)),6);
-      cathedral+=(ridge*.095-.022)*extent;
-      cut+=extent*.18;
+      const center=axisX+(j?49:-41);
+      const peakY=(j?328:105)+(hash(j,9,grain)-.5)*57;
+      const dist=Math.abs(x-center)/202;
+      const outer=clamp(dist,0,1);
+      const width=1-outer;
+      const arch=172*(1-Math.sqrt(Math.max(0,1-Math.pow(outer,1.75))));
+      const dy=((y-peakY+SIZE*1.5)%SIZE)-SIZE*.5;
+      const displacement=dy-arch+large*16+drift*4;
+      const mask=smooth(clamp((width-.09)/.28))*
+        Math.exp(-Math.pow(displacement/92,2));
+      const band1=Math.exp(-Math.pow(displacement/18,2));
+      const band2=Math.exp(-Math.pow((displacement+43)/22,2));
+      const band3=Math.exp(-Math.pow((displacement-56)/28,2));
+      cathedral+=mask*(-band1*.098-band2*.069+band3*.042);
     }
     let knotsTone=0,knotHeight=0,bend=0;
     for(const knot of knots){
@@ -284,9 +284,9 @@ function generateWideWood(seeds,oak){
     // copying its entire longitudinal stripe pattern onto a wide face.
     const inherited=sampleOak(oak,xFlow*.72+bend,
       y+(noise(x,y,10,7,grain^0x5c911e24)-.5)*11);
-    const wideFiber=noise(xFlow,y,37,5,grain^0x6d41a23c)-.5;
-    const vessel=noise(xFlow,y,79,8,grain^0x173ab749)-.5;
-    const figure=large*.067+wideFiber*.079+vessel*.038+
+    const wideFiber=noise(xFlow,y,72,4,grain^0x6d41a23c)-.5;
+    const vessel=noise(xFlow,y,112,10,grain^0x173ab749)-.5;
+    const figure=large*.067+wideFiber*.103+vessel*.058+
       fine*.036+pores*.024+wash*.037+cathedral-knotsTone;
     for(let c=0;c<3;c++){
       const base=mix([.365,.271,.181][c],inherited.rgb[c],.24);
