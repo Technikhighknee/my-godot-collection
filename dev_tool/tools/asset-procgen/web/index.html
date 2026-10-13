@@ -139,9 +139,19 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
       <p id="buildingOpeningInfo" class="pg-building-note"></p>
     </section>
     <section id="buildingMaterials" class="pg-building-settings" hidden
-      aria-label="Shared project roof materials">
-      <div class="pg-settings-title"><span>PROJECT ROOF TEXTURES</span></div>
+      aria-label="Shared project surface materials">
+      <div class="pg-settings-title"><span>PROJECT MATERIAL TEXTURES</span></div>
       <p class="pg-building-note">Textures are saved independently. Select one for the model, or create a new shared source.</p>
+      <div class="pg-roof-slot">
+        <label for="timberWoodAsset">Structural oak timber
+          <select id="timberWoodAsset"><option value="">Generator default</option></select>
+        </label>
+        <div class="pg-roof-actions">
+          <button id="timberWoodNew" type="button">New</button>
+          <button id="timberWoodEdit" type="button">Edit</button>
+          <button id="timberWoodReseed" type="button">Reseed shared</button>
+        </div>
+      </div>
       <div class="pg-roof-slot">
         <label for="roofThatchAsset">Thatch · Level 1
           <select id="roofThatchAsset"><option value="">Generator default</option></select>
