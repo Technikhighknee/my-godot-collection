@@ -62,6 +62,30 @@ test('plaster has readable warm mid-frequency structure and seamless edges',()=>
   du/=size*(size-1);dv/=size*(size-1);
   assert.ok(sum/size**2>170,'Plaster must stay fairly light');
   assert.ok(max-min>=25,'Putz darf nicht wie glatte Farbe wirken');
+  assert.ok(du>1.3&&dv>1.3,'Lime aggregate needs visible fine relief');
+  assert.ok(du/dv>.70&&du/dv<1.30,
+    'Plaster must not resemble strongly directional wood or fabric');
   assert.ok(seamU/size<du*2.5,'No vertical tile seam');
   assert.ok(seamV/size<dv*2.5,'No horizontal tile seam');
+});
+
+test('rough plaster retains relief in the normal map without baked lighting',()=>{
+  const normal=capture(seeds,'normal');
+  const roughness=capture(seeds,'roughness');
+  let minX=255,maxX=0,minY=255,maxY=0,minZ=255;
+  let roughMin=255,roughMax=0;
+  for(let i=0;i<normal.length;i+=4){
+    minX=Math.min(minX,normal[i]!);
+    maxX=Math.max(maxX,normal[i]!);
+    minY=Math.min(minY,normal[i+1]!);
+    maxY=Math.max(maxY,normal[i+1]!);
+    minZ=Math.min(minZ,normal[i+2]!);
+    roughMin=Math.min(roughMin,roughness[i]!);
+    roughMax=Math.max(roughMax,roughness[i]!);
+  }
+  assert.ok(minX<119&&maxX>137&&minY<119&&maxY>137,
+    'Painted mineral texture must produce geometric surface relief');
+  assert.ok(minZ>=128,'Normals must point outward');
+  assert.ok(roughMin>180&&roughMax-roughMin>=20,
+    'Mineral plaster must stay matte with some variation');
 });
