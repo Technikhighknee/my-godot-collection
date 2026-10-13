@@ -33,13 +33,30 @@ const boundsOf=parts=>{
       }
   return {min,max};
 };
-function geometryBuilder(){
+function geometryBuilder(seed=0){
   const parts=new Map();
+  const woodMaterials=new Set(['timber','innerTimber','timberEnd',
+    'innerTimberEnd','timberPanel','innerTimberPanel']);
   const part=material=>{
-    if(!parts.has(material))parts.set(material,{material,positions:[],normals:[],uvs:[],indices:[]});
+    if(!parts.has(material))parts.set(material,{
+      material,positions:[],normals:[],uvs:[],indices:[],colors:[],
+    });
     return parts.get(material);
   };
-  function face(material,a,b,c,d=null,uvCorners=null){
+  // Stable spatial hash: adding a new beam won't reshuffle existing materials.
+  function variation(values,salt){
+    let n=(seed^salt)>>>0;
+    for(const value of values)
+      n=Math.imul(n^Math.round(value*1000),16777619)>>>0;
+    n=Math.imul(n^(n>>>16),2246822519)>>>0;
+    return ((n^(n>>>13))>>>0)/4294967296;
+  }
+  function colorVariation(values){
+    const brightness=.93+variation(values,0x674d3b29)*.14;
+    const warmth=(variation(values,0x93a15c24)-.5)*.035;
+    return [brightness+warmth,brightness,brightness-warmth];
+  }
+  function face(material,a,b,c,d=null,uvCorners=null,tint=null){
     const mesh=part(material),ab=b.map((v,i)=>v-a[i]),ac=c.map((v,i)=>v-a[i]);
     const n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
     const len=Math.hypot(...n)||1;
@@ -62,18 +79,38 @@ function geometryBuilder(){
       if(uvCorners)mesh.uvs.push(...uvCorners[index]);
       else mesh.uvs.push(uv[0]*(roof?.55:.85),uv[1]*(roof?.55:.85));
     }
+    if(woodMaterials.has(material)){
+      const color=tint??[1,1,1];
+      for(let i=0;i<verts.length;i++)mesh.colors.push(...color);
+    }
     mesh.indices.push(at,at+1,at+2);
     if(d)mesh.indices.push(at,at+2,at+3);
   }
   function box(material,x,y,z,w,h,d){
     if(w<=0||h<=0||d<=0)return;
+    // Rectangular masses have flat-sawn broad faces, not narrow beam grain.
+    const panel=material==='timber'||material==='innerTimber';
+    const kind=panel?material+'Panel':material;
+    const tint=panel?colorVariation([x,y,z,w,h,d]):null;
+    const offsetU=panel?variation([x,y,z,w,h,d],0x81a2643b):0;
+    const offsetV=panel?variation([x,y,z,w,h,d],0xab38ca17):0;
+    const quad=(a,b,c,e)=>{
+      if(!panel){face(kind,a,b,c,e);return;}
+      const dist=(p,q)=>Math.hypot(...p.map((v,i)=>v-q[i]));
+      const da=dist(a,b),db=dist(b,c);
+      const U=offsetU,V=offsetV;
+      const coords=da>=db?
+        [[U,V],[U,V+da*.50],[U+db*.70,V+da*.50],[U+db*.70,V]]:
+        [[U,V],[U+da*.70,V],[U+da*.70,V+db*.50],[U,V+db*.50]];
+      face(kind,a,b,c,e,coords,tint);
+    };
     const a=x-w/2,b=x+w/2,c=y-h/2,e=y+h/2,f=z-d/2,g=z+d/2;
-    face(material,[a,c,f],[a,e,f],[b,e,f],[b,c,f]);
-    face(material,[b,c,g],[b,e,g],[a,e,g],[a,c,g]);
-    face(material,[a,c,g],[a,e,g],[a,e,f],[a,c,f]);
-    face(material,[b,c,f],[b,e,f],[b,e,g],[b,c,g]);
-    face(material,[a,e,f],[a,e,g],[b,e,g],[b,e,f]);
-    face(material,[a,c,g],[a,c,f],[b,c,f],[b,c,g]);
+    quad([a,c,f],[a,e,f],[b,e,f],[b,c,f]);
+    quad([b,c,g],[b,e,g],[a,e,g],[a,c,g]);
+    quad([a,c,g],[a,e,g],[a,e,f],[a,c,f]);
+    quad([b,c,f],[b,e,f],[b,e,g],[b,c,g]);
+    quad([a,e,f],[a,e,g],[b,e,g],[b,e,f]);
+    quad([a,c,g],[a,c,f],[b,c,f],[b,c,g]);
   }
   function beam(material,a,b,r){
     const dy=b[1]-a[1],dx=b[0]-a[0],dz=b[2]-a[2];
@@ -85,23 +122,46 @@ function geometryBuilder(){
     const v=[axis[1]*u[2]-axis[2]*u[1],axis[2]*u[0]-axis[0]*u[2],axis[0]*u[1]-axis[1]*u[0]];
     const at=(p,s,t)=>p.map((n,i)=>n+u[i]*s*r+v[i]*t*r);
     const corners=[[-1,-1],[1,-1],[1,1],[-1,1]];
+    const wood=material==='timber'||material==='innerTimber';
+    const signature=[...a,...b,r];
+    const offsetU=variation(signature,0xe1c9648b);
+    const offsetV=variation(signature,0xb81c1d45);
+    const scaleU=.85+variation(signature,0x67419b26)*.30;
+    const scaleV=.89+variation(signature,0x14e927c3)*.24;
+    const flip=variation(signature,0xa17b46c2)>.5?-1:1;
+    const tint=wood?colorVariation(signature):null;
+    const width=2*r*.70*scaleU;
+    const along=length*.50*scaleV;
     for(let i=0;i<4;i++){
       const p=corners[i],q=corners[(i+1)%4];
-      // The wood's V axis follows the beam, regardless of its world direction.
-      // U repeats around each face at a scale suitable for narrow framing.
-      const grain=material==='timber'||material==='innerTimber';
-      const u=2*r*.70,v=length*.50;
+      // One texture set, but a stable different crop and scale for each beam.
+      // V is always parallel to the actual length, including diagonal braces.
+      const u0=offsetU+flip*i*width,u1=u0+flip*width;
+      const coords=wood?
+        [[u0,offsetV],[u0,offsetV+along],[u1,offsetV+along],[u1,offsetV]]:null;
       face(material,at(a,...p),at(b,...p),at(b,...q),at(a,...q),
-        grain?[[0,0],[0,v],[u,v],[u,0]]:null);
+        coords,tint);
     }
-    face(material,...corners.map(p=>at(a,...p)));
-    face(material,...corners.map(p=>at(b,...p)).reverse());
+    const capMaterial=wood?material+'End':material;
+    const turn=wood?Math.floor(variation(signature,0x715c8341)*4):0;
+    const capUV=p=>{
+      const [x,y]=p;
+      const rotated=turn===1?[-y,x]:turn===2?[-x,-y]:turn===3?[y,-x]:[x,y];
+      return [rotated[0]*.5+.5,rotated[1]*.5+.5];
+    };
+    const cap=(base,points)=>{
+      face(capMaterial,...points.map(p=>at(base,...p)),
+        wood?points.map(capUV):null,tint);
+    };
+    cap(a,corners);
+    cap(b,[...corners].reverse());
   }
   function finish(){
     const finished=[...parts.values()].map(p=>({
       material:p.material,positions:new Float32Array(p.positions),
       normals:new Float32Array(p.normals),uvs:new Float32Array(p.uvs),
       indices:new Uint32Array(p.indices),
+      ...(p.colors.length?{colors:new Float32Array(p.colors)}:{}),
     }));
     return {parts:finished,bounds:boundsOf(finished),
       triangles:finished.reduce((sum,p)=>sum+p.indices.length/3,0)};
@@ -539,13 +599,13 @@ export function generateBuildingFamily(seeds,rawOptions=DEFAULT_BUILDING_OPTIONS
   if(!seeds||!Number.isInteger(seeds.structure)||!Number.isInteger(seeds.material))
     throw Error('Building seeds must be integers');
   const plan=layout(options,level,seeds.structure>>>0);
-  const outside=geometryBuilder();
+  const outside=geometryBuilder(seeds.structure>>>0);
   exteriorFacade(outside,plan);
   roof(outside,plan,(seeds.material+level*427)>>>0);
   dormers(outside,plan);
   entrancePorch(outside,plan);
   annex(outside,plan,(seeds.material+level*193)>>>0);
-  const inside=options.interior==='shell'?geometryBuilder():null;
+  const inside=options.interior==='shell'?geometryBuilder(seeds.structure>>>0):null;
   if(inside)interiorShell(inside,plan);
   const exterior=outside.finish(),interior=inside?.finish()??null;
   return {
