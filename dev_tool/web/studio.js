@@ -32,7 +32,8 @@ function make(tag,className,text){
 }
 function assetType(asset){return asset.kind==='model'?'3D model':'2D image';}
 function resourceIcon(kind){
-  return kind==='map'?'▧':kind==='model'?'⬡':kind==='image'?'▨':'◇';
+  return kind==='map'?'▧':kind==='building'?'⌂':
+    kind==='model'?'⬡':kind==='image'?'▨':'◇';
 }
 function persisted(){
   try{
@@ -128,7 +129,8 @@ function openAsset(source){
   const key='asset:'+source.id;
   const tab=makeTab({key,kind:source.generator.id, id:source.id,label:source.name});
   // A mounted frame stays alive as the user switches between documents.
-  if(!tab.frame.getAttribute('src'))tab.frame.src='/tools/asset-procgen/?embedded=1&asset='+encodeURIComponent(source.id);
+  if(!tab.frame.getAttribute('src'))tab.frame.src='/tools/asset-procgen/?embedded=1&asset='+
+    encodeURIComponent(source.id)+'&generator='+encodeURIComponent(source.generator.id);
   selectTab(key);
 }
 function openGenerator(generator){
@@ -270,7 +272,10 @@ function matches(item){
 function renderTree(){
   const filteredMaps=maps.filter(matches),filteredAssets=assets.filter(matches);
   tree.replaceChildren(section('Worlds',filteredMaps,'map'),
-    section('Models',filteredAssets.filter(a=>a.kind==='model'),'model'),
+    section('Buildings',filteredAssets.filter(a=>
+      a.source.generator.id==='timber-building'),'building'),
+    section('Models & Vegetation',filteredAssets.filter(a=>
+      a.kind==='model'&&a.source.generator.id!=='timber-building'),'model'),
     section('Images & Materials',filteredAssets.filter(a=>a.kind==='image'),'image'));
   byId('resourceCount').textContent=(maps.length+assets.length)+' SOURCES';
 }
@@ -326,8 +331,9 @@ async function showCatalog(){
       for(const generator of GENERATORS.filter(g=>g.libraryPath[0]===family)){
         const button=make('button','resource');
         button.type='button';
-        button.append(make('span','resource-icon',generator.kind==='model'?'⬡':'▨'),
-          make('span','resource-name',generator.libraryPath.at(-1)+' / '+generator.navLabel));
+        button.append(make('span','resource-icon',generator.id==='timber-building'?'⌂':
+          generator.kind==='model'?'⬡':'▨'),
+          make('span','resource-name',generator.libraryPath.join(' / ')));
         button.addEventListener('click',()=>openGenerator(generator));
         items.append(button);
       }

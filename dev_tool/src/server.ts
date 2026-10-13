@@ -21,6 +21,7 @@ const staticRoutes:Record<string,[string,string]>={
   '/tools/asset-procgen/app.js': ['tools/asset-procgen/web/app.js', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/seed-model.mjs': ['tools/asset-procgen/web/seed-model.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/generators.mjs': ['tools/asset-procgen/web/generators.mjs', 'text/javascript; charset=utf-8'],
+  '/tools/asset-procgen/building.mjs': ['tools/asset-procgen/web/building.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/asset-library.mjs': ['tools/asset-procgen/web/asset-library.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/viewport-3d.mjs': ['tools/asset-procgen/web/viewport-3d.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/viewport-2d.mjs': ['tools/asset-procgen/web/viewport-2d.mjs', 'text/javascript; charset=utf-8'],

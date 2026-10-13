@@ -24,18 +24,29 @@ interface GeneratorMeta {
   defaultOptions?:BuildingOptions;
   validateOptions?:(value:unknown)=>BuildingOptions;
 }
-export interface ModelGeneratorDefinition extends GeneratorMeta {
-  kind:'model';generate:(seeds:Record<string,number>,
-    options?:BuildingOptions,level?:number)=>GeneratedModel|GeneratedBuilding;
+export interface TreeGeneratorDefinition extends GeneratorMeta {
+  kind:'model';generate:(seeds:Record<string,number>)=>GeneratedModel;
 }
+export interface BuildingGeneratorDefinition extends GeneratorMeta {
+  kind:'model';defaultOptions:BuildingOptions;
+  validateOptions:(value:unknown)=>BuildingOptions;
+  generate:(seeds:Record<string,number>,
+    options?:BuildingOptions,level?:number)=>GeneratedBuilding;
+}
+export type ModelGeneratorDefinition=TreeGeneratorDefinition|BuildingGeneratorDefinition;
 export interface ImageGeneratorDefinition extends GeneratorMeta {
   kind:'image';generate:(seeds:Record<string,number>)=>GeneratedImage;
 }
 export type GeneratorDefinition=ModelGeneratorDefinition|ImageGeneratorDefinition;
 export const GENERATORS:readonly GeneratorDefinition[];
-export function findGenerator(id:'oak'|'fir'|'timber-building'):ModelGeneratorDefinition|null;
+export function findGenerator(id:'oak'|'fir'):TreeGeneratorDefinition|null;
+export function findGenerator(id:'timber-building'):BuildingGeneratorDefinition|null;
 export function findGenerator(id:'oak-atlas'|'oak-sprig'|'oak-bark'):ImageGeneratorDefinition|null;
 export function findGenerator(id:string):GeneratorDefinition|null;
+export function generateAsset(definition:TreeGeneratorDefinition,
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedModel;
+export function generateAsset(definition:BuildingGeneratorDefinition,
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedBuilding;
 export function generateAsset(definition:ModelGeneratorDefinition,
   componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedModel|GeneratedBuilding;
 export function generateAsset(definition:ImageGeneratorDefinition,

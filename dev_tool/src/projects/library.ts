@@ -9,8 +9,8 @@ import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 // Project storage is independent of generator implementations.
 export interface GeneratorDescriptor {
   kind:'model'|'image';components:readonly {id:string}[];
-  defaultOptions?:Record<string,unknown>;
-  validateOptions?:(value:unknown)=>Record<string,unknown>;
+  defaultOptions?:object;
+  validateOptions?:(value:unknown)=>object;
 }
 export type GeneratorLookup=(id:string)=>GeneratorDescriptor|null;
 function validateSeed(value:unknown):void{
@@ -56,7 +56,7 @@ export interface AssetSource {
   format:'devtool-asset';version:1;id:string;name:string;
   generator:{id:string;version:1;masterSeed:number;components:Record<string,number>};
   dependencies:string[];
-  options?:Record<string,unknown>;
+  options?:object;
 }
 export interface AssetEntry {source:AssetSource;revision:string;kind:'model'|'image';}
 export function validateSource(raw:unknown,expectedId?:string,

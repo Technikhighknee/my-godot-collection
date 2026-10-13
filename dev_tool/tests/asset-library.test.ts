@@ -6,8 +6,11 @@ import {buildAssetLibraryTree,filterAssetLibrary,createAssetLibrary}
 
 test('library metadata groups 3D and 2D components under the same asset family',()=>{
   const root=buildAssetLibraryTree(GENERATORS);
-  assert.deepEqual(root.groups.map(g=>g.name),['Vegetation']);
-  const vegetation=root.groups[0]!;
+  assert.deepEqual(root.groups.map(g=>g.name),['Architecture','Vegetation']);
+  assert.deepEqual(root.groups[0]!.groups.map(g=>g.name),['Buildings']);
+  assert.deepEqual(root.groups[0]!.groups[0]!.groups[0]!.assets.map(d=>d.id),
+    ['timber-building']);
+  const vegetation=root.groups[1]!;
   assert.deepEqual(vegetation.groups.map(g=>g.name),['Oak','Fir']);
   const oak=vegetation.groups[0]!;
   assert.deepEqual(oak.assets.map(d=>d.id),
@@ -20,8 +23,8 @@ test('library metadata groups 3D and 2D components under the same asset family',
     libraryPath:['Rocks & Terrain','Granite'],navLabel:'Boulder'};
   const extended=buildAssetLibraryTree([...GENERATORS,stone]);
   assert.deepEqual(extended.groups.map(g=>g.name),
-    ['Vegetation','Rocks & Terrain']);
-  assert.equal(extended.groups[1]!.groups[0]!.assets[0]!.id,'granite');
+    ['Architecture','Vegetation','Rocks & Terrain']);
+  assert.equal(extended.groups[2]!.groups[0]!.assets[0]!.id,'granite');
   assert.throws(()=>buildAssetLibraryTree([...GENERATORS,GENERATORS[0]!]),
     /Duplicate/);
   assert.throws(()=>buildAssetLibraryTree([{...GENERATORS[0]!,
@@ -36,6 +39,8 @@ test('search matches family, generator, output type and multiple terms',()=>{
     ['oak-atlas','oak-sprig','oak-bark']);
   assert.deepEqual(lookup('oak','model'),['oak']);
   assert.deepEqual(lookup('fir','image'),[]);
+  assert.deepEqual(lookup('Architecture buildings'),['timber-building']);
+  assert.deepEqual(lookup('building','model'),['timber-building']);
   assert.deepEqual(lookup('atlas'),['oak-atlas']);
   assert.deepEqual(lookup('texture'),['oak-bark']);
   assert.deepEqual(lookup('tree','model'),['oak','fir']);
@@ -123,7 +128,7 @@ test('navigation supports selecting, filtering, favorites, recents and Ctrl+K',(
       count:count as unknown as HTMLElement,
       onSelect(id){clicked.push(id);library.select(id);},
     });
-    assert.equal(count.textContent,'5 assets');
+    assert.equal(count.textContent,'6 assets');
     assert.equal(library.select('oak'),true);
     assert.equal(library.select('invalid'),false);
     // A selected asset can appear both in Recent and in the category

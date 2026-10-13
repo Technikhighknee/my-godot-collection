@@ -16,10 +16,10 @@ const atlas=findGenerator('oak-atlas')!;
 const sprig=findGenerator('oak-sprig')!;
 const bark=findGenerator('oak-bark')!;
 test('catalog exposes current models as independent generator definitions',()=>{
-  assert.deepEqual(GENERATORS.map(x=>x.id),['oak','fir','oak-atlas','oak-sprig','oak-bark']);
+  assert.deepEqual(GENERATORS.map(x=>x.id),['timber-building','oak','fir','oak-atlas','oak-sprig','oak-bark']);
   assert.deepEqual(oak.components.map(x=>x.id),['geometry','foliage','leaves','barkStructure','barkSurface','barkColor']);
   assert.deepEqual(fir.components.map(x=>x.id),['geometry']);
-  assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','image','image','image']);
+  assert.deepEqual(GENERATORS.map(x=>x.kind),['model','model','model','image','image','image']);
   assert.deepEqual(atlas.components.map(x=>x.id),['leaves']);
   assert.deepEqual(createSeedState(atlas).components,{leaves:21749});
   assert.deepEqual(sprig.components.map(x=>x.id),['structure','leaves']);

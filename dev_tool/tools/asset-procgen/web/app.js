@@ -391,7 +391,10 @@ byId('imageTile').addEventListener('change',event=>{
   }
 });
 try{
-  selectGenerator(active.id);
+  // Saved sources initialize with their persisted recipe below, rather than
+  // wasting time generating an unrelated default model first.
+  if(!new URLSearchParams(location.search).has('asset'))
+    selectGenerator(active.id);
 }catch(error){
   byId('error').hidden=false;
   byId('error').textContent=error.message;
@@ -521,6 +524,8 @@ projectEl('savedProjectAssets').addEventListener('change',()=>{
       if(generator&&findGenerator(generator))selectGenerator(generator);
     }
   }catch(error){
+    // Standalone editing remains usable even if project data are unavailable.
+    if(!modelViewport&&!imageViewport)selectGenerator(active.id);
     assetStatus('Project source unavailable: '+(error instanceof Error?error.message:String(error)));
   }finally{
     // Only reveal the iframe after the requested recipe has actually loaded.
