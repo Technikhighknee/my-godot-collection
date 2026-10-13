@@ -47,12 +47,17 @@ function geometryBuilder(){
     const normal=n.map(x=>x/len);
     const axis=Math.abs(normal[1])>=Math.max(Math.abs(normal[0]),Math.abs(normal[2]))?
       'y':Math.abs(normal[0])>Math.abs(normal[2])?'x':'z';
-    // Repeatable world-aligned planar UVs avoid one-off atlas bookkeeping.
-    // Walls map horizontally + vertically; sloped roofs map across their plane.
+    // Roof quads are ordered ridge -> eave -> eave -> ridge.
+    // A CanvasTexture displays its top image row at V=1 (flipY=true).
+    // Therefore V must *decrease* downhill for the tile tails to point
+    // toward the eaves. Measure distance from this face's ridge (a),
+    // not from world X=0: the attached wing has its own offset ridge.
+    // Walls retain their original world-aligned planar projection.
+    const roof=material==='roofThatch'||material==='roofClay';
     for(const v of verts){
       mesh.positions.push(...v);mesh.normals.push(...normal);
-      const roof=material==='roofThatch'||material==='roofClay';
-      const uv=roof?[v[2],Math.abs(v[0])]:
+      const downhill=Math.hypot(v[0]-a[0],v[1]-a[1]);
+      const uv=roof?[v[2],-downhill]:
         axis==='y'?[v[0],v[2]]:axis==='x'?[v[2],v[1]]:[v[0],v[1]];
       mesh.uvs.push(uv[0]*(roof?.55:.85),uv[1]*(roof?.55:.85));
     }
