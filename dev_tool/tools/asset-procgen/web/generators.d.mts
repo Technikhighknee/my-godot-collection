@@ -13,6 +13,7 @@ export interface GeneratedImage {
   id:string;kind:'image';width:number;height:number;channels:'RGBA';
   tiles?:number;atlas?:{columns:number;rows:number};
   views?:readonly string[];profiles?:readonly string[];
+  profileSizes?:Record<string,{width:number;height:number}>;
   paint:(canvas:HTMLCanvasElement,view?:string,profile?:string)=>unknown;
 }
 export type GeneratedAsset=GeneratedModel|GeneratedImage|GeneratedBuilding;
