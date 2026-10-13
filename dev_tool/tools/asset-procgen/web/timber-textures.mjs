@@ -269,21 +269,23 @@ function generateWideWood(seeds,oak){
     const growth=noise(wx,y,43,7,grain^0x173ab749)-.5;
     const finer=noise(wx,y,93,12,grain^0x4827b319)-.5;
     const pores=noise(wx,y,145,29,grain^0x91c4a03d)-.5;
+    const fiber=noise(wx,y,118,12,grain^0x2d7ca941)-.5;
     const spot=hash(x,y,grain^0x892c14ee)-.5;
     const shared=sampleOak(oak,wx,y+curl*8);
     // Match timber's pigment & pores while revealing a different cut.
     // The broad bands vary in width and curve around the knots.
     const tone=(shared.rgb[0]-.365)*.38+broad*.087+
-      growth*.086+finer*.056+pores*.031+spot*.010+
+      growth*.086+finer*.060+pores*.035+fiber*.056+spot*.015+
       wash*.054-ringTone-knotTone;
     for(let c=0;c<3;c++){
       const base=[.365,.271,.181][c];
       albedo[i+c]=clamp(base+tone*[1,.78,.61][c],.10,.65);
     }
     height[p]=.30+(shared.height-.30)*.26+
-      broad*.038+growth*.044+finer*.037+pores*.013+knotHeight;
+      broad*.038+growth*.044+finer*.038+fiber*.026+
+      pores*.013+knotHeight;
     roughness[p]=clamp(.83+(shared.roughness-.83)*.24+
-      pores*.042+finer*.026+knotTone*.17,.64,.99);
+      pores*.042+finer*.026+fiber*.024+knotTone*.17,.64,.99);
   }
   return {albedo,height,roughness};
 }
