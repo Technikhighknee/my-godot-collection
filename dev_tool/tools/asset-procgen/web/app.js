@@ -363,6 +363,8 @@ projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(asyn
 projectEl('updateProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
   if(!loadedProjectAsset)throw Error('Load an existing asset before updating it');
   const id=loadedProjectAsset.source.id;
+  if(projectEl('savedProjectAssets').value!==id)
+    throw Error('Load the selected asset before updating it');
   if(projectEl('projectAssetId').value!==id)
     throw Error('Asset ID is immutable; use Save as new asset for a new ID');
   const entry=await projectApi('/api/projects/active/assets/'+id,{
@@ -389,6 +391,11 @@ projectEl('savedProjectAssets').addEventListener('change',()=>{
     const {project}=await projectApi('/api/projects/active');
     if(!project){assetStatus('Create a project on the home page to save assets.');return;}
     await reloadProjectAssets();
+    const requested=new URLSearchParams(location.search).get('asset');
+    if(requested&&projectAssets.has(requested)){
+      projectEl('savedProjectAssets').value=requested;
+      projectEl('loadProjectAsset').click();
+    }
   }catch{
     assetStatus('Project asset storage unavailable in legacy mode.');
   }

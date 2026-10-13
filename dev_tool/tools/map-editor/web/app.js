@@ -92,6 +92,8 @@ function decodeFloats(bytes) {
 async function getDocument() {
   // Map switching in another tab must not mix JSON, EXR and PNG revisions.
   for (let attempt = 0; attempt < 3; attempt++) {
+    const projectResponse=await fetch('/api/projects/active',{cache:'no-store'});
+    const before=projectResponse.ok?(await projectResponse.json()).project?.id??null:null;
     const meta = await fetchResource('/api/map').then(r => r.json());
     if (typeof meta.readOnly !== 'boolean') throw new Error('Map server lacks edit capabilities');
     const headers = typeof meta.revision === 'string' ? { 'If-Match': `"${meta.revision}"` } : {};
@@ -112,6 +114,7 @@ async function getDocument() {
       const response=await fetch('/api/projects/active',{cache:'no-store'});
       if(response.ok)projectId=(await response.json()).project?.id??null;
     }catch{/* Legacy map mode. */}
+    if(projectId!==before)continue;
     return { readOnly: meta.readOnly, revision: meta.revision, mapFile: meta.mapFile, workspace: meta.workspace, projectId, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
   }
   throw new Error('Active map changed repeatedly while loading. Reload the editor.');
