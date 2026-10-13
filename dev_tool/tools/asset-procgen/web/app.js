@@ -520,15 +520,18 @@ async function loadSelectedProjectAsset(){
 // Model material slots are shared project-source references, not embedded textures.
 // A material editor can be opened from the model; reseeding updates the shared
 // source (with revision checking), so every referencing model sees the change.
-async function changeSharedRoof(slot,action){
+async function changeSharedMaterial(slot,action){
   if(!projectId)throw Error('Create or open a project first');
   const value=selectedMaterials()[slot];
   const entry=value?projectAssets.get(value.slice('asset:'.length)):null;
-  const definition=findGenerator(slot==='roofThatch'?'roof-thatch':'roof-clay');
-  if(!definition)throw Error('Roof generator unavailable');
+  const generatorId={timberWood:'timber-oak',roofThatch:'roof-thatch',
+    roofClay:'roof-clay'}[slot];
+  const definition=findGenerator(generatorId);
+  if(!definition)throw Error('Material generator unavailable');
   if(action==='new'){
     const id=definition.id+'-'+randomSeed().toString(36);
-    const name=slot==='roofThatch'?'Thatched roof · ':'Clay tiles · ';
+    const name={timberWood:'Hewn oak · ',roofThatch:'Thatched roof · ',
+      roofClay:'Clay tiles · '}[slot];
     const state=updateMasterSeed(definition,createSeedState(definition),randomSeed());
     const created=await projectApi('/api/projects/active/assets',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -574,7 +577,7 @@ async function changeSharedRoof(slot,action){
     assetStatus('Reseeded shared texture '+updated.source.name+'. All linked models use its new seed.');
   }
 }
-for(const slot of ['roofThatch','roofClay']){
+for(const slot of ['timberWood','roofThatch','roofClay']){
   byId(slot+'Asset').addEventListener('change',event=>{
     const value=event.target.value;
     materialAssignments.set(active.id,{...selectedMaterials(),
@@ -587,7 +590,7 @@ for(const slot of ['roofThatch','roofClay']){
   });
   for(const [action,suffix] of [['new','New'],['edit','Edit'],['reseed','Reseed']])
     byId(slot+suffix).addEventListener('click',()=>
-      projectOperation(()=>changeSharedRoof(slot,action)));
+      projectOperation(()=>changeSharedMaterial(slot,action)));
 }
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==window.parent||
