@@ -55,3 +55,38 @@ test('roof normal and roughness maps are derived from the same pattern',()=>{
     .paint({getContext(){return null;}} as unknown as HTMLCanvasElement),
     /Unsupported|Unknown/);
 });
+
+
+test('thatch is a seamless, fine-grained fiber material without horizontal courses',()=>{
+  const size=ROOF_TEXTURE_SIZE;
+  const albedo=capture('thatch',{pattern:421,color:837});
+  const pixel=(x:number,y:number)=>albedo[(y*size+x)*4];
+  let across=0,down=0,leftSeam=0,topSeam=0;
+  const rowMeans:number[]=[];
+  for(let y=0;y<size;y++){
+    let row=0;
+    for(let x=0;x<size;x++){
+      const value=pixel(x,y);
+      row+=value;
+      if(x>0)across+=Math.abs(value-pixel(x-1,y));
+      if(y>0)down+=Math.abs(value-pixel(x,y-1));
+    }
+    rowMeans.push(row/size);
+    leftSeam+=Math.abs(pixel(0,y)-pixel(size-1,y));
+    topSeam+=Math.abs(pixel(y,0)-pixel(y,size-1));
+  }
+  const meanAcross=across/(size*(size-1));
+  const meanDown=down/(size*(size-1));
+  assert.ok(meanAcross>meanDown*2,
+    'Long downhill fibers should have finer crosswise detail');
+  assert.ok(Math.max(...rowMeans)-Math.min(...rowMeans)<14,
+    'The old broad, uniform horizontal thatch courses must not return');
+  assert.ok(leftSeam/size<meanAcross*2.5,'U must tile without a hard join');
+  assert.ok(topSeam/size<meanDown*2.5,'V must tile without a hard join');
+  const other=capture('thatch',{pattern:422,color:837});
+  assert.notDeepEqual(capture('thatch',{pattern:421,color:837},'normal'),
+    capture('thatch',{pattern:422,color:837},'normal'));
+  assert.notDeepEqual(capture('thatch',{pattern:421,color:837},'roughness'),
+    capture('thatch',{pattern:422,color:837},'roughness'));
+  assert.notDeepEqual(albedo,other);
+});
