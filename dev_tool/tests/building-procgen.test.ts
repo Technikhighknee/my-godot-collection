@@ -127,7 +127,7 @@ test('evolving building levels have architectural character, not just scaled box
   const materials=(mesh:BuildingMesh)=>new Set(mesh.parts.map(part=>part.material));
   for(const level of levels){
     const used=materials(level.exterior);
-    for(const name of ['timber','plasterWarm','roofUnderlay','tile','stone','glass'])
+    for(const name of ['timber','plasterWarm','stone','glass',level.level===1?'roofThatch':'roofClay'])
       assert.ok(used.has(name),'Expected architectural material '+name);
     assert.ok(level.exterior.parts.every(part=>part.uvs.length===
       part.positions.length/3*2));

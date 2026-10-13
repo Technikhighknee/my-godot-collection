@@ -51,8 +51,10 @@ function geometryBuilder(){
     // Walls map horizontally + vertically; sloped roofs map across their plane.
     for(const v of verts){
       mesh.positions.push(...v);mesh.normals.push(...normal);
-      const uv=axis==='y'?[v[0],v[2]]:axis==='x'?[v[2],v[1]]:[v[0],v[1]];
-      mesh.uvs.push(uv[0]*.85,uv[1]*.85);
+      const roof=material==='roofThatch'||material==='roofClay';
+      const uv=roof?[v[2],Math.abs(v[0])]:
+        axis==='y'?[v[0],v[2]]:axis==='x'?[v[2],v[1]]:[v[0],v[1]];
+      mesh.uvs.push(uv[0]*(roof?.55:.85),uv[1]*(roof?.55:.85));
     }
     mesh.indices.push(at,at+1,at+2);
     if(d)mesh.indices.push(at,at+2,at+3);
@@ -332,26 +334,11 @@ function roof(g,plan,seed){
   const w=plan.width/2+plan.eave+plan.jetty;
   const front=-plan.depth/2-.66,back=plan.depth/2+.66;
   const ridge=plan.ridgeHeight,eave=plan.wallHeight-.12;
-  const random=rng(seed>>>0);
+  const roofMaterial=plan.level===1?'roofThatch':'roofClay';
   for(const sign of [-1,1]){
     const x=sign*w;
-    g.face('roofUnderlay',[0,ridge,front],[x,eave,front],
+    g.face(roofMaterial,[0,ridge,front],[x,eave,front],
       [x,eave,back],[0,ridge,back]);
-    const rows=13,cols=Math.max(17,Math.ceil((back-front)*2.5));
-    for(let i=0;i<rows;i++){
-      const t0=i/rows,t1=(i+1)/rows;
-      for(let j=0;j<cols;j++){
-        const z0=front+(back-front)*j/cols,z1=front+(back-front)*(j+1)/cols;
-        const n=.035;
-        const tone=random();
-        const material=tone<.15?'tileMoss':tone<.46?'tileDark':
-          tone<.80?'tile':'tileWarm';
-        const p=(t,z,extra=0)=>[
-          sign*w*t,ridge+(eave-ridge)*t+n+extra,z];
-        g.face(material,p(t0,z0,.015),p(t1,z0),
-          p(t1,z1),p(t0,z1,.015));
-      }
-    }
     g.beam('timber',[x,eave,front],[x,eave,back],.135);
     for(const z of [front,back])g.beam('trim',
       [0,ridge,z],[x,eave,z],.13);
@@ -435,19 +422,9 @@ function annex(g,plan,materialSeed){
   }
   const over=.40,rise=(width/2+over)*Math.tan(pitch*Math.PI/180);
   const peak=y+rise,xe=right+over,xi=left-over,z0=front-.36,z1=back+.36;
-  const rand=rng(materialSeed^0x1734);
   for(const sign of [-1,1]){
     const edge=x+sign*(width/2+over);
-    g.face('roofUnderlay',[x,peak,z0],[edge,y,z0],[edge,y,z1],[x,peak,z1]);
-    for(let row=0;row<9;row++)
-      for(let col=0;col<Math.max(8,Math.floor(depth*2.2));col++){
-        const len=Math.max(8,Math.floor(depth*2.2));
-        const t0=row/9,t1=(row+1)/9;
-        const za=z0+(z1-z0)*col/len,zb=z0+(z1-z0)*(col+1)/len;
-        const at=(t,zz)=>[x+sign*(width/2+over)*t,peak+(y-peak)*t+.042,zz];
-        g.face(rand()<.27?'tileDark':'tile',
-          at(t0,za),at(t1,za),at(t1,zb),at(t0,zb));
-      }
+    g.face('roofClay',[x,peak,z0],[edge,y,z0],[edge,y,z1],[x,peak,z1]);
   }
   for(const zedge of [front,back]){
     g.face('plasterOchre',[left,y,zedge],[x,peak,zedge],[right,y,zedge]);

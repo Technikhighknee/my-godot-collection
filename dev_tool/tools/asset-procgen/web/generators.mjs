@@ -11,6 +11,7 @@ import {OAK_BARK_SIZE,OAK_BARK_MAPS,OAK_BARK_PROFILES,
 import {mapOakBarkWood} from './oak-bark-uv.mjs';
 import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
+import {makeRoofAsset} from './roof-textures.mjs';
 
 // Each registration owns its implementation; the UI never switches on
 // generator IDs to decide how an asset is produced.
@@ -70,6 +71,38 @@ function generateOakBarkAsset(seeds){
 }
 export const GENERATORS=Object.freeze([
   Object.freeze({
+    id:'roof-thatch',kind:'image',symbol:'▤',
+    label:'Thatch roofing',subtitle:'Layered straw/reed material',
+    libraryPath:Object.freeze(['Textures','Roofs']),
+    navLabel:'Thatch',navType:'Texture',
+    generate:seeds=>makeRoofAsset('thatch',seeds),
+    overline:'PROJECT TEXTURES / ROOF',
+    title:'Thatched roofing.',
+    description:'Seamless thatch surface with layered, fibrous courses. Albedo, normal and roughness maps are separately inspectable and lighting-independent.',
+    previewLabel:'Procedural thatch roof texture',
+    initialMasterSeed:18174,
+    components:Object.freeze([
+      Object.freeze({id:'pattern',label:'Straw structure',initialSeed:18174}),
+      Object.freeze({id:'color',label:'Straw coloration',initialSeed:23512}),
+    ]),
+  }),
+  Object.freeze({
+    id:'roof-clay',kind:'image',symbol:'▤',
+    label:'Clay roof tiles',subtitle:'Staggered overlapping ceramic roof tiles',
+    libraryPath:Object.freeze(['Textures','Roofs']),
+    navLabel:'Clay tiles',navType:'Texture',
+    generate:seeds=>makeRoofAsset('clay',seeds),
+    overline:'PROJECT TEXTURES / ROOF',
+    title:'Clay roof tiles.',
+    description:'Seamless interlocking terracotta tiles with clear rows, shaped overlaps and subtle color variation. Separate albedo, normal and roughness channels.',
+    previewLabel:'Procedural terracotta roof tile texture',
+    initialMasterSeed:90317,
+    components:Object.freeze([
+      Object.freeze({id:'pattern',label:'Tile pattern',initialSeed:90317}),
+      Object.freeze({id:'color',label:'Clay coloration',initialSeed:43091}),
+    ]),
+  }),
+  Object.freeze({
     id:'timber-building',kind:'model',symbol:'⌂',
     label:'Timber-frame building',subtitle:'Three upgrade levels · optional empty interior',
     libraryPath:Object.freeze(['Architecture','Buildings','Timber frame']),
@@ -77,6 +110,12 @@ export const GENERATORS=Object.freeze([
     generate:generateBuildingFamily,
     defaultOptions:DEFAULT_BUILDING_OPTIONS,
     validateOptions:validateBuildingOptions,
+    materialSlots:Object.freeze([
+      Object.freeze({id:'roofThatch',label:'Thatch · level 1',
+        generators:Object.freeze(['roof-thatch'])}),
+      Object.freeze({id:'roofClay',label:'Clay tiles · levels 2–3',
+        generators:Object.freeze(['roof-clay'])}),
+    ]),
     overline:'ARCHITECTURE / TIMBER-FRAME FAMILY',
     title:'Timber-frame building.',
     description:'Northern European town architecture: jettied timber floors, articulated gables, varied roof tiles, dormers and a service wing. Three linked levels; a detachable unfurnished interior hall and side room share the same openings.',
