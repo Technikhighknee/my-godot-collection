@@ -55,8 +55,9 @@ function generatePlaster(seeds){
     roughness[p]=clamp(.885+aggregate*.038+grit*.021+dark*.040,.80,.98);
   }
 
-  // Stochastic brush is rasterized in toroidal image space. Strokes that
-  // cross the edge continue on the opposite side with no tiled seam.
+  // Hand-troweled plaster forms overlapping irregular flat patches, not
+  // obvious brush strokes. Broken silhouettes are large enough to read on
+  // a medieval game facade, yet the surface stays calm at a distance.
   let state=(structure^0x19c6d147)>>>0;
   const random=()=>{
     state=(state+0x6d2b79f5)>>>0;
@@ -65,45 +66,35 @@ function generatePlaster(seeds){
     z^=z+Math.imul(z^(z>>>7),z|61);
     return ((z^(z>>>14))>>>0)/4294967296;
   };
-  // Each wide trowel pass is an overlapping ribbon of short elliptical
-  // dabs, not a mathematical noise cloud or a baked lighting gradient.
-  // The rim raises the actual height field, giving the normal map edges.
-  for(let stroke=0;stroke<112;stroke++){
+  for(let patch=0;patch<370;patch++){
     const cx=random()*SIZE,cy=random()*SIZE;
-    const angle=random()<.78?(random()-.5)*1.2:
-      random()*Math.PI*2;
-    const direction=Math.cos(angle),perp=Math.sin(angle);
-    const length=24+random()*105,halfWidth=3.5+random()*11;
-    const curvature=(random()-.5)*16;
-    const strength=(random()<.48?-1:1)*(.018+random()*.031);
-    const relief=.015+random()*.022;
-    const passes=Math.ceil(length/3);
-    for(let j=0;j<=passes;j++){
-      const t=j/passes,along=(t-.5)*length;
-      const bow=Math.sin(Math.PI*t)*curvature;
-      const bx=cx+direction*along-perp*bow;
-      const by=cy+perp*along+direction*bow;
-      const radius=halfWidth*(.78+.22*Math.sin(Math.PI*t));
-      const reach=Math.ceil(radius+3);
-      // A pixel-sized softening on both edges avoids pixelated scratch rows.
-      for(let oy=-reach;oy<=reach;oy++)for(let ox=-reach;ox<=reach;ox++){
-        const px=bx+ox,py=by+oy;
-        const across=(-perp*ox+direction*oy)/radius;
-        const lengthwise=(direction*ox+perp*oy)/(radius*1.7);
-        const distance=Math.hypot(across,lengthwise);
-        if(distance>=1)continue;
-        const taper=Math.sin(Math.PI*t)**.65;
-        const opacity=taper*smooth(clamp((1-distance)*3.5))*.21;
-        const p=wrap(Math.floor(px))+wrap(Math.floor(py))*SIZE,i=p*3;
-        const heightRim=Math.max(0,1-Math.abs(distance-.76)/.20);
-        const stagger=Math.sin(t*Math.PI*7+stroke)*.22+1;
-        const ink=opacity*stagger;
-        for(let c=0;c<3;c++)
-          albedo[i+c]+=strength*ink*[1,.90,.75][c];
-        height[p]+=(relief*(heightRim*.47+.35)-
-          .009*(1-heightRim))*ink;
-        roughness[p]=clamp(roughness[p]+ink*.028);
-      }
+    const rx=9+random()*26,ry=5+random()*23;
+    const angle=random()*Math.PI*2,ca=Math.cos(angle),sa=Math.sin(angle);
+    const phase=random()*Math.PI*2,phase2=random()*Math.PI*2;
+    const tone=(random()<.52?-1:1)*(.018+random()*.028);
+    const raised=(random()<.46?-1:1)*(.010+random()*.022);
+    const radius=Math.ceil(Math.max(rx,ry)*1.2);
+    for(let oy=-radius;oy<=radius;oy++)for(let ox=-radius;ox<=radius;ox++){
+      const along=(ca*ox+sa*oy)/rx;
+      const cross=(-sa*ox+ca*oy)/ry;
+      const distance=Math.hypot(along,cross);
+      if(distance>1.2)continue;
+      const theta=Math.atan2(cross,along);
+      const outline=1+.10*Math.sin(theta*3+phase)+
+        .075*Math.sin(theta*7+phase2)+
+        .045*Math.sin(theta*11-phase);
+      if(distance>=outline)continue;
+      const p=wrap(Math.floor(cy)+oy)*SIZE+
+        wrap(Math.floor(cx)+ox),i=p*3;
+      const edge=clamp((outline-distance)/.15);
+      const opacity=smooth(edge)*.80;
+      const rim=Math.exp(-Math.pow((outline-distance-.12)/.10,2));
+      const fade=.85+.15*hash(ox,oy,structure^patch);
+      for(let c=0;c<3;c++)
+        albedo[i+c]=clamp(albedo[i+c]+
+          tone*opacity*fade*[1,.90,.77][c],.45,.99);
+      height[p]+=raised*(opacity*.60+rim*.36);
+      roughness[p]=clamp(roughness[p]+opacity*.016,.78,.99);
     }
   }
 
