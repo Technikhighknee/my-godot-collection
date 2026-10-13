@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {IMAGE_MIN_ZOOM,IMAGE_MAX_ZOOM,imageFitScale,imageTileRect,
+import {IMAGE_MIN_ZOOM,IMAGE_MAX_ZOOM,imageFitScale,imageTileRect,imageProfileSize,
   imageZoomAt,validateImageAsset,createImageViewport}
   from '../tools/asset-procgen/web/viewport-2d.mjs';
 
@@ -31,6 +31,22 @@ test('tile extraction follows an explicit atlas grid, not a square guess',()=>{
     assert.throws(()=>imageTileRect(image,tile as number));
   assert.throws(()=>imageTileRect({...image,atlas:undefined},0));
 });
+test('material profiles use their actual source dimensions',()=>{
+  const material={id:'wood',kind:'image' as const,width:512,height:2048,
+    profiles:['beam','end','panel'],
+    profileSizes:{
+      beam:{width:512,height:2048},
+      end:{width:512,height:512},
+      panel:{width:512,height:512},
+    },
+    paint(){return null;},
+  };
+  assert.equal(validateImageAsset(material),material);
+  assert.deepEqual(imageProfileSize(material,'beam'),{width:512,height:2048});
+  assert.deepEqual(imageProfileSize(material,'end'),{width:512,height:512});
+  assert.deepEqual(imageTileRect(material,null,'panel'),
+    {x:0,y:0,width:512,height:512});
+});
 test('cursor-anchored zoom leaves source image point invariant',()=>{
   for(const oldZoom of [.1,.5,1,4]){
     for(const nextZoom of [.05,.3,1,8,16]){
@@ -59,7 +75,10 @@ test('image contract refuses oversized, contradictory and partial atlases',()=>{
     {...image,views:[]},{...image,views:['albedo','albedo']},
     {...image,views:['albedo',3]},
     {...image,profiles:[]},{...image,profiles:['trunk','trunk']},
-    {...image,profiles:['trunk',17]}])
+    {...image,profiles:['trunk',17]},
+    {...image,profileSizes:{end:{width:100,height:200}}},
+    {...image,profiles:['beam','end'],profileSizes:{end:{width:0,height:200}}},
+    {...image,profiles:['beam','end'],profileSizes:{end:{width:400,height:5000}}}])
     assert.throws(()=>validateImageAsset(bad));
 });
 // The browser-only surface is driven with a small in-memory DOM / Canvas.
@@ -233,6 +252,28 @@ test('image preview supports alpha, tile isolation and retains a failed render',
     preview.setProfile('limb');
     assert.equal((mat.children[0] as Canvas).pixels[0],77);
     assert.throws(()=>preview.setProfile('unknown'),/Unknown image profile/);
+    const tallProfile={...profileAsset,id:'long-timber',
+      width:4,height:8,
+      profileSizes:{
+        trunk:{width:4,height:8},
+        young:{width:4,height:4},
+        limb:{width:4,height:4},
+      },
+      paint(canvas:HTMLCanvasElement,view?:string,profile?:string){
+        const target=canvas as unknown as Canvas;
+        target.pixels=new Uint8ClampedArray(
+          target.width*target.height*4);
+        target.pixels[0]=profile==='young'?33:profile==='limb'?77:155;
+      },
+    };
+    preview.render(tallProfile);
+    assert.deepEqual([preview.state().width,preview.state().height],[4,8]);
+    preview.setProfile('young');
+    assert.deepEqual([preview.state().width,preview.state().height],[4,4]);
+    preview.setView('normal');
+    assert.equal((mat.children[0] as Canvas).pixels[0],33);
+    preview.setProfile('trunk');
+    assert.deepEqual([preview.state().width,preview.state().height],[4,8]);
     preview.render({...viewAsset,id:'generic-image'});
     assert.equal(preview.state().profile,null);
     const viewBefore=mat.children[0];
