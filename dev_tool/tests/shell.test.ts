@@ -194,24 +194,26 @@ test('building family editor exposes shell/level controls and serves building so
   assert.match(host,/\/tools\/asset-procgen\/building.mjs/);
 });
 
-test('shared plaster, timber and roof materials expose persistent project texture slots',()=>{
+test('shared stone, plaster, timber and roof materials expose persistent project texture slots',()=>{
   const html=readFileSync(new URL('../tools/asset-procgen/web/index.html',import.meta.url),'utf8');
   const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
   const renderer=readFileSync(new URL('../tools/asset-procgen/web/viewport-3d.mjs',import.meta.url),'utf8');
   const studio=readFileSync(new URL('../web/studio.js',import.meta.url),'utf8');
   const server=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
-  for(const slot of ['facadePlaster','timberWood','roofThatch','roofClay'])
+  for(const slot of ['foundationStone','facadePlaster','timberWood','roofThatch','roofClay'])
     for(const action of ['Asset','New','Edit','Reseed'])
       assert.ok(html.includes('id="'+slot+action+'"'),slot+action);
   assert.match(app,/materialAssignments/);
   assert.match(app,/changeSharedMaterial/);
   assert.match(renderer,/updateSurfaceTextures/);
   assert.match(renderer,/facadePlaster/);
+  assert.match(renderer,/foundationStone/);
   assert.match(renderer,/plasterTint/);
   assert.match(studio,/studio:project-assets-changed/);
   assert.match(server,/\/tools\/asset-procgen\/roof-textures.mjs/);
   assert.match(server,/\/tools\/asset-procgen\/timber-textures.mjs/);
   assert.match(server,/\/tools\/asset-procgen\/plaster-textures.mjs/);
+  assert.match(server,/\/tools\/asset-procgen\/stone-textures.mjs/);
 });
 
 
