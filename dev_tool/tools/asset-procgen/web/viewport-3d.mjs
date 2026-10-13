@@ -230,7 +230,9 @@ export function createModelViewport(container,onChange=()=>{}){
         part.material==='timberPanel';
       const isPlaster=['plaster','plasterWarm','plasterOchre',
         'plasterIvory'].includes(part.material);
-      const sharedSlot=woodPart?'timberWood':isPlaster?'facadePlaster':part.material;
+      const isRubble=part.material==='foundation'||part.material==='stone';
+      const sharedSlot=woodPart?'timberWood':isPlaster?'facadePlaster':
+        isRubble?'foundationStone':part.material;
       const source=currentMaterials.get(sharedSlot)?.maps;
       const profile=part.material.endsWith('End')?'end':
         part.material.endsWith('Panel')?'panel':'beam';
@@ -282,7 +284,8 @@ export function createModelViewport(container,onChange=()=>{}){
   }
   function renderBuilding(asset,materialImages={}){
     const activeSlot=asset.building.level===1?'roofThatch':'roofClay';
-    updateSurfaceTextures({facadePlaster:materialImages.facadePlaster,
+    updateSurfaceTextures({foundationStone:materialImages.foundationStone,
+      facadePlaster:materialImages.facadePlaster,
       timberWood:materialImages.timberWood,
       [activeSlot]:materialImages[activeSlot]});
     const previousAsset=buildingAsset,previousView=buildingView;
