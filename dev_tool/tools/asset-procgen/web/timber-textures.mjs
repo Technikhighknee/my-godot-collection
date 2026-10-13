@@ -143,99 +143,118 @@ function generateTimber(seeds){
   return {albedo,height,roughness};
 }
 
-// End grain is cut across the growth axis. The concentric rings and radial
-// seasoning checks are deliberately distinct from the beam's longitudinal grain.
-function generateEndGrain(seeds){
+// The crosscut and flat-sawn profiles are views of the SAME oak surface.
+// Both inherit the beam's color, pore structure, checks and weathering.
+function sampleOak(oak,x,y){
+  const ix=Math.floor(x),iy=Math.floor(y),tx=fract(x),ty=fract(y);
+  const a=wrap(iy)*SIZE+wrap(ix),b=wrap(iy)*SIZE+wrap(ix+1);
+  const c=wrap(iy+1)*SIZE+wrap(ix),d=wrap(iy+1)*SIZE+wrap(ix+1);
+  const read=(map,stride,channel=0)=>mix(
+    mix(map[a*stride+channel],map[b*stride+channel],tx),
+    mix(map[c*stride+channel],map[d*stride+channel],tx),ty);
+  return {rgb:[read(oak.albedo,3),read(oak.albedo,3,1),
+    read(oak.albedo,3,2)],height:read(oak.height,1),
+    roughness:read(oak.roughness,1)};
+}
+function generateEndGrain(seeds,oak){
   const grain=seeds.grain>>>0,color=seeds.color>>>0;
   const albedo=new Float32Array(SIZE*SIZE*3);
   const height=new Float32Array(SIZE*SIZE);
   const roughness=new Float32Array(SIZE*SIZE);
-  const cx=SIZE*(.48+(hash(1,0,grain)-.5)*.09);
-  const cy=SIZE*(.51+(hash(0,1,grain)-.5)*.09);
+  const cx=SIZE*(.50+(hash(1,0,grain)-.5)*.085);
+  const cy=SIZE*(.50+(hash(0,1,grain)-.5)*.085);
   const checks=[];
-  for(let i=0;i<9;i++){
-    if(hash(i,3,grain^0xa8b1197e)>.76)continue;
+  for(let i=0;i<5;i++){
+    if(hash(i,3,grain^0xa8b1197e)>.72)continue;
     checks.push({angle:hash(i,4,grain^0xc25fb412)*Math.PI*2,
-      length:.35+hash(i,5,grain^0x47e2b1aa)*.56,
-      start:.10+hash(i,6,grain^0xa932ac15)*.22});
+      length:68+hash(i,5,grain^0x47e2b1aa)*155,
+      start:12+hash(i,6,grain^0xa932ac15)*35});
   }
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*3;
-    const dx=(x-cx)/(.94*SIZE),dy=(y-cy)/(1.03*SIZE);
+    const dx=x-cx,dy=y-cy;
     const angle=Math.atan2(dy,dx);
-    const r=Math.hypot(dx,dy);
+    const radius=Math.hypot(dx,dy);
     const distortion=noise(x,y,7,8,grain^0x7427ca19)-.5;
-    const rings=r*70+Math.sin(angle*5+grain*.00001)*.48+
-      distortion*1.70+Math.sin(angle*11+r*31)*.19;
-    const late=Math.pow(Math.max(0,Math.sin(rings*Math.PI*2)),5);
-    const early=Math.sin(rings*Math.PI*2)*.19;
-    const pores=noise(x,y,79,73,grain^0x278ffcf3)-.5;
-    const fine=noise(x,y,126,128,grain^0xf0397ce2)-.5;
-    const spot=noise(x,y,17,19,color^0xaa13315b)-.5;
+    const fineDist=noise(x,y,23,26,grain^0xa5934f16)-.5;
+    // Map original longitudinal fibers to growth rings. No uniform
+    // artificial ink outlines around every annual ring.
+    const radial=radius*(.79+Math.sin(angle*5+grain*.00001)*.017)+
+      distortion*8+fineDist*2;
+    const around=(angle/(Math.PI*2)+.5)*SIZE*2;
+    const oakSample=sampleOak(oak,radial,around+
+      noise(x,y,11,12,grain^0x12bc693f)*8);
+    const pores=noise(x,y,112,106,grain^0x278ffcf3)-.5;
+    const dust=noise(x,y,21,19,color^0xaa13315b)-.5;
     let crack=0;
     for(const check of checks){
-      const difference=Math.atan2(Math.sin(angle-check.angle),
+      const delta=Math.atan2(Math.sin(angle-check.angle),
         Math.cos(angle-check.angle));
-      const wiggle=Math.sin(r*23+check.angle*9)*.018;
-      const width=.006+Math.max(0,r-.22)*.008;
-      const span=r>check.start && r<check.length;
-      if(span)crack=Math.max(crack,Math.exp(-Math.pow((difference-wiggle)/width,2))*
-        Math.min(1,(r-check.start)*35,(check.length-r)*35));
+      const distance=Math.abs(delta*radius-
+        Math.sin(radius*.067+check.angle*7)*2.4);
+      const taper=Math.min(1,(radius-check.start)/10,
+        (check.length-radius)/15);
+      if(taper>0)crack=Math.max(crack,
+        clamp(1-distance/(.65+radius*.004))*taper);
     }
-    const heart=Math.exp(-r*r*280)*.24;
-    const pigment=(spot*.085+pores*.060+fine*.034)-
-      late*.115+early*.023-crack*.31-heart;
-    albedo[i]=clamp(.38+pigment,.10,.66);
-    albedo[i+1]=clamp(.275+pigment*.76,.06,.49);
-    albedo[i+2]=clamp(.176+pigment*.59,.04,.34);
-    height[p]=.27+early*.07-late*.075+pores*.042+fine*.019-crack*.16;
-    roughness[p]=clamp(.84+late*.10+crack*.14+fine*.08,.66,.99);
+    const darken=-.014+pores*.019+dust*.022-crack*.105;
+    for(let c=0;c<3;c++)
+      albedo[i+c]=clamp(oakSample.rgb[c]+darken*[1,.83,.67][c]);
+    height[p]=oakSample.height*.75+.062+pores*.028-crack*.055;
+    roughness[p]=clamp(oakSample.roughness+.028+pores*.025+
+      crack*.05,.63,.99);
   }
   return {albedo,height,roughness};
 }
-
-// Flat-sawn surfaces show broad flowing figure rather than the tight parallel
-// fibers of a narrow structural beam. No painted plank joins or beam edges.
-function generateWideWood(seeds){
+function generateWideWood(seeds,oak){
   const grain=seeds.grain>>>0,color=seeds.color>>>0;
   const albedo=new Float32Array(SIZE*SIZE*3);
   const height=new Float32Array(SIZE*SIZE);
   const roughness=new Float32Array(SIZE*SIZE);
-  const knotX=SIZE*(.35+hash(2,1,grain)*.3);
-  const knotY=SIZE*(.28+hash(3,1,grain)*.4);
+  const knotX=SIZE*(.37+hash(2,1,grain)*.22);
+  const knotY=SIZE*(.30+hash(3,1,grain)*.38);
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*3;
     const dx=((x-knotX+SIZE*1.5)%SIZE)-SIZE*.5;
     const dy=((y-knotY+SIZE*1.5)%SIZE)-SIZE*.5;
-    const elliptical=Math.hypot(dx/32,dy/92);
-    const warp=noise(x,y,8,5,grain^0x119ebc65)-.5;
-    const finer=noise(x,y,62,11,grain^0x45fe1a8d)-.5;
-    const flowing=noise(x,y,23,6,grain^0x5c911e24)-.5;
-    const pigment=noise(x,y,9,11,color^0x1da58e73)-.5;
-    const grainLine=Math.sin((x/512*21+warp*.45+
-      Math.exp(-elliptical*elliptical*.60)*dx*.020+
-      flowing*.28)*Math.PI*2);
-    const figure=grainLine*.55+finer*.26+flowing*.70;
-    const curl=Math.exp(-Math.pow((elliptical-.85)/.32,2));
-    const eye=Math.exp(-elliptical*elliptical*8);
-    const pores=noise(x,y,137,38,grain^0xba091abc)-.5;
-    const value=figure*.072+pigment*.080+pores*.029-
-      curl*.040-eye*.12;
-    albedo[i]=clamp(.375+value,.13,.62);
-    albedo[i+1]=clamp(.273+value*.78,.075,.49);
-    albedo[i+2]=clamp(.181+value*.60,.05,.35);
-    height[p]=.29+figure*.047+finer*.024+pores*.022-curl*.035-eye*.06;
-    roughness[p]=clamp(.82+pores*.080+curl*.048-eye*.08,.64,.98);
+    const r2=(dx/37)**2+(dy/83)**2;
+    const pull=Math.exp(-r2*.76);
+    // Periodic distortion preserves the sharp original oak fibers and
+    // avoids the old soft sinusoidal stripe pattern.
+    const cross=noise(x,y,8,5,grain^0x119ebc65)-.5;
+    const drift=noise(x,y,17,8,grain^0x45fe1a8d)-.5;
+    const flex=Math.sin(2*Math.PI*y/SIZE)*8;
+    const sx=x+cross*20+drift*7+flex+dx*pull*.34;
+    const sy=y+(noise(x,y,7,6,grain^0x5c911e24)-.5)*10;
+    const oakSample=sampleOak(oak,sx,sy);
+    const figuring=noise(x,y,12,5,grain^0xc93f112b)-.5;
+    const wash=noise(x,y,6,7,color^0x1da58e73)-.5;
+    const pores=noise(x,y,145,44,grain^0xba091abc)-.5;
+    const figure=figuring*.048+wash*.028+pores*.015;
+    const knotRing=Math.exp(-Math.pow((Math.sqrt(r2)-1)/.20,2));
+    const eye=Math.exp(-r2*7);
+    const tone=figure-knotRing*.028-eye*.082;
+    for(let c=0;c<3;c++)
+      albedo[i+c]=clamp(oakSample.rgb[c]+tone*[1,.79,.64][c]);
+    height[p]=oakSample.height*.87+.033+figuring*.024+
+      pores*.009-knotRing*.015-eye*.038;
+    roughness[p]=clamp(oakSample.roughness+
+      pores*.025+knotRing*.035+eye*.05,.63,.99);
   }
   return {albedo,height,roughness};
 }
+
 let cache=null;
 function material(seeds,profile){
   if(!cache||cache.grain!==seeds.grain||cache.color!==seeds.color)
     cache={grain:seeds.grain,color:seeds.color,profiles:new Map()};
   if(!cache.profiles.has(profile)){
-    const generate={beam:generateTimber,end:generateEndGrain,panel:generateWideWood}[profile];
-    cache.profiles.set(profile,generate(seeds));
+    if(profile!=='beam'&&!cache.profiles.has('beam'))
+      cache.profiles.set('beam',generateTimber(seeds));
+    const data=profile==='beam'?generateTimber(seeds):
+      profile==='end'?generateEndGrain(seeds,cache.profiles.get('beam')):
+        generateWideWood(seeds,cache.profiles.get('beam'));
+    cache.profiles.set(profile,data);
   }
   return cache.profiles.get(profile);
 }
