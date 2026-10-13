@@ -164,6 +164,33 @@ export function createModelViewport(container,onChange=()=>{}){
     setVisibility();
   }
   const buildingTextures=createBuildingTextures(renderer);
+  let currentRoofKey=null,currentRoofTextures=null;
+  function disposeRoofTextures(set){
+    if(set)for(const texture of Object.values(set))texture.dispose();
+  }
+  function updateRoofTexture(image){
+    if(!image)return;
+    const key=image.id+':'+image.sourceSeeds.pattern+':'+image.sourceSeeds.color;
+    if(currentRoofKey===key)return;
+    const fresh={};
+    try{
+      for(const view of ['albedo','normal','roughness']){
+        const canvas=document.createElement('canvas');
+        image.paint(canvas,view);
+        const texture=new THREE.CanvasTexture(canvas);
+        texture.wrapS=THREE.RepeatWrapping;
+        texture.wrapT=THREE.RepeatWrapping;
+        texture.colorSpace=view==='albedo'?THREE.SRGBColorSpace:THREE.NoColorSpace;
+        texture.minFilter=THREE.LinearMipmapLinearFilter;
+        texture.magFilter=THREE.LinearFilter;
+        texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+        fresh[view]=texture;
+      }
+    }catch(error){disposeRoofTextures(fresh);throw error;}
+    const old=currentRoofTextures;
+    currentRoofTextures=fresh;currentRoofKey=key;
+    disposeRoofTextures(old);
+  }
   const buildingColors={
     foundation:0x766b5b,stone:0x9a9282,brick:0x895f4c,
     plaster:0xd2c6a8,plasterWarm:0xbca88b,
@@ -183,10 +210,15 @@ export function createModelViewport(container,onChange=()=>{}){
   function buildBuildingGroup(mesh){
     const next=new THREE.Group();
     for(const part of mesh.parts){
+      const isRoof=part.material==='roofThatch'||part.material==='roofClay';
+      const roof=isRoof?currentRoofTextures:null;
       const material=new THREE.MeshStandardMaterial({
-        color:buildingColors[part.material]??0x978572,
-        map:buildingTextures.get(part.material),
-        roughness:part.material==='glass'||part.material==='innerGlass'?.37:.92,
+        color:isRoof?0xffffff:(buildingColors[part.material]??0x978572),
+        map:roof?.albedo??buildingTextures.get(part.material),
+        normalMap:roof?.normal??null,roughnessMap:roof?.roughness??null,
+        normalScale:new THREE.Vector2(.62,.62),
+        roughness:part.material==='glass'||part.material==='innerGlass'?.37:
+          isRoof?.98:.92,
         metalness:0,side:THREE.DoubleSide,
       });
       const element=new THREE.Mesh(meshGeometry(part),material);
@@ -217,7 +249,9 @@ export function createModelViewport(container,onChange=()=>{}){
     changed();
     return true;
   }
-  function renderBuilding(asset){
+  function renderBuilding(asset,materialImages={}){
+    const activeSlot=asset.building.level===1?'roofThatch':'roofClay';
+    updateRoofTexture(materialImages[activeSlot]);
     const previousAsset=buildingAsset,previousView=buildingView;
     buildingAsset=asset;assetId=asset.id;
     const desired=previousAsset&&previousAsset.id===asset.id?
@@ -231,8 +265,8 @@ export function createModelViewport(container,onChange=()=>{}){
         (asset.building.interior?' · INTERIOR SHELL':' · NO INTERIOR'),
     };
   }
-  function render(asset){
-    if(asset.building)return renderBuilding(asset);
+  function render(asset,materialImages){
+    if(asset.building)return renderBuilding(asset,materialImages);
     buildingAsset=null;buildingView='exterior';
     if(asset.kind!=='model'||!asset.wood)throw Error('Expected model asset');
     const replacement=new THREE.Group();

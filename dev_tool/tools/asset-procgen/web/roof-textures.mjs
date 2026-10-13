@@ -100,5 +100,6 @@ export function paintRoofTexture(canvas,kind,seeds,view='albedo'){
 export function makeRoofAsset(kind,seeds){
   return {id:kind==='clay'?'roof-clay':'roof-thatch',kind:'image',
     width:SIZE,height:SIZE,channels:'RGBA',views:ROOF_VIEWS,
+    sourceSeeds:{pattern:seeds.pattern,color:seeds.color},
     paint:(canvas,view='albedo')=>paintRoofTexture(canvas,kind,seeds,view)};
 }
