@@ -319,3 +319,33 @@ test('long beams preserve crisp grain, continuous tint and no full tile repetiti
     'All beams must still share the same material');
   assert.ok(mesh.triangles<13000);
 });
+
+
+test('rubble stone uses readable foundation-scale UVs, without changing plaster',()=>{
+  for(let level=1;level<=3;level++){
+    const mesh=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level)
+      .building.exterior;
+    for(const [name,expected] of [
+      ['foundation',.35],['stone',.35],['plaster',.85],
+    ] as const){
+      const part=mesh.parts.find(p=>p.material===name);
+      assert.ok(part,'Building requires '+name);
+      const pos=part.positions,uv=part.uvs;
+      assert.equal(uv.length,pos.length/3*2);
+      let checked=0;
+      for(let i=0;i+11<pos.length;i+=12){
+        const length=Math.hypot(
+          pos[i+3]!-pos[i]!,pos[i+4]!-pos[i+1]!,
+          pos[i+5]!-pos[i+2]!);
+        if(length<.0001)continue;
+        const mapped=Math.hypot(
+          uv[i/3*2+2]!-uv[i/3*2]!,
+          uv[i/3*2+3]!-uv[i/3*2+1]!);
+        assert.ok(Math.abs(mapped/length-expected)<.0001,
+          name+' texture mapping must stay physically consistent');
+        checked++;
+      }
+      assert.ok(checked>3,'Test all faces of '+name);
+    }
+  }
+});
