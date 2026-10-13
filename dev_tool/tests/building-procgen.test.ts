@@ -228,7 +228,12 @@ test('individual beams vary crop and tint while their grain follows the axis',()
       assert.ok(Math.abs(u2-u3)<.35,'Same controlled drift at opposite edge');
       assert.ok(Math.abs(v0-v3)<1e-5,'V constant at near end');
       assert.ok(v1>v0,'V follows the length of every beam');
-      assert.ok(Math.abs(u2-u0)>.01,'Beam side must have usable width');
+      // Compare vertices at the same longitudinal position: U may drift
+      // between the beginning and end of a long beam section.
+      assert.ok(Math.abs(u2-u1)>.01,'Beam side must have usable width');
+      assert.ok(Math.abs(u3-u0)>.01,'Beam near end must have usable width');
+      assert.ok(Math.abs((u2-u1)-(u3-u0))<1e-5,
+        'Both beam ends must preserve the same width during UV dephasing');
       offsets.add([u0,v0].map(x=>x.toFixed(3)).join(':'));
       const c=timber.colors!.slice(beam*48,beam*48+3);
       tints.add([...c].map(x=>x.toFixed(3)).join(':'));
