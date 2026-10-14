@@ -246,9 +246,28 @@ test('texture style workbench serves its independent non-destructive comparison 
     }
     const editor=await(await fetch(base+'/tools/asset-procgen/')).text();
     assert.match(editor,/Texture style study/);
-    assert.match(editor,/target="_blank" rel="noopener"/);
+    assert.match(editor,/id="styleStudyLink"/);
+    assert.match(editor,/href="\/studio\/\?study=materials"/);
   }finally{
     await new Promise<void>((resolve,reject)=>
       host.close(error=>error?reject(error):resolve()));
   }
+});
+
+
+test('Studio opens texture studies as tabs and restores them with the session',()=>{
+  const html=readFileSync(new URL('../web/studio.html',import.meta.url),'utf8');
+  const studio=readFileSync(new URL('../web/studio.js',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
+  const study=readFileSync(new URL('../tools/asset-procgen/web/style-study.js',import.meta.url),'utf8');
+  assert.match(html,/id="openStyleStudy"/);
+  assert.match(studio,/function openStyleStudy\(\)/);
+  assert.match(studio,/key='study:materials'/);
+  assert.match(studio,/style-study\?embedded=1/);
+  assert.match(studio,/info.key==='study:materials'/);
+  assert.match(studio,/studio:open-style-study/);
+  assert.match(studio,/studio:open-generator/);
+  assert.match(app,/id\('styleStudyLink'\)/);
+  assert.match(study,/studio:ready/);
+  assert.match(study,/seed:masterSeed===null/);
 });
