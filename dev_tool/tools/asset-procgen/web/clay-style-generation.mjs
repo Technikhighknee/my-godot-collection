@@ -129,7 +129,7 @@ function retroMaps(p){
   for(let sy=0;sy<resolution;sy++)for(let sx=0;sx<resolution;sx++){
     const y=(sy+.5)*scale,x=(sx+.5)*scale;
     const row=Math.floor(sy/step);
-    const localY=(sy%step)/step;
+    const localY=(sy%step+.5)/step;
     const tile=tileAt(x,y,row,p);
     const span=Math.min(tile.fx,1-tile.fx);
     // Eight-sided angular chipped rectangular ends replace original
