@@ -282,9 +282,12 @@ test('full oak build embeds bark profiles and transparent foliage atlas and reus
     const atlasTex=doc.json.textures[
       atlasMaterial.pbrMetallicRoughness.baseColorTexture.index];
     assert.equal(doc.json.samplers[atlasTex.sampler].wrapS,33071);
-    assert.deepEqual([...new Set(doc.json.materials.map(
-      (m:{extras:{profile:string}})=>m.extras.profile))].sort(),
+    assert.deepEqual([...new Set(doc.json.materials
+      .filter((m:{extras?:{resourceSlot?:string}})=>
+        m.extras?.resourceSlot==='oakBark')
+      .map((m:{extras:{profile:string}})=>m.extras.profile))].sort(),
       ['limb','trunk','young']);
+    assert.equal(atlasMaterial?.extras?.profile,'default');
     for(const image of doc.json.images){
       const view=doc.json.bufferViews[image.bufferView];
       assert.deepEqual([...doc.binary.subarray(view.byteOffset,
