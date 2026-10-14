@@ -658,6 +658,23 @@ window.addEventListener('message',event=>{
   });
 });
 
+projectEl('buildProjectAsset').addEventListener('click',()=>
+  projectOperation(async()=>{
+    const id=projectEl('savedProjectAssets').value;
+    if(!id||!projectAssets.has(id))
+      throw Error('Select a saved resource to bake');
+    const entry=projectAssets.get(id);
+    const definition=entry.source.generator?
+      findGenerator(entry.source.generator.id):null;
+    if(entry.source.generator&&!definition?.headlessBake)
+      throw Error('This model does not have a headless build adapter yet');
+    assetStatus('Baking '+entry.source.name+'…');
+    const result=await projectApi('/api/projects/active/builds/'+
+      encodeURIComponent(id),{method:'POST'});
+    const artifact=result.artifacts.at(-1);
+    assetStatus('Build complete · '+result.built+' generated · '+
+      result.reused+' cached · build/assets/'+id+'/'+artifact.key);
+  }));
 projectEl('loadProjectAsset').addEventListener('click',
   ()=>projectOperation(loadSelectedProjectAsset));
 projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
