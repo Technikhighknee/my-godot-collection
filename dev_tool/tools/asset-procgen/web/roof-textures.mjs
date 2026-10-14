@@ -1,4 +1,6 @@
 // Shared, seed-reproducible roof surfaces. No scene lighting baked into albedo.
+import {CLAY_GENERATIVE_STYLES,generateStyledClay} from './clay-style-generation.mjs';
+export {CLAY_GENERATIVE_STYLES} from './clay-style-generation.mjs';
 // Albedo, normal and roughness maps are derived from the same periodic height field.
 // UVs: U along ridge, V downhill; images repeat in both directions.
 export const ROOF_TEXTURE_SIZE=512;
@@ -123,7 +125,18 @@ function renderClay(seeds){
   return {albedo,height,roughness};
 }
 let lastClay=null;
-function clayData(seeds){
+let lastStyledClay=null;
+function clayData(seeds,style='current'){
+  if(style!=='current'){
+    // Cache includes the generator grammar as well as the seeds: normal,
+    // roughness and albedo must represent the same physical tile silhouettes.
+    if(!lastStyledClay||lastStyledClay.style!==style||
+      lastStyledClay.pattern!==seeds.pattern||
+      lastStyledClay.color!==seeds.color)
+      lastStyledClay={style,pattern:seeds.pattern,color:seeds.color,
+        data:generateStyledClay(seeds,style)};
+    return lastStyledClay.data;
+  }
   if(!lastClay||lastClay.pattern!==seeds.pattern||lastClay.color!==seeds.color)
     lastClay={pattern:seeds.pattern,color:seeds.color,data:renderClay(seeds)};
   return lastClay.data;
@@ -215,9 +228,12 @@ function thatchData(seeds){
   return lastThatch.data;
 }
 
-export function paintRoofTexture(canvas,kind,seeds,view='albedo'){
+export function paintRoofTexture(canvas,kind,seeds,view='albedo',style='current'){
   if(!['clay','thatch'].includes(kind))throw Error('Unknown roof texture type');
   if(!ROOF_VIEWS.includes(view))throw Error('Unknown roof texture channel');
+  if(style!=='current'&&
+    (kind!=='clay'||!CLAY_GENERATIVE_STYLES.includes(style)))
+    throw Error('Unsupported roof generation style: '+style);
   for(const k of ['pattern','color'])
     if(!Number.isInteger(seeds?.[k])||seeds[k]<0||seeds[k]>0xffffffff)
       throw Error('Invalid roof texture seed: '+k);
@@ -225,7 +241,7 @@ export function paintRoofTexture(canvas,kind,seeds,view='albedo'){
   const ctx=canvas.getContext('2d');
   if(!ctx)throw Error('2D canvas context required');
   const data=ctx.createImageData(SIZE,SIZE);
-  const material=kind==='thatch'?thatchData(seeds):clayData(seeds);
+  const material=kind==='thatch'?thatchData(seeds):clayData(seeds,style);
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const i=(y*SIZE+x)*4;
     const p=y*SIZE+x;
@@ -249,9 +265,14 @@ export function paintRoofTexture(canvas,kind,seeds,view='albedo'){
   }
   ctx.putImageData(data,0,0);
 }
-export function makeRoofAsset(kind,seeds){
+export function makeRoofAsset(kind,seeds,options={}){
+  const style=options.style??'current';
+  // Legacy assets continue to have identical recipes, buffers and caches.
+  // Exploratory generator styles are opt-in until an explicit persistent
+  // asset-style schema and project inheritance are introduced.
   return {id:kind==='clay'?'roof-clay':'roof-thatch',kind:'image',
     width:SIZE,height:SIZE,channels:'RGBA',views:ROOF_VIEWS,
     sourceSeeds:{pattern:seeds.pattern,color:seeds.color},
-    paint:(canvas,view='albedo')=>paintRoofTexture(canvas,kind,seeds,view)};
+    ...(style==='current'?{}:{sourceStyle:style}),
+    paint:(canvas,view='albedo')=>paintRoofTexture(canvas,kind,seeds,view,style)};
 }
