@@ -102,9 +102,15 @@ test('building GLB artifacts include three level variants and optional interiors
     const recipe={name:'Market building',generator:'timber-building',
       masterSeed:19043,components:seed,
       options:{...DEFAULT_BUILDING_OPTIONS}};
-    await lib.createAsset('market',recipe);
+    await lib.createAsset('tiles',{
+      name:'Shared clay tiles',generator:'roof-clay',masterSeed:101,
+      components:{pattern:101,color:203},
+    });
+    await lib.createAsset('market',{...recipe,
+      materials:{roofClay:'asset:tiles'}});
     const result=await lib.buildAsset('market');
-    assert.equal(result.built,1);
+    assert.equal(result.built,2);
+    assert.deepEqual(result.artifacts.map(a=>a.id),['tiles','market']);
     const artifact=result.artifacts[0]!;
     assert.equal(artifact.kind,'model');
     assert.equal(artifact.files.length,6);
@@ -115,15 +121,42 @@ test('building GLB artifacts include three level variants and optional interiors
       const doc=glbDocument(glb);
       assert.ok(doc.json.meshes.length>3);
       assert.equal(doc.json.asset.version,'2.0');
+      if(file.file.includes('exterior')){
+        assert.ok(doc.json.images?.length>=3,
+          'Linked roof PBR maps must be embedded inside the GLB');
+        assert.ok(doc.json.materials.some((m:{
+          extras?:{resourceSlot?:string};
+          pbrMetallicRoughness:{baseColorTexture?:object};
+          normalTexture?:object;
+        })=>m.extras?.resourceSlot==='roofClay'&&
+          m.pbrMetallicRoughness.baseColorTexture&&m.normalTexture));
+        for(const image of doc.json.images){
+          const view=doc.json.bufferViews[image.bufferView];
+          assert.ok(!('target' in view),
+            'Image bufferViews may not claim a GPU vertex/index target');
+          assert.deepEqual([...doc.binary.subarray(view.byteOffset,
+            view.byteOffset+8)],[137,80,78,71,13,10,26,10]);
+        }
+      }
     }
     const repeat=await lib.buildAsset('market');
-    assert.equal(repeat.reused,1);
+    assert.equal(repeat.reused,2);
+    const planBefore=await lib.buildPlan(['market']);
+    const tiles=await lib.asset('tiles');
+    await lib.updateAsset('tiles',{
+      name:'Shared clay tiles',generator:'roof-clay',masterSeed:101,
+      components:{pattern:101,color:204},
+    },tiles.revision);
+    const planAfter=await lib.buildPlan(['market']);
+    assert.notEqual(planBefore.key,planAfter.key,
+      'A changed shared material invalidates the dependent model build');
     const saved=await lib.asset('market');
     await lib.updateAsset('market',{...recipe,
+      materials:{roofClay:'asset:tiles'},
       options:{...DEFAULT_BUILDING_OPTIONS,interior:'none'}},saved.revision);
     const exteriorOnly=await lib.buildAsset('market');
-    assert.equal(exteriorOnly.artifacts[0]?.files.length,3);
-    assert.ok(exteriorOnly.artifacts[0]?.files.every(f=>
-      f.file.endsWith('-exterior.glb')));
+    const finalModel=exteriorOnly.artifacts.find(a=>a.id==='market')!;
+    assert.equal(finalModel.files.length,3);
+    assert.ok(finalModel.files.every(f=>f.file.endsWith('-exterior.glb')));
   }finally{await rm(root,{recursive:true,force:true});}
 });
