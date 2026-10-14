@@ -362,6 +362,8 @@ test('building surfaces declare project slots and profiles without renderer name
     for(const part of parts){
       assert.ok(part.surface,'No material binding for '+part.material);
       assert.ok(Object.hasOwn(part.surface,'kind'));
+      assert.equal(part.surface.kind,buildingSurfaceKind(part.material),
+        'Existing default preview texture category must stay compatible');
       if(!part.surface.slot)continue;
       used.add(part.surface.slot);
       assert.ok(slots.has(part.surface.slot),
