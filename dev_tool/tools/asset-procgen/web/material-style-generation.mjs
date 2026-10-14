@@ -95,8 +95,8 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
         const index=k%rows;
         const phase=hash(index,7,structure^0x19b7a5e3)*Math.PI*2;
         const phase2=hash(index,3,structure^0x82c7fa19)*Math.PI*2;
-        const coarse=Math.sin(x/w*Math.PI*4+phase)*(retro?1.6:3.3);
-        const fine=Math.sin(x/w*Math.PI*10+phase2)*(retro?.65:1.45);
+        const coarse=Math.sin(x/w*Math.PI*4+phase)*(retro?2.3:6.4);
+        const fine=Math.sin(x/w*Math.PI*10+phase2)*(retro?1.15:2.95);
         line.push(elevations[k]+coarse+fine);
       }
       return line;
@@ -111,8 +111,8 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
       let large=Math.floor(hash(row,3,structure^0xa127f48b)*count);
       if(large===small)large=(large+2)%count;
       const widths=Array.from({length:count},(_,i)=>{
-        const base=.57+hash(row,i,structure^0x38cbd672)*1.35;
-        return base*(i===small?.44:i===large?1.75:1);
+        const base=.36+hash(row,i,structure^0x38cbd672)*1.67;
+        return base*(i===small?.37:i===large?2.1:1);
       });
       const sum=widths.reduce((a,b)=>a+b,0);
       const cuts=[0];
@@ -120,8 +120,8 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
         cuts.push(cuts[cuts.length-1]+width/sum*w);
       cuts[count]=w;
       const joints=Array.from({length:count},(_,i)=>({
-        a:(hash(row,i,structure^0x317e29af)-.5)*(retro?3:6),
-        b:(hash(row,i,structure^0x981ac3f2)-.5)*(retro?3:6),
+        a:(hash(row,i,structure^0x317e29af)-.5)*(retro?4.5:10),
+        b:(hash(row,i,structure^0x981ac3f2)-.5)*(retro?4.5:10),
         phase:hash(row,i,structure^0x7a1cbf36)*Math.PI*2,
       }));
       const stones=Array.from({length:count},(_,i)=>({
@@ -355,17 +355,17 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
   const fy=t;
   // Chamfer some corners on diagonals instead of yielding round Voronoi
   // polygons. The cut amount belongs to the stone shape seed.
-  const corner=(retro?.10:.11)+rock.corner*(retro?.09:.10);
+  const corner=(retro?.13:.17)+rock.corner*(retro?.14:.17);
   const diagonal=Math.min(
     fx+fy,fx+1-fy,1-fx+fy,2-fx-fy);
   const cornerInset=Math.max(0,corner-diagonal)*Math.min(span,height)*.57;
   const ragged=noise(x,y,w,h,retro?29:51,retro?27:49,
-    structure^0x6db82ca1)*(retro?1.1:2.0);
+    structure^0x6db82ca1)*(retro?1.7:3.5);
   const edge=Math.min(xx-left,right-xx,yy-top,bottom-yy)-
     cornerInset+ragged;
-  const border=retro?1.0:1.5;
+  const border=retro?1.15:1.6;
   const face=smooth((edge-border)/(retro?2.3:3.4));
-  const bevel=smooth((edge-.5)/(retro?5.8:8.8));
+  const bevel=smooth((edge-.5)/(retro?6.4:9.3));
   const micro=noise(x,y,w,h,retro?23:79,retro?29:73,
     structure^0x718c42d3);
   const grit=noise(x,y,w,h,retro?32:113,retro?26:109,
