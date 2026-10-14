@@ -24,6 +24,7 @@ const staticRoutes:Record<string,[string,string]>={
   '/tools/asset-procgen/style-study.js': ['tools/asset-procgen/web/style-study.js', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/style-study.css': ['tools/asset-procgen/web/style-study.css', 'text/css; charset=utf-8'],
   '/tools/asset-procgen/texture-style-study.mjs': ['tools/asset-procgen/web/texture-style-study.mjs', 'text/javascript; charset=utf-8'],
+  '/tools/asset-procgen/texture-study-export.mjs': ['tools/asset-procgen/web/texture-study-export.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/seed-model.mjs': ['tools/asset-procgen/web/seed-model.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/generators.mjs': ['tools/asset-procgen/web/generators.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/building.mjs': ['tools/asset-procgen/web/building.mjs', 'text/javascript; charset=utf-8'],
