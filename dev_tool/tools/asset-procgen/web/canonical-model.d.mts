@@ -3,6 +3,7 @@ export interface CanonicalMaterial {
   occlusionStrength?:number;
   doubleSided:boolean;
   slot?:string;profile?:string;tint?:number;
+  alphaMode?:'MASK';alphaCutoff?:number;textureWrap?:'clamp'|'repeat';
 }
 export interface CanonicalMesh {
   name:string;positions:Float32Array;normals:Float32Array;
@@ -21,3 +22,5 @@ export function canonicalBuildingModel(
 ):CanonicalModel|null;
 
 export function canonicalOakWoodModel(asset:import('./generators.mjs').GeneratedModel):CanonicalModel;
+
+export function canonicalOakModel(asset:import('./generators.mjs').GeneratedModel):CanonicalModel;
