@@ -21,6 +21,39 @@ export function validateBuildingOptions(value){
   return {width:value.width,depth:value.depth,stories:value.stories,
     roofPitch:value.roofPitch,interior:value.interior};
 }
+
+// A building's geometry declares material semantics at its source. Renderers
+// and project editors consume these bindings; they must never infer texture
+// compatibility from a mesh-part name. No generated UVs or geometry change.
+const shared=(slot,kind,profile=null,tint=null)=>Object.freeze({
+  slot,kind,...(profile?{profile}:{}),...(tint?{tint}:{}),
+});
+const preview=kind=>Object.freeze({kind});
+const BUILDING_PART_SURFACES=Object.freeze({
+  foundation:shared('foundationStone','stone'),
+  stone:shared('foundationStone','stone'),
+  plaster:shared('facadePlaster','plaster',null,0xf6efe0),
+  plasterWarm:shared('facadePlaster','plaster',null,0xe8d5bd),
+  plasterOchre:shared('facadePlaster','plaster',null,0xe4c799),
+  plasterIvory:shared('facadePlaster','plaster',null,0xfff9ee),
+  timber:shared('timberWood','wood','beam'),
+  timberEnd:shared('timberWood','wood','end'),
+  timberPanel:shared('timberWood','wood','panel'),
+  innerTimber:shared('timberWood','wood','beam'),
+  innerTimberEnd:shared('timberWood','wood','end'),
+  innerTimberPanel:shared('timberWood','wood','panel'),
+  roofThatch:shared('roofThatch','roof'),
+  roofClay:shared('roofClay','roof'),
+  brick:preview('stone'),chimney:preview(null),
+  door:preview('wood'),floor:preview('floor'),
+  gallery:preview('wood'),glass:preview(null),innerGlass:preview(null),
+  innerTrim:preview('wood'),interior:preview('plaster'),
+  interiorPlinth:preview('stone'),metal:preview(null),
+  ridge:preview('roof'),roofBase:preview('roof'),
+  roofUnderlay:preview('roof'),shutter:preview('wood'),
+  trim:preview('wood'),
+});
+
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 const rng=seed=>()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
 const boundsOf=parts=>{
@@ -190,7 +223,10 @@ function geometryBuilder(seed=0){
   }
   function finish(){
     const finished=[...parts.values()].map(p=>({
-      material:p.material,positions:new Float32Array(p.positions),
+      material:p.material,
+      surface:BUILDING_PART_SURFACES[p.material]??
+        (()=>{throw Error('Undeclared building material: '+p.material);})(),
+      positions:new Float32Array(p.positions),
       normals:new Float32Array(p.normals),uvs:new Float32Array(p.uvs),
       indices:new Uint32Array(p.indices),
       ...(p.colors.length?{colors:new Float32Array(p.colors)}:{}),
