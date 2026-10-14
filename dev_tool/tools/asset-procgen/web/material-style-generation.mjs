@@ -252,9 +252,9 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro,strokes}){
       (retro?.22:.24));
     const rim=smooth((ellipse-.73)/.09)*
       (1-smooth((ellipse-.99)/.06))*cover;
-    raised+=cover*(.034+weight*.030);
-    edgeLip+=rim*(.022+Math.abs(weight)*.014);
-    strokeTone+=cover*(weight*.051+.008);
+    raised+=cover*(.031+weight*.022);
+    edgeLip+=rim*(.011+Math.abs(weight)*.01);
+    strokeTone+=cover*(weight*.036);
   }
   const fine=noise(x,y,w,h,retro?23:79,retro?25:83,
     structure^0x563e11a8);
@@ -264,13 +264,20 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro,strokes}){
   const wash=noise(x,y,w,h,8,8,pigment^0x94e13d2f);
   const wear=noise(x,y,w,h,11,13,weather^0x2f83cdea);
   const grime=Math.max(0,wear+patch*.37-.18);
-  const tone=wash*.052+patch*.035+strokeTone-
-    grime*.087+plasterGrain*.020;
+  const swish=noise(x+y*.21,y,w,h,retro?24:41,retro?9:14,
+    structure^0x9a17d256);
+  const grit=hash(x,y,structure^0x4e91c3a7);
+  const pit=grit>.936?(grit-.936)*(.55+Math.max(0,patch))*.85:0;
+  const chipped=retro?Math.max(0,-patch-.19)*.080:0;
+  const tone=wash*.046+patch*.032+strokeTone+
+    swish*(retro?.031:.038)-grime*.080+
+    plasterGrain*.035-pit-chipped;
   const base=retro?[.84,.765,.641]:[.9,.842,.722];
   return {rgb:[base[0]+tone,base[1]+tone*.91,
       base[2]+tone*.75],
-    z:.435+raised+edgeLip+fine*.023+plasterGrain*.035,
-    rough:clamp(.88+fine*.04+grime*.095)};
+    z:.435+raised+edgeLip+fine*.017+plasterGrain*.037+
+      swish*.016-pit*.36-chipped*.42,
+    rough:clamp(.88+fine*.04+grime*.095+pit*.12)};
 }
 
 function stone(x,y,{w,h,structure,pigment,weather,retro,
