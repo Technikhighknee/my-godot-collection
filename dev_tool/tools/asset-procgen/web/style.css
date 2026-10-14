@@ -243,3 +243,12 @@
   font-size:11px;cursor:pointer}
 .pg-roof-actions button:hover:not(:disabled){background:#34544b}
 .pg-roof-actions button:disabled{opacity:.38;cursor:not-allowed}
+
+/* Art-direction comparisons open in their own tab; unsaved recipes stay here. */
+.pg-style-study-link{padding:8px 11px;color:#e1c39a;text-decoration:none;
+  border:1px solid #72654c;border-radius:6px;font-size:11px;
+  font-weight:700;white-space:nowrap}
+.pg-style-study-link:hover{background:#324035;color:#f7dfb6}
+@media(max-width:830px){.pg-style-study-link{font-size:10px;padding:7px}}
+@media(max-width:610px){.pg-style-study-link{font-size:9px;white-space:normal;
+  max-width:105px}}
