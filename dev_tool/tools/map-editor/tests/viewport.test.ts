@@ -45,13 +45,13 @@ test('read-only HTTP API serves exact normalized height samples and categorical 
     const html = await fetch(`${url}/tools/map-editor/`);
     assert.match(await html.text(), /1400 · Map Editor/);
     assert.match(html.headers.get('content-security-policy') ?? '', /default-src 'none'/);
-    assert.equal((await fetch(`${url}/app.js`)).status, 200);
-    assert.equal((await fetch(`${url}/mesh-data.mjs`)).status, 200);
-    const workflow = await fetch(`${url}/workflow.mjs`);
+    assert.equal((await fetch(`${url}/tools/map-editor/app.js`)).status, 200);
+    assert.equal((await fetch(`${url}/tools/map-editor/mesh-data.mjs`)).status, 200);
+    const workflow = await fetch(`${url}/tools/map-editor/workflow.mjs`);
     assert.equal(workflow.status, 200);
     assert.match(workflow.headers.get('content-type') ?? '', /javascript/);
     assert.match(await workflow.text(), /function snapPoint/);
-    assert.equal((await fetch(`${url}/style.css`)).status, 200);
+    assert.equal((await fetch(`${url}/tools/map-editor/style.css`)).status, 200);
     assert.equal((await fetch(`${url}/api/map`, { method: 'POST' })).status, 405);
     assert.equal((await fetch(`${url}/api/map`, { method: 'PUT' })).status, 405);
     assert.equal((await fetch(`${url}/src/server.ts`)).status, 404);

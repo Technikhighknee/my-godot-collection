@@ -110,7 +110,7 @@ test('HTTP marker saves enforce request schema, origin, validation and revision'
     const map = (await (await fetch(base + '/api/map')).json()).map;
     assert.deepEqual(map.buildings, body.buildings);
     assert.deepEqual(map.objects, body.objects);
-    assert.equal((await fetch(base + '/entity-edit.mjs')).status, 200);
+    assert.equal((await fetch(base + '/tools/map-editor/entity-edit.mjs')).status, 200);
     assert.equal((await fetch(base + '/api/document', { method: 'GET' })).status, 404);
   } finally {
     await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve()));

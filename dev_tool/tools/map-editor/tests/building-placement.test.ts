@@ -96,7 +96,7 @@ test('API serves placement catalog; rejects invalid placements via PUT without w
     const addr=server.address();assert.ok(addr && typeof addr!=='string');
     const base=`http://127.0.0.1:${addr.port}`;
     assert.deepEqual(await (await fetch(base+'/api/placement-definitions')).json(),catalog);
-    assert.equal((await fetch(base+'/building-placement.mjs')).status,200);
+    assert.equal((await fetch(base+'/tools/map-editor/building-placement.mjs')).status,200);
     const revision=store.getRevision();
     const bad=await fetch(base+'/api/document',{method:'PUT',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({revision,roads:doc.map.roads,buildings:[entity([40,40])]})});
     assert.equal(bad.status,400);assert.match((await bad.json()).error,/outside_build_area/);

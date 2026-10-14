@@ -140,7 +140,7 @@ test('HTTP workspace operations enforce origin, revision, and reject traversal, 
     const meta = await (await get('/api/map')).json();
     assert.equal(meta.workspace, true);
     assert.equal(meta.mapFile, 'first.map.json');
-    assert.equal((await get('/map-management.mjs')).status, 200);
+    assert.equal((await get('/tools/map-editor/map-management.mjs')).status, 200);
     const write = (path: string, method: 'PUT' | 'POST', body: unknown, origin = base) => fetch(base + path, {
       method, headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });

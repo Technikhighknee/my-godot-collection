@@ -53,7 +53,7 @@ listed under *Buildings* in the Studio explorer.
 ## Studio workbench
 
 The launcher at `/` creates and opens projects. Editing takes place in
-`/studio/`, a persistent workbench with project resources, search (Ctrl+K),
+`/studio.html`, a persistent workbench with project resources, search (Ctrl+K),
 a generator catalog and editor tabs. Switching tabs preserves the browser
 editor session; sessionStorage restores open documents after reload, but
 **unsaved edits do not survive a full page reload**.
@@ -177,7 +177,7 @@ npm start
 ```
 
 Open <http://127.0.0.1:4371/> to create or choose a project.
-Opening a project enters the **Studio** at <http://127.0.0.1:4371/studio/>,
+Opening a project enters the **Studio** at <http://127.0.0.1:4371/studio.html>,
 where project resources, generators and editor tabs share one workspace.
 The Map Editor's existing **Maps** panel can create or open maps; the
 Studio's project explorer also offers a create-map shortcut.

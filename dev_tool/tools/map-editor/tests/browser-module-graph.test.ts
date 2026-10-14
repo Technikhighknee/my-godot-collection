@@ -13,7 +13,7 @@ test('all relative browser imports are served as JavaScript', async () => {
     const address = server.address();
     assert.ok(address && typeof address !== 'string');
     const origin = 'http://127.0.0.1:' + address.port;
-    const pending = ['/app.js'];
+    const pending = ['/tools/map-editor/app.js'];
     const visited = new Set<string>();
     while (pending.length) {
       const path = pending.pop()!;
