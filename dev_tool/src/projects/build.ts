@@ -22,7 +22,7 @@ export interface BuildResult {
   planKey:string;artifacts:BuildArtifact[];built:number;reused:number;
 }
 const digest=(bytes:Buffer)=>createHash('sha256').update(bytes).digest('hex');
-const fileName=/^[a-z][a-z0-9_-]*(?:--[a-z][a-z0-9_-]*)?\.(?:png|glb)$/;
+const fileName=/^[a-z0-9][a-z0-9_-]*(?:--[a-z][a-z0-9_-]*)?\.(?:png|glb)$/;
 async function regular(path:string):Promise<Buffer>{
   const info=await lstat(path);
   if(!info.isFile()||info.isSymbolicLink())
