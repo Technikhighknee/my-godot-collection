@@ -4,6 +4,7 @@
 // study only. Each grammar yields matching albedo/height/roughness maps.
 export const MATERIAL_STUDY_STYLES=Object.freeze([
   'hand-painted-study','retro-3d-study',
+  'naturalistic-study','watercolor-study',
 ]);
 const W=512;
 const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
@@ -158,6 +159,74 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
   }
   return {};
 }
+// Styles change not only pigments but the procedural structure seed and the
+// physical surface relief. They never process the existing Current bitmap.
+function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},shape){
+  if(style!=='naturalistic-study'&&style!=='watercolor-study')
+    return shape;
+  const natural=style==='naturalistic-study';
+  const macro=noise(x,y,w,h,7,9,pigment^0x2938a15f);
+  const stains=noise(x,y,w,h,15,18,weather^0x7a2e8f31);
+  const pigmentMid=noise(x,y,w,h,28,25,pigment^0x4bc2719e);
+  const grain=noise(x,y,w,h,113,107,structure^0x391ea671);
+  const fibers=noise(x,y,w,h,91,material==='timber-oak'?8:49,
+    structure^0x6b29d435);
+  const stroke=noise(x+y*.17,y,w,h,24,11,structure^0x824ae13c);
+  // A flooded paint edge follows a broad *pigment* wash, not a second
+  // unrelated stone/roof pattern painted across the source structure.
+  const tide=Math.abs(pigmentMid*.78+macro*.55);
+  const pool=Math.exp(-Math.pow((tide-.235)/.063,2));
+  const dry=Math.max(0,grain+.14);
+  let palette,luminosity,edge,physical,roughness;
+  switch(material){
+    case 'roof-thatch':
+      palette=natural?[.53,.443,.278]:[.80,.68,.418];
+      edge=Math.max(0,.42-shape.z)*.38;
+      luminosity=(natural?fibers*.21+grain*.066:
+        fibers*.14+stroke*.085-grain*.06);
+      physical=fibers*(natural?.066:.033)+grain*.022;
+      roughness=.90;break;
+    case 'timber-oak':
+      palette=natural?[.385,.274,.185]:[.65,.468,.307];
+      edge=Math.max(0,.37-shape.z)*.64;
+      luminosity=(natural?fibers*.19+grain*.08:
+        fibers*.135+stroke*.09);
+      physical=fibers*(natural?.065:.037)+grain*.02;
+      roughness=.85;break;
+    case 'plaster-lime':
+      palette=natural?[.78,.75,.69]:[.915,.859,.737];
+      edge=Math.max(0,.43-shape.z)*.33;
+      luminosity=(natural?grain*.094+stroke*.052:
+        stroke*.15+grain*.045);
+      physical=grain*(natural?.041:.026)+stroke*.032;
+      roughness=.91;break;
+    case 'stone-rubble':
+      palette=natural?[.615,.598,.554]:[.79,.746,.646];
+      // Genuine rubble face geometry remains clearly distinguishable.
+      edge=Math.max(0,.36-shape.z)*(natural?.54:.91);
+      luminosity=(natural?grain*.087+fibers*.038:
+        grain*.049+stroke*.089);
+      physical=grain*(natural?.052:.030)+stroke*.022;
+      roughness=.89;break;
+    default:return shape;
+  }
+  const paintedTint=natural?
+    macro*.116+pigmentMid*.088+stains*.075+luminosity-edge:
+    macro*.145+pigmentMid*.13+luminosity-pool*.092-
+      dry*.037-edge*.91;
+  const weathering=natural?Math.max(0,stains+.15)*.17:0;
+  // Preserve silhouette contrast by retaining a material-specific share
+  // of its native, geometry-aware albedo. Neither art direction blurs it.
+  const nativeWeight=natural?.56:.40;
+  const rgb=palette.map((v,c)=>
+    mix(v,shape.rgb[c],nativeWeight)+
+      paintedTint*[1,.91,.75][c]-
+      weathering*[1,.84,.70][c]);
+  return {rgb,z:clamp(shape.z+physical+
+    (natural?grain*.025:stroke*.023),.02,.97),
+    rough:clamp(mix(shape.rough,roughness,natural?.33:.46)+
+      (natural?grain*.065+stains*.035:dry*.049+pool*.035))};
+}
 function raster(material,style,seeds,profile){
   const retro=style==='retro-3d-study',scale=retro?4:1;
   const height=material==='timber-oak'&&profile==='beam'?2048:W;
@@ -167,8 +236,13 @@ function raster(material,style,seeds,profile){
     seeds.layout)>>>0;
   const pigment=(seeds.color??seeds.pigment??seeds.mineral)>>>0;
   const weather=(seeds.wear??seeds.weather??pigment)>>>0;
-  const dimensions={w,h,structure,pigment,weather,retro,
-    ...prepareMaterialContext(material,{structure,pigment,retro})};
+  const alternate=style==='naturalistic-study'||style==='watercolor-study';
+  // Geometry has its own art-direction grammar/seed stream. A color reseed
+  // never changes the outlines or the normal/height fields.
+  const form=alternate?structure^(style==='naturalistic-study'?
+    0x529ae317:0x81f2a64d):structure;
+  const dimensions={w,h,structure:form,pigment,weather,retro,
+    ...prepareMaterialContext(material,{structure:form,pigment,retro})};
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const p=y*w+x;
     let result;
@@ -183,7 +257,9 @@ function raster(material,style,seeds,profile){
         result=stone(x,y,dimensions);break;
       default:throw Error('Unknown native study material: '+material);
     }
-    colorize(m,p,result.rgb,result.z,result.rough);
+    const physical=artDirectionSurface(material,style,x,y,
+      {w,h,structure:form,pigment,weather},result);
+    colorize(m,p,physical.rgb,physical.z,physical.rough);
   }
   // Rubble already wraps geometrically along both axes. Averaging mirrored
   // border pixels flattened the stone relief into conspicuous pale bands
