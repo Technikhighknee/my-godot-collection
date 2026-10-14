@@ -135,12 +135,13 @@ const currentBuildingOptions=()=>optionsByGenerator.get(active.id);
 function renderBuildingControls(){
   const show=isBuilding();
   byId('buildingSettings').hidden=!show;
-  byId('buildingMaterials').hidden=!show;
+  byId('buildingMaterials').hidden=!(active.materialSlots?.length);
   byId('buildingViewButtons').hidden=!show;
   byId('foot').hidden=show;
   byId('crown').hidden=show;
   byId('whole').textContent=show?'Fit building':'Whole tree';
   mountMaterialControls();
+  if(active.materialSlots?.length)renderMaterialSelects();
   if(!show)return;
   const o=currentBuildingOptions();
   for(const [property,id] of [
@@ -150,7 +151,6 @@ function renderBuildingControls(){
     byId(id).value=String(o[property]);
   byId('buildingInterior').disabled=o.interior==='none';
   if(o.interior==='none')currentBuildingView='exterior';
-  renderMaterialSelects();
   const view=currentBuildingView;
   byId('buildingExterior').setAttribute('aria-pressed',String(view==='exterior'));
   byId('buildingInterior').setAttribute('aria-pressed',String(view==='interior'));
