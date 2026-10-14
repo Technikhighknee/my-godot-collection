@@ -205,21 +205,25 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
   const bloom=noise(x,y,w,h,6,8,pigment^0x71bc4209);
   const tide=noise(x,y,w,h,17,15,pigment^0x39a1f282);
   const dry=clamp((dust+glaze*.44+.31)/.66);
-  const front=Math.exp(-Math.pow((Math.abs(tide+bloom*.31)-.20)/.08,2));
+  // Keep pigment washes continuous. Sampling an iso-value of a noise field
+  // produces closed contour loops, not watercolor drying marks. Deposits
+  // instead accumulate in the actual masonry joints and chipped edges.
   const fade=smooth((wash+mineral*.45+wear*.22+.26)/.52);
-  const groutOpacity=(1-face)*(.28+.43*fade);
+  const groutOpacity=(1-face)*(.53+.18*fade);
   const stone=[.765,.696,.592],mortar=[.66,.63,.575];
   const paper=[.965,.943,.885];
-  const density=clamp(.47+.39*fade+front*.14-dry*.12);
+  const density=clamp(.69+wash*.23+glaze*.20+bloom*.12-
+    dry*.10);
   const granules=Math.max(0,dust+.06)*(.3+.7*fade);
-  const tint=stoneTone*.70+wash*.12+mineral*.09+
-    glaze*.075+bloom*.075-granules*.090-front*.16-
+  const jointDeposit=(1-face)*(.020+.016*fade);
+  const tint=stoneTone*.70+wash*.13+mineral*.09+
+    glaze*.075+bloom*.055-granules*.078-
     moisture*.027-erosion*.016-crack*.019;
   const rgb=stone.map((v,c)=>{
     const paint=clamp(v+tint*[1,.88,.70][c],.04,.95);
     const glazed=mix(paper[c],paint,density);
-    return mix(glazed,mortar[c]+wash*.05-front*.035,groutOpacity)+
-      dust*.018;
+    return mix(glazed,mortar[c]+wash*.05-jointDeposit,
+      groutOpacity)+dust*.018;
   });
   return {
     rgb,
@@ -248,10 +252,10 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
   const bloom=noise(x,y,w,h,6,7,pigment^0x7482aa13);
   const tide=noise(x,y,w,h,16,17,pigment^0x118fe437);
   const paper=noise(x,y,w,h,91,89,structure^0x78223fa1);
-  const front=Math.exp(-Math.pow((Math.abs(tide+bloom*.28)-.22)/.075,2));
+  // Diffuse, layered translucent washes. A hard threshold of any pigment
+  // noise is forbidden here: it draws nested topographic contour rings.
   const dry=clamp((paper+wet*.4+.30)/.65);
   const bleed=clamp((bloom+wet*.52+.35)/.72);
-  const deposition=front*(.45+.55*bleed);
   const pigmentGranules=Math.max(0,speck+.08)*(.25+.75*bleed);
   const fiber=noise(x+noise(x,y,w,h,7,5,structure^0x716e3a29)*w*.018,
     y,w,h,103,material==='timber-oak'?7:21,structure^0x6b29d435);
@@ -301,20 +305,24 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
       rough:clamp(shape.rough*.76+.22+fine*.035+weathered*.20),
     };
   }
-  // Pigment density changes across translucent washes; white paper appears
-  // in dry gaps, while pigment accumulates at drying fronts. Fiber strokes
-  // remain recognizable but don't imitate a photo-texture filtered pale.
+  // Pigment belongs to the represented material: reeds remain fibrous,
+  // oak stays longitudinal and plaster keeps its trowel patches. Intermittent
+  // paper exposure and granular deposits create watercolor character
+  // without inventing ring-shaped objects on the surface.
   const paperBase=[.965,.944,.887];
-  const washDensity=clamp(.42+bleed*.44-dry*.14+deposition*.24);
-  const localPigment=detail*.78+macro*.13+wet*.115+
-    pigmentGranules*.095-deposition*.13;
-  const materialEdge=Math.max(0,.37-shape.z);
+  const washDensity=clamp(.66+bloom*.24+wet*.20+tide*.12-
+    dry*.13-Math.max(0,paper+.09)*.13);
+  const groove=material==='timber-oak'?Math.max(0,-detail)*.16:
+    material==='roof-thatch'?Math.max(0,-detail)*.10:0;
+  const localPigment=detail*.87+macro*.11+wet*.085+
+    pigmentGranules*.068-groove;
   return {
     rgb:palette.map((v,c)=>{
-      const stain=clamp(v+localPigment*[1,.82,.68][c]-
-        materialEdge*(.06+.055*bleed),.05,.96);
+      const underpaint=mix(v,shape.rgb[c],.36);
+      const stain=clamp(underpaint+localPigment*[1,.82,.68][c],
+        .05,.96);
       return clamp(mix(paperBase[c],stain,washDensity)+
-        paper*.027-deposition*.034);
+        paper*.020);
     }),
     z:clamp(shape.z+physical*.34+paper*.006,.02,.97),
     rough:clamp(.945+paper*.032+dry*.016),
