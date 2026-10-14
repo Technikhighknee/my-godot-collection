@@ -349,3 +349,35 @@ test('rubble stone uses readable foundation-scale UVs, without changing plaster'
     }
   }
 });
+
+test('building surfaces declare project slots and profiles without renderer name guessing',()=>{
+  const def=findGenerator('timber-building');
+  assert.ok(def&&def.kind==='model'&&def.materialSlots);
+  const slots=new Map(def.materialSlots.map(slot=>[slot.id,slot]));
+  const used=new Set<string>();
+  for(const level of [1,2,3]){
+    const output=generateBuildingFamily(seeds,DEFAULT_BUILDING_OPTIONS,level);
+    const parts=[...output.building.exterior.parts,
+      ...(output.building.interior?.parts??[])];
+    for(const part of parts){
+      assert.ok(part.surface,'No material binding for '+part.material);
+      assert.ok(Object.hasOwn(part.surface,'kind'));
+      if(!part.surface.slot)continue;
+      used.add(part.surface.slot);
+      assert.ok(slots.has(part.surface.slot),
+        'Generator references undeclared material slot '+part.surface.slot);
+      if(part.surface.profile)
+        assert.ok(['beam','panel','end'].includes(part.surface.profile));
+      if(part.surface.tint!==undefined)
+        assert.ok(Number.isInteger(part.surface.tint));
+    }
+    for(const part of parts.filter(p=>p.material==='timberEnd'))
+      assert.deepEqual(part.surface.profile,'end');
+    for(const part of parts.filter(p=>p.material==='timberPanel'))
+      assert.deepEqual(part.surface.profile,'panel');
+    for(const part of parts.filter(p=>p.material==='plasterOchre'))
+      assert.equal(part.surface.slot,'facadePlaster');
+  }
+  assert.deepEqual([...used].sort(),[...slots.keys()].sort(),
+    'Every declared shared slot must be represented in the generated model');
+});
