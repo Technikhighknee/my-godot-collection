@@ -240,6 +240,7 @@ test('texture style workbench serves its independent non-destructive comparison 
       ['/tools/asset-procgen/texture-style-study.mjs','javascript','STUDY_MATERIALS'],
       ['/tools/asset-procgen/texture-study-export.mjs','javascript','drawTextureStudyExport'],
       ['/tools/asset-procgen/clay-style-generation.mjs','javascript','generateStyledClay'],
+      ['/tools/asset-procgen/material-style-generation.mjs','javascript','makeStyledMaterialAsset'],
     ] as const){
       const response=await fetch(base+path);
       assert.equal(response.status,200,path);
@@ -293,6 +294,8 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   const generators=readFileSync(new URL('../tools/asset-procgen/web/generators.mjs',import.meta.url),'utf8');
   assert.match(generators,/studyGeneration:Object\.freeze/);
   assert.match(generators,/CLAY_GENERATIVE_STYLES/);
+  assert.match(generators,/MATERIAL_STUDY_STYLES/);
+  assert.match(generators,/makeStyledMaterialAsset/);
   assert.match(study,/URL\.createObjectURL/);
   assert.match(study,/toBlob\(/);
   assert.match(study,/updateExportButton/);
