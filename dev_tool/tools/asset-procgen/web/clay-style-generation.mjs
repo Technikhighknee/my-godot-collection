@@ -49,7 +49,7 @@ function plan(style,seeds){
 function tileAt(x,y,row,p){
   const r=wrap(row,p.rows);
   const pitch=SIZE/p.columns;
-  const offset=(row&1)*(p.fantasy?.47:.5);
+  const offset=(row&1)*(p.fantasy?.47:.5)+(p.fantasy?0:.25);
   const drift=p.fantasy?.11:.03;
   const lane=x/pitch+offset+
     Math.sin((y/SIZE)*Math.PI*2)*drift;
@@ -149,7 +149,8 @@ function retroMaps(p){
     for(let c=0;c<3;c++){
       const v=col[c]+wash*[1,.75,.55][c];
       // Four coarse pigment levels, real indexed-style color choices.
-      pigment[at*3+c]=Math.round(clamp(v,.06,.82)*11)/11;
+      const stone=Math.round(clamp(v,.06,.82)*11)/11;
+      pigment[at*3+c]=mix([.23,.195,.16][c],stone,bevel);
     }
     relief[at]=.16+bevel*(.31+cloud*.06)+grain*.017;
     matte[at]=clamp(.90+grain*.05+(1-bevel)*.05,.74,.99);
