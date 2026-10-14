@@ -148,10 +148,10 @@ function wood(x,y,{w,h,structure,pigment,retro},profile){
     knot=Math.exp(-radius*radius*45)*.14;
   }else{
     // Streaks run along the beam, with seeded knot interruptions.
-    const bend=warp*.27+large*.09;
+    const bend=warp*.041+large*.013;
     ring=Math.sin((u+bend)*Math.PI*2*growth);
     const secondary=Math.sin((u+bend*.53)*Math.PI*2*(growth*.45));
-    band=ring*.082+secondary*.034;
+    band=ring*(retro?.052:.046)+secondary*.023;
     const centers=retro?3:5;
     for(let k=0;k<centers;k++){
       const cx=hash(k,1,structure^0x32f581ac);
@@ -162,7 +162,7 @@ function wood(x,y,{w,h,structure,pigment,retro},profile){
       const r=Math.hypot(a,b);
       const eye=Math.exp(-r*r*3);
       const halo=Math.exp(-Math.pow((r-1.08)/.35,2));
-      knot+=eye*.22+halo*.076;
+      knot+=eye*.135+halo*.041;
     }
   }
   const cut=retro?Math.round(band*24)/24:band;
@@ -184,16 +184,18 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro}){
   const wear=noise(x,y,w,h,11,13,weather^0x2f83cdea);
   // Painted plaster uses overlapping broad swept trowel swaths.
   // Retro plaster instead uses irregular chipped lime patches.
-  const swath=retro?Math.round((base+coarse*.28)*5)/5:
-    Math.round((base+small*.15)*7)/7;
+  const direction=noise(x+Math.sin(y/h*2*Math.PI)*w*.06,y,
+    w,h,retro?7:18,retro?9:13,structure^0x7e13ac94);
+  const swath=retro?Math.round((base*.72+direction*.45+coarse*.28)*5)/5:
+    Math.round((base*.62+direction*.50+small*.15)*7)/7;
   const lip=retro?Math.abs(swath)*.044:
     (base-swath)*.055;
   const stain=Math.max(0,wear+coarse*.6-.15);
-  const tone=swath*(retro?.075:.095)+wash*.056-
-    stain*.068+small*(retro?.017:.031);
+  const tone=swath*(retro?.21:.18)+wash*.052-
+    stain*.082+small*(retro?.03:.029);
   return {rgb:retro?
-      [.84+tone,.75+tone*.89,.57+tone*.71]:
-      [.91+tone,.85+tone*.91,.70+tone*.75],
+      [.83+tone,.74+tone*.89,.59+tone*.71]:
+      [.88+tone,.82+tone*.91,.69+tone*.75],
     z:.46+swath*(retro?.10:.095)+lip+coarse*.033+
       small*.023,
     rough:clamp(.89+small*.065+stain*.072)};
@@ -204,13 +206,13 @@ function stone(x,y,{w,h,structure,pigment,weather,retro}){
   const ry=v*rows,row=Math.floor(ry),fy=ry-row;
   const stagger=(row&1)*(retro?.5:.38);
   const uneven=retro?0:
-    noise(x,y,w,h,12,9,structure^0x9e4273b1)*.075;
+    noise(x,y,w,h,12,9,structure^0x9e4273b1)*.34;
   const sx=u*cols+stagger+uneven;
   const col=Math.floor(sx),fx=sx-col;
   const shape=hash(wrap(col,cols),wrap(row,rows),
     structure^0x31b75ea2);
   const warp=retro?0:
-    noise(x,y,w,h,19,22,structure^0x4a21bf8e)*.052;
+    noise(x,y,w,h,19,22,structure^0x4a21bf8e)*.075;
   const bevelDist=Math.min(fx,1-fx,fy,1-fy)+warp;
   const grout=retro?.035:.031;
   const face=smooth((bevelDist-grout)/(retro?.105:.105));
