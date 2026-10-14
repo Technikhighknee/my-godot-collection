@@ -224,3 +224,31 @@ test('project texture changes refresh clean editors without losing dirty recipes
   assert.match(app,/await loadSelectedProjectAsset\(\)/);
   assert.match(studio,/broadcastProjectAssets/);
 });
+
+
+test('texture style workbench serves its independent non-destructive comparison UI',async()=>{
+  const host=createDevToolServer();
+  await new Promise<void>(resolve=>host.listen(0,'127.0.0.1',resolve));
+  try{
+    const addr=host.address();
+    assert.ok(addr&&typeof addr!=='string');
+    const base='http://127.0.0.1:'+addr.port;
+    for(const [path,type,expected] of [
+      ['/tools/asset-procgen/style-study','text/html','id="studyBoard"'],
+      ['/tools/asset-procgen/style-study.js','javascript','applyTextureStudyStyle'],
+      ['/tools/asset-procgen/style-study.css','text/css','.study-board'],
+      ['/tools/asset-procgen/texture-style-study.mjs','javascript','STUDY_MATERIALS'],
+    ] as const){
+      const response=await fetch(base+path);
+      assert.equal(response.status,200,path);
+      assert.match(response.headers.get('content-type')??'',new RegExp(type));
+      assert.ok((await response.text()).includes(expected),path);
+    }
+    const editor=await(await fetch(base+'/tools/asset-procgen/')).text();
+    assert.match(editor,/Texture style study/);
+    assert.match(editor,/target="_blank" rel="noopener"/);
+  }finally{
+    await new Promise<void>((resolve,reject)=>
+      host.close(error=>error?reject(error):resolve()));
+  }
+});
