@@ -207,7 +207,7 @@ export const GENERATORS=Object.freeze([
     ]),
     overline:'ARCHITECTURE / TIMBER-FRAME FAMILY',
     title:'Timber-frame building.',
-    description:'Northern European town architecture: jettied timber floors, articulated gables, varied roof tiles, dormers and a service wing. Three linked levels; a detachable unfurnished interior hall and side room share the same openings.',
+    description:'Northern European timber-frame building with three linked levels and separate optional interior scenes. Each level exports to GLB; assigned shared project PBR materials are embedded.',
     previewLabel:'Procedural timber frame building with optional interior preview',
     initialMasterSeed:19043,
     components:Object.freeze([
@@ -241,7 +241,7 @@ export const GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Vegetation','Fir']),navLabel:'Tree',navType:'3D',
     generate:generateFirAsset,
     overline:'FIR / WOOD GEOMETRY',title:'Fir wood.',
-    description:'A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood only; no needles, bark texture or export.',
+    description:'A young fir with a continuous leader, layered branch whorls and fine lateral shoots. Wood-only GLB export; needles and detailed bark materials are not generated yet.',
     previewLabel:'Interactive 3D fir wood preview',
     initialMasterSeed:DEFAULT_TREE.seed,
     components:Object.freeze([
