@@ -141,16 +141,16 @@ function naturalAlbedo(id,x,y,src,width,height,seed){
   const mineral=field(x,y,width,height,87,81,seed^0x292af38b);
   const vertical=field(x,y,width,height,12,4,seed^0xca3987bc);
   // Different natural weathering for different physical substances.
-  const stain=id==='roof-thatch'?Math.max(0,macro+mid*.5)*23:
-    id==='roof-clay'?Math.max(0,mid+mineral*.4)*37:
-    id==='timber-oak'?(vertical*.4+mid*.55)*27:
-    id==='plaster-lime'?Math.max(0,macro+.24)*17:
-    Math.max(0,macro+mid*.7)*30;
-  const intensity=[.86,.77,.67,.82,.77][
+  const stain=id==='roof-thatch'?Math.max(0,macro+mid*.5)*42:
+    id==='roof-clay'?Math.max(0,mid+mineral*.4)*59:
+    id==='timber-oak'?(vertical*.4+mid*.55)*43:
+    id==='plaster-lime'?Math.max(0,macro+.24)*31:
+    Math.max(0,macro+mid*.7)*53;
+  const intensity=[1.04,.95,.91,.82,1.12][
     ['roof-thatch','roof-clay','timber-oak','plaster-lime','stone-rubble'].indexOf(id)];
   return [0,1,2].map(c=>clamp(
-    mix(src[p+c],palette[c],.30)+
-    (macro*18+mid*10+mineral*9+vertical*8)*intensity-
+    mix(src[p+c],palette[c],.48)+
+    (macro*46+mid*25+mineral*14+vertical*16)*intensity-
     stain*[.9,.95,1.06][c]));
 }
 function fantasyAlbedo(id,x,y,src,width,height,seed){
