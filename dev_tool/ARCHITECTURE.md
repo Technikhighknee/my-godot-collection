@@ -86,6 +86,32 @@ or a general-purpose imported-model editor. Baked channels are captured from
 the same resource implementation seen in the editor; future target adapters
 will consume them.
 
+### Canonical 3D mesh and GLB output — working scope
+
+- Model-capable generators may declare `modelBake`: named variants with a
+  `canonicalize` adapter. It extracts the **existing** generated geometry,
+  without rerunning or changing growth or construction algorithms.
+- `canonical-model.mjs` validates raw indexed meshes, normal/UV/vertex-color
+  channels, material slots, and finite bounds. The same original typed arrays
+  remain authoritative; UV origin conversion happens in the glTF encoder,
+  not in generator geometry.
+- `build-glb.ts` writes deterministic glTF 2.0 binary assets (`.glb`) with
+  mesh attributes, vertex colors, indices, named materials and embedded PNG
+  images for assigned shared project PBR maps. GLB material metadata retains
+  the resource slot and texture profile. The result is usable by glTF-capable
+  tools including Godot, pending actual in-engine visual validation.
+- Fir wood exports as `model.glb`. Timber-frame buildings export three
+  variants of `level-*-exterior.glb`, plus `level-*-interior.glb` when the
+  recipe enables the interior shell. Both views reuse one generated level.
+- Only *explicitly assigned* project materials get baked PBR maps.
+  Unassigned surfaces use authored fallback colors; this is not equivalent
+  to the procedural fallback textures currently visible in the editor.
+  Oak foliage and mature bark still lack a complete integrated model export
+  adapter and are rejected, not silently exported with missing leaf cards.
+
+This is the beginning of the canonical scene contract, not a generalized
+runtime scene graph or a final Godot-specific import preset.
+
 ### Version policy
 
 Recipe versions name **output compatibility**, not package releases or schema
@@ -162,12 +188,15 @@ Legacy version-1 source records remain procedural; new imported resources
 have a separate version-2 source shape within the same asset index. Imported
 files can be persisted, verified and copied into derived build artifacts,
 but they do not yet have an imported-model preview or PBR interpretation.
-Procedural material maps now have a headless, cached PNG build; other models
-and vector-painted foliage do not. Renderer fallback colors remain
-presentation mappings for the current building family.
+Procedural material maps now have a headless, cached PNG build.
+Fir wood and three-level timber-frame building families have canonical GLB
+model output, optionally embedding assigned project texture maps. Oak trees,
+vector-painted foliage and other incomplete model material systems still
+lack lossless end-to-end production support.
 
-The generalized canonical mesh result, historical generator-version resolver,
-style-aware production recipes, full scene build graph and target-engine
-export adapters remain to be implemented. Browser painting is still part of
-the existing material contract; the headless baker currently implements its
-pixel-data subset, not a complete replacement API.
+A complete scene graph, runtime placement metadata, historical generator
+version resolver, style-aware production recipes, importable texture defaults
+for unassigned materials, verified Godot scene imports and generic
+target-engine export adapters remain future work. Browser painting still
+defines the current image generator contract; the headless baker implements
+only its pixel-data subset.
