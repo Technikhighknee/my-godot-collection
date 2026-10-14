@@ -114,6 +114,23 @@ async function produce(node:BuildNode,entry:AssetEntry,
       }
       const canonical=def.modelBake.canonicalize(generated,variant);
       if(!canonical)continue; // Optional interior scene disabled by recipe.
+      if(def.modelBake.materialMaps){
+        const internal=def.modelBake.materialMaps(generated);
+        for(const [slot,profiles] of Object.entries(internal)){
+          if(maps[slot])throw Error('Generator material conflicts with project slot: '+slot);
+          const baked:EmbeddedMaterialMaps[string]={};
+          for(const [profile,views] of Object.entries(profiles)){
+            const resultViews:NonNullable<EmbeddedMaterialMaps[string][string]>={};
+            for(const [view,raw] of Object.entries(views)){
+              if(!raw)continue;
+              resultViews[view as 'albedo'|'normal'|'roughness']=
+                encodeRgbaPng(raw.width,raw.height,raw.rgba);
+            }
+            baked[profile]=resultViews;
+          }
+          maps[slot]=baked;
+        }
+      }
       const bytes=Buffer.from(encodeModelGlb(canonical,maps));
       const file=variant.name+'.glb';
       result.push({meta:{file,sha256:digest(bytes),bytes:bytes.length},data:bytes});
