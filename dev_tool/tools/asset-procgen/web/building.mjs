@@ -25,8 +25,9 @@ export function validateBuildingOptions(value){
 // A building's geometry declares material semantics at its source. Renderers
 // and project editors consume these bindings; they must never infer texture
 // compatibility from a mesh-part name. No generated UVs or geometry change.
-const shared=(slot,kind,profile=null,tint=null)=>Object.freeze({
+const shared=(slot,kind,profile=null,tint=null,textureWrap=null)=>Object.freeze({
   slot,kind,...(profile?{profile}:{}),...(tint?{tint}:{}),
+  ...(textureWrap?{textureWrap}:{}),
 });
 const preview=(kind,roughness=null)=>Object.freeze({kind,
   ...(roughness===null?{}:{roughness}),
@@ -39,10 +40,10 @@ const BUILDING_PART_SURFACES=Object.freeze({
   plasterOchre:shared('facadePlaster','plaster',null,0xe4c799),
   plasterIvory:shared('facadePlaster','plaster',null,0xfff9ee),
   timber:shared('timberWood','wood','beam'),
-  timberEnd:shared('timberWood','wood','end'),
+  timberEnd:shared('timberWood','wood','end',null,'clamp'),
   timberPanel:shared('timberWood','wood','panel'),
   innerTimber:shared('timberWood','wood','beam'),
-  innerTimberEnd:shared('timberWood','wood','end'),
+  innerTimberEnd:shared('timberWood','wood','end',null,'clamp'),
   innerTimberPanel:shared('timberWood','wood','panel'),
   roofThatch:shared('roofThatch','roof'),
   roofClay:shared('roofClay','roof'),
