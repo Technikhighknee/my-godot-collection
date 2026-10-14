@@ -196,12 +196,12 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
   const glaze=noise(x,y,w,h,12,10,pigment^0xc8e4913a);
   const dust=noise(x,y,w,h,55,49,structure^0x28a41c75);
   const fade=smooth((wash+mineral*.45+wear*.22+.26)/.52);
-  const groutOpacity=(1-face)*(.29+.71*fade);
-  const stone=[.811,.775,.699],mortar=[.710,.689,.638];
+  const groutOpacity=(1-face)*(.42+.58*fade);
+  const stone=[.815,.770,.689],mortar=[.661,.639,.580];
   const paper=Math.max(0,dust+wash*.33-.12);
-  const pigmentPool=(1-face)*fade*.030;
+  const pigmentPool=(1-face)*fade*.041;
   const tint=stoneTone*.72+wash*.087+mineral*.073+
-    glaze*.051-dust*.025-paper*.045;
+    glaze*.062-dust*.028-paper*.045;
   const rgb=stone.map((v,c)=>mix(v+tint*[1,.91,.77][c]+
     paper*.046,mortar[c]+wash*.043-pigmentPool,groutOpacity));
   return {
