@@ -6,6 +6,7 @@ import {mkdir,readFile,writeFile,rename,rm,lstat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {findGenerator,generateAsset} from '../../tools/asset-procgen/web/generators.mjs';
 import {capturePaintedPixels,encodeRgbaPng} from './build-image.ts';
+import {encodeModelGlb} from './build-glb.ts';
 import type {BuildNode,BuildPlan} from './build-plan.ts';
 import type {AssetEntry,ImportedAssetSource} from './library.ts';
 
@@ -76,7 +77,27 @@ async function produce(node:BuildNode,entry:AssetEntry,
   const source=entry.source,def=findGenerator(source.generator.id);
   if(!def||def.recipeVersion!==source.generator.version)
     throw Error('Unsupported generator version: '+source.generator.id);
-  if(def.kind!=='image'||!def.headlessBake)
+  if(def.kind==='model'){
+    if(!def.modelBake)
+      throw Error('No headless model adapter for '+source.generator.id);
+    const options=def.validateOptions?
+      def.validateOptions(source.options??def.defaultOptions):undefined;
+    const result:{meta:BuildFile;data:Buffer}[]=[];
+    for(const variant of def.modelBake.variants){
+      safeName(variant.name);
+      // Use the exact registered generation path as the interactive preview.
+      const generated=generateAsset(def,source.generator.components,
+        options,variant.level??1);
+      const canonical=def.modelBake.canonicalize(generated,variant);
+      if(!canonical)continue; // Optional interior scene disabled by recipe.
+      const bytes=Buffer.from(encodeModelGlb(canonical));
+      const file=variant.name+'.glb';
+      result.push({meta:{file,sha256:digest(bytes),bytes:bytes.length},data:bytes});
+    }
+    if(!result.length)throw Error('Model produced no exportable geometry');
+    return result;
+  }
+  if(!def.headlessBake)
     throw Error('No headless bake capability for '+source.generator.id);
   // Important: use exactly the same registry/generate function as the editor.
   const image=generateAsset(def,source.generator.components);
