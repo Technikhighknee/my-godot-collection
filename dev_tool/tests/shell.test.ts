@@ -239,6 +239,7 @@ test('texture style workbench serves its independent non-destructive comparison 
       ['/tools/asset-procgen/style-study.css','text/css','.study-board'],
       ['/tools/asset-procgen/texture-style-study.mjs','javascript','STUDY_MATERIALS'],
       ['/tools/asset-procgen/texture-study-export.mjs','javascript','drawTextureStudyExport'],
+      ['/tools/asset-procgen/clay-style-generation.mjs','javascript','generateStyledClay'],
     ] as const){
       const response=await fetch(base+path);
       assert.equal(response.status,200,path);
@@ -281,6 +282,8 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   assert.match(comparison,/Retro 3D/);
   assert.match(comparison,/id="studyExportPNG"/);
   assert.match(study,/texture-study-export\.mjs/);
+  assert.match(study,/CLAY_GENERATIVE_STYLES/);
+  assert.match(study,/makeRoofAsset\('clay',seeds,\{style:styleId\}\)/);
   assert.match(study,/URL\.createObjectURL/);
   assert.match(study,/toBlob\(/);
   assert.match(study,/updateExportButton/);
