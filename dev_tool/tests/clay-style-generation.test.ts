@@ -10,11 +10,11 @@ type Channel='albedo'|'normal'|'roughness';
 type ClayStyle='current'|'hand-painted-study'|'retro-3d-study';
 
 function paint(style:ClayStyle,view:Channel,values=seeds){
-  let pixels:Uint8ClampedArray|null=null;
+  const result:{pixels:Uint8ClampedArray|null}={pixels:null};
   const canvas={width:0,height:0,
     getContext(){return {
       createImageData:(w:number,h:number)=>({data:new Uint8ClampedArray(w*h*4)}),
-      putImageData:(image:{data:Uint8ClampedArray})=>{pixels=image.data;},
+      putImageData:(image:{data:Uint8ClampedArray})=>{result.pixels=image.data;},
     };},
   };
   const asset=makeRoofAsset('clay',values,style==='current'?
@@ -22,8 +22,8 @@ function paint(style:ClayStyle,view:Channel,values=seeds){
   asset.paint(canvas as unknown as HTMLCanvasElement,view);
   assert.equal(canvas.width,512);
   assert.equal(canvas.height,512);
-  assert.ok(pixels);
-  return pixels;
+  assert.ok(result.pixels);
+  return result.pixels;
 }
 function fractionDifferent(a:Uint8ClampedArray,b:Uint8ClampedArray){
   assert.equal(a.length,b.length);
