@@ -448,6 +448,10 @@ test('import records reject unsafe paths and malformed binary uploads',async()=>
       Buffer.alloc(28)),/Invalid binary glTF/);
     await assert.rejects(lib.importAsset('bad-image','Bad','png',
       Buffer.alloc(64)),/Invalid PNG/);
+    const corrupt=samplePng();
+    corrupt[corrupt.length-1]^=1;
+    await assert.rejects(lib.importAsset('bad-crc','Bad','png',corrupt),
+      /Corrupt PNG checksum/);
     assert.deepEqual((await lib.assets()).map(a=>a.source.id),['valid-glb']);
   });
 });
