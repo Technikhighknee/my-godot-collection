@@ -29,6 +29,14 @@ async function regular(path:string):Promise<Buffer>{
     throw Error('Build output path is not a regular file');
   return readFile(path);
 }
+async function outputDirectory(dir:string):Promise<void>{
+  try{await mkdir(dir);}catch(error){
+    if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;
+  }
+  const info=await lstat(dir);
+  if(!info.isDirectory()||info.isSymbolicLink())
+    throw Error('Build output directory is redirected');
+}
 async function existingArtifact(folder:string,node:BuildNode):Promise<BuildArtifact|null>{
   try{
     const info=await lstat(folder);
@@ -91,8 +99,10 @@ export async function produceBuild(projectDir:string,plan:BuildPlan,
   imported:(id:string)=>Promise<{bytes:Buffer;source:ImportedAssetSource}>,
   currentRevision:(id:string)=>Promise<string>):Promise<BuildResult>{
   const lookup=new Map(entries.map(entry=>[entry.source.id,entry]));
-  const buildRoot=join(projectDir,'build','assets');
-  await mkdir(buildRoot,{recursive:true});
+  const build=join(projectDir,'build');
+  const buildRoot=join(build,'assets');
+  await outputDirectory(build);
+  await outputDirectory(buildRoot);
   let built=0,reused=0;
   const artifacts:BuildArtifact[]=[];
   const keys=new Map(plan.nodes.map(node=>[node.id,node.key]));
@@ -103,7 +113,7 @@ export async function produceBuild(projectDir:string,plan:BuildPlan,
     if(await currentRevision(node.id)!==node.sourceRevision)
       throw Error('Asset source changed during build: '+node.id);
     const parent=join(buildRoot,node.id);
-    await mkdir(parent,{recursive:true});
+    await outputDirectory(parent);
     const destination=join(parent,node.key);
     // Source payload integrity is checked even on a cache hit. A valid
     // cached copy must never conceal a damaged imported project file.
