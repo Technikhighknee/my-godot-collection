@@ -39,6 +39,12 @@ export interface BuildingGeneratorDefinition extends GeneratorMeta {
 export type ModelGeneratorDefinition=TreeGeneratorDefinition|BuildingGeneratorDefinition;
 export interface ImageGeneratorDefinition extends GeneratorMeta {
   kind:'image';generate:(seeds:Record<string,number>)=>GeneratedImage;
+  // Optional native procedural style capabilities used by the non-persistent
+  // art-direction study. Other generators still use preview treatments.
+  studyGeneration?:{
+    readonly styles:readonly string[];
+    readonly generate:(seeds:Record<string,number>,style:string)=>GeneratedImage;
+  };
 }
 export type GeneratorDefinition=ModelGeneratorDefinition|ImageGeneratorDefinition;
 export const GENERATORS:readonly GeneratorDefinition[];
