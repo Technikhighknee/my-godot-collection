@@ -5,9 +5,17 @@
 // hand-painted structure and directional fibers per material.
 // This is deliberately not a second production texture generator yet.
 export const STUDY_STYLES=Object.freeze([
-  Object.freeze({id:'current',label:'Current generators'}),
-  Object.freeze({id:'classic-strategy-study',
-    label:'Classic PC strategy · painted study'}),
+  Object.freeze({id:'current',label:'Current',description:'Unchanged generator output'}),
+  Object.freeze({id:'classic-strategy-study',label:'Classic PC Strategy',
+    description:'Painted color, rough pigment and clearly readable details'}),
+  Object.freeze({id:'naturalistic-study',label:'Naturalistic',
+    description:'Subdued mineral pigments, stains and weathering'}),
+  Object.freeze({id:'hand-painted-study',label:'Hand-Painted Fantasy',
+    description:'Bold illustrated shapes, simplified colors and contrast'}),
+  Object.freeze({id:'retro-3d-study',label:'Retro 3D',
+    description:'Chunky texels, ordered dithering and limited color depth'}),
+  Object.freeze({id:'watercolor-study',label:'Watercolor',
+    description:'Translucent pigment washes and soft granulation'}),
 ]);
 export const STUDY_MATERIALS=Object.freeze([
   Object.freeze({id:'roof-thatch',label:'Thatch',group:'Roof',profile:null}),
@@ -109,6 +117,113 @@ function paintedAlbedo(id,x,y,source,styleSeed,width,height){
       tone*detail[c]);
   });
 }
+
+// These reference palettes deliberately describe DIFFERENT materials, not a
+// universal warmth/saturation slider. All shapes still come from the shared
+// source generator; style changes here are for art-direction comparison.
+const MATERIAL_ART=Object.freeze({
+  'roof-thatch':{natural:[139,128,93],fantasy:[214,165,65],
+    retro:[156,138,84],wash:[194,170,111],grain:1.14},
+  'roof-clay':{natural:[147,91,73],fantasy:[211,89,50],
+    retro:[169,92,66],wash:[204,133,112],grain:1.18},
+  'timber-oak':{natural:[108,86,68],fantasy:[172,97,44],
+    retro:[118,82,56],wash:[163,115,83],grain:1.3},
+  'plaster-lime':{natural:[205,196,170],fantasy:[246,213,139],
+    retro:[197,178,140],wash:[235,222,188],grain:.72},
+  'stone-rubble':{natural:[143,143,131],fantasy:[156,153,174],
+    retro:[143,132,112],wash:[178,174,164],grain:.9},
+});
+const dot=(x,y,seed)=>hash(x,y,seed)-.5;
+function naturalAlbedo(id,x,y,src,width,height,seed){
+  const p=(y*width+x)*4,palette=MATERIAL_ART[id].natural;
+  const macro=field(x,y,width,height,5,6,seed^0xf731ac25);
+  const mid=field(x,y,width,height,19,21,seed^0xb936c144);
+  const mineral=field(x,y,width,height,87,81,seed^0x292af38b);
+  const vertical=field(x,y,width,height,12,4,seed^0xca3987bc);
+  // Different natural weathering for different physical substances.
+  const stain=id==='roof-thatch'?Math.max(0,macro+mid*.5)*23:
+    id==='roof-clay'?Math.max(0,mid+mineral*.4)*37:
+    id==='timber-oak'?(vertical*.4+mid*.55)*27:
+    id==='plaster-lime'?Math.max(0,macro+.24)*17:
+    Math.max(0,macro+mid*.7)*30;
+  const intensity=[.86,.77,.67,.82,.77][
+    ['roof-thatch','roof-clay','timber-oak','plaster-lime','stone-rubble'].indexOf(id)];
+  return [0,1,2].map(c=>clamp(
+    mix(src[p+c],palette[c],.30)+
+    (macro*18+mid*10+mineral*9+vertical*8)*intensity-
+    stain*[.9,.95,1.06][c]));
+}
+function fantasyAlbedo(id,x,y,src,width,height,seed){
+  const p=(y*width+x)*4,palette=MATERIAL_ART[id].fantasy;
+  const large=field(x,y,width,height,6,8,seed^0x65a10f3c);
+  const block=field(x,y,width,height,17,19,seed^0xad26916f);
+  const stroke=field(x,y,width,height,
+    id==='timber-oak'?70:32,id==='timber-oak'?6:27,
+    seed^0x3ce16a4d);
+  const sourceLuma=.299*src[p]+.587*src[p+1]+.114*src[p+2];
+  // Fewer, broader tonal levels mimic deliberately illustrated shapes.
+  const bands=Math.round((sourceLuma+large*42+block*31)/42)*42;
+  const edge=(sourceLuma-bands)*.28;
+  const shade=large*74+block*42+stroke*17+edge;
+  const emphasis=id==='plaster-lime'?.65:id==='stone-rubble'?1.2:1;
+  return [0,1,2].map(c=>{
+    const base=mix(src[p+c],palette[c],.50);
+    const channel=[1,.82,.58][c];
+    return clamp((base-128)*1.35+128+shade*channel*emphasis);
+  });
+}
+function watercolorAlbedo(id,x,y,src,width,height,seed){
+  const p=(y*width+x)*4,palette=MATERIAL_ART[id].wash;
+  const wash1=field(x,y,width,height,5,5,seed^0x8fe34c15);
+  const wash2=field(x,y,width,height,11,13,seed^0x932b841c);
+  const wash3=field(x,y,width,height,24,19,seed^0xb913427d);
+  const granule=field(x,y,width,height,90,88,seed^0x14b83b62);
+  const paper=dot(x,y,seed^0xac15e831);
+  const pool=Math.max(0,Math.abs(wash2)-.22);
+  const pigment=wash1*52+wash2*30+wash3*18+granule*13+
+    paper*6-pool*30;
+  const materialOpacity=id==='plaster-lime'?.70:
+    id==='stone-rubble'?.52:.60;
+  return [0,1,2].map(c=>clamp(
+    mix(src[p+c],palette[c],materialOpacity)+
+    pigment*[1,.83,.71][c]+(c===2?wash1*9:0)));
+}
+const BAYER4=Object.freeze([
+  0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5,
+]);
+// Here the source is sampled in chunky material texels. Dithering is applied
+// per chunky pixel (not screen-space), so zoom and repeat are deterministic.
+function retroPixel(id,x,y,src,width,height,seed,block){
+  const tx=Math.floor(x/block),ty=Math.floor(y/block);
+  const sx=Math.min(width-1,tx*block+Math.floor(block/2));
+  const sy=Math.min(height-1,ty*block+Math.floor(block/2));
+  const p=(sy*width+sx)*4,palette=MATERIAL_ART[id].retro;
+  const low=field(tx,ty,Math.ceil(width/block),Math.ceil(height/block),
+    7,7,seed^0x8f27a9e3);
+  const dither=BAYER4[(ty%4)*4+tx%4]/15-.5;
+  const level=35;
+  const res=[];
+  for(let c=0;c<3;c++){
+    const pigment=mix(src[p+c],palette[c],.40)+low*31;
+    res.push(clamp(Math.round((pigment+dither*level*.55)/level)*level));
+  }
+  return res;
+}
+const STYLE_NORMAL=Object.freeze({
+  'classic-strategy-study':1.28,
+  'naturalistic-study':1.08,
+  'hand-painted-study':.53,
+  'retro-3d-study':.40,
+  'watercolor-study':.20,
+});
+const STYLE_ROUGHNESS=Object.freeze({
+  'classic-strategy-study':-4,
+  'naturalistic-study':4,
+  'hand-painted-study':7,
+  'retro-3d-study':9,
+  'watercolor-study':13,
+});
+
 const RELIEF=Object.freeze({
   'roof-thatch':1.28,'roof-clay':1.36,'timber-oak':1.39,
   'plaster-lime':1.12,'stone-rubble':1.32,
@@ -135,25 +250,55 @@ export function applyTextureStudyStyle(id,style,view,data,options={}){
     width<1||height<1||width*height!==count)
     throw Error('Invalid texture dimensions');
   const seed=(options.seed??0x7a39d4b1)>>>0;
+  const block=Math.max(1,Math.floor(Math.min(width,height)/32));
   for(let p=0;p<count;p++){
-    const i=p*4;
+    const i=p*4,x=p%width,y=Math.floor(p/width);
     if(view==='albedo'){
-      const x=p%width,y=Math.floor(p/width);
-      const color=paintedAlbedo(id,x,y,data,seed,width,height);
+      let color;
+      switch(style){
+        case 'classic-strategy-study':
+          color=paintedAlbedo(id,x,y,data,seed,width,height);break;
+        case 'naturalistic-study':
+          color=naturalAlbedo(id,x,y,data,width,height,seed);break;
+        case 'hand-painted-study':
+          color=fantasyAlbedo(id,x,y,data,width,height,seed);break;
+        case 'retro-3d-study':
+          color=retroPixel(id,x,y,data,width,height,seed,block);break;
+        case 'watercolor-study':
+          color=watercolorAlbedo(id,x,y,data,width,height,seed);break;
+      }
       pixels[i]=color[0];pixels[i+1]=color[1];pixels[i+2]=color[2];
     }else if(view==='normal'){
-      const factor=RELIEF[id],x=(data[i]/127.5-1)*factor;
-      const y=(data[i+1]/127.5-1)*factor;
-      const z=Math.max(0,data[i+2]/127.5-1);
-      const len=Math.hypot(x,y,z)||1;
-      pixels[i]=clamp((x/len+1)*127.5);
-      pixels[i+1]=clamp((y/len+1)*127.5);
-      pixels[i+2]=clamp((z/len+1)*127.5);
+      // Correct tangent-space normal: scaling XY then renormalizing never
+      // flips the surface backface. Retro normals share the chunky texels.
+      const sx=style==='retro-3d-study'?
+        Math.min(width-1,Math.floor(x/block)*block+Math.floor(block/2)):x;
+      const sy=style==='retro-3d-study'?
+        Math.min(height-1,Math.floor(y/block)*block+Math.floor(block/2)):y;
+      const index=(sy*width+sx)*4;
+      const factor=style==='classic-strategy-study'?RELIEF[id]:
+        STYLE_NORMAL[style]*MATERIAL_ART[id].grain;
+      const nx=(data[index]/127.5-1)*factor;
+      const ny=(data[index+1]/127.5-1)*factor;
+      const nz=Math.max(0,data[index+2]/127.5-1);
+      const len=Math.hypot(nx,ny,nz)||1;
+      pixels[i]=clamp((nx/len+1)*127.5);
+      pixels[i+1]=clamp((ny/len+1)*127.5);
+      pixels[i+2]=clamp((nz/len+1)*127.5);
     }else{
-      const value=clamp(data[i]+ROUGHNESS[id]);
+      const sx=style==='retro-3d-study'?
+        Math.min(width-1,Math.floor(x/block)*block+Math.floor(block/2)):x;
+      const sy=style==='retro-3d-study'?
+        Math.min(height-1,Math.floor(y/block)*block+Math.floor(block/2)):y;
+      const sample=data[(sy*width+sx)*4];
+      const offset=style==='classic-strategy-study'?ROUGHNESS[id]:
+        STYLE_ROUGHNESS[style];
+      let value=clamp(sample+offset);
+      if(style==='retro-3d-study')value=clamp(Math.round(value/32)*32);
+      if(style==='watercolor-study')value=clamp(Math.round(value/16)*16);
       pixels[i]=value;pixels[i+1]=value;pixels[i+2]=value;
     }
-    // Alpha is preserved. Existing seeds still define the source geometry.
+    // Preserve alpha; never overwrite persisted texture recipes.
   }
   return pixels;
 }
