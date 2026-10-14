@@ -320,7 +320,7 @@ test('texture style workbench serves its independent non-destructive comparison 
     assert.ok(addr&&typeof addr!=='string');
     const base='http://127.0.0.1:'+addr.port;
     for(const [path,type,expected] of [
-      ['/tools/asset-procgen/style-study','text/html','id="studyBoard"'],
+      ['/tools/asset-procgen/style-study.html','text/html','id="studyBoard"'],
       ['/tools/asset-procgen/style-study.js','javascript','applyTextureStudyStyle'],
       ['/tools/asset-procgen/style-study.css','text/css','.study-board'],
       ['/tools/asset-procgen/texture-style-study.mjs','javascript','STUDY_MATERIALS'],
@@ -337,7 +337,7 @@ test('texture style workbench serves its independent non-destructive comparison 
     const editor=await(await fetch(base+'/tools/asset-procgen/')).text();
     assert.match(editor,/Texture style study/);
     assert.match(editor,/id="styleStudyLink"/);
-    assert.match(editor,/href="\/studio\/\?study=materials"/);
+    assert.match(editor,/href="\/studio\.html\?study=materials"/);
   }finally{
     await new Promise<void>((resolve,reject)=>
       host.close(error=>error?reject(error):resolve()));
@@ -353,7 +353,7 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   assert.match(html,/id="openStyleStudy"/);
   assert.match(studio,/function openStyleStudy\(\)/);
   assert.match(studio,/key='study:materials'/);
-  assert.match(studio,/style-study\?embedded=1/);
+  assert.match(studio,/style-study\.html\?embedded=1/);
   assert.match(studio,/info.key==='study:materials'/);
   assert.match(studio,/studio:open-style-study/);
   assert.match(studio,/studio:open-generator/);
