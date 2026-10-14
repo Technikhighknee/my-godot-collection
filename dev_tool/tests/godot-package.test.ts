@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,readFile,readdir,rm,writeFile,symlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {ProjectLibrary} from '../src/projects/library.ts';
@@ -189,6 +189,157 @@ test('Godot export API requires active project and same-origin POST',async()=>{
     }finally{
       await new Promise<void>((resolve,reject)=>
         server.close(e=>e?reject(e):resolve()));
+    }
+  });
+});
+
+
+test('Godot sync copies only selected asset, keeps paths stable and retains import UIDs',async()=>{
+  await project(async(root,lib)=>{
+    const game=join(root,'game');
+    await mkdir(game);await writeFile(join(game,'project.godot'),'config_version=5\n');
+    const original=png(12);
+    await lib.importAsset('oak-image','Oak image','png',original);
+    const first=await lib.syncGodot('oak-image',game);
+    assert.equal(first.synced,true);
+    assert.equal(first.resourcePath,'res://assets/1400/world/oak-image/');
+    const target=join(game,'assets','1400','world','oak-image');
+    assert.equal(first.target,target);
+    const file=join(target,'assets','oak-image','oak-image.png');
+    assert.deepEqual(await readFile(file),original);
+    assert.equal((await lib.syncGodot('oak-image',game)).synced,false);
+
+    // Godot's importer creates these files beside a source texture. Their
+    // UID and import settings must survive subsequent revisions.
+    const sidecar=join(target,'assets','oak-image','oak-image.png.import');
+    await writeFile(sidecar,'[remap]\nuid="uid://test"\n');
+    assert.equal((await lib.syncGodot('oak-image',game)).synced,false);
+    await lib.importAsset('market-image','Market image','png',png(81));
+    const second=await lib.syncGodot('market-image',game);
+    assert.equal(second.synced,true);
+    assert.deepEqual(await readFile(file),original);
+    assert.equal(await readFile(sidecar,'utf8'),
+      '[remap]\nuid="uid://test"\n');
+    assert.deepEqual((await readdir(join(game,'assets','1400','world'))).sort(),
+      ['market-image','oak-image']);
+    assert.deepEqual(await readFile(join(root,'world','exports','godot',
+      'oak-image','assets','oak-image','oak-image.png')),original);
+  });
+});
+
+test('Godot sync updates one managed source and preserves matching importer sidecars',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'godot-update-'));
+  try{
+    const game=join(root,'game');await mkdir(game);
+    await writeFile(join(game,'project.godot'),'config_version=5\n');
+    const source=join(root,'package-source');
+    await mkdir(source,{recursive:true});
+    const fileA=png(15),fileB=png(29);
+    const artifacts=(key:string,data:Buffer)=>({
+      directory:source,published:true,built:0,reused:1,
+      manifest:{
+        format:'devtool-godot-package' as const,version:1 as const,
+        root:'icon',planKey:key,
+        resources:[{id:'icon',kind:'image' as const,
+          origin:'procedural' as const,key,dependencies:[],
+          files:['assets/icon/albedo.png']}],
+        files:[{path:'assets/icon/albedo.png',bytes:data.length,
+          sha256:digest(data)}],
+      },
+    });
+    async function sourcePackage(result:ReturnType<typeof artifacts>,
+      bytes:Buffer){
+      await mkdir(join(source,'assets','icon'),{recursive:true});
+      await writeFile(join(source,'assets','icon','albedo.png'),bytes);
+      await writeFile(join(source,'manifest.json'),
+        JSON.stringify(result.manifest,null,2)+'\n');
+    }
+    const first=artifacts('rev1',fileA);
+    await sourcePackage(first,fileA);
+    const {syncGodotPackage}=await import('../src/projects/godot-sync.ts');
+    const placed=await syncGodotPackage('world','icon',first,game);
+    assert.equal(placed.synced,true);
+    const targetFile=join(placed.target,'assets','icon','albedo.png');
+    const sidecar=targetFile+'.import';
+    await writeFile(sidecar,'[remap]\nuid="uid://stable"\n');
+    const updated=artifacts('rev2',fileB);
+    await sourcePackage(updated,fileB);
+    const next=await syncGodotPackage('world','icon',updated,game);
+    assert.equal(next.synced,true);
+    assert.deepEqual(await readFile(targetFile),fileB);
+    assert.equal(await readFile(sidecar,'utf8'),
+      '[remap]\nuid="uid://stable"\n');
+    assert.equal((await syncGodotPackage('world','icon',updated,game)).synced,false);
+    assert.deepEqual(await readdir(join(game,'assets','1400','world')),['icon']);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('Godot sync rejects wrong targets, unowned files and redirected folders',async()=>{
+  await project(async(root,lib)=>{
+    await lib.importAsset('icon','Icon','png',png(90));
+    const notGame=join(root,'not-game');await mkdir(notGame);
+    await assert.rejects(lib.syncGodot('icon',notGame),/ENOENT|project.godot/);
+    await assert.rejects(lib.syncGodot('icon','relative/path'),
+      /absolute Godot project folder/);
+    const game=join(root,'game');await mkdir(game);
+    await writeFile(join(game,'project.godot'),'config_version=5\n');
+    const foreign=join(game,'assets','1400','world','icon');
+    await mkdir(foreign,{recursive:true});
+    const manual=join(foreign,'personal.glb');
+    await writeFile(manual,Buffer.from('keep this'));
+    await assert.rejects(lib.syncGodot('icon',game),/ENOENT|not managed|manifest/);
+    assert.deepEqual(await readFile(manual),Buffer.from('keep this'));
+    assert.equal((await readdir(join(game,'assets','1400','world'))).length,1);
+
+    // A separate project using the same logical ID is namespaced by project.
+    await rm(foreign,{recursive:true});
+    await lib.syncGodot('icon',game);
+    const linked=join(game,'other-root');await mkdir(linked);
+    await writeFile(join(linked,'foreign.txt'),'untouched');
+    const other=join(game,'assets','1400','other');
+    await symlink(linked,other,'junction');
+    await assert.rejects(lib.syncGodot('icon',join(root,'other-game')),
+      /ENOENT|Godot target/);
+    assert.equal(await readFile(join(linked,'foreign.txt'),'utf8'),'untouched');
+  });
+});
+
+test('Godot sync endpoint rejects GET and wrong project, then accepts explicit target',async()=>{
+  await project(async(root,lib)=>{
+    const game=join(root,'game');await mkdir(game);
+    await writeFile(join(game,'project.godot'),'config_version=5\n');
+    await lib.importAsset('icon','Icon','png',png(52));
+    const server=createDevToolServer(createProjectRouter(lib,{buildings:[]}));
+    await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+    try{
+      const addr=server.address();
+      assert.ok(addr&&typeof addr!=='string');
+      const url='http://127.0.0.1:'+addr.port;
+      const endpoint=url+'/api/projects/active/sync/godot/icon';
+      assert.equal((await fetch(endpoint)).status,405);
+      const invalid=await fetch(endpoint,{method:'POST',headers:{
+        Origin:url,'X-Project-Id':'wrong','Content-Type':'application/json',
+      },body:JSON.stringify({target:game})});
+      assert.equal(invalid.status,409);
+      const malformed=await fetch(endpoint,{method:'POST',headers:{
+        Origin:url,'X-Project-Id':'world','Content-Type':'application/json',
+      },body:JSON.stringify({target:game,other:true})});
+      assert.equal(malformed.status,400);
+      const response=await fetch(endpoint,{method:'POST',headers:{
+        Origin:url,'X-Project-Id':'world','Content-Type':'application/json',
+      },body:JSON.stringify({target:game})});
+      assert.equal(response.status,200);
+      const data=await response.json();
+      assert.equal(data.synced,true);
+      assert.equal(data.resourcePath,'res://assets/1400/world/icon/');
+      const denied=await fetch(endpoint,{method:'POST',headers:{
+        Origin:'http://example.com','X-Project-Id':'world',
+        'Content-Type':'application/json',
+      },body:JSON.stringify({target:game})});
+      assert.equal(denied.status,400);
+    }finally{
+      await new Promise<void>((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve()));
     }
   });
 });
