@@ -7,8 +7,10 @@ saved under the Studio *Textures* section. The generator catalog offers
 **Textures → Roofs → Thatch** and **Clay tiles**, each with inspectable albedo,
 normal and roughness channels. No downloaded textures or baked sunlight.
 
-The building generator exposes two reusable material slots: **Thatch (level 1)**
-and **Clay tiles (levels 2 and 3)**. Each slot can select an existing saved
+The building generator exposes reusable physical material slots for
+foundations, plaster, structural timber and the two roof types. In particular,
+**Thatch (level 1)** and **Clay tiles (levels 2 and 3)** are independently
+assignable shared project materials. Each slot can select an existing saved
 compatible texture, create a new project texture, open its texture editor or
 reseed the shared asset (with revision conflict protection). Reassignments
 belong to the building recipe: save the building to persist the reference.
@@ -237,8 +239,8 @@ the **Tile** selector, or by clicking a cell in the full atlas. **All
 tiles** returns to the full texture. The tile view preserves native
 pixels and supports the same zoom and channel controls. Seed changes
 retain the inspected tile when its layout is still valid. Non-atlas
-images have no tile selection. This inspection does not export files,
-generate a new kind of leaf, or alter the oak model's materials.
+images have no tile selection. The tile inspector itself does not write export files or modify the oak model;
+standalone atlases and leaf sprays can be baked from their saved recipes.
 
 Each generated part has its own unsigned 32-bit seed. The oak has
 **Wood geometry**, **Foliage placement**, **Leaf atlas**, **Bark fissures**,
@@ -407,8 +409,8 @@ controls still work.
 
 The detailed leaf-card mesh contains roughly 3,400–3,600 triangles,
 in addition to 6,444 existing wood triangles. There are **no LOD levels**
-or runtime wind animation yet. Complete oak GLB assets, including bark and foliage, are exported; wind animation remains future
-work. Tests verify seeded output, connected group structure, correct
+and no runtime wind animation yet. The production builder exports the existing
+bark and foliage together as a GLB; runtime wind remains future work. Tests verify seeded output, connected group structure, correct
 UV tile boundaries, finite indexed geometry and the triangle budget.
 
 ### Young fir wood structure
