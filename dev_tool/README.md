@@ -68,8 +68,8 @@ dev_tool/projects/<project-id>/exports/godot/<asset-id>/
 ```
 
 The filenames in `assets/` remain stable across recipe reseeds even though
-the internal build-cache keys change. Copy `assets/` into your Godot project's
-asset folder and let Godot import GLB/PNG normally. Multi-level building assets
+the internal build-cache keys change. Copy the **contents** of the package's `assets/` folder into your Godot
+project's `res://assets/` folder. Godot then imports the GLB/PNG files. Multi-level building assets
 carry several named `.glb` files; image resources carry their baked maps.
 A resource with no linked materials only gets its own outputs.
 
