@@ -69,7 +69,7 @@ function generateStone(seeds){
   ];
   const boundary=(k,x)=>{
     const id=wrap(k,COURSES);
-    return elevations[k]+
+    return elevations[k]-35+
       Math.sin(x*2*Math.PI/SIZE*2+
         hash(id,3,layout^0x1b7af502)*Math.PI*2)*2.3+
       Math.sin(x*2*Math.PI/SIZE*5+
