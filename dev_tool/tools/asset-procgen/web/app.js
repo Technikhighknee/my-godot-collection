@@ -110,7 +110,8 @@ function renderMaterialSelects(){
     fallback.value='';fallback.textContent='Generator default (unsaved)';
     picker.append(fallback);
     for(const entry of projectAssets.values()){
-      if(!slot.generators.includes(entry.source.generator.id))continue;
+      if(!entry.source.generator||
+        !slot.generators.includes(entry.source.generator.id))continue;
       const choice=document.createElement('option');
       choice.value='asset:'+entry.source.id;
       choice.textContent=entry.source.name;
@@ -550,6 +551,8 @@ async function loadSelectedProjectAsset(){
   if(!id)throw Error('Select an asset to load');
   const entry=projectAssets.get(id);
   if(!entry)throw Error('Asset is no longer in this project');
+  if(!entry.source.generator)
+    throw Error('Imported assets have no procedural editor yet');
   const gen=findGenerator(entry.source.generator.id);
   if(!gen)throw Error('Generator is unavailable');
   states.set(gen.id,{masterSeed:entry.source.generator.masterSeed,
@@ -580,7 +583,7 @@ async function changeSharedMaterial(slot,action){
   if(!binding)throw Error('Unknown material slot: '+slot);
   // Editing/reseeding always uses the actual stored resource generator.
   // Creating uses the declared compatible default. No slot-name switch.
-  const generatorId=entry?.source.generator.id??binding.generators[0];
+  const generatorId=entry?.source.generator?.id??binding.generators[0];
   if(!binding.generators.includes(generatorId))
     throw Error('Incompatible material generator for '+slot);
   const definition=findGenerator(generatorId);
