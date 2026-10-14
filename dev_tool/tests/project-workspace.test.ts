@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import {mkdtemp,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {ProjectLibrary,validateSource} from '../src/projects/library.ts';
+import {ProjectLibrary,validateSource,validateImportedSource} from '../src/projects/library.ts';
 import {findGenerator} from '../tools/asset-procgen/web/generators.mjs';
 import {createProjectRouter} from '../src/projects/router.ts';
 import {createDevToolServer} from '../src/server.ts';
+import {encodeSurfacePng} from '../tools/map-editor/src/formats/png.ts';
 
 async function temporary(run:(path:string)=>Promise<void>){
   const root=await mkdtemp(join(tmpdir(),'dev-tool-projects-'));
@@ -17,6 +18,27 @@ const fir=(name='Sample fir')=>({name,generator:'fir',
 const oak=(name='An oak')=>({name,generator:'oak',masterSeed:101,
   components:{geometry:101,foliage:101,leaves:21749,
     barkStructure:19641,barkSurface:48507,barkColor:21749}});
+
+function procedural(entry:Awaited<ReturnType<ProjectLibrary['asset']>>){
+  assert.ok(entry.source.generator,'Expected a procedural asset source');
+  return entry.source.generator;
+}
+function exampleGlb(){
+  const json=Buffer.from('{"asset":{"version":"2.0"}}');
+  const aligned=Math.ceil(json.length/4)*4;
+  const glb=Buffer.alloc(20+aligned,32);
+  glb.write('glTF',0,'ascii');
+  glb.writeUInt32LE(2,4);
+  glb.writeUInt32LE(glb.length,8);
+  glb.writeUInt32LE(aligned,12);
+  glb.writeUInt32LE(0x4e4f534a,16);
+  json.copy(glb,20);
+  return glb;
+}
+const samplePng=()=>Buffer.from(encodeSurfacePng({
+  width:1,height:1,data:new Uint8Array([0]),
+}));
+
 
 test('projects own persistent maps, recipes, and stable cross-tool references',async()=>{
   await temporary(async root=>{
@@ -32,7 +54,7 @@ test('projects own persistent maps, recipes, and stable cross-tool references',a
     const asset=await lib.createAsset('fir-one',fir());
     assert.equal(asset.source.id,'fir-one');
     assert.equal(asset.kind,'model');
-    assert.equal(asset.source.generator.version,1);
+    assert.equal(procedural(asset).version,1);
     assert.ok(asset.revision.length===64);
     await map.saveDocument({
       roads:[],objects:[{id:'tree1',definition:'asset:fir-one',
@@ -75,7 +97,7 @@ test('recipes validate known generators, seeds and revision conflicts',async()=>
       /Cannot change generator/);
     await assert.rejects(lib.updateAsset('fir-one',fir('Other'),first.revision),
       /modified/);
-    assert.equal((await lib.asset('fir-one')).source.generator.id,'fir');
+    assert.equal(procedural(await lib.asset('fir-one')).id,'fir');
     const material=await lib.createAsset('leaf',fir('Leaf'));
     const reference=await lib.createAsset('linked',fir('Linked'));
     const path=join(root,'test-world','assets','linked.asset.json');
@@ -209,7 +231,7 @@ test('project API is isolated and rejects cross-origin modifications',async()=>{
       });
       assert.equal(asset.status,201);
       const entry=await asset.json();
-      assert.equal(entry.source.generator.id,'oak');
+      assert.equal(procedural(entry).id,'oak');
       const saved=await request('/api/projects/active/assets/oak-a');
       assert.equal((await saved.json()).kind,'model');
       assert.equal((await request('/api/projects/active/graph')).status,200);
@@ -345,10 +367,10 @@ test('stored recipes pin generator versions and reject silent algorithm upgrades
     const saved=await lib.createAsset('fir-one',fir());
     const def=findGenerator('fir');
     assert.ok(def);
-    assert.equal(saved.source.generator.version,def.recipeVersion);
+    assert.equal(procedural(saved).version,def.recipeVersion);
     assert.equal(def.recipeVersion,1,'Existing projects keep their v1 contract');
     const incompatible={...saved.source,generator:{
-      ...saved.source.generator,version:def.recipeVersion+1,
+      ...procedural(saved),version:def.recipeVersion+1,
     }};
     assert.throws(()=>validateSource(incompatible,undefined,findGenerator),
       /Unsupported generator version/);
@@ -360,5 +382,101 @@ test('stored recipes pin generator versions and reject silent algorithm upgrades
       'Unsupported recipes must not be rewritten while reading');
     await writeFile(sourcePath,original);
     assert.deepEqual((await lib.asset('fir-one')).source,saved.source);
+  });
+});
+
+test('imported files join existing project resources without a fake generator',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('import-world','Import World');
+    const glb=exampleGlb(),png=samplePng();
+    const model=await lib.importAsset('blender-hall','Blender Hall','glb',glb);
+    const image=await lib.importAsset('imported-wall','Imported Wall','png',png);
+    assert.equal(model.kind,'model');
+    assert.equal(image.kind,'image');
+    assert.ok(!model.source.generator);
+    assert.equal(model.source.version,2);
+    assert.deepEqual((await lib.importedBytes('blender-hall')).bytes,glb);
+    assert.deepEqual((await lib.importedBytes('imported-wall')).bytes,png);
+    assert.equal((await lib.assets()).length,2);
+    const map=lib.mapWorkspace()!;
+    await map.saveDocument({
+      roads:[],objects:[{id:'hall1',definition:'asset:blender-hall',
+        position:[15,20],rotation:0}],
+    },map.getRevision(),map.getFile());
+    assert.deepEqual(await lib.graph(),{
+      edges:[{from:'map:world',to:'asset:blender-hall'}],missing:[],
+    });
+    await lib.createAsset('fir-one',fir());
+    assert.equal((await lib.assets()).length,3);
+    assert.equal(procedural(await lib.asset('fir-one')).id,'fir');
+    const reopened=await ProjectLibrary.open(root,undefined,findGenerator);
+    assert.deepEqual((await reopened.importedBytes('blender-hall')).bytes,glb);
+    assert.equal((await reopened.asset('imported-wall')).kind,'image');
+    await assert.rejects(lib.updateAsset('blender-hall',fir(),model.revision),
+      /Imported resources cannot be updated as generator recipes/);
+    await assert.rejects(lib.importAsset('blender-hall','Duplicate','glb',glb),
+      /already exists/);
+    const stored=join(root,'import-world','assets','imports','blender-hall.glb');
+    await writeFile(stored,Buffer.concat([glb,Buffer.from([0])]));
+    await assert.rejects(lib.importedBytes('blender-hall'),/corrupted/);
+  });
+});
+
+test('import records reject unsafe paths and malformed binary uploads',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('import-validation','Validation');
+    const model=await lib.importAsset('valid-glb','Valid GLB','glb',exampleGlb());
+    assert.ok('origin' in model.source);
+    const source=model.source;
+    assert.throws(()=>validateImportedSource({...source,
+      imported:{...source.imported,path:'../escape.glb'}},'valid-glb'),
+      /Invalid imported file metadata/);
+    assert.throws(()=>validateImportedSource({...source,
+      imported:{...source.imported,sha256:'bad'}},'valid-glb'),
+      /Invalid imported file metadata/);
+    await assert.rejects(lib.importAsset('../escape','Bad','glb',exampleGlb()));
+    await assert.rejects(lib.importAsset('bad-binary','Bad','glb',
+      Buffer.alloc(28)),/Invalid binary glTF/);
+    await assert.rejects(lib.importAsset('bad-image','Bad','png',
+      Buffer.alloc(64)),/Invalid PNG/);
+    assert.deepEqual((await lib.assets()).map(a=>a.source.id),['valid-glb']);
+  });
+});
+
+test('import API requires project identity and verifies served bytes',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('api-imports','API Imports');
+    const server=createDevToolServer(createProjectRouter(lib,{buildings:[]}));
+    await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+    try{
+      const address=server.address();
+      assert.ok(address&&typeof address!=='string');
+      const url='http://127.0.0.1:'+address.port;
+      const path='/api/projects/active/imports/wood-beam?name=Wood%20Beam';
+      const png=samplePng();
+      const headers={'Content-Type':'image/png',Origin:url,
+        'X-Project-Id':'api-imports'};
+      const stale=await fetch(url+path,{method:'POST',
+        headers:{...headers,'X-Project-Id':'other'},body:png});
+      assert.equal(stale.status,409);
+      const crossOrigin=await fetch(url+path,{method:'POST',
+        headers:{...headers,Origin:'http://evil.example'},body:png});
+      assert.equal(crossOrigin.status,400);
+      const uploaded=await fetch(url+path,{method:'POST',headers,body:png});
+      assert.equal(uploaded.status,201,await uploaded.text());
+      const entry=await lib.asset('wood-beam');
+      assert.equal(entry.source.name,'Wood Beam');
+      assert.equal(entry.kind,'image');
+      const retrieved=await fetch(url+'/api/projects/active/imports/wood-beam');
+      assert.equal(retrieved.status,200);
+      assert.deepEqual(Buffer.from(await retrieved.arrayBuffer()),png);
+      assert.equal((await fetch(url+'/api/projects/active/assets')).status,200);
+    }finally{
+      await new Promise<void>((resolve,reject)=>
+        server.close(e=>e?reject(e):resolve()));
+    }
   });
 });
