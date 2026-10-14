@@ -11,7 +11,7 @@ import {OAK_BARK_SIZE,OAK_BARK_MAPS,OAK_BARK_PROFILES,
 import {mapOakBarkWood} from './oak-bark-uv.mjs';
 import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
-import {makeRoofAsset} from './roof-textures.mjs';
+import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from './roof-textures.mjs';
 import {makeTimberAsset} from './timber-textures.mjs';
 import {makePlasterAsset} from './plaster-textures.mjs';
 import {makeStoneAsset} from './stone-textures.mjs';
@@ -95,6 +95,10 @@ export const GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Clay tiles',navType:'Texture',
     generate:seeds=>makeRoofAsset('clay',seeds),
+    studyGeneration:Object.freeze({
+      styles:CLAY_GENERATIVE_STYLES,
+      generate:(seeds,style)=>makeRoofAsset('clay',seeds,{style}),
+    }),
     overline:'PROJECT TEXTURES / ROOF',
     title:'Clay roof tiles.',
     description:'Seamless interlocking terracotta tiles with clear rows, shaped overlaps and subtle color variation. Separate albedo, normal and roughness channels.',
