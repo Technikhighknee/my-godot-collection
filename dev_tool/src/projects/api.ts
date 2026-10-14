@@ -117,7 +117,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       res.writeHead(404);res.end();
     }catch(e){
       const message=e instanceof Error?e.message:String(e);
-      const status=/EEXIST|modified|changed on disk|cycle|Missing asset dependency/.test(message)?409:
+      const status=/EEXIST|already exists|modified|changed on disk|cycle|Missing asset dependency/.test(message)?409:
         /ENOENT|no such file/.test(message)?404:400;
       send(res,status,{error:message});
     }
