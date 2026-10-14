@@ -114,8 +114,8 @@ test('pigment reseeding does not alter the native material relief',()=>{
   for(const material of cases){
     const style='hand-painted-study';
     const a=makeStyledMaterialAsset(material.id,{...material.seeds},style);
-    const changed={...material.seeds,
-      [material.pigment]:material.seeds[material.pigment]+1};
+    const seeds:Record<string,number>={...material.seeds};
+    const changed={...seeds,[material.pigment]:seeds[material.pigment]!+1};
     const b=makeStyledMaterialAsset(material.id,changed,style);
     const profile=material.id==='timber-oak'?'panel':undefined;
     const normalA=capture(a,'normal',profile);
