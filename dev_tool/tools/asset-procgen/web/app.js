@@ -706,7 +706,7 @@ projectEl('importProjectAsset').addEventListener('click',()=>
     const name=requestedName||stem;
     const desiredId=projectEl('projectAssetId').value.trim();
     const slug=stem.toLowerCase().normalize('NFKD')
-      .replace(/[\\u0300-\\u036f]/g,'')
+      .replace(/[\u0300-\u036f]/g,'')
       .replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')
       .slice(0,32)||'imported';
     const id=desiredId||slug+'-'+randomSeed().toString(36);
