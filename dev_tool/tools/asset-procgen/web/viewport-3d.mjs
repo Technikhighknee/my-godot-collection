@@ -237,9 +237,8 @@ export function createModelViewport(container,onChange=()=>{}){
         map:shared?.albedo??buildingTextures.get(part.material,surface.kind),
         normalMap:shared?.normal??null,roughnessMap:shared?.roughness??null,
         normalScale:new THREE.Vector2(.62,.62),
-        roughness:surface.kind===null&&
-          (part.material==='glass'||part.material==='innerGlass')?.37:
-          shared?.96:surface.kind==='roof'?.98:.92,
+        roughness:surface.roughness??(shared?.96:
+          surface.kind==='roof'?.98:.92),
         vertexColors:!!part.colors,
         metalness:0,side:THREE.DoubleSide,
       });
