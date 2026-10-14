@@ -1,4 +1,5 @@
 import {findGenerator,generateAsset} from './generators.mjs';
+import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from './roof-textures.mjs';
 import {STUDY_STYLES,STUDY_MATERIALS,applyTextureStudyStyle,
   studySeeds,reseedStudySeeds} from './texture-style-study.mjs';
 import {drawTextureStudyExport,textureStudyExportFilename}
@@ -106,15 +107,23 @@ function buildBoard(){
 // and the art-direction passes separately. Toggling columns and tiling never
 // regenerates the source and cannot accidentally reseed another column.
 const sourceCache=new Map(),previewCache=new Map(),styleCache=new Map();
-function cacheKey(material,view,profile){
-  return [material.id,masterSeed??'default',view,profile??''].join(':');
+function nativeStyle(material,styleId){
+  return material.id==='roof-clay'&&CLAY_GENERATIVE_STYLES.includes(styleId);
 }
-function getImage(material,view,profile){
-  const key=cacheKey(material,view,profile);
+function cacheKey(material,view,profile,styleId='current'){
+  return [material.id,masterSeed??'default',view,profile??'',
+    nativeStyle(material,styleId)?styleId:'current'].join(':');
+}
+function getImage(material,view,profile,styleId='current'){
+  const key=cacheKey(material,view,profile,styleId);
   if(sourceCache.has(key))return sourceCache.get(key);
   const seeds=masterSeed===null?studySeeds(material.definition):
     reseedStudySeeds(material.definition,masterSeed);
-  const asset=generateAsset(material.definition,seeds);
+  // Genuinely different ceramic tile geometry/shape rules. Other art-study
+  // materials still use transparent post-treatments, explicitly labeled below.
+  const asset=nativeStyle(material,styleId)?
+    makeRoofAsset('clay',seeds,{style:styleId}):
+    generateAsset(material.definition,seeds);
   const canvas=document.createElement('canvas');
   asset.paint(canvas,view,profile??undefined);
   const context=canvas.getContext('2d',{willReadFrequently:true});
@@ -127,10 +136,10 @@ function getImage(material,view,profile){
   sourceCache.set(key,image);
   return image;
 }
-function getPreview(material,view,profile){
-  const key=cacheKey(material,view,profile);
+function getPreview(material,view,profile,styleId='current'){
+  const key=cacheKey(material,view,profile,styleId);
   if(previewCache.has(key))return previewCache.get(key);
-  const original=getImage(material,view,profile);
+  const original=getImage(material,view,profile,styleId);
   const input=document.createElement('canvas');
   input.width=original.width;input.height=original.height;
   const ctx=input.getContext('2d');
@@ -156,7 +165,7 @@ function getPreview(material,view,profile){
   return result;
 }
 function styledImage(material,style,view,profile,preview){
-  if(style.id==='current')return preview.data;
+  if(style.id==='current'||nativeStyle(material,style.id))return preview.data;
   const key=cacheKey(material,view,profile)+':'+style.id;
   if(styleCache.has(key))return styleCache.get(key);
   const image=applyTextureStudyStyle(material.id,style.id,view,
@@ -188,6 +197,7 @@ function paintPreview(cell,material,style,preview,pixels,profile){
     (preview.originalHeight>preview.originalWidth?' · central crop':'')+
     (tiles===2?' · repeat ×4':controls.tiling.checked&&!tileable?
       ' · repeat unavailable':'')+
+    (nativeStyle(material,style.id)?' · generative shape':' · surface study')+
     ' · 256px study bake';
 }
 async function render(){
@@ -206,7 +216,7 @@ async function render(){
       await new Promise(resolve=>requestAnimationFrame(resolve));
       if(run!==activeRender)return;
       try{
-        const preview=getPreview(material,view,cut);
+        const preview=getPreview(material,view,cut,style.id);
         const pixels=styledImage(material,style,view,cut,preview);
         paintPreview(cells.get(material.id+'/'+style.id),
           material,style,preview,pixels,cut);
