@@ -178,7 +178,10 @@ test('hand-painted rubble forms horizontal masonry courses, not paving cells',()
     'hand-painted-study');
   const {data}=capture(asset,'albedo');
   const histogram=new Uint32Array(256);
-  for(let i=0;i<data.length;i+=4)histogram[data[i]!]!++;
+  for(let i=0;i<data.length;i+=4){
+    const level=data[i]!;
+    histogram[level]=(histogram[level]??0)+1;
+  }
   let threshold=0,seen=0;
   for(;threshold<255;threshold++){
     seen+=histogram[threshold]!;
@@ -187,7 +190,8 @@ test('hand-painted rubble forms horizontal masonry courses, not paving cells',()
   const rows=new Float64Array(512),columns=new Float64Array(512);
   for(let y=0;y<512;y++)for(let x=0;x<512;x++)
     if(data[(y*512+x)*4]!<=threshold){
-      rows[y]!++;columns[x]!++;
+      rows[y]=(rows[y]??0)+1;
+      columns[x]=(columns[x]??0)+1;
     }
   const variation=(values:Float64Array)=>{
     let sum=0;
