@@ -224,6 +224,17 @@ test('Godot sync copies only selected asset, keeps paths stable and retains impo
       ['market-image','oak-image']);
     assert.deepEqual(await readFile(join(root,'world','exports','godot',
       'oak-image','assets','oak-image','oak-image.png')),original);
+    // Managed outputs are immutable from the synchronizer's perspective.
+    await writeFile(file,Buffer.from('manual edit'));
+    await assert.rejects(lib.syncGodot('oak-image',game),
+      /Published Godot file was modified/);
+    assert.deepEqual(await readFile(file),Buffer.from('manual edit'));
+    await writeFile(file,original);
+    const extra=join(target,'assets','oak-image','notes.txt');
+    await writeFile(extra,'retain me');
+    await assert.rejects(lib.syncGodot('oak-image',game),
+      /Unmanaged files/);
+    assert.equal(await readFile(extra,'utf8'),'retain me');
   });
 });
 
