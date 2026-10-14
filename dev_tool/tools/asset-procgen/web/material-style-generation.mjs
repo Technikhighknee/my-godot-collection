@@ -172,10 +172,9 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
   const fibers=noise(x,y,w,h,91,material==='timber-oak'?8:49,
     structure^0x6b29d435);
   const stroke=noise(x+y*.17,y,w,h,24,11,structure^0x824ae13c);
-  // A flooded paint edge follows a broad *pigment* wash, not a second
-  // unrelated stone/roof pattern painted across the source structure.
-  const tide=Math.abs(pigmentMid*.78+macro*.55);
-  const pool=Math.exp(-Math.pow((tide-.235)/.063,2));
+  // Watercolor deposits pigment in diffuse material-aware wash regions.
+  // Narrow iso-value bands create artificial concentric rings; avoid them.
+  const glazed=Math.max(0,macro+pigmentMid*.34+.08);
   const dry=Math.max(0,grain+.14);
   let palette,luminosity,edge,physical,roughness;
   switch(material){
@@ -203,7 +202,7 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
     case 'stone-rubble':
       palette=natural?[.615,.598,.554]:[.79,.746,.646];
       // Genuine rubble face geometry remains clearly distinguishable.
-      edge=Math.max(0,.36-shape.z)*(natural?.54:.91);
+      edge=Math.max(0,.36-shape.z)*(natural?.54:.68);
       luminosity=(natural?grain*.087+fibers*.038:
         grain*.049+stroke*.089);
       physical=grain*(natural?.052:.030)+stroke*.022;
@@ -212,12 +211,12 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
   }
   const paintedTint=natural?
     macro*.116+pigmentMid*.088+stains*.075+luminosity-edge:
-    macro*.145+pigmentMid*.13+luminosity-pool*.092-
-      dry*.037-edge*.91;
+    macro*.105+pigmentMid*.09+luminosity+
+      glazed*.046-dry*.028-edge*.84;
   const weathering=natural?Math.max(0,stains+.15)*.17:0;
   // Preserve silhouette contrast by retaining a material-specific share
   // of its native, geometry-aware albedo. Neither art direction blurs it.
-  const nativeWeight=natural?.56:.40;
+  const nativeWeight=natural?.56:.53;
   const rgb=palette.map((v,c)=>
     mix(v,shape.rgb[c],nativeWeight)+
       paintedTint*[1,.91,.75][c]-
@@ -225,7 +224,7 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
   return {rgb,z:clamp(shape.z+physical+
     (natural?grain*.025:stroke*.023),.02,.97),
     rough:clamp(mix(shape.rough,roughness,natural?.33:.46)+
-      (natural?grain*.065+stains*.035:dry*.049+pool*.035))};
+      (natural?grain*.065+stains*.035:dry*.049+glazed*.028))};
 }
 function raster(material,style,seeds,profile){
   const retro=style==='retro-3d-study';
