@@ -3,6 +3,12 @@ import {STUDY_MATERIALS,applyTextureStudyStyle,studySeeds,
   reseedStudySeeds} from './texture-style-study.mjs';
 
 const byId=id=>document.getElementById(id);
+const embedded=new URLSearchParams(location.search).get('embedded')==='1';
+if(embedded)document.documentElement.classList.add('studio-embedded');
+function studioSignal(message){
+  if(embedded&&window.parent!==window)
+    window.parent.postMessage(message,location.origin);
+}
 const board=byId('studyBoard'),status=byId('studyStatus');
 const controls={
   channel:byId('studyChannel'),profile:byId('studyTimberProfile'),
@@ -23,7 +29,15 @@ for(const material of STUDY_MATERIALS){
   const title=document.createElement('strong');title.textContent=material.label;
   const link=document.createElement('a');
   link.href='/tools/asset-procgen/?generator='+encodeURIComponent(material.id);
-  link.target='_blank';link.rel='noopener';
+  if(embedded){
+    link.href='/studio/?generator='+encodeURIComponent(material.id);
+    link.addEventListener('click',event=>{
+      event.preventDefault();
+      studioSignal({type:'studio:open-generator',id:material.id});
+    });
+  }else{
+    link.href='/studio/?generator='+encodeURIComponent(material.id);
+  }
   link.textContent='Open generator ↗';
   label.append(group,title,link);
   board.append(label);
@@ -110,7 +124,10 @@ async function render(){
       const source=getImage(material,view,profile);
       paintPreview(cells.get(material.id+'/current'),source,source.data,profile);
       const classic=applyTextureStudyStyle(material.id,
-        'classic-strategy-study',view,source.data);
+        'classic-strategy-study',view,source.data,{
+          width:source.width,height:source.height,
+          seed:masterSeed===null?material.definition.initialMasterSeed:masterSeed,
+        });
       paintPreview(cells.get(material.id+'/classic-strategy-study'),
         source,classic,profile);
       count++;
@@ -124,8 +141,10 @@ async function render(){
       return;
     }
   }
-  if(run===activeRender)
+  if(run===activeRender){
     status.textContent='Ready · '+count+' real materials · same seeds in both columns';
+    studioSignal({type:'studio:ready'});
+  }
 }
 for(const input of [controls.channel,controls.profile,controls.tiling])
   input.addEventListener('change',()=>void render());
