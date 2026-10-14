@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {findGenerator,generateAsset}
   from '../tools/asset-procgen/web/generators.mjs';
+import type {GeneratedImage} from '../tools/asset-procgen/web/generators.mjs';
 import {MATERIAL_STUDY_STYLES,makeStyledMaterialAsset}
   from '../tools/asset-procgen/web/material-style-generation.mjs';
 
@@ -17,7 +18,7 @@ type Channel='albedo'|'normal'|'roughness';
 
 function capture(asset:{paint:(canvas:HTMLCanvasElement,view?:string,
   profile?:string)=>unknown},view:Channel,profile?:string){
-  const state={rgba:new Uint8ClampedArray(0)};
+  const state:{rgba:Uint8ClampedArray}={rgba:new Uint8ClampedArray(0)};
   const canvas={width:0,height:0,
     getContext(){return{
       createImageData:(w:number,h:number)=>({data:new Uint8ClampedArray(w*h*4)}),
@@ -63,7 +64,8 @@ test('every study material has two native visual grammars without changing defau
     assert.ok(!('sourceStyle' in original),
       'Legacy material recipe must remain unchanged');
     for(const style of MATERIAL_STUDY_STYLES){
-      const asset=generator.studyGeneration!.generate({...material.seeds},style);
+      const asset:GeneratedImage=generator.studyGeneration!.generate(
+        {...material.seeds},style);
       assert.equal(asset.kind,'image');
       assert.equal(asset.id,material.id);
       assert.ok('sourceStyle' in asset);
