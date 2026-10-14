@@ -200,15 +200,22 @@ test('shared stone, plaster, timber and roof materials expose persistent project
   const renderer=readFileSync(new URL('../tools/asset-procgen/web/viewport-3d.mjs',import.meta.url),'utf8');
   const studio=readFileSync(new URL('../web/studio.js',import.meta.url),'utf8');
   const server=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
-  for(const slot of ['foundationStone','facadePlaster','timberWood','roofThatch','roofClay'])
-    for(const action of ['Asset','New','Edit','Reseed'])
-      assert.ok(html.includes('id="'+slot+action+'"'),slot+action);
+  const generators=readFileSync(new URL(
+    '../tools/asset-procgen/web/generators.mjs',import.meta.url),'utf8');
+  const building=readFileSync(new URL(
+    '../tools/asset-procgen/web/building.mjs',import.meta.url),'utf8');
+  assert.match(html,/id="materialSlots"/);
+  assert.match(app,/mountMaterialControls/);
+  assert.match(app,/for\(const slot of active\.materialSlots\?\?\[\]\)/);
   assert.match(app,/materialAssignments/);
   assert.match(app,/changeSharedMaterial/);
+  for(const slot of ['foundationStone','facadePlaster','timberWood','roofThatch','roofClay'])
+    assert.ok(generators.includes("id:'"+slot+"'"),slot+' declared');
+  assert.match(building,/BUILDING_PART_SURFACES/);
   assert.match(renderer,/updateSurfaceTextures/);
-  assert.match(renderer,/facadePlaster/);
-  assert.match(renderer,/foundationStone/);
-  assert.match(renderer,/plasterTint/);
+  assert.match(renderer,/part\.surface/);
+  assert.doesNotMatch(renderer,/const woodPart=/);
+  assert.doesNotMatch(renderer,/const plasterTint=/);
   assert.match(studio,/studio:project-assets-changed/);
   assert.match(server,/\/tools\/asset-procgen\/roof-textures.mjs/);
   assert.match(server,/\/tools\/asset-procgen\/timber-textures.mjs/);
