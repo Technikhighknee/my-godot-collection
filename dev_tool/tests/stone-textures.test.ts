@@ -53,16 +53,18 @@ test('masonry is an opaque seed-reproducible PBR material',()=>{
   assert.throws(()=>makeStoneAsset({...seeds,weather:NaN}),/seed/);
 });
 
-test('irregular rubble stones have readable recessed joints, bevels and no tile seams',()=>{
+test('warm hand-laid rubble reads without mosaic-like high-contrast joints',()=>{
   const d=render(),size=STONE_TEXTURE_SIZE;
   const sample=(x:number,y:number)=>d[(y*size+x)*4]!;
   let sum=0,min=255,max=0,across=0,along=0,seamU=0,seamV=0;
-  let dark=0,light=0;
+  let dark=0,light=0,warm=0;
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
     const v=sample(x,y);
     sum+=v;min=Math.min(min,v);max=Math.max(max,v);
-    if(v<120)dark++;
+    if(v<145)dark++;
     if(v>170)light++;
+    const i=(y*size+x)*4;
+    if(d[i]>=d[i+1]!&&d[i+1]!>=d[i+2]!)warm++;
     if(x)across+=Math.abs(v-sample(x-1,y));
     if(y)along+=Math.abs(v-sample(x,y-1));
     if(x===0)seamU+=Math.abs(v-sample(size-1,y));
@@ -70,14 +72,16 @@ test('irregular rubble stones have readable recessed joints, bevels and no tile 
   }
   const n=size*size;
   across/=size*(size-1);along/=size*(size-1);
-  assert.ok(max-min>90,'Individual stone and mortar should read separately');
+  assert.ok(max-min>65&&max-min<125,
+    'Stone and mortar must remain readable but not aggressively outlined');
   assert.ok(sum/n>112&&sum/n<180,'Use a credible grey-buff mineral palette');
-  assert.ok(dark/n>.04&&light/n>.04,
-    'Recessed mortar and raised stones must both remain visible');
+  assert.ok(dark/n>.08&&light/n>.04,
+    'Mortar and raised stones must both remain visible');
+  assert.ok(warm/n>.99,'The mineral palette must remain warm, not blue-grey');
   assert.ok(seamU/size<across*2.5,'No horizontal tile edge');
   assert.ok(seamV/size<along*2.5,'No vertical tile edge');
   assert.ok(across/along>.65&&across/along<1.5,
-    'Irregular stone must not look like strongly directional floorboards');
+    'Irregular stone must retain details in both directions');
 });
 
 test('layout, mineral and weather seeds vary independently',()=>{
