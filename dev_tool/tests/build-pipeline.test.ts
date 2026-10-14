@@ -166,6 +166,25 @@ test('saved material recipes bake original generator maps and reuse valid cache'
   });
 });
 
+test('independent oak leaf spray builds PNG with original Canvas2D painter',async()=>{
+  await project(async(root,lib)=>{
+    await lib.createAsset('sprig',{name:'Oak sprig',generator:'oak-sprig',
+      masterSeed:19461,components:{structure:19461,leaves:21749}});
+    const first=await lib.buildAsset('sprig');
+    assert.equal(first.built,1);
+    const artifact=first.artifacts[0]!;
+    assert.equal(artifact.files[0]?.file,'albedo.png');
+    assert.equal(artifact.files[0]?.width,768);
+    assert.equal(artifact.files[0]?.height,768);
+    const bytes=await readFile(join(root,'world','build','assets','sprig',
+      artifact.key,'albedo.png'));
+    assert.equal(bytes.toString('ascii',12,16),'IHDR');
+    assert.equal(bytes.readUInt32BE(16),768);
+    assert.equal(bytes.readUInt32BE(20),768);
+    assert.equal((await lib.buildAsset('sprig')).reused,1);
+  });
+});
+
 test('build HTTP endpoints respect active project and never build on GET',async()=>{
   await project(async(_root,lib)=>{
     const server=createDevToolServer(createProjectRouter(lib,{buildings:[]}));
