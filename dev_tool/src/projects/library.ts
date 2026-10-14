@@ -9,7 +9,7 @@ import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 import {planAssetBuild} from './build-plan.ts';
 import {produceBuild} from './build.ts';
 import {publishGodotPackage} from './godot-package.ts';
-import {syncGodotPackage} from './godot-sync.ts';
+import {syncGodotPackage,validateGodotProject} from './godot-sync.ts';
 // Project storage is independent of generator implementations.
 export interface GeneratorDescriptor {
   kind:'model'|'image';recipeVersion:number;
@@ -553,8 +553,9 @@ export class ProjectLibrary {
       if(!this.activeId)throw Error('No active project');
       // Never nest queued public methods. The package and sync use the same
       // serialized project operation and see one consistent active project.
+      const godot=await validateGodotProject(target);
       const pkg=await this.exportOneAsset(id);
-      return syncGodotPackage(this.activeId,id,pkg,target);
+      return syncGodotPackage(this.activeId,id,pkg,godot);
     });
   }
   async graph(){
