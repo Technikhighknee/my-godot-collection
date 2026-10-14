@@ -76,8 +76,8 @@ function verifyManifest(value:unknown,root:string):GodotPackageManifest{
     throw Error('Inconsistent Godot export manifest');
   return m;
 }
-async function readPublished(directoryPath:string,root:string):
-  Promise<GodotPackageManifest|null>{
+export async function readGodotPackage(directoryPath:string,root:string,
+  preserveGodotImports=false):Promise<GodotPackageManifest|null>{
   try{
     const info=await lstat(directoryPath);
     if(!info.isDirectory()||info.isSymbolicLink())
@@ -107,9 +107,19 @@ async function readPublished(directoryPath:string,root:string):
     const info=await lstat(folder);
     if(!info.isDirectory()||info.isSymbolicLink())
       throw Error('Godot export resource directory is redirected');
-    const expected=resource.files.map(x=>x.split('/')[2]).sort();
-    if(JSON.stringify((await readdir(folder)).sort())!==JSON.stringify(expected))
+    const expected=resource.files.map(x=>x.split('/')[2]);
+    const extras=preserveGodotImports?
+      expected.map(name=>name+'.import'): [];
+    const actual=(await readdir(folder)).sort();
+    if(actual.some(name=>!expected.includes(name)&&!extras.includes(name)))
       throw Error('Unmanaged files in Godot resource directory');
+    if(expected.some(name=>!actual.includes(name)))
+      throw Error('Missing managed Godot resource file');
+    for(const sidecar of actual.filter(name=>extras.includes(name))){
+      const info=await lstat(join(folder,sidecar));
+      if(!info.isFile()||info.isSymbolicLink())
+        throw Error('Godot import sidecar is redirected');
+    }
   }
   for(const file of manifest.files){
     const parts=file.path.split('/');
@@ -156,7 +166,7 @@ export async function publishGodotPackage(projectDir:string,root:string,
   const packages=join(exportsRoot,'godot');
   await directory(packages);
   const destination=join(packages,root);
-  const previous=await readPublished(destination,root);
+  const previous=await readGodotPackage(destination,root);
   if(previous&&JSON.stringify(previous)===JSON.stringify(manifest))
     return {directory:destination,published:false,manifest,
       built:build.built,reused:build.reused};
