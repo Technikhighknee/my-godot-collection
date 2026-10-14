@@ -28,7 +28,9 @@ export function validateBuildingOptions(value){
 const shared=(slot,kind,profile=null,tint=null)=>Object.freeze({
   slot,kind,...(profile?{profile}:{}),...(tint?{tint}:{}),
 });
-const preview=kind=>Object.freeze({kind});
+const preview=(kind,roughness=null)=>Object.freeze({kind,
+  ...(roughness===null?{}:{roughness}),
+});
 const BUILDING_PART_SURFACES=Object.freeze({
   foundation:shared('foundationStone','stone'),
   stone:shared('foundationStone','stone'),
@@ -46,7 +48,7 @@ const BUILDING_PART_SURFACES=Object.freeze({
   roofClay:shared('roofClay','roof'),
   brick:preview('stone'),chimney:preview(null),
   door:preview('wood'),floor:preview('floor'),
-  gallery:preview('wood'),glass:preview(null),innerGlass:preview(null),
+  gallery:preview('wood'),glass:preview(null,.37),innerGlass:preview(null,.37),
   innerTrim:preview('wood'),interior:preview('plaster'),
   interiorPlinth:preview('stone'),metal:preview(null),
   ridge:preview('roof'),roofBase:preview('roof'),
