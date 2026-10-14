@@ -5,8 +5,8 @@ import type {CanonicalModel,CanonicalMaterial} from
 
 const bytesOf=(value:Float32Array|Uint32Array)=>
   new Uint8Array(value.buffer,value.byteOffset,value.byteLength);
-const align4=n=>(n+3)&~3;
-const linear=v=>{
+const align4=(n:number)=>(n+3)&~3;
+const linear=(v:number)=>{
   v/=255;
   return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4);
 };
