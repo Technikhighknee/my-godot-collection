@@ -202,16 +202,25 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
   // follow the stones, not uniformly dark drawn contour lines.
   const glaze=noise(x,y,w,h,12,10,pigment^0xc8e4913a);
   const dust=noise(x,y,w,h,55,49,structure^0x28a41c75);
+  const bloom=noise(x,y,w,h,6,8,pigment^0x71bc4209);
+  const tide=noise(x,y,w,h,17,15,pigment^0x39a1f282);
+  const dry=clamp((dust+glaze*.44+.31)/.66);
+  const front=Math.exp(-Math.pow((Math.abs(tide+bloom*.31)-.20)/.08,2));
   const fade=smooth((wash+mineral*.45+wear*.22+.26)/.52);
-  const groutOpacity=(1-face)*(.42+.58*fade);
-  const stone=[.815,.770,.689],mortar=[.661,.639,.580];
-  const paper=Math.max(0,dust+wash*.33-.12);
-  const pigmentPool=(1-face)*fade*.041;
-  const tint=stoneTone*.72+wash*.087+mineral*.073+
-    glaze*.062-dust*.028-paper*.045-moisture*.027-
-    erosion*.016-crack*.019;
-  const rgb=stone.map((v,c)=>mix(v+tint*[1,.91,.77][c]+
-    paper*.046,mortar[c]+wash*.043-pigmentPool,groutOpacity));
+  const groutOpacity=(1-face)*(.28+.43*fade);
+  const stone=[.765,.696,.592],mortar=[.66,.63,.575];
+  const paper=[.965,.943,.885];
+  const density=clamp(.47+.39*fade+front*.14-dry*.12);
+  const granules=Math.max(0,dust+.06)*(.3+.7*fade);
+  const tint=stoneTone*.70+wash*.12+mineral*.09+
+    glaze*.075+bloom*.075-granules*.090-front*.16-
+    moisture*.027-erosion*.016-crack*.019;
+  const rgb=stone.map((v,c)=>{
+    const paint=clamp(v+tint*[1,.88,.70][c],.04,.95);
+    const glazed=mix(paper[c],paint,density);
+    return mix(glazed,mortar[c]+wash*.05-front*.035,groutOpacity)+
+      dust*.018;
+  });
   return {
     rgb,
     z:clamp(.19+chamfer*shape.stoneRelief*.66+
