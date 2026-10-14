@@ -225,32 +225,21 @@ export function createModelViewport(container,onChange=()=>{}){
   function buildBuildingGroup(mesh){
     const next=new THREE.Group();
     for(const part of mesh.parts){
-      const woodPart=/^(?:inner)?Timber(?:End|Panel)?$/.test(part.material)||
-        part.material==='timber'||part.material==='timberEnd'||
-        part.material==='timberPanel';
-      const isPlaster=['plaster','plasterWarm','plasterOchre',
-        'plasterIvory'].includes(part.material);
-      const isRubble=part.material==='foundation'||part.material==='stone';
-      const sharedSlot=woodPart?'timberWood':isPlaster?'facadePlaster':
-        isRubble?'foundationStone':part.material;
-      const source=currentMaterials.get(sharedSlot)?.maps;
-      const profile=part.material.endsWith('End')?'end':
-        part.material.endsWith('Panel')?'panel':'beam';
-      const shared=woodPart?source?.[profile]:source;
-      const isRoof=part.material==='roofThatch'||part.material==='roofClay';
-      const base=woodPart?buildingColors.timber:
-        buildingColors[part.material]??0x978572;
-      // One shared plaster texture; retain warm facade variations by tint.
-      const plasterTint={plaster:0xf6efe0,plasterWarm:0xe8d5bd,
-        plasterOchre:0xe4c799,plasterIvory:0xfff9ee};
+      // Generated geometry owns the physical material binding. The preview
+      // renders it without guessing meaning from internal mesh part names.
+      const surface=part.surface;
+      if(!surface)throw Error('Building part missing surface declaration');
+      const source=surface.slot?currentMaterials.get(surface.slot)?.maps:null;
+      const shared=surface.profile?source?.[surface.profile]:source;
+      const base=buildingColors[part.material]??0x978572;
       const material=new THREE.MeshStandardMaterial({
-        color:isPlaster&&shared?plasterTint[part.material]:
-          shared?0xffffff:base,
-        map:shared?.albedo??buildingTextures.get(woodPart?'timber':part.material),
+        color:shared?(surface.tint??0xffffff):base,
+        map:shared?.albedo??buildingTextures.get(part.material,surface.kind),
         normalMap:shared?.normal??null,roughnessMap:shared?.roughness??null,
         normalScale:new THREE.Vector2(.62,.62),
-        roughness:part.material==='glass'||part.material==='innerGlass'?.37:
-          shared?.96:isRoof?.98:.92,
+        roughness:surface.kind===null&&
+          (part.material==='glass'||part.material==='innerGlass')?.37:
+          shared?.96:surface.kind==='roof'?.98:.92,
         vertexColors:!!part.colors,
         metalness:0,side:THREE.DoubleSide,
       });
@@ -283,11 +272,13 @@ export function createModelViewport(container,onChange=()=>{}){
     return true;
   }
   function renderBuilding(asset,materialImages={}){
-    const activeSlot=asset.building.level===1?'roofThatch':'roofClay';
-    updateSurfaceTextures({foundationStone:materialImages.foundationStone,
-      facadePlaster:materialImages.facadePlaster,
-      timberWood:materialImages.timberWood,
-      [activeSlot]:materialImages[activeSlot]});
+    // Only bake textures actually referenced by the generated geometry.
+    const slots=new Set([
+      ...asset.building.exterior.parts,
+      ...(asset.building.interior?.parts??[]),
+    ].map(part=>part.surface?.slot).filter(Boolean));
+    updateSurfaceTextures(Object.fromEntries(
+      [...slots].map(slot=>[slot,materialImages[slot]])));
     const previousAsset=buildingAsset,previousView=buildingView;
     buildingAsset=asset;assetId=asset.id;
     const desired=previousAsset&&previousAsset.id===asset.id?
