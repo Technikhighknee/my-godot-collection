@@ -302,3 +302,33 @@ test('rubble tiles without perceptual border bands in 2x2 repetition',()=>{
     }
   }
 });
+
+test('naturalistic and watercolor are separate reproducible material languages',()=>{
+  for(const material of cases){
+    const profile=material.id==='timber-oak'?'panel':undefined;
+    const natural=makeStyledMaterialAsset(material.id,
+      {...material.seeds},'naturalistic-study');
+    const watercolor=makeStyledMaterialAsset(material.id,
+      {...material.seeds},'watercolor-study');
+    const n=capture(natural,'albedo',profile);
+    const w=capture(watercolor,'albedo',profile);
+    const repeat=capture(makeStyledMaterialAsset(material.id,
+      {...material.seeds},'watercolor-study'),'albedo',profile);
+    assert.deepEqual(w.data,repeat.data,
+      material.id+' watercolor must be reproducible');
+    assert.ok(difference(n.data,w.data)>25000,
+      material.id+' must not collapse to a watercolor color filter');
+    // Neither paper/pigment nor color reseeding is allowed to mutate
+    // material relief for a given style.
+    const recolored={...material.seeds,
+      [material.pigment]:material.seeds[material.pigment]!+1};
+    for(const style of ['naturalistic-study','watercolor-study'] as const){
+      const a=makeStyledMaterialAsset(material.id,
+        {...material.seeds},style);
+      const b=makeStyledMaterialAsset(material.id,recolored,style);
+      assert.deepEqual(capture(a,'normal',profile).data,
+        capture(b,'normal',profile).data,
+        material.id+' '+style+' must isolate pigment from relief');
+    }
+  }
+});
