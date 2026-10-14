@@ -110,35 +110,63 @@ export function encodeModelGlb(model:CanonicalModel,
     }
     if(part.colors)
       attributes.COLOR_0=accessor(part.colors,5126,'VEC3',34962);
-    const indices=accessor(part.indices,5125,'SCALAR',34963);
-    const materialIndex=materials.length;
-    const material=materialOf(part.material);
-    const slot=part.material.slot,profile=part.material.profile??'default';
-    if(slot&&mapSources[slot]){
-      const maps=mapSources[slot]?.[profile];
-      if(!maps?.albedo)throw Error('Missing baked material albedo: '+
-        slot+'/'+profile);
-      if(!part.uvs)throw Error('Textured mesh has no UVs: '+part.name);
-      const pbr=material.pbrMetallicRoughness;
-      // Match the current shared PBR material factors in the 3D viewport.
-      pbr.roughnessFactor=.96;
-      const tint=part.material.tint??0xffffff;
-      pbr.baseColorFactor=[
-        linear((tint>>>16)&255),linear((tint>>>8)&255),
-        linear(tint&255),1];
-      pbr.baseColorTexture={index:bakedTexture(slot,profile,'albedo',maps.albedo)};
-      if(maps.roughness)
-        pbr.metallicRoughnessTexture={
-          index:bakedTexture(slot,profile,'roughness',maps.roughness)};
-      if(maps.normal)
-        material.normalTexture={
-          index:bakedTexture(slot,profile,'normal',maps.normal),scale:.62};
+    // Multi-material groups share one vertex buffer. Merge like-profile
+    // index ranges into one primitive per material without re-triangulating.
+    const groups=part.groups?.length?part.groups:[{
+      start:0,count:part.indices.length,material:part.material,
+    }];
+    const ranges=new Map<string,{
+      material:CanonicalMaterial;chunks:Uint32Array[];count:number;
+    }>();
+    for(const group of groups){
+      if(!Number.isInteger(group.start)||!Number.isInteger(group.count)||
+        group.start<0||group.count<=0||group.count%3!==0||
+        group.start+group.count>part.indices.length)
+        throw Error('Invalid GLB primitive group: '+part.name);
+      const key=JSON.stringify(group.material);
+      let bucket=ranges.get(key);
+      if(!bucket){
+        bucket={material:group.material,chunks:[],count:0};
+        ranges.set(key,bucket);
+      }
+      bucket.chunks.push(part.indices.subarray(group.start,group.start+group.count));
+      bucket.count+=group.count;
     }
-    materials.push(material);
+    const primitives=[];
+    for(const bucket of ranges.values()){
+      const joined=new Uint32Array(bucket.count);
+      let offset=0;
+      for(const range of bucket.chunks){joined.set(range,offset);offset+=range.length;}
+      const indices=accessor(joined,5125,'SCALAR',34963);
+      const materialIndex=materials.length;
+      const material=materialOf(bucket.material);
+      const slot=bucket.material.slot,profile=bucket.material.profile??'default';
+      if(slot&&mapSources[slot]){
+        const maps=mapSources[slot]?.[profile];
+        if(!maps?.albedo)throw Error('Missing baked material albedo: '+
+          slot+'/'+profile);
+        if(!part.uvs)throw Error('Textured mesh has no UVs: '+part.name);
+        const pbr=material.pbrMetallicRoughness;
+        // Match authored PBR preview factors without recoloring generated pixels.
+        pbr.roughnessFactor=bucket.material.roughness;
+        const tint=bucket.material.tint??0xffffff;
+        pbr.baseColorFactor=[
+          linear((tint>>>16)&255),linear((tint>>>8)&255),
+          linear(tint&255),1];
+        pbr.baseColorTexture={index:bakedTexture(slot,profile,'albedo',maps.albedo)};
+        if(maps.roughness)
+          pbr.metallicRoughnessTexture={
+            index:bakedTexture(slot,profile,'roughness',maps.roughness)};
+        if(maps.normal)
+          material.normalTexture={
+            index:bakedTexture(slot,profile,'normal',maps.normal),
+            scale:slot==='oakBark'?.78:.62};
+      }
+      materials.push(material);
+      primitives.push({attributes,indices,material:materialIndex,mode:4});
+    }
     const meshIndex=meshes.length;
-    meshes.push({name:part.name,primitives:[{
-      attributes,indices,material:materialIndex,mode:4,
-    }]});
+    meshes.push({name:part.name,primitives});
     nodes.push({name:part.name,mesh:meshIndex});
   }
   const buffer=new Uint8Array(align4(binSize));
