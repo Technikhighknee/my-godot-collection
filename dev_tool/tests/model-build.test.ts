@@ -217,3 +217,42 @@ test('building GLB artifacts include three level variants and optional interiors
       'Absent interior must not produce an invented GLB mesh');
   }finally{await rm(root,{recursive:true,force:true});}
 });
+
+test('oak wood build embeds all three native bark profiles and reuses the artifact',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'oak-wood-build-'));
+  try{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('world','World');
+    const recipe={name:'Oak wood',generator:'oak',masterSeed:101,
+      components:{geometry:101,foliage:101,leaves:21749,
+        barkStructure:19641,barkSurface:48507,barkColor:21749}};
+    const saved=await lib.createAsset('oak',recipe);
+    const result=await lib.buildAsset('oak');
+    assert.equal(result.built,1);
+    const artifact=result.artifacts[0]!;
+    assert.deepEqual(artifact.files.map(f=>f.file),['wood.glb']);
+    const data=await readFile(join(root,'world','build','assets','oak',
+      artifact.key,'wood.glb'));
+    const doc=glbDocument(data);
+    assert.equal(doc.json.meshes.length,1);
+    assert.equal(doc.json.meshes[0].primitives.length,3);
+    assert.equal(doc.json.images.length,9);
+    assert.deepEqual([...new Set(doc.json.materials.map(
+      (m:{extras:{profile:string}})=>m.extras.profile))].sort(),
+      ['limb','trunk','young']);
+    for(const image of doc.json.images){
+      const view=doc.json.bufferViews[image.bufferView];
+      assert.deepEqual([...doc.binary.subarray(view.byteOffset,
+        view.byteOffset+8)],[137,80,78,71,13,10,26,10]);
+    }
+    assert.equal((await lib.buildAsset('oak')).reused,1);
+    const renamed=await lib.updateAsset('oak',{...recipe,name:'Oak renamed'},
+      saved.revision);
+    assert.ok(renamed.revision!==saved.revision);
+    assert.equal((await lib.buildAsset('oak')).reused,1);
+    await lib.updateAsset('oak',{...recipe,
+      components:{...recipe.components,barkColor:21750}},renamed.revision);
+    const changed=await lib.buildPlan(['oak']);
+    assert.notEqual(changed.nodes[0]?.key,artifact.key);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
