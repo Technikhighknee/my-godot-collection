@@ -7,7 +7,7 @@ export interface BuildingOpening {
 }
 export interface BuildingPart {
   material:string;
-  surface:Readonly<{kind:string|null;slot?:string;profile?:string;tint?:number;roughness?:number;baseColor:number}>;positions:Float32Array;normals:Float32Array;
+  surface:Readonly<{kind:string|null;slot?:string;profile?:string;tint?:number;roughness?:number;textureWrap?:'clamp'|'repeat';baseColor:number}>;positions:Float32Array;normals:Float32Array;
   uvs:Float32Array;indices:Uint32Array;colors?:Float32Array;
 }
 export interface BuildingMesh {
