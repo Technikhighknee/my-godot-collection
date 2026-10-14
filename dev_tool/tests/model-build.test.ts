@@ -5,7 +5,8 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {ProjectLibrary} from '../src/projects/library.ts';
 import {encodeModelGlb} from '../src/projects/build-glb.ts';
-import {canonicalBuildingModel,canonicalTreeModel}
+import {encodeRgbaPng} from '../src/projects/build-image.ts';
+import {canonicalBuildingModel,canonicalTreeModel,canonicalOakWoodModel}
   from '../tools/asset-procgen/web/canonical-model.mjs';
 import {findGenerator,generateAsset} from
   '../tools/asset-procgen/web/generators.mjs';
@@ -94,6 +95,51 @@ test('fir model exports exactly the generated wood and rejects geometry changes'
     positions:new Float32Array(generated.wood.positions)}};
   bad.wood.positions[0]=Number.NaN;
   assert.throws(()=>canonicalTreeModel(bad),/Nonfinite canonical vertex/);
+});
+
+test('oak bark export retains the accepted wood triangles and all native profiles',()=>{
+  const def=findGenerator('oak')!;
+  const oak=generateAsset(def,{
+    geometry:101,foliage:101,leaves:21749,
+    barkStructure:19641,barkSurface:48507,barkColor:21749,
+  });
+  assert.ok(oak.barkWood&&oak.foliage);
+  const canonical=canonicalOakWoodModel(oak);
+  const mesh=canonical.meshes[0]!;
+  assert.strictEqual(mesh.positions,oak.barkWood.positions);
+  assert.strictEqual(mesh.normals,oak.barkWood.normals);
+  assert.strictEqual(mesh.indices,oak.barkWood.indices);
+  assert.strictEqual(mesh.uvs,oak.barkWood.uvs);
+  assert.equal(mesh.indices.length,oak.wood.indices.length,
+    'Export must not change the woody triangle count');
+  assert.deepEqual([...new Set(mesh.groups?.map(g=>g.material.profile))].sort(),
+    ['limb','trunk','young']);
+  assert.ok(mesh.groups!.length>3);
+  assert.equal(mesh.groups!.reduce((n,g)=>n+g.count,0),mesh.indices.length);
+  assert.equal(def.modelBake?.variants[0]?.name,'wood');
+  assert.ok(def.modelBake?.materialMaps);
+  // Tiny valid PNGs test material binding and grouped GLB serialization
+  // without incurring nine 1024px material renders in this unit test.
+  const pixels=encodeRgbaPng(1,1,Uint8Array.from([110,116,85,255]));
+  const maps={oakBark:Object.fromEntries(['trunk','limb','young'].map(profile=>[
+    profile,{albedo:pixels,normal:pixels,roughness:pixels},
+  ]))};
+  const data=encodeModelGlb(canonical,maps);
+  const glb=glbDocument(data);
+  assert.equal(glb.json.meshes.length,1);
+  const primitives=glb.json.meshes[0].primitives;
+  assert.equal(primitives.length,3,
+    'Bark should export as three draw calls, not one per wood axis');
+  assert.equal(primitives.reduce((sum:number,p:{indices:number})=>
+    sum+glb.json.accessors[p.indices].count,0),oak.barkWood.indices.length);
+  assert.equal(glb.json.images.length,9);
+  assert.ok(glb.json.materials.every((m:{
+    extras?:{resourceSlot?:string};
+    normalTexture?:{scale:number};
+    pbrMetallicRoughness:{baseColorTexture?:object};
+  })=>m.extras?.resourceSlot==='oakBark'&&
+    m.normalTexture?.scale===.78&&m.pbrMetallicRoughness.baseColorTexture));
+  assert.deepEqual(encodeModelGlb(canonical,maps),data);
 });
 
 test('building GLB artifacts include three level variants and optional interiors',async()=>{
