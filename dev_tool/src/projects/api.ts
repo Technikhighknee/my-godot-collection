@@ -70,7 +70,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
           return send(res,200,{project:await library.select(x.id as string)});
         }
       }
-      const importMatch=/^\\/api\\/projects\\/active\\/imports\\/([a-z0-9_-]+)$/.exec(path);
+      const importMatch=new RegExp('^/api/projects/active/imports/([a-z0-9_-]+)$').exec(path);
       if(importMatch){
         if(req.method==='POST'){
           const contentType=req.headers['content-type']?.toLowerCase();
