@@ -116,9 +116,9 @@ The package is written to
 `projects/<project-id>/exports/godot/<asset-id>/`. It includes stable,
 relative `assets/<resource-id>/<filename>.glb|png` paths for the chosen
 resource and its transitively referenced materials, plus a deterministic
-`manifest.json` with source build keys and SHA-256 checksums. Copy the
-package's `assets/` directory into the destination Godot project's asset
-folder; Godot then imports the GLB/PNG files normally.
+`manifest.json` with source build keys and SHA-256 checksums. Copy the **contents** of the package's `assets/` directory into the
+Godot project's `res://assets/` directory; Godot imports the GLB/PNG files
+normally.
 
 - One package belongs to one requested root asset. Re-exporting a different
   asset never deletes the first package.
