@@ -116,24 +116,25 @@ will consume them.
   images for assigned shared project PBR maps. GLB material metadata retains
   the resource slot and texture profile. The result is usable by glTF-capable
   tools including Godot, pending actual in-engine visual validation.
-- Fir wood exports as `model.glb`. Oak has a separate **wood-only**
-  `wood.glb` output with the native three bark maturity profiles. The
-  existing seam-mapped wood geometry and its triangle count are unchanged.
-  It embeds the same deterministic albedo, normal, roughness and cavity-AO
-  generation as the 3D preview, without requiring an external source asset.
-  Height maps are intentionally not embedded: glTF 2.0 has no standard
-  displacement material slot.
-- Timber-frame buildings export three variants of `level-*-exterior.glb`,
-  plus `level-*-interior.glb` when the recipe enables the interior shell.
-  Both views reuse one generated level.
-- Only explicitly assigned project materials are embedded for buildings;
-  unassigned surfaces use authored fallback colors, not the preview's
-  generated fallback textures. Oak bark is generator-owned rather than a
-  shared project material; it is baked from the saved bark seeds.
-- Oak **foliage is not exported** yet. The 1024px transparent leaf atlas uses
-  browser Canvas path painting and currently has no faithful, headless pixel
-  implementation. The wood-only filename and catalog description make this
-  limitation explicit: do not imply the GLB contains foliage.
+- Fir wood exports as `model.glb`. Full oak trees export as `model.glb`:
+  the accepted UV-mapped wood geometry and native bark profiles, plus the
+  original curved foliage cards with their per-vertex colors and cutout atlas.
+  No tree-growth or card-placement algorithm is duplicated for export.
+- The shared `paintOakAtlas` and `paintOakSprig` Canvas2D painters can be
+  rasterized by the headless Skia backend. The standalone atlas and leaf
+  spray export to PNG; the full oak GLB embeds the same leaf atlas internally.
+  The atlas sampler clamps UVs, and the foliage uses glTF `MASK` alpha.
+  Skia and browser Canvas implementations may differ slightly in antialiasing;
+  geometric structure, source colors and seeds remain shared.
+- Oak bark embeds deterministic albedo, normal, roughness and cavity-AO
+  channels for trunk, limb and young-wood maturity profiles. Height is not
+  embedded because glTF 2.0 has no standard displacement channel.
+- Timber-frame buildings export `level-*-exterior.glb` variants, plus
+  `level-*-interior.glb` when enabled. Both views reuse one generated level.
+- Buildings embed PBR maps only for explicitly assigned project materials.
+  Unassigned surfaces still use authored fallback colors, not procedural
+  preview fallback maps. Oak bark and foliage are generator-owned material
+  sources using their separate saved seeds.
 - Production output format versions are separate from stored recipe versions.
   Changing a GLB exporter invalidates affected model cache keys without
   rewriting a project's saved generator source.
@@ -218,10 +219,11 @@ have a separate version-2 source shape within the same asset index. Imported
 files can be persisted, verified and copied into derived build artifacts,
 but they do not yet have an imported-model preview or PBR interpretation.
 Procedural material maps now have a headless, cached PNG build.
-Fir wood, three-level timber-frame buildings and oak wood have canonical
-GLB model output. Oak bark uses native PBR maps; the leaf-card atlas and
-fully leafed tree output remain pending. Other vector-painted foliage also
-lacks a faithful headless raster path.
+Fir wood, three-level timber-frame buildings and complete oak trees have
+canonical GLB output. Oak bark and the leaf-card atlas are baked from their
+native generator implementations, with Canvas2D vector painting handled by
+Skia headlessly. Pixel-perfect equality between Skia and browser rasterization
+has not been established; visual review in Godot remains outstanding.
 
 A complete scene graph, runtime placement metadata, historical generator
 version resolver, style-aware production recipes, importable texture defaults
