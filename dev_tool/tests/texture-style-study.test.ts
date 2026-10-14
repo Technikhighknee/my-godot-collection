@@ -180,3 +180,25 @@ test('style previews validate pixel dimensions and do not mutate source',()=>{
     assert.deepEqual(source,original);
   }
 });
+
+
+test('native texture style grammars register with their material generator',()=>{
+  const clay=findGenerator('roof-clay');
+  assert.ok(clay?.studyGeneration);
+  assert.deepEqual(clay.studyGeneration.styles,
+    ['hand-painted-study','retro-3d-study']);
+  const source=studySeeds(clay);
+  const native=clay.studyGeneration.generate(source,'hand-painted-study');
+  const original=generateAsset(clay,source);
+  assert.equal(native.id,'roof-clay');
+  assert.equal(native.kind,'image');
+  assert.ok('sourceStyle' in native);
+  assert.equal(native.sourceStyle,'hand-painted-study');
+  assert.ok(!('sourceStyle' in original));
+  for(const material of STUDY_MATERIALS.filter(m=>m.id!=='roof-clay')){
+    const generator=findGenerator(material.id);
+    assert.ok(generator&&generator.kind==='image');
+    assert.equal(generator.studyGeneration,undefined,
+      'Other materials remain labeled surface studies until native generation exists');
+  }
+});
