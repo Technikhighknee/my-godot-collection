@@ -31,6 +31,7 @@ const staticRoutes:Record<string,[string,string]>={
   '/tools/asset-procgen/building-materials.mjs': ['tools/asset-procgen/web/building-materials.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/roof-textures.mjs': ['tools/asset-procgen/web/roof-textures.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/clay-style-generation.mjs': ['tools/asset-procgen/web/clay-style-generation.mjs', 'text/javascript; charset=utf-8'],
+  '/tools/asset-procgen/material-style-generation.mjs': ['tools/asset-procgen/web/material-style-generation.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/timber-textures.mjs': ['tools/asset-procgen/web/timber-textures.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/plaster-textures.mjs': ['tools/asset-procgen/web/plaster-textures.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/stone-textures.mjs': ['tools/asset-procgen/web/stone-textures.mjs', 'text/javascript; charset=utf-8'],
