@@ -154,9 +154,11 @@ test('building GLB artifacts include three level variants and optional interiors
     await lib.updateAsset('market',{...recipe,
       materials:{roofClay:'asset:tiles'},
       options:{...DEFAULT_BUILDING_OPTIONS,interior:'none'}},saved.revision);
-    const exteriorOnly=await lib.buildAsset('market');
-    const finalModel=exteriorOnly.artifacts.find(a=>a.id==='market')!;
-    assert.equal(finalModel.files.length,3);
-    assert.ok(finalModel.files.every(f=>f.file.endsWith('-exterior.glb')));
+    const exteriorPlan=await lib.buildPlan(['market']);
+    assert.notEqual(exteriorPlan.key,planAfter.key);
+    const withoutInterior=generateBuildingFamily(seed,{
+      ...DEFAULT_BUILDING_OPTIONS,interior:'none'},2);
+    assert.equal(canonicalBuildingModel(withoutInterior,'interior'),null,
+      'Absent interior must not produce an invented GLB mesh');
   }finally{await rm(root,{recursive:true,force:true});}
 });
