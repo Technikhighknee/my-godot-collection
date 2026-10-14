@@ -27,16 +27,41 @@ function materialOf(m:CanonicalMaterial){
     }}:{}),
   };
 }
-export function encodeModelGlb(model:CanonicalModel):Uint8Array{
+export type EmbeddedMaterialMaps=Record<string,Record<string,
+  Partial<Record<'albedo'|'normal'|'roughness',Uint8Array>>>>;
+export function encodeModelGlb(model:CanonicalModel,
+  mapSources:EmbeddedMaterialMaps={}):Uint8Array{
   if(model.format!=='devtool-canonical-model'||model.version!==1||
     !model.meshes.length)throw Error('Invalid canonical model');
   const binParts:Uint8Array[]=[];
   let binSize=0;
-  const bufferViews:{buffer:number;byteOffset:number;byteLength:number;target:number}[]=[];
+  const bufferViews:{buffer:number;byteOffset:number;byteLength:number;target?:number}[]=[];
   const accessors:object[]=[];
   const meshes:object[]=[];
   const nodes:object[]=[];
   const materials:object[]=[];
+  const images:object[]=[],textures:object[]=[];
+  const samplers=[{wrapS:10497,wrapT:10497,magFilter:9729,minFilter:9987},
+    {wrapS:33071,wrapT:33071,magFilter:9729,minFilter:9987}];
+  const imageCache=new Map<string,number>();
+  function bakedTexture(slot:string,profile:string,view:string,bytes:Uint8Array){
+    const key=slot+'|'+profile+'|'+view;
+    const known=imageCache.get(key);
+    if(known!==undefined)return known;
+    if(bytes.length<24||!bytes.slice(0,8).every((n,i)=>
+      n===[137,80,78,71,13,10,26,10][i]))
+      throw Error('Invalid embedded material PNG: '+key);
+    while(binSize%4!==0){binParts.push(Uint8Array.of(0));binSize++;}
+    const index=bufferViews.length;
+    bufferViews.push({buffer:0,byteOffset:binSize,byteLength:bytes.length});
+    binParts.push(bytes);binSize+=bytes.length;
+    const imageIndex=images.length;
+    images.push({name:key,mimeType:'image/png',bufferView:index});
+    const textureIndex=textures.length;
+    textures.push({source:imageIndex,sampler:profile==='end'?1:0});
+    imageCache.set(key,textureIndex);
+    return textureIndex;
+  }
   function accessor(data:Float32Array|Uint32Array,componentType:number,
     itemType:'SCALAR'|'VEC2'|'VEC3',target:number,bounds?:{
       min:number[];max:number[];
@@ -76,7 +101,26 @@ export function encodeModelGlb(model:CanonicalModel):Uint8Array{
       attributes.COLOR_0=accessor(part.colors,5126,'VEC3',34962);
     const indices=accessor(part.indices,5125,'SCALAR',34963);
     const materialIndex=materials.length;
-    materials.push(materialOf(part.material));
+    const material=materialOf(part.material);
+    const slot=part.material.slot,profile=part.material.profile??'default';
+    if(slot&&mapSources[slot]){
+      const maps=mapSources[slot]?.[profile];
+      if(!maps?.albedo)throw Error('Missing baked material albedo: '+
+        slot+'/'+profile);
+      if(!part.uvs)throw Error('Textured mesh has no UVs: '+part.name);
+      const pbr=material.pbrMetallicRoughness;
+      const tint=part.material.tint??0xffffff;
+      pbr.baseColorFactor=[
+        linear((tint>>>16)&255),linear((tint>>>8)&255),
+        linear(tint&255),1];
+      pbr.baseColorTexture={index:bakedTexture(slot,profile,'albedo',maps.albedo)};
+      if(maps.roughness)
+        pbr.metallicRoughnessTexture={
+          index:bakedTexture(slot,profile,'roughness',maps.roughness)};
+      if(maps.normal)
+        material.normalTexture={index:bakedTexture(slot,profile,'normal',maps.normal)};
+    }
+    materials.push(material);
     const meshIndex=meshes.length;
     meshes.push({name:part.name,primitives:[{
       attributes,indices,material:materialIndex,mode:4,
@@ -90,6 +134,7 @@ export function encodeModelGlb(model:CanonicalModel):Uint8Array{
     asset:{version:'2.0',generator:'1400 Dev Tool'},
     scene:0,scenes:[{nodes:nodes.map((_,index)=>index)}],
     nodes,meshes,materials,bufferViews,accessors,
+    ...(images.length?{images,textures,samplers}:{}),
     buffers:[{byteLength:buffer.length}],
   };
   const text=new TextEncoder().encode(JSON.stringify(gltf));
