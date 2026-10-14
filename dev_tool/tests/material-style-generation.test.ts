@@ -96,6 +96,7 @@ test('new material styles generate matching RGB, height normals and roughness',(
     assert.ok(change>5000,'Material needs a distinct pigment palette');
     assert.ok(direction>5000,'Material must generate relief, not flat RGB');
     seams(albedo.data,albedo.width,albedo.height);
+    seams(normal.data,normal.width,normal.height);
     seams(roughness.data,roughness.width,roughness.height);
     assert.ok(difference(albedo.data,capture(asset,'albedo',profile).data)===0,
       'Same recipe must reproduce exactly');
