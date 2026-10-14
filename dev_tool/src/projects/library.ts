@@ -8,6 +8,7 @@ import {MapWorkspace} from '../../tools/map-editor/src/editing/map-workspace.ts'
 import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 import {planAssetBuild} from './build-plan.ts';
 import {produceBuild} from './build.ts';
+import {publishGodotPackage} from './godot-package.ts';
 // Project storage is independent of generator implementations.
 export interface GeneratorDescriptor {
   kind:'model'|'image';recipeVersion:number;
@@ -534,6 +535,18 @@ export class ProjectLibrary {
       return produceBuild(this.requireActive(),plan,entries,
         importedId=>this.importedBytes(importedId),
         async resourceId=>(await this.asset(resourceId)).revision);
+    });
+  }
+  async exportGodot(id:string){
+    return this.enqueue(async()=>{
+      id=slug(id);
+      const entries=await this.assets();
+      const plan=planAssetBuild(entries,[id]);
+      const project=this.requireActive();
+      const result=await produceBuild(project,plan,entries,
+        importedId=>this.importedBytes(importedId),
+        async resourceId=>(await this.asset(resourceId)).revision);
+      return publishGodotPackage(project,id,result);
     });
   }
   async graph(){
