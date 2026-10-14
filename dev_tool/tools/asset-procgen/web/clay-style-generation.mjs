@@ -218,10 +218,12 @@ function naturalWatercolorMaps(p,style){
     // Granulation, capillary tide-marks and translucent pigment pooling:
     // these belong to the paint, not to ceramic surface geometry.
     const bloom=periodicNoise(x,y,7,8,p.color^0x913ae721);
-    const front=Math.exp(-Math.pow(
-      (Math.abs(tide+bloom*.32)-.215)/.075,2));
+    // Place darker wash deposits on *tile silhouettes*, rather than
+    // drawing rings along an arbitrary pigment noise iso-value.
     const dry=clamp((granule+mineral*.32+.30)/.64);
     const pooled=Math.max(0,tide+bloom*.35+.12);
+    const edgePool=(1-face)*(.30+.25*clamp(tide+.5))+
+      under*(.22+.22*clamp(coarse+.5));
     const rim=(1-face)*(natural?.075:.068)+
       under*(natural?.080:.075);
     const base=natural?[.56,.335,.224]:[.755,.453,.335];
@@ -241,13 +243,13 @@ function naturalWatercolorMaps(p,style){
       colors[i+2]=clamp(base[2]+tone*.60-bio*.12,.05,.65);
     }else{
       const paper=[.97,.943,.885];
-      const density=clamp(.51+pooled*.36-dry*.14+front*.17);
-      const pigmentTone=tone+pooled*.10+
-        Math.max(0,granule+.08)*.12-front*.14;
+      const density=clamp(.70+coarse*.19+bloom*.17+
+        tide*.13-dry*.10);
+      const pigmentTone=tone+pooled*.065+
+        Math.max(0,granule+.08)*.060-edgePool*.075;
       for(let c=0;c<3;c++){
         const ink=clamp(base[c]+pigmentTone*[1,.81,.65][c],.06,.95);
-        colors[i+c]=clamp(mix(paper[c],ink,density)-
-          front*.019+pores*.012);
+        colors[i+c]=clamp(mix(paper[c],ink,density)+pores*.012);
       }
     }
     depths[at]=clamp(.18+rounded*.32*face+
