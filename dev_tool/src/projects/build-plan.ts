@@ -8,7 +8,7 @@ function canonical(value:unknown):unknown{
   if(Array.isArray(value))return value.map(canonical);
   if(value&&typeof value==='object')
     return Object.fromEntries(Object.entries(value).sort(([a],[b])=>
-      a.localeCompare(b,'en')).map(([k,v])=>[k,canonical(v)]));
+      a<b?-1:a>b?1:0).map(([k,v])=>[k,canonical(v)]));
   return value;
 }
 function sourceIdentity(source:ProjectAssetSource):unknown{
@@ -17,7 +17,10 @@ function sourceIdentity(source:ProjectAssetSource):unknown{
   if('origin' in source)
     return {origin:'imported',kind:source.kind,format:source.imported.format,
       sha256:source.imported.sha256};
-  return {origin:'procedural',generator:source.generator,
+  // Master seed is only an editing convenience. The registry generates
+  // from resolved component seeds, so master-only changes cannot alter bytes.
+  const {id,version,components}=source.generator;
+  return {origin:'procedural',generator:{id,version,components},
     options:source.options??null,materials:source.materials??null};
 }
 export interface BuildNode {
