@@ -85,6 +85,33 @@ rejects manually modified package files rather than silently deleting
 your edits. This exports files for Godot; it does not write into an external
 Godot project or generate `.tscn` scenes automatically.
 
+## Synchronizing directly to Godot
+
+In **Asset ProcGen → Project assets**, select a saved resource and enter the
+absolute folder of the Godot project (the folder containing `project.godot`).
+Click **Sync selected to Godot project**. Studio remembers that target path
+for this authoring project in the local browser. No separate file copying
+is needed.
+
+CLI alternative (from `dev_tool`):
+
+```bash
+npm run sync:godot -- oak-market-square --target "C:\\Games\\MyGodotGame"
+```
+
+Files are published under
+`res://assets/1400/<devtool-project>/<asset-id>/assets/<resource-id>/`,
+with the Godot GLB/PNG filenames preserved. The tool validates the
+`project.godot` destination and manages **only this resource-specific
+folder**. Other scenes, imported resources, assets, and project settings
+are not modified. Godot's `.import` sidecars are kept for files that
+survive a refresh, protecting existing importer settings and UIDs.
+Unmanaged edits, unexpected files and symlink redirections cause a
+visible error rather than a silent overwrite.
+
+Automatic reimport is handled by Godot itself; the Dev Tool does not
+modify `.godot` caches or start the Godot editor.
+
 ## Studio workbench
 
 The launcher at `/` creates and opens projects. Editing takes place in
