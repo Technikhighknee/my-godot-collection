@@ -6,6 +6,7 @@ import {mkdir,readFile,writeFile,rename,rm,lstat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {findGenerator,generateAsset} from '../../tools/asset-procgen/web/generators.mjs';
 import {capturePaintedPixels,encodeRgbaPng} from './build-image.ts';
+import {captureVectorPixels} from './build-canvas.ts';
 import {encodeModelGlb} from './build-glb.ts';
 import type {EmbeddedMaterialMaps} from './build-glb.ts';
 import type {BuildNode,BuildPlan} from './build-plan.ts';
@@ -123,8 +124,10 @@ async function produce(node:BuildNode,entry:AssetEntry,
             const resultViews:NonNullable<EmbeddedMaterialMaps[string][string]>={};
             for(const [view,raw] of Object.entries(views)){
               if(!raw)continue;
+              const pixels='paint' in raw?
+                await captureVectorPixels(raw):raw;
               resultViews[view as 'albedo'|'normal'|'roughness'|'ao']=
-                encodeRgbaPng(raw.width,raw.height,raw.rgba);
+                encodeRgbaPng(pixels.width,pixels.height,pixels.rgba);
             }
             baked[profile]=resultViews;
           }
@@ -138,7 +141,7 @@ async function produce(node:BuildNode,entry:AssetEntry,
     if(!result.length)throw Error('Model produced no exportable geometry');
     return result;
   }
-  if(!def.headlessBake)
+  if(!def.headlessBake&&!def.headlessCanvasBake)
     throw Error('No headless bake capability for '+source.generator.id);
   // Important: use exactly the same registry/generate function as the editor.
   const image=generateAsset(def,source.generator.components);
@@ -147,7 +150,10 @@ async function produce(node:BuildNode,entry:AssetEntry,
   const result:{meta:BuildFile;data:Buffer}[]=[];
   for(const profile of profiles)for(const view of views){
     safeName(view);if(profile)safeName(profile);
-    const pixels=capturePaintedPixels(image,view,profile??undefined);
+    const pixels=def.headlessCanvasBake?
+      await captureVectorPixels({paint:canvas=>
+        image.paint(canvas,view,profile??undefined)}):
+      capturePaintedPixels(image,view,profile??undefined);
     const bytes=encodeRgbaPng(pixels.width,pixels.height,pixels.rgba);
     const file=profile?profile+'--'+view+'.png':view+'.png';
     result.push({meta:{file,sha256:digest(bytes),bytes:bytes.length,
