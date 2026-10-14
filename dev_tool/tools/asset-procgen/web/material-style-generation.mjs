@@ -62,15 +62,15 @@ function weldSeams(m){
 }
 function prepareMaterialContext(material,{structure,pigment,retro}){
   if(material==='plaster-lime'){
-    const count=retro?13:19,strokes=[];
+    const count=retro?17:25,strokes=[];
     for(let k=0;k<count;k++){
       const angle=(hash(k,2,structure^0x9471a3bc)-.5)*1.25;
       strokes.push({
         cx:hash(k,0,structure^0x519ca2e4),
         cy:hash(k,1,structure^0x38d7ab52),
         ca:Math.cos(angle),sa:Math.sin(angle),
-        length:.13+hash(k,3,structure^0x18af739c)*.19,
-        width:.025+hash(k,4,structure^0x7a5913fe)*.045,
+        length:.095+hash(k,3,structure^0x18af739c)*.19,
+        width:.022+hash(k,4,structure^0x7a5913fe)*.047,
         weight:hash(k,7,structure^0x6f37b4c9)-.5,
       });
     }
@@ -299,7 +299,7 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro,strokes}){
       (1-smooth((ellipse-.99)/.06))*cover;
     raised+=cover*(.031+weight*.022);
     edgeLip+=rim*(.011+Math.abs(weight)*.01);
-    strokeTone+=cover*(weight*.036);
+    strokeTone+=cover*(weight*.057);
   }
   const fine=noise(x,y,w,h,retro?23:79,retro?25:83,
     structure^0x563e11a8);
@@ -313,16 +313,24 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro,strokes}){
     structure^0x9a17d256);
   const grit=hash(x,y,structure^0x4e91c3a7);
   const pit=grit>.936?(grit-.936)*(.55+Math.max(0,patch))*.85:0;
-  const chipped=retro?Math.max(0,-patch-.19)*.080:0;
-  const tone=wash*.046+patch*.032+strokeTone+
-    swish*(retro?.031:.038)-grime*.080+
-    plasterGrain*.035-pit-chipped;
+  // Scuffed, partially reworked lime coats: feathered mineral patches
+  // live in the shape field, whereas their tint still belongs to pigment.
+  const porous=noise(x,y,w,h,retro?16:33,retro?14:31,
+    structure^0x3ae8b192);
+  const skim=noise(x,y,w,h,retro?7:12,retro?9:14,
+    structure^0x98c1a263);
+  const worn=smooth((porous+skim*.39-.13)/.22);
+  const chips=Math.max(0,porous-.29)*(retro?.12:.085);
+  const chipped=retro?Math.max(0,-patch-.19)*.065:0;
+  const tone=wash*.047+patch*.030+strokeTone+
+    swish*(retro?.034:.043)-grime*.072+
+    plasterGrain*.033+skim*.042-worn*.072-pit-chipped;
   const base=retro?[.84,.765,.641]:[.9,.842,.722];
   return {rgb:[base[0]+tone,base[1]+tone*.91,
       base[2]+tone*.75],
-    z:.435+raised+edgeLip+fine*.017+plasterGrain*.037+
-      swish*.016-pit*.36-chipped*.42,
-    rough:clamp(.88+fine*.04+grime*.095+pit*.12)};
+    z:.435+raised+edgeLip+fine*.018+plasterGrain*.036+
+      swish*.023-worn*.029-chips-pit*.36-chipped*.42,
+    rough:clamp(.88+fine*.04+grime*.095+pit*.12+worn*.046)};
 }
 
 function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
