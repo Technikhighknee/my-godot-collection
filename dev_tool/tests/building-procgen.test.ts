@@ -373,8 +373,11 @@ test('building surfaces declare project slots and profiles without renderer name
       if(part.surface.tint!==undefined)
         assert.ok(Number.isInteger(part.surface.tint));
     }
-    for(const part of parts.filter(p=>p.material==='timberEnd'))
+    for(const part of parts.filter(p=>
+      p.material==='timberEnd'||p.material==='innerTimberEnd')){
       assert.deepEqual(part.surface.profile,'end');
+      assert.equal(part.surface.textureWrap,'clamp');
+    }
     for(const part of parts.filter(p=>p.material==='timberPanel'))
       assert.deepEqual(part.surface.profile,'panel');
     for(const part of parts.filter(p=>p.material==='plasterOchre'))
