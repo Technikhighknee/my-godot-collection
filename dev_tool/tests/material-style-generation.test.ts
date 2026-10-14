@@ -55,7 +55,8 @@ function seams(data:Uint8ClampedArray,width:number,height:number){
 }
 test('every study material has two native visual grammars without changing defaults',()=>{
   assert.deepEqual(MATERIAL_STUDY_STYLES,
-    ['hand-painted-study','retro-3d-study']);
+    ['hand-painted-study','retro-3d-study',
+      'naturalistic-study','watercolor-study']);
   for(const material of cases){
     const generator=findGenerator(material.id);
     assert.ok(generator&&generator.kind==='image');
