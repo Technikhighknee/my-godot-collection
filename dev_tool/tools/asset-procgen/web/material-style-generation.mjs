@@ -161,9 +161,61 @@ function prepareMaterialContext(material,{structure,pigment,retro,resolution}){
 }
 // Styles change not only pigments but the procedural structure seed and the
 // physical surface relief. They never process the existing Current bitmap.
+// Surface grammar for hand-laid stone. The masonry generator supplies *real*
+// joint distance, stone relief and seeded mineral character. A style can
+// change mortar width, tint, pigment deposition and depth independently
+// without modifying the stone layout or simply filtering the old albedo.
+function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
+  const natural=style==='naturalistic-study';
+  const edge=shape.jointDistance;
+  const face=smooth((edge+(natural?.35:.45))/(natural?2.0:2.8));
+  const chamfer=smooth((edge-.10)/(natural?4.2:4.8));
+  const grain=noise(x,y,w,h,67,63,structure^0x4d129ac7);
+  const mineral=noise(x,y,w,h,20,18,pigment^0x6a81fc43);
+  const wash=noise(x,y,w,h,7,9,pigment^0xb72dc941);
+  const wear=noise(x,y,w,h,11,13,weather^0x529b2f84);
+  const stoneTone=shape.stoneTint*.68;
+  if(natural){
+    // Quiet, believable limestone grout: a narrow mortar cut and subtle
+    // recess, not a black outline running through every joint.
+    const stone=[.663,.645,.596],mortar=[.562,.545,.513];
+    const age=Math.max(0,wear+.17);
+    const tint=stoneTone+mineral*.046+wash*.032+
+      grain*.045-age*.055;
+    const rgb=stone.map((v,c)=>mix(mortar[c]+wear*.018,
+      v+tint*[1,.89,.73][c]+(1-chamfer)*face*.017,face));
+    return {
+      rgb,
+      z:clamp(.17+chamfer*shape.stoneRelief+grain*.014*face),
+      rough:clamp(mix(.94,.855+grain*.056+age*.06,face)),
+    };
+  }
+  // Watercolor keeps the masonry readable but allows the pigment to break
+  // up along its joints. Broad washes, transparent gaps and dry-grain edges
+  // follow the stones, not uniformly dark drawn contour lines.
+  const glaze=noise(x,y,w,h,12,10,pigment^0xc8e4913a);
+  const dust=noise(x,y,w,h,55,49,structure^0x28a41c75);
+  const fade=smooth((wash+mineral*.45+wear*.22+.26)/.52);
+  const groutOpacity=(1-face)*(.29+.71*fade);
+  const stone=[.811,.775,.699],mortar=[.710,.689,.638];
+  const paper=Math.max(0,dust+wash*.33-.12);
+  const pigmentPool=(1-face)*fade*.030;
+  const tint=stoneTone*.72+wash*.087+mineral*.073+
+    glaze*.051-dust*.025-paper*.045;
+  const rgb=stone.map((v,c)=>mix(v+tint*[1,.91,.77][c]+
+    paper*.046,mortar[c]+wash*.043-pigmentPool,groutOpacity));
+  return {
+    rgb,
+    z:clamp(.19+chamfer*shape.stoneRelief*.66+
+      grain*.013*face),
+    rough:clamp(mix(.95,.915+dust*.063+paper*.05,face)),
+  };
+}
 function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},shape){
   if(style!=='naturalistic-study'&&style!=='watercolor-study')
     return shape;
+  if(material==='stone-rubble')return directedStoneSurface(
+    style,x,y,{w,h,structure,pigment,weather},shape);
   const natural=style==='naturalistic-study';
   const macro=noise(x,y,w,h,7,9,pigment^0x2938a15f);
   const stains=noise(x,y,w,h,15,18,weather^0x7a2e8f31);
@@ -523,7 +575,10 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
     medium*.044+micro*.032+grit*.015-scratch*.072;
   return {rgb,z:.15+bevel*stoneHeight,
     rough:clamp(mix(.945,.86+micro*.05+
-      Math.max(0,lichen)*.055+scratch*.09,face))};
+      Math.max(0,lichen)*.055+scratch*.09,face)),
+    // Semantic material fields used by alternate art directions. Keep
+    // underlying hand-painted / retro generators completely unchanged.
+    jointDistance:edge,stoneRelief:stoneHeight,stoneTint:tone};
 }
 
 function weldNormalEdges(d,width,height,step){
