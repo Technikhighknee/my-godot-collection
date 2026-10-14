@@ -126,7 +126,7 @@ test('HTTP polygon edits require valid schema, origin and revision', async () =>
       assert.equal((await put(body)).status, 409);
       const map = (await (await fetch(`${base}/api/map`)).json()).map;
       assert.deepEqual(map.water, [water]); assert.deepEqual(map.settlements, [settlement]);
-      assert.equal((await fetch(`${base}/polygon-edit.mjs`)).status, 200);
+      assert.equal((await fetch(`${base}/tools/map-editor/polygon-edit.mjs`)).status, 200);
     } finally { await new Promise<void>((resolve, reject) => server.close(err => err ? reject(err) : resolve())); }
   } finally {await rm(folder,{recursive:true,force:true});}
 });
