@@ -8,7 +8,8 @@ import {MapWorkspace} from '../../tools/map-editor/src/editing/map-workspace.ts'
 import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 // Project storage is independent of generator implementations.
 export interface GeneratorDescriptor {
-  kind:'model'|'image';components:readonly {id:string}[];
+  kind:'model'|'image';recipeVersion:number;
+  components:readonly {id:string}[];
   defaultOptions?:object;
   validateOptions?:(value:unknown)=>object;
   materialSlots?:readonly {id:string;generators:readonly string[]}[];
@@ -77,9 +78,16 @@ export function validateSource(raw:unknown,expectedId?:string,
   if(!g||typeof g!=='object'||Array.isArray(g))throw Error('Invalid generator');
   const gen=g as Record<string,unknown>;
   if(Object.keys(gen).sort().join()!=='components,id,masterSeed,version'||
-    gen.version!==1||typeof gen.id!=='string')throw Error('Unsupported generator recipe');
+    !Number.isSafeInteger(gen.version)||typeof gen.id!=='string')
+    throw Error('Unsupported generator recipe');
   const def=lookup(gen.id);
   if(!def)throw Error('Unknown generator: '+gen.id);
+  // A saved recipe cannot silently switch to a different algorithm version.
+  // The legacy project format remains version 1; an incompatible generator
+  // must be explicitly migrated instead of mutating a stored asset's meaning.
+  if(gen.version!==def.recipeVersion)
+    throw Error('Unsupported generator version for '+gen.id+
+      ': saved '+gen.version+', available '+def.recipeVersion);
   if(typeof gen.masterSeed!=='number')throw Error('Invalid master seed');
   validateSeed(gen.masterSeed);
   const comps=gen.components;
@@ -112,7 +120,8 @@ export function validateSource(raw:unknown,expectedId?:string,
   if(materials&&Object.values(materials).some(ref=>!dependencies.includes(ref)))
     throw Error('Material references must be project dependencies');
   return {format:'devtool-asset',version:1,id,name,
-    generator:{id:gen.id,version:1,masterSeed:gen.masterSeed as number,
+    generator:{id:gen.id,version:gen.version as number,
+      masterSeed:gen.masterSeed as number,
       components:comps as Record<string,number>},
     dependencies:dependencies as string[],
     ...(options===undefined?{}:{options}),
@@ -134,8 +143,11 @@ function makeSource(input:unknown,id:string,lookup:GeneratorLookup,
     ...dependencies.filter(ref=>!Object.values(oldMaterials).includes(ref)),
     ...refs.filter((ref):ref is string=>typeof ref==='string'),
   ])];
+  const def=typeof x.generator==='string'?lookup(x.generator):null;
+  if(!def)throw Error('Unknown generator: '+String(x.generator));
   return validateSource({format:'devtool-asset',version:1,id,name:x.name,
-    generator:{id:x.generator,version:1,masterSeed:x.masterSeed,components:x.components},
+    generator:{id:x.generator,version:def.recipeVersion,
+      masterSeed:x.masterSeed,components:x.components},
     dependencies:nextDeps,
     ...(x.options===undefined?{}:{options:x.options}),
     ...(newMaterials===undefined?{}:{materials:newMaterials})},id,lookup);
