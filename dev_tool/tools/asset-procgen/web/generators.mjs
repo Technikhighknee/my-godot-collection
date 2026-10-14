@@ -11,6 +11,7 @@ import {OAK_BARK_SIZE,OAK_BARK_MAPS,OAK_BARK_PROFILES,
 import {mapOakBarkWood} from './oak-bark-uv.mjs';
 import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
+import {canonicalTreeModel,canonicalBuildingModel} from './canonical-model.mjs';
 import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from './roof-textures.mjs';
 import {makeStyledMaterialAsset,MATERIAL_STUDY_STYLES}
   from './material-style-generation.mjs';
@@ -179,6 +180,13 @@ export const GENERATORS=Object.freeze([
   }),
   Object.freeze({
     id:'timber-building',kind:'model',recipeVersion:1,symbol:'⌂',
+    modelBake:Object.freeze({
+      variants:Object.freeze([1,2,3].flatMap(level=>[
+        Object.freeze({name:'level-'+level+'-exterior',level,view:'exterior'}),
+        Object.freeze({name:'level-'+level+'-interior',level,view:'interior'}),
+      ])),
+      canonicalize:(asset,variant)=>canonicalBuildingModel(asset,variant.view),
+    }),
     label:'Timber-frame building',subtitle:'Three upgrade levels · optional empty interior',
     libraryPath:Object.freeze(['Architecture','Buildings','Timber frame']),
     navLabel:'Building family',navType:'3D',
@@ -225,7 +233,11 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'fir',kind:'model',recipeVersion:1,symbol:'♣',label:'Fir tree',subtitle:'Fir wood geometry',
+    id:'fir',kind:'model',recipeVersion:1,symbol:'♣',
+    modelBake:Object.freeze({
+      variants:Object.freeze([Object.freeze({name:'model',level:1})]),
+      canonicalize:asset=>canonicalTreeModel(asset),
+    }),label:'Fir tree',subtitle:'Fir wood geometry',
     libraryPath:Object.freeze(['Vegetation','Fir']),navLabel:'Tree',navType:'3D',
     generate:generateFirAsset,
     overline:'FIR / WOOD GEOMETRY',title:'Fir wood.',
