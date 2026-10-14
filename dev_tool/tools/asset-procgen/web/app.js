@@ -779,6 +779,8 @@ projectEl('savedProjectAssets').addEventListener('change',()=>{
     const {project}=await projectApi('/api/projects/active');
     if(!project){assetStatus('Create a project on the home page to save assets.');return;}
     projectId=project.id;
+    projectEl('godotProjectPath').value=
+      localStorage.getItem('godot-sync-target:'+projectId)??'';
     await reloadProjectAssets();
     const requested=new URLSearchParams(location.search).get('asset');
     if(requested&&projectAssets.has(requested)){
