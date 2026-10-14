@@ -34,6 +34,12 @@ test('build plans order dependencies and invalidate only semantic changes',()=>{
   assert.deepEqual(plan.roots,['house']);
   const renamed={...clay,source:{...clay.source,name:'Decorative rename'}};
   assert.equal(planAssetBuild([house,renamed],['house']).key,plan.key);
+  const originalGenerator=clay.source.generator!;
+  const masterOnly={...clay,source:{...clay.source,generator:{
+    ...originalGenerator,masterSeed:999,
+  }}} as AssetEntry;
+  assert.equal(planAssetBuild([house,masterOnly],['house']).key,plan.key,
+    'Resolved component seeds, not the master seed label, determine output');
   const recolored=material('clay',8);
   const changed=planAssetBuild([house,recolored],['house']);
   assert.notEqual(changed.key,plan.key);
@@ -87,6 +93,10 @@ test('imported files build without regeneration and verify cached artifacts',asy
     corrupt[20]^=1;
     await writeFile(file,corrupt);
     await assert.rejects(lib.buildAsset('wall'),/Built asset file changed/);
+    await writeFile(file,png);
+    await writeFile(join(root,'world','assets','imports','wall.png'),corrupt);
+    await assert.rejects(lib.buildAsset('wall'),/corrupted/,
+      'A valid cache must not mask damage to the imported source');
   });
 });
 
