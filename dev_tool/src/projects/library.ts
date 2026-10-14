@@ -68,6 +68,8 @@ export interface ImportedAssetSource {
   format:'devtool-asset';version:2;id:string;name:string;origin:'imported';
   kind:'model'|'image';
   imported:{format:ImportFormat;path:string;sha256:string;byteLength:number};
+  // Absent in imported sources: these capabilities require a real generator.
+  generator?:never;options?:never;materials?:never;
   dependencies:string[];
 }
 export type ProjectAssetSource=AssetSource|ImportedAssetSource;
