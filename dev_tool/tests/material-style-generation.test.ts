@@ -20,7 +20,8 @@ type Channel='albedo'|'normal'|'roughness';
 // expensive raster, while calls to paint still exercise every requested
 // channel. Changed-seed fixtures and reproducibility checks remain independent.
 const baselineAssets=new Map<string,ReturnType<typeof makeStyledMaterialAsset>>();
-function baselineAsset(material:(typeof cases)[number],style:string){
+function baselineAsset(material:(typeof cases)[number],
+  style:(typeof MATERIAL_STUDY_STYLES)[number]){
   const key=material.id+'/'+style;
   let asset=baselineAssets.get(key);
   if(!asset){
