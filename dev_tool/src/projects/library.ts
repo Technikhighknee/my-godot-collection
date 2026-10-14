@@ -75,6 +75,18 @@ export interface ImportedAssetSource {
 export type ProjectAssetSource=AssetSource|ImportedAssetSource;
 export type AssetEntry={source:ProjectAssetSource;revision:string;kind:'model'|'image'};
 const MAX_IMPORT_BYTES=32*1024*1024;
+const crcTable=new Uint32Array(256);
+for(let i=0;i<256;i++){
+  let c=i;
+  for(let j=0;j<8;j++)c=c&1?0xedb88320^(c>>>1):c>>>1;
+  crcTable[i]=c>>>0;
+}
+function pngCrc32(bytes:Uint8Array):number{
+  let crc=0xffffffff;
+  for(const value of bytes)crc=crcTable[(crc^value)&255]!^(crc>>>8);
+  return (crc^0xffffffff)>>>0;
+}
+
 const hexHash=/^[0-9a-f]{64}$/;
 function importedKind(format:ImportFormat):'model'|'image'{
   return format==='glb'?'model':'image';
@@ -111,11 +123,16 @@ function validateImportBytes(format:ImportFormat,bytes:Buffer):void{
       bytes.readUInt32BE(8)!==13||bytes.toString('ascii',12,16)!=='IHDR'||
       bytes.readUInt32BE(16)===0||bytes.readUInt32BE(20)===0)
       throw Error('Invalid PNG image header');
+    const width=bytes.readUInt32BE(16),height=bytes.readUInt32BE(20);
+    if(width*height>128_000_000)throw Error('PNG dimensions exceed limit');
     let offset=8,hasImage=false,ended=false;
     while(offset<bytes.length){
       if(offset+12>bytes.length)throw Error('Truncated PNG chunk');
       const length=bytes.readUInt32BE(offset);
       if(length>bytes.length-offset-12)throw Error('Invalid PNG chunk length');
+      const expected=bytes.readUInt32BE(offset+8+length);
+      if(pngCrc32(bytes.subarray(offset+4,offset+8+length))!==expected)
+        throw Error('Corrupt PNG checksum');
       const tag=bytes.toString('ascii',offset+4,offset+8);
       if(tag==='IDAT')hasImage=true;
       if(tag==='IEND'){
