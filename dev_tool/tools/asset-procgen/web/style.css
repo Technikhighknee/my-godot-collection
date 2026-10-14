@@ -236,6 +236,7 @@
   border-color:#d7b689;color:#f7e2bf}
 .pg-camera-tools .pg-building-view button{padding:8px}
 
+#materialSlots{display:flex;flex-direction:column;gap:14px}
 .pg-roof-slot{display:flex;flex-direction:column;gap:7px}
 .pg-roof-actions{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:6px}
 .pg-roof-actions button{min-width:0;padding:9px 4px;border-radius:5px;
