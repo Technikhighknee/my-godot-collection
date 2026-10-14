@@ -11,7 +11,7 @@ import {OAK_BARK_SIZE,OAK_BARK_MAPS,OAK_BARK_PROFILES,
 import {mapOakBarkWood} from './oak-bark-uv.mjs';
 import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
-import {canonicalTreeModel,canonicalBuildingModel,canonicalOakWoodModel}
+import {canonicalTreeModel,canonicalBuildingModel,canonicalOakModel}
   from './canonical-model.mjs';
 import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from './roof-textures.mjs';
 import {makeStyledMaterialAsset,MATERIAL_STUDY_STYLES}
@@ -51,7 +51,14 @@ function oakBarkBakeMaps(asset){
       ao:{width:maps.width,height:maps.height,rgba:maps.ao},
     };
   }
-  return {oakBark:profiles};
+  if(!Number.isInteger(asset.atlasSeed))
+    throw Error('Missing oak foliage atlas seed');
+  return {
+    oakBark:profiles,
+    oakFoliage:{default:{
+      albedo:{paint:canvas=>paintOakAtlas(canvas,asset.atlasSeed)},
+    }},
+  };
 }
 function generateOakAtlasAsset(seeds){
   return {
@@ -235,14 +242,14 @@ export const GENERATORS=Object.freeze([
   Object.freeze({
     id:'oak',kind:'model',recipeVersion:1,symbol:'♠',label:'Oak tree',subtitle:'Oak wood & leaves',
     modelBake:Object.freeze({
-      variants:Object.freeze([Object.freeze({name:'wood',level:1})]),
-      canonicalize:asset=>canonicalOakWoodModel(asset),
+      variants:Object.freeze([Object.freeze({name:'model',level:1})]),
+      canonicalize:asset=>canonicalOakModel(asset),
       materialMaps:asset=>oakBarkBakeMaps(asset),
     }),
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Tree',navType:'3D',
     generate:generateOakAsset,
     overline:'OAK / WOOD + FOLIAGE',title:'Oak in leaf.',
-    description:'European oak with bark PBR and independently seeded foliage. Wood-only GLB export preserves the existing UV-mapped trunk and maturity-profile materials; leaf atlas export is not yet headless.',
+    description:'European oak with seeded bark PBR and a transparent leaf-card atlas. Full GLB export preserves the native wood geometry, bark materials and foliage cards.',
     previewLabel:'Interactive 3D oak tree wood preview',
     initialMasterSeed:DEFAULT_TREE.seed,
     components:Object.freeze([
@@ -271,12 +278,12 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'oak-atlas',kind:'image',recipeVersion:1,symbol:'▧',label:'Oak leaf atlas',
+    id:'oak-atlas',kind:'image',recipeVersion:1,headlessCanvasBake:true,symbol:'▧',label:'Oak leaf atlas',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Leaf atlas',navType:'Atlas',
     subtitle:'Procedural RGBA foliage sprites',
     generate:generateOakAtlasAsset,
     overline:'2D / OAK LEAF ATLAS',title:'Leaf atlas.',
-    description:'Inspect the current procedural oak leaf atlas separately from the tree. Each tile is baked from a seeded 3D-grown oak twig and individual leaves. Experimental game-scale sprites; no export yet.',
+    description:'Transparent game-scale atlas rendered from seeded 3D-grown oak twigs and leaves; PNG export uses the same painting routine as the browser preview.',
     previewLabel:'Procedural oak leaf atlas with transparent tiles',
     initialMasterSeed:21749,
     components:Object.freeze([
@@ -284,7 +291,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'oak-sprig',kind:'image',recipeVersion:1,symbol:'❧',
+    id:'oak-sprig',kind:'image',recipeVersion:1,headlessCanvasBake:true,symbol:'❧',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Leaf spray',navType:'Sprite',
     label:'Oak leaf spray',subtitle:'Individual twig & leaves',
     generate:generateOakSprigAsset,
