@@ -18,7 +18,7 @@ export interface GeneratedImage {
 }
 export type GeneratedAsset=GeneratedModel|GeneratedImage|GeneratedBuilding;
 interface GeneratorMeta {
-  id:string;symbol:string;label:string;subtitle:string;
+  id:string;recipeVersion:number;symbol:string;label:string;subtitle:string;
   libraryPath:readonly string[];navLabel:string;navType:string;
   overline:string;title:string;description:string;previewLabel:string;
   initialMasterSeed:number;components:readonly GeneratorComponent[];
