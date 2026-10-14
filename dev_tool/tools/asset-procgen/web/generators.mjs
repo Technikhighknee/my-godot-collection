@@ -76,7 +76,7 @@ function generateOakBarkAsset(seeds){
 }
 export const GENERATORS=Object.freeze([
   Object.freeze({
-    id:'roof-thatch',kind:'image',symbol:'▤',
+    id:'roof-thatch',kind:'image',recipeVersion:1,symbol:'▤',
     label:'Thatch roofing',subtitle:'Layered straw/reed material',
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Thatch',navType:'Texture',
@@ -96,7 +96,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'roof-clay',kind:'image',symbol:'▤',
+    id:'roof-clay',kind:'image',recipeVersion:1,symbol:'▤',
     label:'Clay roof tiles',subtitle:'Staggered overlapping ceramic roof tiles',
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Clay tiles',navType:'Texture',
@@ -116,7 +116,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'timber-oak',kind:'image',symbol:'▤',
+    id:'timber-oak',kind:'image',recipeVersion:1,symbol:'▤',
     label:'Hewn oak timber',subtitle:'Weathered structural wood with longitudinal grain',
     libraryPath:Object.freeze(['Textures','Wood']),
     navLabel:'Hewn oak',navType:'Texture',
@@ -136,7 +136,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'plaster-lime',kind:'image',symbol:'▦',
+    id:'plaster-lime',kind:'image',recipeVersion:1,symbol:'▦',
     label:'Lime plaster',subtitle:'Warm hand-applied mineral facade render',
     libraryPath:Object.freeze(['Textures','Walls']),
     navLabel:'Lime plaster',navType:'Texture',
@@ -157,7 +157,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'stone-rubble',kind:'image',symbol:'▦',
+    id:'stone-rubble',kind:'image',recipeVersion:1,symbol:'▦',
     label:'Rubble stone',subtitle:'Irregular limestone and mortar masonry',
     libraryPath:Object.freeze(['Textures','Stone']),
     navLabel:'Rubble stone',navType:'Texture',
@@ -178,7 +178,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'timber-building',kind:'model',symbol:'⌂',
+    id:'timber-building',kind:'model',recipeVersion:1,symbol:'⌂',
     label:'Timber-frame building',subtitle:'Three upgrade levels · optional empty interior',
     libraryPath:Object.freeze(['Architecture','Buildings','Timber frame']),
     navLabel:'Building family',navType:'3D',
@@ -208,7 +208,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'oak',kind:'model',symbol:'♠',label:'Oak tree',subtitle:'Oak wood & leaves',
+    id:'oak',kind:'model',recipeVersion:1,symbol:'♠',label:'Oak tree',subtitle:'Oak wood & leaves',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Tree',navType:'3D',
     generate:generateOakAsset,
     overline:'OAK / WOOD + FOLIAGE',title:'Oak in leaf.',
@@ -225,7 +225,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'fir',kind:'model',symbol:'♣',label:'Fir tree',subtitle:'Fir wood geometry',
+    id:'fir',kind:'model',recipeVersion:1,symbol:'♣',label:'Fir tree',subtitle:'Fir wood geometry',
     libraryPath:Object.freeze(['Vegetation','Fir']),navLabel:'Tree',navType:'3D',
     generate:generateFirAsset,
     overline:'FIR / WOOD GEOMETRY',title:'Fir wood.',
@@ -237,7 +237,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'oak-atlas',kind:'image',symbol:'▧',label:'Oak leaf atlas',
+    id:'oak-atlas',kind:'image',recipeVersion:1,symbol:'▧',label:'Oak leaf atlas',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Leaf atlas',navType:'Atlas',
     subtitle:'Procedural RGBA foliage sprites',
     generate:generateOakAtlasAsset,
@@ -250,7 +250,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'oak-sprig',kind:'image',symbol:'❧',
+    id:'oak-sprig',kind:'image',recipeVersion:1,symbol:'❧',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Leaf spray',navType:'Sprite',
     label:'Oak leaf spray',subtitle:'Individual twig & leaves',
     generate:generateOakSprigAsset,
@@ -264,7 +264,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'oak-bark',kind:'image',symbol:'▤',
+    id:'oak-bark',kind:'image',recipeVersion:1,symbol:'▤',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Bark',navType:'Texture',
     label:'Oak bark',subtitle:'Seamless mature oak bark PBR material',
     generate:generateOakBarkAsset,
