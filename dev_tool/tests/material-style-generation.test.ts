@@ -168,3 +168,35 @@ test('shape reseeding rebuilds each material while color alone retains geometry'
       material.id+' '+style+' must keep geometry independent of pigment');
   }
 });
+
+
+test('hand-painted rubble forms horizontal masonry courses, not paving cells',()=>{
+  // Measure the spatial arrangement of the darkest quarter of the surface,
+  // rather than depending on a particular hard-coded limestone palette.
+  const asset=makeStyledMaterialAsset('stone-rubble',
+    {layout:71803,mineral:30192,weather:58212},
+    'hand-painted-study');
+  const {data}=capture(asset,'albedo');
+  const histogram=new Uint32Array(256);
+  for(let i=0;i<data.length;i+=4)histogram[data[i]!]!++;
+  let threshold=0,seen=0;
+  for(;threshold<255;threshold++){
+    seen+=histogram[threshold]!;
+    if(seen>=512*512*.25)break;
+  }
+  const rows=new Float64Array(512),columns=new Float64Array(512);
+  for(let y=0;y<512;y++)for(let x=0;x<512;x++)
+    if(data[(y*512+x)*4]!<=threshold){
+      rows[y]!++;columns[x]!++;
+    }
+  const variation=(values:Float64Array)=>{
+    let sum=0;
+    for(const value of values)sum+=value;
+    const mean=sum/values.length;
+    let squared=0;
+    for(const value of values)squared+=(value-mean)**2;
+    return Math.sqrt(squared/values.length);
+  };
+  assert.ok(variation(rows)>variation(columns)*1.18,
+    'Stone joints must predominantly follow laid horizontal courses');
+});
