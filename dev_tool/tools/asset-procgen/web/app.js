@@ -55,6 +55,50 @@ function materialImages(){
   }
   return images;
 }
+// Material controls are constructed from the active capability descriptor.
+// A new compatible slot does not require editing HTML, the event binder,
+// or a slot-name lookup in the project editor.
+function mountMaterialControls(){
+  const root=byId('materialSlots');
+  root.replaceChildren();
+  for(const slot of active.materialSlots??[]){
+    const wrapper=document.createElement('div');
+    wrapper.className='pg-roof-slot';
+    const label=document.createElement('label');
+    label.htmlFor=slot.id+'Asset';
+    label.textContent=slot.label;
+    const picker=document.createElement('select');
+    picker.id=slot.id+'Asset';
+    picker.addEventListener('change',event=>{
+      const value=event.target.value;
+      const next={...selectedMaterials()};
+      if(value)next[slot.id]=value;
+      else delete next[slot.id];
+      materialAssignments.set(active.id,next);
+      renderMaterialSelects();
+      setRecipeDirty(true);
+      build();
+    });
+    label.append(picker);
+    const actions=document.createElement('div');
+    actions.className='pg-roof-actions';
+    for(const [action,suffix,title] of [
+      ['new','New','New'],
+      ['edit','Edit','Edit'],
+      ['reseed','Reseed','Reseed shared'],
+    ]){
+      const button=document.createElement('button');
+      button.type='button';
+      button.id=slot.id+suffix;
+      button.textContent=title;
+      button.addEventListener('click',()=>
+        projectOperation(()=>changeSharedMaterial(slot.id,action)));
+      actions.append(button);
+    }
+    wrapper.append(label,actions);
+    root.append(wrapper);
+  }
+}
 function renderMaterialSelects(){
   if(!active.materialSlots)return;
   const current=selectedMaterials();
@@ -96,6 +140,7 @@ function renderBuildingControls(){
   byId('foot').hidden=show;
   byId('crown').hidden=show;
   byId('whole').textContent=show?'Fit building':'Whole tree';
+  mountMaterialControls();
   if(!show)return;
   const o=currentBuildingOptions();
   for(const [property,id] of [
@@ -587,28 +632,6 @@ async function changeSharedMaterial(slot,action){
     build();
     studioSignal({type:'studio:project-assets-changed'});
     assetStatus('Reseeded shared texture '+updated.source.name+'. All linked models use its new seed.');
-  }
-}
-// Controls are attached from declared generator capabilities, not from an
-// application-maintained list of building material names.
-const materialSlotIds=new Set(GENERATORS.flatMap(def=>
-  (def.materialSlots??[]).map(slot=>slot.id)));
-for(const slot of materialSlotIds){
-  const picker=byId(slot+'Asset');
-  if(!picker)continue;
-  picker.addEventListener('change',event=>{
-    const value=event.target.value;
-    materialAssignments.set(active.id,{...selectedMaterials(),
-      ...(value?{[slot]:value}:{[slot]:undefined})});
-    const next=selectedMaterials();
-    for(const key of Object.keys(next))if(!next[key])delete next[key];
-    renderMaterialSelects();
-    setRecipeDirty(true);
-    build();
-  });
-  for(const [action,suffix] of [['new','New'],['edit','Edit'],['reseed','Reseed']]){
-    byId(slot+suffix)?.addEventListener('click',()=>
-      projectOperation(()=>changeSharedMaterial(slot,action)));
   }
 }
 window.addEventListener('message',event=>{
