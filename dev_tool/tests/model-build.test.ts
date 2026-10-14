@@ -139,6 +139,13 @@ test('building GLB artifacts include three level variants and optional interiors
         }
       }
     }
+    // Produced GLB is also accepted by the project's own glTF 2.0 import
+    // validator: no exporter-specific or browser-dependent wrapper.
+    const roundTrip=await readFile(join(root,'world','build','assets','market',
+      artifact.key,'level-3-exterior.glb'));
+    const imported=await lib.importAsset('built-hall','Built Hall','glb',roundTrip);
+    assert.equal(imported.kind,'model');
+    assert.deepEqual((await lib.importedBytes('built-hall')).bytes,roundTrip);
     const repeat=await lib.buildAsset('market');
     assert.equal(repeat.reused,2);
     const planBefore=await lib.buildPlan(['market']);
