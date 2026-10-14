@@ -7,6 +7,7 @@ import {inflateSync} from 'node:zlib';
 import {ProjectLibrary,type AssetEntry} from '../src/projects/library.ts';
 import {planAssetBuild} from '../src/projects/build-plan.ts';
 import {capturePaintedPixels,encodeRgbaPng} from '../src/projects/build-image.ts';
+import {captureVectorPixels} from '../src/projects/build-canvas.ts';
 import {findGenerator} from '../tools/asset-procgen/web/generators.mjs';
 import {createProjectRouter} from '../src/projects/router.ts';
 import {createDevToolServer} from '../src/server.ts';
@@ -72,6 +73,34 @@ test('canvas-free RGBA baking preserves source bytes and encodes PNG',()=>{
   const decoded=inflateSync(png.subarray(41,41+dataLength));
   assert.deepEqual([...decoded],[0,...pixels.rgba]);
   assert.deepEqual(encodeRgbaPng(2,1,pixels.rgba),png);
+});
+
+test('headless Canvas2D paints real vector paths, gradients and transparency',async()=>{
+  const draw=()=>captureVectorPixels({paint(canvas){
+    canvas.width=16;canvas.height=16;
+    const ctx=canvas.getContext('2d')!;
+    ctx.clearRect(0,0,16,16);
+    const shade=ctx.createLinearGradient(0,0,16,16);
+    shade.addColorStop(0,'#28620f');
+    shade.addColorStop(1,'#9ab968');
+    ctx.beginPath();ctx.moveTo(4,2);ctx.lineTo(13,6);
+    ctx.lineTo(6,13);ctx.closePath();
+    ctx.fillStyle=shade;ctx.fill();
+    ctx.save();ctx.clip();
+    ctx.strokeStyle='rgba(255,255,255,.5)';
+    ctx.beginPath();ctx.moveTo(3,4);ctx.lineTo(12,10);ctx.stroke();
+    ctx.restore();
+  }});
+  const first=await draw();
+  assert.equal(first.width,16);assert.equal(first.height,16);
+  assert.equal(first.rgba.length,1024);
+  assert.equal(first.rgba[3],0,'Unpainted pixels preserve alpha');
+  const covered=Array.from({length:256},(_,i)=>first.rgba[i*4+3])
+    .filter(n=>n>0).length;
+  assert.ok(covered>20&&covered<200,
+    'Rasterized geometry must occupy part of the transparent image');
+  const second=await draw();
+  assert.deepEqual(second.rgba,first.rgba);
 });
 
 test('imported files build without regeneration and verify cached artifacts',async()=>{
