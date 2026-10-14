@@ -131,6 +131,40 @@ normally.
   live reimport, Godot scene generator or automatic deployment into `res://`.
   The `manifest.json` is authoring metadata, not a Godot importer format.
 
+### Synchronizing into an existing Godot project
+
+Studio can now synchronize a saved resource without manual copying. The
+user supplies the **absolute directory containing `project.godot`**; the
+path is remembered locally per active authoring project and the server
+verifies the target before writing. The CLI equivalent is:
+
+```bash
+npm run sync:godot -- oak-market-square --target "C:\\Games\\1400"
+```
+
+The sync writes only to:
+
+```text
+<godot-project>/assets/1400/<devtool-project>/<root-asset>/
+    manifest.json
+    assets/<resource-id>/<file>.glb|png
+```
+
+Godot sees stable `res://assets/1400/...` paths across changes.
+Resources are namespaced by authoring project and root asset to avoid
+accidental collisions. Every sync reuses the verified project package,
+checks prior managed files and refuses to overwrite unmanaged content.
+Existing `.glb.import` and `.png.import` sidecars for surviving files are
+carried forward so Godot importer settings and UIDs remain stable.
+Only the specific managed root asset is swapped; other resources and game
+files are untouched. No arbitrary path traversal or symlink targets are
+accepted inside the managed destination. Renaming the staged directory is
+performed with rollback if publication fails.
+
+Sync requires a deliberate action in Studio (or explicit CLI invocation);
+it does not watch files, start Godot, or modify the map/deployment system.
+Godot controls its own import/reimport.
+
 ### Canonical 3D mesh and GLB output — working scope
 
 - Model-capable generators may declare `modelBake`: named variants with a
