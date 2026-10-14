@@ -1,6 +1,6 @@
 import {findGenerator,generateAsset} from './generators.mjs';
-import {STUDY_MATERIALS,applyTextureStudyStyle,studySeeds,
-  reseedStudySeeds} from './texture-style-study.mjs';
+import {STUDY_STYLES,STUDY_MATERIALS,applyTextureStudyStyle,
+  studySeeds,reseedStudySeeds} from './texture-style-study.mjs';
 
 const byId=id=>document.getElementById(id);
 const embedded=new URLSearchParams(location.search).get('embedded')==='1';
@@ -10,21 +10,46 @@ function studioSignal(message){
     window.parent.postMessage(message,location.origin);
 }
 const board=byId('studyBoard'),status=byId('studyStatus');
+const filters=byId('studyStyleFilters');
 const controls={
   channel:byId('studyChannel'),profile:byId('studyTimberProfile'),
   tiling:byId('studyTiling'),seed:byId('studySeed'),
 };
-const sources=new Map(),cells=new Map();
-let masterSeed=null;
-let activeRender=0;
+const sources=new Map(),cells=new Map(),filterInputs=new Map();
+const selectedStyles=new Set(STUDY_STYLES.map(style=>style.id));
+let masterSeed=null,activeRender=0;
+const PREVIEW_SIZE=256;
+
+// The original is always present as a stable visual reference. Alternatives
+// are individually switchable without affecting seeds or generator output.
+function visibleStyles(){
+  return STUDY_STYLES.filter(style=>selectedStyles.has(style.id));
+}
+for(const style of STUDY_STYLES){
+  const label=document.createElement('label');
+  label.className='study-style-filter';
+  const input=document.createElement('input');
+  input.type='checkbox';input.checked=true;
+  input.disabled=style.id==='current';
+  input.setAttribute('aria-label','Show '+style.label);
+  const span=document.createElement('span');span.textContent=style.label;
+  label.append(input,span);filters.append(label);
+  filterInputs.set(style.id,input);
+  if(style.id!=='current')input.addEventListener('change',()=>{
+    if(input.checked)selectedStyles.add(style.id);
+    else selectedStyles.delete(style.id);
+    buildBoard();
+    void render();
+  });
+}
 for(const material of STUDY_MATERIALS){
   const definition=findGenerator(material.id);
   if(!definition||definition.kind!=='image')
     throw Error('Material generator unavailable: '+material.id);
-  const meta={...material,definition};
-  sources.set(material.id,meta);
-  const label=document.createElement('div');
-  label.className='study-name';
+  sources.set(material.id,{...material,definition});
+}
+function createMaterialName(material){
+  const label=document.createElement('div');label.className='study-name';
   const group=document.createElement('small');group.textContent=material.group;
   const title=document.createElement('strong');title.textContent=material.label;
   const link=document.createElement('a');
@@ -35,109 +60,160 @@ for(const material of STUDY_MATERIALS){
   });
   link.textContent='Open generator ↗';
   label.append(group,title,link);
-  board.append(label);
-  for(const style of ['current','classic-strategy-study']){
-    const shell=document.createElement('div');
-    shell.className='study-preview';
-    const canvas=document.createElement('canvas');
-    canvas.width=canvas.height=384;
-    canvas.setAttribute('aria-label',material.label+' — '+
-      (style==='current'?'current texture':'classic strategy study'));
-    const info=document.createElement('span');info.className='study-image-info';
-    info.textContent='Preparing…';
-    shell.append(canvas,info);
-    board.append(shell);
-    cells.set(material.id+'/'+style,{canvas,info});
+  return label;
+}
+function buildBoard(){
+  const styles=visibleStyles();
+  board.replaceChildren();cells.clear();
+  board.style.setProperty('--study-cols',String(styles.length));
+  board.style.minWidth=(150+styles.length*248)+'px';
+  const heading=document.createElement('div');
+  heading.className='study-head study-head-name';
+  heading.textContent='MATERIAL';
+  board.append(heading);
+  for(const style of styles){
+    const head=document.createElement('div');
+    head.className='study-head'+(style.id==='current'?'':' study-head-accent');
+    const title=document.createElement('strong');title.textContent=style.label;
+    const description=document.createElement('small');
+    description.textContent=style.description;
+    head.append(title,description);board.append(head);
+  }
+  for(const material of sources.values()){
+    board.append(createMaterialName(material));
+    for(const style of styles){
+      const shell=document.createElement('div');
+      shell.className='study-preview';
+      shell.setAttribute('data-style',style.id);
+      const canvas=document.createElement('canvas');
+      canvas.width=canvas.height=384;
+      canvas.setAttribute('aria-label',material.label+' — '+style.label);
+      const info=document.createElement('span');info.className='study-image-info';
+      info.textContent='Preparing…';
+      shell.append(canvas,info);board.append(shell);
+      cells.set(material.id+'/'+style.id,{canvas,info});
+    }
   }
 }
-// Raw generated images are memoized. Tiling and style toggles never reseed.
-const cache=new Map();
+// Cache source maps (full resolution), cropped inspector images (256 px),
+// and the art-direction passes separately. Toggling columns and tiling never
+// regenerates the source and cannot accidentally reseed another column.
+const sourceCache=new Map(),previewCache=new Map(),styleCache=new Map();
+function cacheKey(material,view,profile){
+  return [material.id,masterSeed??'default',view,profile??''].join(':');
+}
 function getImage(material,view,profile){
-  const key=[material.id,masterSeed??'default',view,profile??''].join(':');
-  if(cache.has(key))return cache.get(key);
+  const key=cacheKey(material,view,profile);
+  if(sourceCache.has(key))return sourceCache.get(key);
   const seeds=masterSeed===null?studySeeds(material.definition):
     reseedStudySeeds(material.definition,masterSeed);
   const asset=generateAsset(material.definition,seeds);
-  const source=document.createElement('canvas');
-  asset.paint(source,view,profile??undefined);
-  const context=source.getContext('2d',{willReadFrequently:true});
+  const canvas=document.createElement('canvas');
+  asset.paint(canvas,view,profile??undefined);
+  const context=canvas.getContext('2d',{willReadFrequently:true});
   if(!context)throw Error('Canvas 2D context unavailable');
-  const width=source.width,height=source.height;
+  const width=canvas.width,height=canvas.height;
   if(width<1||height<1||width>4096||height>4096)
     throw Error('Invalid material dimensions: '+material.id);
-  const data=context.getImageData(0,0,width,height).data;
-  const image={data,width,height};
-  cache.set(key,image);
+  const image={data:context.getImageData(0,0,width,height).data,
+    width,height};
+  sourceCache.set(key,image);
   return image;
 }
-function paintPreview({canvas,info},source,pixels,profile){
+function getPreview(material,view,profile){
+  const key=cacheKey(material,view,profile);
+  if(previewCache.has(key))return previewCache.get(key);
+  const original=getImage(material,view,profile);
+  const input=document.createElement('canvas');
+  input.width=original.width;input.height=original.height;
+  const ctx=input.getContext('2d');
+  if(!ctx)throw Error('Canvas 2D context unavailable');
+  const image=ctx.createImageData(original.width,original.height);
+  image.data.set(original.data);ctx.putImageData(image,0,0);
+  const cropped=document.createElement('canvas');
+  cropped.width=cropped.height=PREVIEW_SIZE;
+  const previewCtx=cropped.getContext('2d',{willReadFrequently:true});
+  if(!previewCtx)throw Error('Canvas 2D context unavailable');
+  previewCtx.imageSmoothingEnabled=true;
+  previewCtx.imageSmoothingQuality='high';
+  // Long timber strips: compare a full-size central square, never stretch
+  // 512×2048 into a visually misleading square.
+  const square=Math.min(original.width,original.height);
+  previewCtx.drawImage(input,Math.floor((original.width-square)/2),
+    Math.floor((original.height-square)/2),square,square,
+    0,0,PREVIEW_SIZE,PREVIEW_SIZE);
+  const result={data:previewCtx.getImageData(0,0,PREVIEW_SIZE,PREVIEW_SIZE).data,
+    width:PREVIEW_SIZE,height:PREVIEW_SIZE,
+    originalWidth:original.width,originalHeight:original.height};
+  previewCache.set(key,result);
+  return result;
+}
+function styledImage(material,style,view,profile,preview){
+  if(style.id==='current')return preview.data;
+  const key=cacheKey(material,view,profile)+':'+style.id;
+  if(styleCache.has(key))return styleCache.get(key);
+  const image=applyTextureStudyStyle(material.id,style.id,view,
+    preview.data,{width:preview.width,height:preview.height,
+      seed:masterSeed===null?material.definition.initialMasterSeed:masterSeed});
+  styleCache.set(key,image);
+  return image;
+}
+function paintPreview(cell,material,style,preview,pixels,profile){
   const scratch=document.createElement('canvas');
-  scratch.width=source.width;scratch.height=source.height;
+  scratch.width=preview.width;scratch.height=preview.height;
   const ctx=scratch.getContext('2d');
   if(!ctx)throw Error('Canvas 2D context unavailable');
-  const image=ctx.createImageData(source.width,source.height);
-  image.data.set(pixels);
-  ctx.putImageData(image,0,0);
-  const output=canvas.getContext('2d');
+  const image=ctx.createImageData(preview.width,preview.height);
+  image.data.set(pixels);ctx.putImageData(image,0,0);
+  const output=cell.canvas.getContext('2d');
   if(!output)throw Error('Canvas 2D context unavailable');
-  const size=canvas.width;
+  const size=cell.canvas.width;
   output.clearRect(0,0,size,size);
-  output.imageSmoothingEnabled=true;
+  output.imageSmoothingEnabled=style.id!=='retro-3d-study';
   output.imageSmoothingQuality='high';
-  // Timber beam uses a 512x2048 atlas. Show one 512x512 crop at full
-  // texel density instead of distorting an entire long grain image.
-  const square=Math.min(source.width,source.height);
-  const sx=Math.floor((source.width-square)/2);
-  const sy=Math.floor((source.height-square)/2);
-  // Long-beam atlas crops and end-grain caps are not individual repeating
-  // square tiles. Showing them 2x2 would falsely suggest a UV seam.
-  const tileable=source.width===source.height&&profile!=='end';
+  const tileable=preview.originalWidth===preview.originalHeight&&
+    profile!=='end';
   const tiles=controls.tiling.checked&&tileable?2:1;
-  const cell=size/tiles;
+  const cellSize=size/tiles;
   for(let y=0;y<tiles;y++)for(let x=0;x<tiles;x++)
-    output.drawImage(scratch,sx,sy,square,square,x*cell,y*cell,cell,cell);
-  info.textContent=source.width+' × '+source.height+
-    (source.height>source.width?' · central full-resolution crop':'')+
-    (tiles===2?' · tiled':controls.tiling.checked&&!tileable?
-      ' · tiling disabled for this cut':'');
+    output.drawImage(scratch,x*cellSize,y*cellSize,cellSize,cellSize);
+  cell.info.textContent=preview.originalWidth+' × '+preview.originalHeight+
+    (preview.originalHeight>preview.originalWidth?' · central crop':'')+
+    (tiles===2?' · repeat ×4':controls.tiling.checked&&!tileable?
+      ' · repeat unavailable':'')+
+    ' · 256px study bake';
 }
 async function render(){
   const run=++activeRender;
-  const view=controls.channel.value;
-  const timber=controls.profile.value;
+  const view=controls.channel.value,profile=controls.profile.value;
+  const styles=visibleStyles();
   controls.seed.textContent=masterSeed===null?'Reference seeds':
     'Master '+String(masterSeed);
-  status.textContent='Rendering '+view+' · 0/'+sources.size+' materials';
-  let count=0;
+  const total=sources.size*styles.length;
+  let done=0;
+  status.textContent='Rendering '+view+' · 0/'+total+' comparisons';
   for(const material of sources.values()){
-    // Progress yields between individual generators so the interface can
-    // paint a status message rather than freezing all five at once.
-    await new Promise(resolve=>requestAnimationFrame(resolve));
-    if(run!==activeRender)return;
-    try{
-      const profile=material.id==='timber-oak'?timber:material.profile;
-      const source=getImage(material,view,profile);
-      paintPreview(cells.get(material.id+'/current'),source,source.data,profile);
-      const classic=applyTextureStudyStyle(material.id,
-        'classic-strategy-study',view,source.data,{
-          width:source.width,height:source.height,
-          seed:masterSeed===null?material.definition.initialMasterSeed:masterSeed,
-        });
-      paintPreview(cells.get(material.id+'/classic-strategy-study'),
-        source,classic,profile);
-      count++;
-      status.textContent='Rendering '+view+' · '+count+'/'+sources.size+
-        ' materials';
-    }catch(error){
-      const problem='Unable to render '+material.label+': '+
-        (error instanceof Error?error.message:String(error));
-      status.textContent=problem;
-      console.error(error);
-      return;
+    const cut=material.id==='timber-oak'?profile:material.profile;
+    for(const style of styles){
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      if(run!==activeRender)return;
+      try{
+        const preview=getPreview(material,view,cut);
+        const pixels=styledImage(material,style,view,cut,preview);
+        paintPreview(cells.get(material.id+'/'+style.id),
+          material,style,preview,pixels,cut);
+        status.textContent='Rendering '+view+' · '+(++done)+'/'+total;
+      }catch(error){
+        const problem='Unable to render '+material.label+'/'+style.label+': '+
+          (error instanceof Error?error.message:String(error));
+        status.textContent=problem;console.error(error);
+        return;
+      }
     }
   }
   if(run===activeRender){
-    status.textContent='Ready · '+count+' real materials · same seeds in both columns';
+    status.textContent='Ready · '+sources.size+' materials · '+
+      styles.length+' art directions · identical source seeds';
     studioSignal({type:'studio:ready'});
   }
 }
@@ -145,17 +221,20 @@ for(const input of [controls.channel,controls.profile,controls.tiling])
   input.addEventListener('change',()=>void render());
 byId('studyReseed').addEventListener('click',()=>{
   masterSeed=crypto.getRandomValues(new Uint32Array(1))[0];
-  cache.clear();
+  sourceCache.clear();previewCache.clear();styleCache.clear();
   void render();
 });
 byId('studyReset').addEventListener('click',()=>{
   masterSeed=null;
-  cache.clear();
-  controls.channel.value='albedo';
-  controls.profile.value='panel';
+  sourceCache.clear();previewCache.clear();styleCache.clear();
+  controls.channel.value='albedo';controls.profile.value='panel';
   controls.tiling.checked=false;
-  void render();
+  selectedStyles.clear();
+  for(const style of STUDY_STYLES)selectedStyles.add(style.id);
+  for(const input of filterInputs.values())input.checked=true;
+  buildBoard();void render();
 });
-// A responsive Studio tab must become visible even if a generator fails.
+// The Studio tab becomes visible while the first sources are being prepared.
+buildBoard();
 studioSignal({type:'studio:ready'});
 void render();
