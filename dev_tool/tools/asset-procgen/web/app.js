@@ -704,14 +704,14 @@ projectEl('importProjectAsset').addEventListener('click',()=>
     if(ext!=='glb'&&ext!=='png')throw Error('Only .glb and .png imports are supported');
     if(file.size>32*1024*1024)throw Error('Import exceeds 32 MiB');
     const stem=file.name.slice(0,-ext.length-1);
-    const requestedName=projectEl('projectAssetName').value.trim();
-    const name=requestedName||stem;
-    const desiredId=projectEl('projectAssetId').value.trim();
+    // Import is a separate operation; never reuse the ID or name of
+    // the procedural recipe that happens to be open in this editor.
+    const name=stem;
     const slug=stem.toLowerCase().normalize('NFKD')
       .replace(/[\u0300-\u036f]/g,'')
       .replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')
       .slice(0,32)||'imported';
-    const id=desiredId||slug+'-'+randomSeed().toString(36);
+    const id=slug+'-'+randomSeed().toString(36);
     const entry=await projectApi('/api/projects/active/imports/'+
       encodeURIComponent(id)+'?name='+encodeURIComponent(name),{
       method:'POST',headers:{'Content-Type':ext==='glb'?
