@@ -61,7 +61,78 @@ export interface AssetSource {
   options?:object;
   materials?:Record<string,string>;
 }
-export interface AssetEntry {source:AssetSource;revision:string;kind:'model'|'image';}
+// Imported files are project resources, not pseudo-generators. Format v2
+// distinguishes their source contract without rewriting legacy v1 recipes.
+export type ImportFormat='glb'|'png';
+export interface ImportedAssetSource {
+  format:'devtool-asset';version:2;id:string;name:string;origin:'imported';
+  kind:'model'|'image';
+  imported:{format:ImportFormat;path:string;sha256:string;byteLength:number};
+  dependencies:string[];
+}
+export type ProjectAssetSource=AssetSource|ImportedAssetSource;
+export type AssetEntry={source:ProjectAssetSource;revision:string;kind:'model'|'image'};
+const MAX_IMPORT_BYTES=32*1024*1024;
+const hexHash=/^[0-9a-f]{64}$/;
+function importedKind(format:ImportFormat):'model'|'image'{
+  return format==='glb'?'model':'image';
+}
+function validateImportBytes(format:ImportFormat,bytes:Buffer):void{
+  if(bytes.length<24||bytes.length>MAX_IMPORT_BYTES)
+    throw Error('Invalid import size');
+  if(format==='glb'){
+    if(bytes.toString('ascii',0,4)!=='glTF'||
+      bytes.readUInt32LE(4)!==2||bytes.readUInt32LE(8)!==bytes.length)
+      throw Error('Invalid binary glTF 2.0 header');
+  }else if(format==='png'){
+    if(!bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))||
+      bytes.readUInt32BE(8)!==13||bytes.toString('ascii',12,16)!=='IHDR'||
+      bytes.readUInt32BE(16)===0||bytes.readUInt32BE(20)===0)
+      throw Error('Invalid PNG image header');
+  }else throw Error('Unsupported import format');
+}
+export function validateImportedSource(raw:unknown,expectedId?:string):ImportedAssetSource{
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))
+    throw Error('Invalid imported resource');
+  const x=raw as Record<string,unknown>;
+  if(Object.keys(x).sort().join()!=='dependencies,format,id,imported,kind,name,origin,version'||
+    x.format!=='devtool-asset'||x.version!==2||x.origin!=='imported')
+    throw Error('Unsupported imported resource format');
+  const id=slug(x.id),name=title(x.name);
+  if(expectedId&&id!==expectedId)throw Error('Asset ID does not match filename');
+  const imp=x.imported;
+  if(!imp||typeof imp!=='object'||Array.isArray(imp))
+    throw Error('Invalid imported file descriptor');
+  const file=imp as Record<string,unknown>;
+  if(Object.keys(file).sort().join()!=='byteLength,format,path,sha256')
+    throw Error('Invalid imported file descriptor');
+  if(file.format!=='glb'&&file.format!=='png')
+    throw Error('Unsupported import format');
+  const format=file.format as ImportFormat;
+  const kind=importedKind(format);
+  if(x.kind!==kind||file.path!=='imports/'+id+'.'+format||
+    typeof file.sha256!=='string'||!hexHash.test(file.sha256)||
+    typeof file.byteLength!=='number'||!Number.isSafeInteger(file.byteLength)||
+    file.byteLength<24||file.byteLength>MAX_IMPORT_BYTES)
+    throw Error('Invalid imported file metadata');
+  const dependencies=x.dependencies;
+  if(!Array.isArray(dependencies)||!unique(dependencies)||
+    dependencies.some(v=>typeof v!=='string'||!assetRef.test(v)||
+      v==='asset:'+id))
+    throw Error('Invalid asset dependencies');
+  return {format:'devtool-asset',version:2,id,name,origin:'imported',kind,
+    imported:{format,path:file.path,sha256:file.sha256,byteLength:file.byteLength},
+    dependencies:dependencies as string[]};
+}
+export function validateProjectSource(raw:unknown,id:string,
+  lookup:GeneratorLookup):ProjectAssetSource{
+  if(raw&&typeof raw==='object'&&'origin' in raw)
+    return validateImportedSource(raw,id);
+  return validateSource(raw,id,lookup);
+}
+const assetKind=(source:ProjectAssetSource,lookup:GeneratorLookup)=>
+  'origin' in source?source.kind:lookup(source.generator.id)!.kind;
+
 export function validateSource(raw:unknown,expectedId?:string,
   lookup:GeneratorLookup=()=>null):AssetSource{
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Invalid asset source');
