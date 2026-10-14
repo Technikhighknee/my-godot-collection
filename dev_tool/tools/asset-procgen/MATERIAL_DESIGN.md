@@ -44,6 +44,14 @@ seed without changing the material model.
 
 ### Status
 
+- **Naturalistic study:** thatch, timber and plaster now receive material-directed
+  fiber/grain/trowel detail with restrained weathering instead of sharing a
+  largely generic surface-noise grade. Stone uses its separate masonry grammar.
+- **Watercolor study:** each supported material uses pigment density over a
+  warm paper ground, drying-front accumulation and intermittent granulation;
+  stone and clay preserve their element-specific outlines. This is a procedural
+  watercolor approximation, not a fluid simulation or photographed paper.
+
 - **Roof clay** uses the shared per-element traits for Naturalistic and
   Watercolor ceramic wear. The existing Hand-Painted and Retro output paths are
   left alone.
@@ -85,3 +93,12 @@ material language within each style.
 
 The goal is a small, extendable set of **material truths** translated through
 clear art-direction rules, not a single heavily parameterized universal shader.
+
+## Evaluation note
+
+The two revised directions still need side-by-side 2×2 visual inspection on
+actual models, particularly the relative scale of thatch strands and the
+visibility of mortar after downsampling. Existing unit tests cover channel
+contracts, repeatability and seed independence; they are not substitutes for
+an art-direction review. Never silently promote these experimental studies
+into saved default texture recipes.
