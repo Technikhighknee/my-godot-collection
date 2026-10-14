@@ -45,10 +45,12 @@ function buildCourses(layout){
     courses.push({
       count,cuts,
       offset:hash(row,2,layout^0xe1a930b4)*SIZE,
-      phases:Array.from({length:count},(_,s)=>[
-        hash(row,s,layout^0x451c2f7e)*Math.PI*2,
-        hash(row,s,layout^0x972d1ba4)*Math.PI*2,
-      ]),
+      joints:Array.from({length:count},(_,s)=>({
+        a:hash(row,s,layout^0x451c2f7e)*Math.PI*2,
+        b:hash(row,s,layout^0x972d1ba4)*Math.PI*2,
+        top:(hash(row,s,layout^0x4d38b89d)-.5)*10,
+        bottom:(hash(row,s,layout^0x7a2c93d5)-.5)*10,
+      })),
     });
   }
   return {elevations,courses};
@@ -75,25 +77,29 @@ function generateStone(seeds){
       Math.sin(x*2*Math.PI/SIZE*5+
         hash(id,4,layout^0xc781ef25)*Math.PI*2 )*3.15;
   };
+  // Column boundaries do not depend on Y: cache them once, rather than
+  // computing trigonometry for each pixel of all three texture channels.
+  const edgeColumns=Array.from({length:SIZE},(_,x)=>
+    Array.from({length:COURSES+1},(_,k)=>boundary(k,x)));
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*3;
     // Course borders wiggle, but any neighboring pair shares the same
     // border. At k=COURSES the waveform equals k=0 plus SIZE.
-    const seamY=boundary(0,x);
+    const edges=edgeColumns[x],seamY=edges[0];
     const yy=wrap(y-seamY,SIZE)+seamY;
     let row=0;
-    while(row<COURSES-1&&yy>=boundary(row+1,x))row++;
-    const top=boundary(row,x),bottom=boundary(row+1,x);
+    while(row<COURSES-1&&yy>=edges[row+1])row++;
+    const top=edges[row],bottom=edges[row+1];
     const course=courses[row];
     const t=clamp((yy-top)/(bottom-top));
     const shift=j=>{
       const key=j%course.count;
-      const [a,b]=course.phases[key];
+      const joint=course.joints[key];
       // A hand-laid joint is slightly slanted and chipped, not a sine-wave
       // worm. The two ends need not align vertically in the next course.
-      return mix((hash(row,key,layout^0x4d38b89d)-.5)*10,
-        (hash(row,key,layout^0x7a2c93d5)-.5)*10,t)+
-        1.25*Math.sin(t*Math.PI*2+a)+.65*Math.sin(t*Math.PI*4+b);
+      return mix(joint.top,joint.bottom,t)+
+        1.25*Math.sin(t*Math.PI*2+joint.a)+
+        .65*Math.sin(t*Math.PI*4+joint.b);
     };
     // Place the vertical joint on a periodic, rough line. The first and
     // last boundary share a phase, which makes U seamless as well.
