@@ -267,7 +267,7 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   assert.match(studio,/info.key==='study:materials'/);
   assert.match(studio,/studio:open-style-study/);
   assert.match(studio,/studio:open-generator/);
-  assert.match(app,/id\('styleStudyLink'\)/);
+  assert.match(app,/getElementById\('styleStudyLink'\)/);
   assert.match(study,/studio:ready/);
   assert.match(study,/seed:masterSeed===null/);
 });
