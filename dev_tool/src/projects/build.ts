@@ -7,6 +7,7 @@ import {join} from 'node:path';
 import {findGenerator,generateAsset} from '../../tools/asset-procgen/web/generators.mjs';
 import {capturePaintedPixels,encodeRgbaPng} from './build-image.ts';
 import {encodeModelGlb} from './build-glb.ts';
+import type {EmbeddedMaterialMaps} from './build-glb.ts';
 import type {BuildNode,BuildPlan} from './build-plan.ts';
 import type {AssetEntry,ImportedAssetSource} from './library.ts';
 
@@ -67,7 +68,8 @@ function safeName(name:string):void{
     throw Error('Invalid generator output channel or profile: '+name);
 }
 async function produce(node:BuildNode,entry:AssetEntry,
-  imported:(id:string)=>Promise<{bytes:Buffer;source:ImportedAssetSource}>):
+  imported:(id:string)=>Promise<{bytes:Buffer;source:ImportedAssetSource}>,
+  dependencies:ReadonlyMap<string,BuildArtifact>,buildRoot:string):
   Promise<{meta:BuildFile;data:Buffer}[]>{
   if('origin' in entry.source){
     const {bytes}=await imported(node.id);
@@ -82,6 +84,21 @@ async function produce(node:BuildNode,entry:AssetEntry,
       throw Error('No headless model adapter for '+source.generator.id);
     const options=def.validateOptions?
       def.validateOptions(source.options??def.defaultOptions):undefined;
+    const maps:EmbeddedMaterialMaps={};
+    for(const [slot,ref] of Object.entries(source.materials??{})){
+      const dependency=dependencies.get(ref.slice('asset:'.length));
+      if(!dependency)throw Error('Material dependency not built: '+ref);
+      const profiles:EmbeddedMaterialMaps[string]={};
+      for(const file of dependency.files){
+        if(file.view!=='albedo'&&file.view!=='normal'&&
+          file.view!=='roughness')continue;
+        const profile=file.profile??'default';
+        const images=profiles[profile]??(profiles[profile]={});
+        images[file.view]=await regular(join(buildRoot,dependency.id,
+          dependency.key,file.file));
+      }
+      maps[slot]=profiles;
+    }
     const result:{meta:BuildFile;data:Buffer}[]=[];
     for(const variant of def.modelBake.variants){
       safeName(variant.name);
@@ -90,7 +107,7 @@ async function produce(node:BuildNode,entry:AssetEntry,
         options,variant.level??1);
       const canonical=def.modelBake.canonicalize(generated,variant);
       if(!canonical)continue; // Optional interior scene disabled by recipe.
-      const bytes=Buffer.from(encodeModelGlb(canonical));
+      const bytes=Buffer.from(encodeModelGlb(canonical,maps));
       const file=variant.name+'.glb';
       result.push({meta:{file,sha256:digest(bytes),bytes:bytes.length},data:bytes});
     }
@@ -141,7 +158,8 @@ export async function produceBuild(projectDir:string,plan:BuildPlan,
     if(node.origin==='imported')await imported(node.id);
     const cached=await existingArtifact(destination,node);
     if(cached){artifacts.push(cached);reused++;continue;}
-    const parts=await produce(node,entry,imported);
+    const parts=await produce(node,entry,imported,
+      new Map(artifacts.map(a=>[a.id,a])),buildRoot);
     const dependencies=node.dependencies.map(id=>({id,key:keys.get(id)!}));
     const manifest:BuildArtifact={format:'devtool-baked-asset',version:1,
       id:node.id,key:node.key,kind:node.kind,origin:node.origin,
