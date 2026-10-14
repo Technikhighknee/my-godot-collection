@@ -56,7 +56,7 @@ async function atomic(path:string,bytes:Buffer):Promise<void>{
 export interface ProjectInfo {id:string;name:string;format:'devtool-project';version:1;}
 export interface AssetSource {
   format:'devtool-asset';version:1;id:string;name:string;
-  generator:{id:string;version:1;masterSeed:number;components:Record<string,number>};
+  generator:{id:string;version:number;masterSeed:number;components:Record<string,number>};
   dependencies:string[];
   options?:object;
   materials?:Record<string,string>;
