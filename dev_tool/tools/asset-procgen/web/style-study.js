@@ -149,7 +149,8 @@ function getPreview(material,view,profile,styleId='current'){
   cropped.width=cropped.height=PREVIEW_SIZE;
   const previewCtx=cropped.getContext('2d',{willReadFrequently:true});
   if(!previewCtx)throw Error('Canvas 2D context unavailable');
-  previewCtx.imageSmoothingEnabled=true;
+  // Keep genuinely pixel-authored retro texels sharp in the downsample.
+  previewCtx.imageSmoothingEnabled=styleId!=='retro-3d-study';
   previewCtx.imageSmoothingQuality='high';
   // Long timber strips: compare a full-size central square, never stretch
   // 512×2048 into a visually misleading square.
