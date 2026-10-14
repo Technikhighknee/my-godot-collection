@@ -119,11 +119,18 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
       for(const width of widths)
         cuts.push(cuts[cuts.length-1]+width/sum*w);
       cuts[count]=w;
-      const joints=Array.from({length:count},(_,i)=>({
-        a:(hash(row,i,structure^0x317e29af)-.5)*(retro?4.5:10),
-        b:(hash(row,i,structure^0x981ac3f2)-.5)*(retro?4.5:10),
-        phase:hash(row,i,structure^0x7a1cbf36)*Math.PI*2,
-      }));
+      const joints=Array.from({length:count},(_,i)=>{
+        const before=i===0?cuts[count]-cuts[count-1]:
+          cuts[i]-cuts[i-1];
+        const after=cuts[i+1]-cuts[i];
+        return {
+          a:(hash(row,i,structure^0x317e29af)-.5)*2,
+          b:(hash(row,i,structure^0x981ac3f2)-.5)*2,
+          phase:hash(row,i,structure^0x7a1cbf36)*Math.PI*2,
+          // Narrow chinking stones must never flip their side joints.
+          limit:Math.min(retro?2.5:6.0,Math.min(before,after)*.20),
+        };
+      });
       const stones=Array.from({length:count},(_,i)=>({
         relief:.83+hash(row,i,structure^0x92d341ab)*.35,
         chip:hash(row,i,structure^0xb417c82a),
@@ -347,8 +354,8 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
   const course=courses[row];
   const jointShift=(i)=>{
     const j=course.joints[i%course.count];
-    return mix(j.a,j.b,t)+
-      (retro?.30:.70)*Math.sin(t*Math.PI*2+j.phase);
+    return j.limit*(mix(j.a,j.b,t)+
+      .19*Math.sin(t*Math.PI*2+j.phase));
   };
   const shift0=jointShift(0);
   const xx=wrap(x-course.offset-shift0,w)+shift0;
