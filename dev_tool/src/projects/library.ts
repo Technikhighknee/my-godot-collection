@@ -6,6 +6,8 @@ import {encodeExr} from '../../tools/map-editor/src/formats/exr.ts';
 import {encodeSurfacePng} from '../../tools/map-editor/src/formats/png.ts';
 import {MapWorkspace} from '../../tools/map-editor/src/editing/map-workspace.ts';
 import {validateMap} from '../../tools/map-editor/src/core/map.ts';
+import {planAssetBuild} from './build-plan.ts';
+import {produceBuild} from './build.ts';
 // Project storage is independent of generator implementations.
 export interface GeneratorDescriptor {
   kind:'model'|'image';recipeVersion:number;
@@ -518,6 +520,20 @@ export class ProjectLibrary {
       if(hash(await regular(target))!==revision)throw Error('Asset changed on disk');
       await atomic(target,bytes);
       return {source,revision:hash(bytes),kind:this.lookup(source.generator.id)!.kind};
+    });
+  }
+  async buildPlan(only?:readonly string[]){
+    await this.queue;
+    return planAssetBuild(await this.assets(),only);
+  }
+  async buildAsset(id:string){
+    return this.enqueue(async()=>{
+      id=slug(id);
+      const entries=await this.assets();
+      const plan=planAssetBuild(entries,[id]);
+      return produceBuild(this.requireActive(),plan,entries,
+        importedId=>this.importedBytes(importedId),
+        async resourceId=>(await this.asset(resourceId)).revision);
     });
   }
   async graph(){
