@@ -278,8 +278,14 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   const comparison=readFileSync(new URL('../tools/asset-procgen/web/style-study.html',import.meta.url),'utf8');
   assert.match(comparison,/id="studyStyleFilters"/);
   assert.match(comparison,/id="studyCompareScroller"/);
-  assert.match(comparison,/Watercolor/);
-  assert.match(comparison,/Retro 3D/);
+  // Style options are populated from the JS catalog at runtime, not from
+  // the static HTML shell. Verify the source of truth instead.
+  const styleCatalog=readFileSync(
+    new URL('../tools/asset-procgen/web/texture-style-study.mjs',import.meta.url),
+    'utf8');
+  assert.match(study,/STUDY_STYLES/);
+  assert.match(styleCatalog,/label:'Watercolor'/);
+  assert.match(styleCatalog,/label:'Retro 3D'/);
   assert.match(comparison,/id="studyExportPNG"/);
   assert.match(study,/texture-study-export\.mjs/);
   assert.match(study,/studyGeneration\?\.styles\.includes/);
