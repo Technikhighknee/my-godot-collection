@@ -51,6 +51,41 @@ generator recipes. A scene refers to assets by stable resource identity.
   capabilities; a PNG is **not** implicitly a complete PBR material.
 
 
+### Headless material build — working scope
+
+The shared project build path is now wired through `planAssetBuild`,
+`produceBuild` and `ProjectLibrary.buildAsset`. It does not introduce a
+second material generator.
+
+- The plan resolves dependencies in stable topological order. Each cache key
+  hashes effective input seeds, options, generator recipe version, material
+  bindings and transitive dependency keys. Renaming a resource or changing
+  only its master-seed label does not rebake unchanged pixels.
+- Registered generators declare `headlessBake` when their existing
+  `paint(canvas, view, profile)` implementation needs only the RGBA image-data
+  subset of Canvas. The Node baker captures those exact pixels and writes
+  RGBA8 PNGs, including available material views and profiles.
+- The current baking capability covers thatch, clay, oak timber, lime plaster,
+  rubble masonry and oak bark. Imported PNG and GLB assets pass through as
+  verified source bytes. Unsupported procedural models and canvas-vector
+  foliage fail explicitly rather than producing fake artifacts.
+- Generated outputs live under
+  `<project>/build/assets/<resource-id>/<content-key>/`.
+  Each directory has a manifest with output SHA-256 hashes and dependency keys.
+  Existing output checksums and imported original bytes are validated before
+  a cached result can be reused. Staging directories are renamed atomically.
+- The editor offers **Bake selected resource**, and the project API exposes
+  `GET /api/projects/active/build-plan?asset=<id>` plus
+  `POST /api/projects/active/builds/<id>` (same-origin, active-project check).
+  CLI: from `dev_tool`, run
+  `npm run build:asset -- <asset-id>`. The `--projects-dir` option can
+  override the default project root.
+
+These outputs are intermediate authoring artifacts, not Godot-ready materials
+or a general-purpose imported-model editor. Baked channels are captured from
+the same resource implementation seen in the editor; future target adapters
+will consume them.
+
 ### Version policy
 
 Recipe versions name **output compatibility**, not package releases or schema
@@ -125,10 +160,14 @@ Do not add generic frameworks before a real second consumer needs them.
 
 Legacy version-1 source records remain procedural; new imported resources
 have a separate version-2 source shape within the same asset index. Imported
-files can be persisted and verified, but they do not yet have a model renderer,
-PBR texture interpretation, geometry editing or exported artifact pipeline.
-Renderer fallback colors remain presentation mappings for the current building
-family. A general canonical result contract, historical generator version
-resolver, incremental build graph and target-engine exporters remain to be
-implemented. This migration must not claim those capabilities until exercised
-by end-to-end tests.
+files can be persisted, verified and copied into derived build artifacts,
+but they do not yet have an imported-model preview or PBR interpretation.
+Procedural material maps now have a headless, cached PNG build; other models
+and vector-painted foliage do not. Renderer fallback colors remain
+presentation mappings for the current building family.
+
+The generalized canonical mesh result, historical generator-version resolver,
+style-aware production recipes, full scene build graph and target-engine
+export adapters remain to be implemented. Browser painting is still part of
+the existing material contract; the headless baker currently implements its
+pixel-data subset, not a complete replacement API.
