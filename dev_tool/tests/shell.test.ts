@@ -282,8 +282,11 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   assert.match(comparison,/Retro 3D/);
   assert.match(comparison,/id="studyExportPNG"/);
   assert.match(study,/texture-study-export\.mjs/);
-  assert.match(study,/CLAY_GENERATIVE_STYLES/);
-  assert.match(study,/makeRoofAsset\('clay',seeds,\{style:styleId\}\)/);
+  assert.match(study,/studyGeneration\?\.styles\.includes/);
+  assert.match(study,/studyGeneration\.generate\(seeds,styleId\)/);
+  const generators=readFileSync(new URL('../tools/asset-procgen/web/generators.mjs',import.meta.url),'utf8');
+  assert.match(generators,/studyGeneration:Object\.freeze/);
+  assert.match(generators,/CLAY_GENERATIVE_STYLES/);
   assert.match(study,/URL\.createObjectURL/);
   assert.match(study,/toBlob\(/);
   assert.match(study,/updateExportButton/);
