@@ -118,8 +118,8 @@ function getImage(material,view,profile,styleId='current'){
   if(sourceCache.has(key))return sourceCache.get(key);
   const seeds=masterSeed===null?studySeeds(material.definition):
     reseedStudySeeds(material.definition,masterSeed);
-  // Genuinely different ceramic tile geometry/shape rules. Other art-study
-  // materials still use transparent post-treatments, explicitly labeled below.
+  // Material-specific native grammars are advertised by each generator.
+  // Unsupported styles continue to use explicit preview-only treatments.
   const asset=nativeStyle(material,styleId)?
     material.definition.studyGeneration.generate(seeds,styleId):
     generateAsset(material.definition,seeds);
