@@ -7,7 +7,8 @@ import {generateStyledClay}
 
 const seeds={pattern:90317,color:43091};
 type Channel='albedo'|'normal'|'roughness';
-type ClayStyle='current'|'hand-painted-study'|'retro-3d-study';
+type ClayStyle='current'|'hand-painted-study'|'retro-3d-study'|
+  'naturalistic-study'|'watercolor-study';
 
 function paint(style:ClayStyle,view:Channel,values=seeds){
   const result:{pixels:Uint8ClampedArray|null}={pixels:null};
@@ -49,7 +50,8 @@ function seamsAreTileable(image:Uint8ClampedArray){
 
 test('generator-level clay styles retain the exact legacy default',()=>{
   assert.deepEqual(CLAY_GENERATIVE_STYLES,
-    ['hand-painted-study','retro-3d-study']);
+    ['hand-painted-study','retro-3d-study',
+      'naturalistic-study','watercolor-study']);
   const legacy=paint('current','albedo');
   let pixels:Uint8ClampedArray|null=null;
   const canvas={width:0,height:0,
