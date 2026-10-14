@@ -47,6 +47,8 @@ function materialImages(){
     const reference=assigned[slot.id];
     const asset=reference?projectAssets.get(reference.slice('asset:'.length)):null;
     if(reference&&!asset)throw Error('Missing shared material: '+reference);
+    if(asset&&!asset.source.generator)
+      throw Error('Imported images are not yet PBR material recipes: '+reference);
     const definition=asset?findGenerator(asset.source.generator.id):
       findGenerator(slot.generators[0]);
     if(!definition||definition.kind!=='image')continue;
