@@ -527,7 +527,8 @@ async function reloadProjectAssets(){
     projectAssets.set(entry.source.id,entry);
     const option=document.createElement('option');
     option.value=entry.source.id;
-    option.textContent=entry.source.name+' · '+entry.source.generator.id;
+    option.textContent=entry.source.name+' · '+
+      (entry.source.generator?.id??'imported '+entry.kind);
     selector.append(option);
   }
   selector.value=projectAssets.has(previous)?previous:'';
@@ -693,6 +694,34 @@ projectEl('projectAssetName').addEventListener('input',()=>{
       .replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,48);
   }
 });
+projectEl('importProjectAsset').addEventListener('click',()=>
+  projectOperation(async()=>{
+    const file=projectEl('importProjectFile').files?.[0];
+    if(!file)throw Error('Select a GLB model or PNG image to import');
+    const ext=file.name.toLowerCase().split('.').pop();
+    if(ext!=='glb'&&ext!=='png')throw Error('Only .glb and .png imports are supported');
+    if(file.size>32*1024*1024)throw Error('Import exceeds 32 MiB');
+    const stem=file.name.slice(0,-ext.length-1);
+    const requestedName=projectEl('projectAssetName').value.trim();
+    const name=requestedName||stem;
+    const desiredId=projectEl('projectAssetId').value.trim();
+    const slug=stem.toLowerCase().normalize('NFKD')
+      .replace(/[\\u0300-\\u036f]/g,'')
+      .replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'')
+      .slice(0,32)||'imported';
+    const id=desiredId||slug+'-'+randomSeed().toString(36);
+    const entry=await projectApi('/api/projects/active/imports/'+
+      encodeURIComponent(id)+'?name='+encodeURIComponent(name),{
+      method:'POST',headers:{'Content-Type':ext==='glb'?
+        'model/gltf-binary':'image/png'},
+      body:await file.arrayBuffer(),
+    });
+    await reloadProjectAssets();
+    projectEl('savedProjectAssets').value=entry.source.id;
+    assetStatus('Imported '+entry.source.name+
+      '. The file is saved in the project; procedural editing is unavailable.');
+    studioSignal({type:'studio:project-assets-changed'});
+  }));
 projectEl('savedProjectAssets').addEventListener('change',()=>{
   const id=projectEl('savedProjectAssets').value;
   assetStatus(id?'Load selected to edit its source':'Select a saved asset');
