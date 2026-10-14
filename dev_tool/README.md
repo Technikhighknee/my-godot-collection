@@ -52,6 +52,39 @@ No automatic furniture, stairs, room decoration or linked Godot scene is
 provided. Building assets are saved alongside other project recipes and
 listed under *Buildings* in the Studio explorer.
 
+## Exporting project assets to Godot
+
+Save a procedural or imported resource in Asset ProcGen, select it under
+**Saved sources** and choose **Export selected to Godot package**. The action
+builds that resource and its linked material assets once, then publishes an
+import-ready file collection at:
+
+```text
+dev_tool/projects/<project-id>/exports/godot/<asset-id>/
+  manifest.json
+  assets/
+    <asset-id>/model.glb
+    <referenced-material-id>/albedo.png
+```
+
+The filenames in `assets/` remain stable across recipe reseeds even though
+the internal build-cache keys change. Copy `assets/` into your Godot project's
+asset folder and let Godot import GLB/PNG normally. Multi-level building assets
+carry several named `.glb` files; image resources carry their baked maps.
+A resource with no linked materials only gets its own outputs.
+
+CLI alternative (from `dev_tool`):
+
+```bash
+npm run export:godot -- <asset-id>
+```
+
+Packages for different root resources coexist. Repeated exports reuse
+verified build artifacts and preserve unchanged packages. The publisher
+rejects manually modified package files rather than silently deleting
+your edits. This exports files for Godot; it does not write into an external
+Godot project or generate `.tscn` scenes automatically.
+
 ## Studio workbench
 
 The launcher at `/` creates and opens projects. Editing takes place in
