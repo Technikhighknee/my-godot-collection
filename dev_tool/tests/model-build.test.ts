@@ -122,7 +122,7 @@ test('oak bark export retains the accepted wood triangles and all native profile
   // without incurring nine 1024px material renders in this unit test.
   const pixels=encodeRgbaPng(1,1,Uint8Array.from([110,116,85,255]));
   const maps={oakBark:Object.fromEntries(['trunk','limb','young'].map(profile=>[
-    profile,{albedo:pixels,normal:pixels,roughness:pixels},
+    profile,{albedo:pixels,normal:pixels,roughness:pixels,ao:pixels},
   ]))};
   const data=encodeModelGlb(canonical,maps);
   const glb=glbDocument(data);
@@ -132,13 +132,15 @@ test('oak bark export retains the accepted wood triangles and all native profile
     'Bark should export as three draw calls, not one per wood axis');
   assert.equal(primitives.reduce((sum:number,p:{indices:number})=>
     sum+glb.json.accessors[p.indices].count,0),oak.barkWood.indices.length);
-  assert.equal(glb.json.images.length,9);
+  assert.equal(glb.json.images.length,12);
   assert.ok(glb.json.materials.every((m:{
     extras?:{resourceSlot?:string};
     normalTexture?:{scale:number};
+    occlusionTexture?:{strength:number};
     pbrMetallicRoughness:{baseColorTexture?:object};
   })=>m.extras?.resourceSlot==='oakBark'&&
-    m.normalTexture?.scale===.78&&m.pbrMetallicRoughness.baseColorTexture));
+    m.normalTexture?.scale===.78&&m.occlusionTexture?.strength===.85&&
+    m.pbrMetallicRoughness.baseColorTexture));
   assert.deepEqual(encodeModelGlb(canonical,maps),data);
 });
 
@@ -236,7 +238,7 @@ test('oak wood build embeds all three native bark profiles and reuses the artifa
     const doc=glbDocument(data);
     assert.equal(doc.json.meshes.length,1);
     assert.equal(doc.json.meshes[0].primitives.length,3);
-    assert.equal(doc.json.images.length,9);
+    assert.equal(doc.json.images.length,12);
     assert.deepEqual([...new Set(doc.json.materials.map(
       (m:{extras:{profile:string}})=>m.extras.profile))].sort(),
       ['limb','trunk','young']);
