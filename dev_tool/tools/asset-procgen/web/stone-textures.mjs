@@ -1,11 +1,10 @@
-// Seeded rubble-stone masonry for foundations, plinths and retaining walls.
-// Irregular periodic Voronoi stones, real mortar recesses, bevelled stone
-// faces and granular detail share one height field for all three PBR maps.
-// Color describes minerals (not baked directional lighting).
+// Reusable stylized medieval rubble masonry: hand-laid, imperfect courses
+// of warm limestone, not Voronoi cobbles or a hexagonal tile mosaic.
+// Shared periodic surface fields feed albedo, normal and roughness maps.
+// Albedo holds mineral pigment only; light and shadow come from the renderer.
 export const STONE_TEXTURE_SIZE=512;
 export const STONE_VIEWS=Object.freeze(['albedo','normal','roughness']);
-const SIZE=STONE_TEXTURE_SIZE;
-const COLS=7,ROWS=8;
+const SIZE=STONE_TEXTURE_SIZE,COURSES=7;
 const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
 const mix=(a,b,t)=>a+(b-a)*t;
 const smooth=t=>t*t*(3-2*t);
@@ -17,88 +16,126 @@ function hash(x,y,seed){
 }
 function noise(x,y,columns,rows,seed){
   const u=x*columns/SIZE,v=y*rows/SIZE;
-  const ix=Math.floor(u),iy=Math.floor(v);
-  const sx=smooth(u-ix),sy=smooth(v-iy);
+  const ix=Math.floor(u),iy=Math.floor(v),fx=smooth(u-ix),fy=smooth(v-iy);
   const h=(a,b)=>hash(wrap(a,columns),wrap(b,rows),seed);
-  return mix(mix(h(ix,iy),h(ix+1,iy),sx),
-    mix(h(ix,iy+1),h(ix+1,iy+1),sx),sy);
+  return mix(mix(h(ix,iy),h(ix+1,iy),fx),
+    mix(h(ix,iy+1),h(ix+1,iy+1),fx),fy);
 }
-function stonesAt(x,y,seed){
-  // Grid cells are staggered, but each seed perturbs the center independently.
-  // Both axes repeat exactly, including row parity at Y's wrap.
-  const gx=x*COLS/SIZE,gy=y*ROWS/SIZE;
-  const ix=Math.floor(gx),iy=Math.floor(gy);
-  let best=Infinity,second=Infinity,id=0,rough=0;
-  for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){
-    const cx=ix+ox,cy=iy+oy;
-    const bx=wrap(cx,COLS),by=wrap(cy,ROWS);
-    const centerX=cx+.5+((by&1)?.27:0)+
-      (hash(bx,by,seed^0x4b1f3e79)-.5)*.53;
-    const centerY=cy+.5+(hash(bx,by,seed^0x8c7d21a4)-.5)*.48;
-    const dx=(gx-centerX)*.94,dy=(gy-centerY)*1.04;
-    const sq=dx*dx+dy*dy;
-    if(sq<best){
-      second=best;best=sq;id=by*COLS+bx;
-      rough=Math.sqrt(sq);
-    }else if(sq<second)second=sq;
+function buildCourses(layout){
+  // A shared, periodic course plan: same top/bottom seam and same left/right
+  // stone edges. Stone widths and course heights differ, but the bonding is
+  // approximately horizontal as on actual medieval rubble foundations.
+  const weights=Array.from({length:COURSES},(_,r)=>
+    .76+hash(r,0,layout^0x341a7b26)*.57);
+  const total=weights.reduce((a,b)=>a+b,0);
+  const elevations=[0];
+  for(const w of weights)elevations.push(
+    elevations[elevations.length-1]+SIZE*w/total);
+  elevations[COURSES]=SIZE;
+  const courses=[];
+  for(let row=0;row<COURSES;row++){
+    const count=5+Math.floor(hash(row,1,layout^0x39af7251)*4);
+    const segmentWeights=Array.from({length:count},(_,s)=>
+      .54+hash(row,s,layout^0x85b9e416)*1.13);
+    const sum=segmentWeights.reduce((a,b)=>a+b,0);
+    const cuts=[0];
+    for(const w of segmentWeights)
+      cuts.push(cuts[cuts.length-1]+SIZE*w/sum);
+    cuts[count]=SIZE;
+    courses.push({
+      count,cuts,
+      offset:hash(row,2,layout^0xe1a930b4)*SIZE,
+      phases:Array.from({length:count},(_,s)=>[
+        hash(row,s,layout^0x451c2f7e)*Math.PI*2,
+        hash(row,s,layout^0x972d1ba4)*Math.PI*2,
+      ]),
+    });
   }
-  return {id,edge:second-best,rough};
+  return {elevations,courses};
 }
 function generateStone(seeds){
-  const layout=seeds.layout>>>0,mineral=seeds.mineral>>>0,weather=seeds.weather>>>0;
+  const layout=seeds.layout>>>0,mineral=seeds.mineral>>>0;
+  const weather=seeds.weather>>>0;
   const albedo=new Float32Array(SIZE*SIZE*3);
   const height=new Float32Array(SIZE*SIZE);
   const roughness=new Float32Array(SIZE*SIZE);
-  const batch=(hash(1,3,mineral)-.5)*.060;
+  const {elevations,courses}=buildCourses(layout);
+  const batch=(hash(1,3,mineral)-.5)*.026;
+  // Restrained, warm mineral variations belonging to the same building:
+  // stone is distinguished by shape and relief, not random blue-grey blocks.
   const palette=[
-    [.61,.596,.548], // weathered grey-beige limestone
-    [.58,.568,.524],
-    [.65,.622,.553],
-    [.57,.579,.55],
-    [.67,.633,.556],
-    [.59,.565,.508],
+    [.645,.605,.540], [.612,.583,.531], [.667,.620,.542],
+    [.625,.596,.551], [.640,.598,.518], [.601,.574,.529],
   ];
+  const boundary=(k,x)=>{
+    const id=wrap(k,COURSES);
+    return elevations[k]+
+      Math.sin(x*2*Math.PI/SIZE*2+
+        hash(id,3,layout^0x1b7af502)*Math.PI*2)*2.3+
+      Math.sin(x*2*Math.PI/SIZE*5+
+        hash(id,4,layout^0xc781ef25)*Math.PI*2)*1.1;
+  };
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*3;
-    // Periodic distortions break mechanical cells without hard seams.
-    const wx=x+(noise(x,y,11,10,layout^0x98ac23d1)-.5)*21;
-    const wy=y+(noise(x,y,9,12,layout^0xb3e81a69)-.5)*22;
-    const stone=stonesAt(wx,wy,layout);
-    const id=stone.id;
-    const tone=hash(id,4,mineral^0x195cb812)-.5;
-    const type=Math.floor(hash(id,3,mineral^0xa4b2ec19)*palette.length);
-    const color=palette[type];
-    // The nearest/second-nearest gap is zero at each Voronoi boundary.
-    // Mortar is sunken; the bevel is a smoothly sloping stone lip.
-    const chipped=(noise(x,y,34,30,layout^0x193ee70c)-.5)*.085;
-    const edge=stone.edge+chipped;
-    const face=smooth(clamp((edge-.020)/.155));
-    const bevel=smooth(clamp((edge-.005)/.29));
-    const grain=noise(x,y,72,75,layout^0x3a7211dc)-.5;
-    const medium=noise(x,y,30,34,layout^0xe5c1c991)-.5;
-    const foliation=noise(x,y,12,15,layout^0xa7d20364)-.5;
-    const porous=hash(x,y,layout^0xf13b86ec)-.5;
-    const stained=noise(x,y,10,11,weather^0xb82c316d)-.5;
-    const coarse=noise(x,y,19,21,mineral^0xb02e36af)-.5;
-    // Thin crust fractures / minute surface chips. Not painted joints.
-    const pits=Math.max(0,.16-noise(x,y,63,58,weather^0xc4a3e219));
-    const mineralTone=medium*.100+grain*.067+foliation*.089+
-      coarse*.052+porous*.025-stained*.083-pits*.30;
-    const mineralVari=tone*.23+batch+mineralTone;
-    const mortarTone=grain*.037+stained*.045+porous*.025;
+    // Course borders wiggle, but any neighboring pair shares the same
+    // border. At k=COURSES the waveform equals k=0 plus SIZE.
+    const seamY=boundary(0,x);
+    const yy=wrap(y-seamY,SIZE)+seamY;
+    let row=0;
+    while(row<COURSES-1&&yy>=boundary(row+1,x))row++;
+    const top=boundary(row,x),bottom=boundary(row+1,x);
+    const course=courses[row];
+    const t=clamp((yy-top)/(bottom-top));
+    const shift=j=>{
+      const [a,b]=course.phases[j%course.count];
+      return 2.0*Math.sin(t*Math.PI*2+a)+
+        1.2*Math.sin(t*Math.PI*4+b);
+    };
+    // Place the vertical joint on a periodic, rough line. The first and
+    // last boundary share a phase, which makes U seamless as well.
+    const seam=shift(0);
+    const xx=wrap(x-course.offset-seam,SIZE)+seam;
+    let stoneIndex=0;
+    while(stoneIndex<course.count-1&&
+      xx>=course.cuts[stoneIndex+1]+shift(stoneIndex+1))
+      stoneIndex++;
+    const left=course.cuts[stoneIndex]+shift(stoneIndex);
+    const right=course.cuts[stoneIndex+1]+shift(stoneIndex+1);
+    const stoneId=row*16+stoneIndex;
+    // Irregular but narrow mortar; chipped lips vary over a few pixels.
+    const fracture=(noise(x,y,27,25,layout^0x7e8c293a)-.5)*2.6+
+      (noise(x,y,57,55,layout^0x53bc106f)-.5)*1.0;
+    const edge=Math.min(xx-left,right-xx,yy-top,bottom-yy)+fracture;
+    const face=smooth(clamp((edge-1.75)/3.3));
+    const bevel=smooth(clamp((edge-.4)/8.0));
+    const grain=noise(x,y,77,69,layout^0x3a7211dc)-.5;
+    const pores=noise(x,y,135,129,layout^0xe51c991a)-.5;
+    const medium=noise(x,y,26,29,layout^0x75d20364)-.5;
+    const broad=noise(x,y,11,13,layout^0x90a2a461)-.5;
+    const oxide=noise(x,y,10,12,weather^0xb82c316d)-.5;
+    const wash=noise(x,y,22,19,mineral^0xb02e36af)-.5;
+    const speck=hash(x,y,weather^0xf13b86ec)-.5;
+    const chips=Math.max(0,.11-noise(x,y,59,61,weather^0xc4a3e219));
+    const batchTone=(hash(stoneId,7,mineral^0x195cb812)-.5)*.092;
+    const stoneType=Math.floor(hash(stoneId,2,mineral^0xa4b2ec19)*palette.length);
+    const color=palette[stoneType];
+    const stoneTone=batchTone+batch+broad*.045+medium*.073+
+      grain*.052+pores*.029+wash*.047-oxide*.035-chips*.15+
+      speck*.013;
+    const mortarTone=medium*.024+grain*.025+oxide*.022;
     for(let c=0;c<3;c++){
-      const stoneColor=color[c]+mineralVari*[1,.94,.86][c];
-      const groutColor=[.435,.418,.371][c]+mortarTone;
-      albedo[i+c]=clamp(mix(groutColor,stoneColor,face),.20,.83);
+      const stoneColor=color[c]+stoneTone*[1,.91,.78][c];
+      const groutColor=[.456,.429,.385][c]+mortarTone;
+      albedo[i+c]=clamp(mix(groutColor,stoneColor,face),.22,.79);
     }
-    // Broad convex faces plus small genuinely granular relief, without
-    // baked highlights. Mortar stays noticeably below the stone surfaces.
-    height[p]=.14+bevel*(.37+
-      medium*.078+foliation*.110+grain*.059+porous*.025-
-      pits*.14)+face*(hash(id,5,layout^0xf78132ae)-.5)*.074;
+    // Stone relief is mostly in the matching normal map. The albedo avoids
+    // baked dark bevels, which looked like black cartoon outlines before.
+    height[p]=.16+bevel*(.255+
+      broad*.045+medium*.070+grain*.050+pores*.015-chips*.10)+
+      face*(hash(stoneId,5,layout^0xf78132ae)-.5)*.065;
     roughness[p]=clamp(mix(.94,
-      .85+grain*.044+porous*.035+pits*.085+stained*.02,
-      face),.73,.99);
+      .885+grain*.033+pores*.024+oxide*.029+chips*.06,
+      face),.78,.99);
   }
   return {albedo,height,roughness};
 }
