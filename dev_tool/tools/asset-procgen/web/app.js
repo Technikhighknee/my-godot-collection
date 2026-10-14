@@ -666,8 +666,8 @@ projectEl('buildProjectAsset').addEventListener('click',()=>
     const entry=projectAssets.get(id);
     const definition=entry.source.generator?
       findGenerator(entry.source.generator.id):null;
-    if(entry.source.generator&&!definition?.headlessBake)
-      throw Error('This model does not have a headless build adapter yet');
+    if(entry.source.generator&&!definition?.headlessBake&&!definition?.modelBake)
+      throw Error('This generator does not have a headless build adapter yet');
     assetStatus('Baking '+entry.source.name+'…');
     const result=await projectApi('/api/projects/active/builds/'+
       encodeURIComponent(id),{method:'POST'});
