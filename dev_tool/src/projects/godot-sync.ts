@@ -1,7 +1,7 @@
 // Explicit, project-scoped delivery into a real Godot 4 project.
 // The only writable target is res://assets/1400/<project>/<resource>/.
 // Binary outputs come exclusively from a previously verified project package.
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {isAbsolute,join,resolve} from 'node:path';
 import {lstat,mkdir,readFile,rename,rm,writeFile} from 'node:fs/promises';
 import {readGodotPackage,type GodotPackageResult} from './godot-package.ts';
@@ -70,6 +70,7 @@ export async function syncGodotPackage(
   if(same)return {target,resourcePath:rel,synced:false,
     files:source.files.length,built:packageResult.built,
     reused:packageResult.reused};
+  const hashes=new Map(source.files.map(file=>[file.path,file]));
   const token=randomUUID();
   const staged=join(projectFolder,'.pending-'+token);
   const backup=join(projectFolder,'.previous-'+token);
@@ -84,7 +85,12 @@ export async function syncGodotPackage(
       for(const file of resource.files){
         const filename=file.split('/')[2]!;
         const origin=join(packageResult.directory,'assets',resource.id,filename);
-        await writeFile(join(folder,filename),await readRegular(origin),{flag:'wx'});
+        const bytes=await readRegular(origin);
+        const expected=hashes.get(file);
+        if(!expected||expected.bytes!==bytes.length||
+          createHash('sha256').update(bytes).digest('hex')!==expected.sha256)
+          throw Error('Godot export changed while synchronizing: '+file);
+        await writeFile(join(folder,filename),bytes,{flag:'wx'});
         if(old?.files.some(oldFile=>oldFile.path===file)){
           // Godot stores importer settings/UIDs in these sidecars.
           // Preserve them for paths that survive a sync, including on Windows.
