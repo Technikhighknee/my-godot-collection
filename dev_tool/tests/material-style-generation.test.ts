@@ -207,6 +207,39 @@ test('hand-painted rubble forms horizontal masonry courses, not paving cells',()
 });
 
 
+test('naturalistic and watercolor rubble retain readable stones without inked joints',()=>{
+  // Prevent the previous overly dark stone outlines from returning.
+  // The two directions have different intentional pigment ranges, but
+  // neither may lose the stone faces in a near-black joint network or
+  // wash the entire material into a featureless uniform patch.
+  for(const layout of [0,42,71803,88231])
+    for(const style of ['naturalistic-study','watercolor-study'] as const){
+      const asset=makeStyledMaterialAsset('stone-rubble',
+        {layout,mineral:30192,weather:58212},style);
+      const {data}=capture(asset,'albedo');
+      const histogram=new Uint32Array(256);
+      for(let i=0;i<data.length;i+=4){
+        const level=data[i]!;
+        histogram[level]=(histogram[level]??0)+1;
+      }
+      const percentile=(fraction:number)=>{
+        const target=Math.ceil(data.length/4*fraction);
+        let seen=0;
+        for(let level=0;level<256;level++){
+          seen+=histogram[level]??0;
+          if(seen>=target)return level;
+        }
+        return 255;
+      };
+      const shadows=percentile(.10);
+      const highlights=percentile(.90);
+      assert.ok(shadows>(style==='naturalistic-study'?128:163),
+        style+' must not draw black masonry joints at seed '+layout);
+      assert.ok(highlights-shadows>19,
+        style+' must preserve differentiated stone faces at seed '+layout);
+    }
+});
+
 test('retro rubble reads as stone faces rather than a dark grout network',()=>{
   // The previous native 128px raster consumed about a third of the roof-
   // foundation preview with deep, wide mortar outlines. Test several
