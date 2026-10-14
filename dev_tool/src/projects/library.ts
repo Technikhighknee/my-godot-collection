@@ -442,8 +442,18 @@ export class ProjectLibrary {
         dependencies:[],
       },id);
       const bytes=Buffer.from(JSON.stringify(source,null,2)+'\n');
-      // 'wx' prevents a collision and prohibits silent replacement.
-      await writeFile(file,content,{flag:'wx'});
+      // Exclusive creation prevents replacement. A failed partial write
+      // leaves no asset record and no orphaned payload.
+      const handle=await open(file,'wx');
+      let ready=false;
+      try{
+        await handle.writeFile(content);
+        await handle.sync();
+        ready=true;
+      }finally{
+        await handle.close();
+        if(!ready)await rm(file,{force:true});
+      }
       try{await writeFile(target,bytes,{flag:'wx'});}
       catch(error){await rm(file,{force:true});throw error;}
       return {source,revision:hash(bytes),kind:source.kind};
