@@ -44,7 +44,9 @@ function materialImages(){
   if(!active.materialSlots)return {};
   const assigned=selectedMaterials(),images={};
   for(const slot of active.materialSlots){
-    const asset=projectAssets.get(assigned[slot.id]?.slice('asset:'.length));
+    const reference=assigned[slot.id];
+    const asset=reference?projectAssets.get(reference.slice('asset:'.length)):null;
+    if(reference&&!asset)throw Error('Missing shared material: '+reference);
     const definition=asset?findGenerator(asset.source.generator.id):
       findGenerator(slot.generators[0]);
     if(!definition||definition.kind!=='image')continue;
@@ -529,16 +531,19 @@ async function changeSharedMaterial(slot,action){
   if(!projectId)throw Error('Create or open a project first');
   const value=selectedMaterials()[slot];
   const entry=value?projectAssets.get(value.slice('asset:'.length)):null;
-  const generatorId={foundationStone:'stone-rubble',
-    facadePlaster:'plaster-lime',timberWood:'timber-oak',
-    roofThatch:'roof-thatch',roofClay:'roof-clay'}[slot];
+  const binding=active.materialSlots?.find(item=>item.id===slot);
+  if(!binding)throw Error('Unknown material slot: '+slot);
+  // Editing/reseeding always uses the actual stored resource generator.
+  // Creating uses the declared compatible default. No slot-name switch.
+  const generatorId=entry?.source.generator.id??binding.generators[0];
+  if(!binding.generators.includes(generatorId))
+    throw Error('Incompatible material generator for '+slot);
   const definition=findGenerator(generatorId);
-  if(!definition)throw Error('Material generator unavailable');
+  if(!definition||definition.kind!=='image')
+    throw Error('Material generator unavailable');
   if(action==='new'){
     const id=definition.id+'-'+randomSeed().toString(36);
-    const name={foundationStone:'Rubble stone · ',
-      facadePlaster:'Lime plaster · ',timberWood:'Hewn oak · ',
-      roofThatch:'Thatched roof · ',roofClay:'Clay tiles · '}[slot];
+    const name=definition.label+' · ';
     const state=updateMasterSeed(definition,createSeedState(definition),randomSeed());
     const created=await projectApi('/api/projects/active/assets',{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -584,8 +589,14 @@ async function changeSharedMaterial(slot,action){
     assetStatus('Reseeded shared texture '+updated.source.name+'. All linked models use its new seed.');
   }
 }
-for(const slot of ['foundationStone','facadePlaster','timberWood','roofThatch','roofClay']){
-  byId(slot+'Asset').addEventListener('change',event=>{
+// Controls are attached from declared generator capabilities, not from an
+// application-maintained list of building material names.
+const materialSlotIds=new Set(GENERATORS.flatMap(def=>
+  (def.materialSlots??[]).map(slot=>slot.id)));
+for(const slot of materialSlotIds){
+  const picker=byId(slot+'Asset');
+  if(!picker)continue;
+  picker.addEventListener('change',event=>{
     const value=event.target.value;
     materialAssignments.set(active.id,{...selectedMaterials(),
       ...(value?{[slot]:value}:{[slot]:undefined})});
@@ -595,9 +606,10 @@ for(const slot of ['foundationStone','facadePlaster','timberWood','roofThatch','
     setRecipeDirty(true);
     build();
   });
-  for(const [action,suffix] of [['new','New'],['edit','Edit'],['reseed','Reseed']])
-    byId(slot+suffix).addEventListener('click',()=>
+  for(const [action,suffix] of [['new','New'],['edit','Edit'],['reseed','Reseed']]){
+    byId(slot+suffix)?.addEventListener('click',()=>
       projectOperation(()=>changeSharedMaterial(slot,action)));
+  }
 }
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==window.parent||
