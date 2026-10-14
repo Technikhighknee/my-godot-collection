@@ -238,6 +238,7 @@ test('texture style workbench serves its independent non-destructive comparison 
       ['/tools/asset-procgen/style-study.js','javascript','applyTextureStudyStyle'],
       ['/tools/asset-procgen/style-study.css','text/css','.study-board'],
       ['/tools/asset-procgen/texture-style-study.mjs','javascript','STUDY_MATERIALS'],
+      ['/tools/asset-procgen/texture-study-export.mjs','javascript','drawTextureStudyExport'],
     ] as const){
       const response=await fetch(base+path);
       assert.equal(response.status,200,path);
@@ -278,4 +279,9 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   assert.match(comparison,/id="studyCompareScroller"/);
   assert.match(comparison,/Watercolor/);
   assert.match(comparison,/Retro 3D/);
+  assert.match(comparison,/id="studyExportPNG"/);
+  assert.match(study,/texture-study-export\.mjs/);
+  assert.match(study,/URL\.createObjectURL/);
+  assert.match(study,/toBlob\(/);
+  assert.match(study,/updateExportButton/);
 });
