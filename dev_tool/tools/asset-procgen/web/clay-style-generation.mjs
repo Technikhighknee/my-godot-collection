@@ -208,13 +208,13 @@ function naturalWatercolorMaps(p,style){
     const wash=coarse*.11+brush*.075+pores*.027;
     const fired=(tile.kiln-.5)*(natural?.20:.14);
     const fading=(tile.wear-.5)*(natural?.11:.07);
-    const pooled=Math.exp(-Math.pow((Math.abs(tide+.35*mineral)-.22)/.061,2));
+    const pooled=Math.max(0,tide+.35*mineral+.11);
     const rim=(1-face)*(natural?.095:.135)+
       under*(natural?.085:.110);
     const base=natural?[.56,.335,.224]:[.755,.453,.335];
     const tone=fired+fading+wash+mineral*(natural?.093:.13)+
       tide*(natural?.048:.125)+granule*.038-rim-
-      (!natural?pooled*.11:0);
+      (!natural?pooled*.050:0);
     const at=sy*resolution+sx,i=at*3;
     colors[i]=clamp(base[0]+tone,.17,.94);
     colors[i+1]=clamp(base[1]+tone*.78,.08,.76);
