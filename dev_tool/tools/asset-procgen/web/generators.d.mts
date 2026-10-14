@@ -26,11 +26,21 @@ interface GeneratorMeta {
   validateOptions?:(value:unknown)=>BuildingOptions;
   materialSlots?:readonly {id:string;label:string;generators:readonly string[]}[];
 }
+export interface ModelBakeVariant {
+  name:string;level?:number;view?:'exterior'|'interior';
+}
+export interface ModelBakeCapability {
+  readonly variants:readonly ModelBakeVariant[];
+  canonicalize:(generated:GeneratedModel|GeneratedBuilding,
+    variant:ModelBakeVariant)=>import('./canonical-model.mjs').CanonicalModel|null;
+}
 export interface TreeGeneratorDefinition extends GeneratorMeta {
-  kind:'model';generate:(seeds:Record<string,number>)=>GeneratedModel;
+  kind:'model';modelBake?:ModelBakeCapability;
+  generate:(seeds:Record<string,number>)=>GeneratedModel;
 }
 export interface BuildingGeneratorDefinition extends GeneratorMeta {
-  kind:'model';defaultOptions:BuildingOptions;
+  kind:'model';modelBake?:ModelBakeCapability;
+  defaultOptions:BuildingOptions;
   materialSlots:readonly {id:string;label:string;generators:readonly string[]}[];
   validateOptions:(value:unknown)=>BuildingOptions;
   generate:(seeds:Record<string,number>,
