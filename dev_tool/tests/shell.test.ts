@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync,readdirSync } from 'node:fs';
 import {posix} from 'node:path';
 import { loadMap } from '../tools/map-editor/src/io/map-io.ts';
 import { createEditorServer } from '../tools/map-editor/src/server.ts';
@@ -103,35 +103,64 @@ test('shared Dev Tool host works with no Map Editor API attached',async()=>{
       server.close(error=>error?reject(error):resolve()));
   }
 });
-// Browser imports fail as a whole if *any* transitive relative module is
-// missing from the server's explicit allowlist. Keep the allowlist restrictive,
-// but verify that every shipped asset-procgen entry can load its dependencies.
-test('every asset-procgen browser module import has an explicitly served route',()=>{
+// A module in the public editor folder must work without touching server.ts.
+// Verify actual HTTP delivery and the transitive relative imports.
+test('editor modules and their relative imports use the bounded static mount',async()=>{
   const host=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
-  const entries=[...host.matchAll(
-    /^\s*'([^']+)': \['([^']+)', '([^']+)'\],?$/gm)];
-  const routes=new Map(entries.map(([,url,source])=>[url,source]));
-  assert.equal(routes.get('/tools/asset-procgen/canonical-model.mjs'),
-    'tools/asset-procgen/web/canonical-model.mjs');
-  let checked=0;
-  for(const [url,source] of routes){
-    if(!url.startsWith('/tools/asset-procgen/')||
-      !/\.(?:mjs|js)$/.test(url))continue;
-    const code=readFileSync(new URL('../'+source,import.meta.url),'utf8');
-    const imports=[
-      ...code.matchAll(/\bfrom\s*['"](\.[^'"]+)['"]/g),
-      ...code.matchAll(/\bimport\s*['"](\.[^'"]+)['"]/g),
-      ...code.matchAll(/\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g),
-    ];
-    for(const match of imports){
-      const dependency=posix.normalize(posix.join(
-        posix.dirname(url),match[1]!));
-      assert.ok(routes.has(dependency),
-        url+' imports '+match[1]+' but '+dependency+' is not served');
-      checked++;
+  assert.match(host,/prefix:'\/tools\/asset-procgen'/);
+  assert.doesNotMatch(host,/['"]\/tools\/asset-procgen\/canonical-model\.mjs['"]/);
+  const folder=new URL('../tools/asset-procgen/web/',import.meta.url);
+  const files=readdirSync(folder).filter(name=>/\.(?:mjs|js)$/.test(name));
+  assert.ok(files.includes('canonical-model.mjs'));
+  const server=createDevToolServer();
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    const imports=new Set<string>();
+    for(const file of files){
+      const url='/tools/asset-procgen/'+file;
+      const response=await fetch(origin+url);
+      assert.equal(response.status,200,url);
+      assert.match(response.headers.get('content-type')??'',/javascript/,url);
+      const code=await response.text();
+      assert.equal(code,readFileSync(new URL(file,folder),'utf8'));
+      for(const match of [
+        ...code.matchAll(/\bfrom\s*['"](\.[^'"]+)['"]/g),
+        ...code.matchAll(/\bimport\s*['"](\.[^'"]+)['"]/g),
+        ...code.matchAll(/\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g),
+      ]){
+        const dependency=posix.normalize(posix.join(
+          posix.dirname(url),match[1]!));
+        imports.add(dependency);
+      }
     }
+    assert.ok(imports.size>15,'Expected a real ESM dependency graph');
+    for(const path of imports){
+      const response=await fetch(origin+path);
+      assert.equal(response.status,200,'Unserved dependency '+path);
+      assert.match(response.headers.get('content-type')??'',/javascript/);
+    }
+    const head=await fetch(origin+'/tools/asset-procgen/canonical-model.mjs',
+      {method:'HEAD'});
+    assert.equal(head.status,200);
+    assert.equal((await head.text()).length,0);
+    assert.equal((await fetch(origin+'/tools/asset-procgen/style-study')).status,200);
+    assert.equal((await fetch(origin+'/tools/map-editor/terrain-edit.mjs')).status,200);
+    for(const path of [
+      '/tools/asset-procgen/not-a-module.mjs',
+      '/tools/asset-procgen/.hidden.mjs',
+      '/tools/asset-procgen/canonical-model.d.mts',
+      '/tools/asset-procgen/../src/server.ts',
+      '/tools/asset-procgen/%2e%2e/src/server.ts',
+      '/tools/map-editor/src/server.ts',
+      '/node_modules/three/package.json',
+    ])assert.equal((await fetch(origin+path)).status,404,path);
+  }finally{
+    await new Promise<void>((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
   }
-  assert.ok(checked>15,'Module dependency graph should be inspected');
 });
 
 test('Map Editor API mounts through the shared HTTP host unchanged',async()=>{
@@ -251,10 +280,12 @@ test('shared stone, plaster, timber and roof materials expose persistent project
   assert.doesNotMatch(renderer,/const woodPart=/);
   assert.doesNotMatch(renderer,/const plasterTint=/);
   assert.match(studio,/studio:project-assets-changed/);
-  assert.match(server,/\/tools\/asset-procgen\/roof-textures.mjs/);
-  assert.match(server,/\/tools\/asset-procgen\/timber-textures.mjs/);
-  assert.match(server,/\/tools\/asset-procgen\/plaster-textures.mjs/);
-  assert.match(server,/\/tools\/asset-procgen\/stone-textures.mjs/);
+  assert.match(server,/prefix:'\/tools\/asset-procgen'/);
+  for(const file of ['roof-textures.mjs','timber-textures.mjs',
+    'plaster-textures.mjs','stone-textures.mjs']){
+    assert.ok(readFileSync(new URL('../tools/asset-procgen/web/'+file,
+      import.meta.url),'utf8').length>100,file);
+  }
 });
 
 
