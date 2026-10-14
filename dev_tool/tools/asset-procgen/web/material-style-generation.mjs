@@ -2,6 +2,8 @@
 // Every material is re-authored from its semantic seeds: no recoloring or
 // processing of pixels from the original generator. Experimental, non-persisted
 // study only. Each grammar yields matching albedo/height/roughness maps.
+import {materialSeedStreams,materialElementTraits,materialElementWear}
+  from './material-language.mjs';
 export const MATERIAL_STUDY_STYLES=Object.freeze([
   'hand-painted-study','retro-3d-study',
   'naturalistic-study','watercolor-study',
@@ -61,7 +63,7 @@ function weldSeams(m){
   }
   return m;
 }
-function prepareMaterialContext(material,{structure,pigment,retro,resolution}){
+function prepareMaterialContext(material,{structure,pigment,weather,retro,resolution}){
   if(material==='plaster-lime'){
     const count=retro?17:25,strokes=[];
     for(let k=0;k<count;k++){
@@ -139,6 +141,8 @@ function prepareMaterialContext(material,{structure,pigment,retro,resolution}){
         };
       });
       const stones=Array.from({length:count},(_,i)=>({
+        materialDetail:materialElementTraits(i,row,count,rows,
+          {form:structure,pigment,aging:weather}),
         relief:.83+hash(row,i,structure^0x92d341ab)*.35,
         chip:hash(row,i,structure^0xb417c82a),
         tone:hash(row,i,pigment^0xa96d325c)-.5,
@@ -175,19 +179,22 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
   const wash=noise(x,y,w,h,7,9,pigment^0xb72dc941);
   const wear=noise(x,y,w,h,11,13,weather^0x529b2f84);
   const stoneTone=shape.stoneTint*.68;
+  const {moisture,erosion,crack}=shape.aging;
   if(natural){
     // Quiet, believable limestone grout: a narrow mortar cut and subtle
     // recess, not a black outline running through every joint.
     const stone=[.663,.645,.596],mortar=[.562,.545,.513];
     const age=Math.max(0,wear+.17);
     const tint=stoneTone+mineral*.046+wash*.032+
-      grain*.045-age*.055;
+      grain*.045-age*.055-moisture*.047-erosion*.022-crack*.037;
     const rgb=stone.map((v,c)=>mix(mortar[c]+wear*.018,
       v+tint*[1,.89,.73][c]+(1-chamfer)*face*.017,face));
     return {
       rgb,
-      z:clamp(.17+chamfer*shape.stoneRelief+grain*.014*face),
-      rough:clamp(mix(.94,.855+grain*.056+age*.06,face)),
+      z:clamp(.17+chamfer*shape.stoneRelief+grain*.014*face-
+        erosion*.031-crack*.050),
+      rough:clamp(mix(.94,.855+grain*.056+age*.06,face)+
+        moisture*.055),
     };
   }
   // Watercolor keeps the masonry readable but allows the pigment to break
@@ -201,13 +208,14 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
   const paper=Math.max(0,dust+wash*.33-.12);
   const pigmentPool=(1-face)*fade*.041;
   const tint=stoneTone*.72+wash*.087+mineral*.073+
-    glaze*.062-dust*.028-paper*.045;
+    glaze*.062-dust*.028-paper*.045-moisture*.027-
+    erosion*.016-crack*.019;
   const rgb=stone.map((v,c)=>mix(v+tint*[1,.91,.77][c]+
     paper*.046,mortar[c]+wash*.043-pigmentPool,groutOpacity));
   return {
     rgb,
     z:clamp(.19+chamfer*shape.stoneRelief*.66+
-      grain*.013*face),
+      grain*.013*face-erosion*.014-crack*.019),
     rough:clamp(mix(.95,.915+dust*.063+paper*.05,face)),
   };
 }
@@ -288,17 +296,18 @@ function raster(material,style,seeds,profile){
   const height=material==='timber-oak'&&profile==='beam'?2048:W;
   const width=W;
   const w=width/scale,h=height/scale,m=allocate(w,h);
-  const structure=(seeds.pattern??seeds.grain??seeds.structure??
-    seeds.layout)>>>0;
-  const pigment=(seeds.color??seeds.pigment??seeds.mineral)>>>0;
-  const weather=(seeds.wear??seeds.weather??pigment)>>>0;
+  const streams=materialSeedStreams(material,seeds);
+  const structure=streams.form,pigment=streams.pigment;
+  // Independent aging on materials with no explicit wear component; kept
+  // separate from recoloring while preserving the legacy image recipes.
+  const weather=seeds.wear??seeds.weather??pigment;
   // Geometry has its own art-direction grammar/seed stream. A color reseed
   // never changes the outlines or the normal/height fields.
   const form=alternate?structure^(style==='naturalistic-study'?
     0x529ae317:0x81f2a64d):structure;
   const dimensions={w,h,structure:form,pigment,weather,retro,
-    ...prepareMaterialContext(material,{structure:form,pigment,retro,
-      resolution:w})};
+    ...prepareMaterialContext(material,{structure:form,pigment,weather,
+      retro,resolution:w})};
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const p=y*w+x;
     let result;
@@ -535,6 +544,7 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
   const span=Math.max(1,right-left);
   const fx=clamp((xx-left)/span);
   const fy=t;
+  const aging=materialElementWear(rock.materialDetail,fx,fy);
   // Chamfer some corners on diagonals instead of yielding round Voronoi
   // polygons. The cut amount belongs to the stone shape seed.
   const corner=(retro?.13:.17)+rock.corner*(retro?.14:.17);
@@ -578,7 +588,8 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
       Math.max(0,lichen)*.055+scratch*.09,face)),
     // Semantic material fields used by alternate art directions. Keep
     // underlying hand-painted / retro generators completely unchanged.
-    jointDistance:edge,stoneRelief:stoneHeight,stoneTint:tone};
+    jointDistance:edge,stoneRelief:stoneHeight,stoneTint:tone,
+    aging};
 }
 
 function weldNormalEdges(d,width,height,step){
