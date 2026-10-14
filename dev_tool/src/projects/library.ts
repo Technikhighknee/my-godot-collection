@@ -342,16 +342,16 @@ export class ProjectLibrary {
       const id=entry.name.slice(0,-'.asset.json'.length);
       slug(id);
       const bytes=await regular(join(dir,entry.name));
-      const source=validateSource(JSON.parse(bytes.toString('utf8')),id,this.lookup);
-      result.push({source,revision:hash(bytes),kind:this.lookup(source.generator.id)!.kind});
+      const source=validateProjectSource(JSON.parse(bytes.toString('utf8')),id,this.lookup);
+      result.push({source,revision:hash(bytes),kind:assetKind(source,this.lookup)});
     }
     return result.sort((a,b)=>a.source.name.localeCompare(b.source.name));
   }
   async asset(id:string):Promise<AssetEntry>{
     const target=join(this.requireActive(),'assets',slug(id)+'.asset.json');
     const bytes=await regular(target);
-    const source=validateSource(JSON.parse(bytes.toString('utf8')),id,this.lookup);
-    return {source,revision:hash(bytes),kind:this.lookup(source.generator.id)!.kind};
+    const source=validateProjectSource(JSON.parse(bytes.toString('utf8')),id,this.lookup);
+    return {source,revision:hash(bytes),kind:assetKind(source,this.lookup)};
   }
   private async checkDependencies(source:AssetSource):Promise<void>{
     const entries=await this.assets();
@@ -360,7 +360,8 @@ export class ProjectLibrary {
     for(const [slot,ref] of Object.entries(source.materials??{})){
       const target=byId.get(ref.slice('asset:'.length));
       const allowed=def?.materialSlots?.find(s=>s.id===slot);
-      if(!target||!allowed?.generators.includes(target.source.generator.id)||
+      if(!target||'origin' in target.source||
+        !allowed?.generators.includes(target.source.generator.id)||
         target.kind!=='image')
         throw Error('Material '+slot+' requires an existing compatible texture asset');
     }
@@ -378,6 +379,53 @@ export class ProjectLibrary {
     };
     for(const id of graph.keys())visit(id);
   }
+  async importAsset(id:string,name:string,format:ImportFormat,
+    content:Buffer):Promise<AssetEntry>{
+    return this.enqueue(async()=>{
+      id=slug(id);name=title(name);
+      if(format!=='glb'&&format!=='png')throw Error('Unsupported import format');
+      validateImportBytes(format,content);
+      const folder=join(this.requireActive(),'assets');
+      const importFolder=join(folder,'imports');
+      await mkdir(importFolder,{recursive:true});
+      await directory(importFolder);
+      const file=join(importFolder,id+'.'+format);
+      const target=join(folder,id+'.asset.json');
+      // Metadata is published only after its binary payload is fully written.
+      // Avoid overwriting another resource with the same logical identity.
+      try{await lstat(target);throw Error('Asset already exists');}
+      catch(error){
+        if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
+      }
+      const source:ImportedAssetSource=validateImportedSource({
+        format:'devtool-asset',version:2,id,name,origin:'imported',
+        kind:importedKind(format),
+        imported:{format,path:'imports/'+id+'.'+format,
+          sha256:hash(content),byteLength:content.length},
+        dependencies:[],
+      },id);
+      const bytes=Buffer.from(JSON.stringify(source,null,2)+'\n');
+      // 'wx' prevents a collision and prohibits silent replacement.
+      await writeFile(file,content,{flag:'wx'});
+      try{await writeFile(target,bytes,{flag:'wx'});}
+      catch(error){await rm(file,{force:true});throw error;}
+      return {source,revision:hash(bytes),kind:source.kind};
+    });
+  }
+  async importedBytes(id:string):Promise<{bytes:Buffer;source:ImportedAssetSource}>{
+    const entry=await this.asset(id);
+    if(!('origin' in entry.source))throw Error('Not an imported asset');
+    const source=entry.source;
+    // The only accepted path is derived from the validated ID and format.
+    const path=join(this.requireActive(),'assets','imports',
+      source.id+'.'+source.imported.format);
+    const bytes=await regular(path);
+    if(bytes.length!==source.imported.byteLength||
+      hash(bytes)!==source.imported.sha256)
+      throw Error('Imported asset content changed or corrupted: '+id);
+    validateImportBytes(source.imported.format,bytes);
+    return {bytes,source};
+  }
   async createAsset(id:string,input:unknown):Promise<AssetEntry>{
     return this.enqueue(async()=>{
       id=slug(id);
@@ -394,6 +442,8 @@ export class ProjectLibrary {
       id=slug(id);
       const old=await this.asset(id);
       if(old.revision!==revision)throw Error('Asset was modified; reload before saving');
+      if('origin' in old.source)
+        throw Error('Imported resources cannot be updated as generator recipes');
       const source=makeSource(input,id,this.lookup,old.source.dependencies,
         old.source.materials);
       if(source.generator.id!==old.source.generator.id)
