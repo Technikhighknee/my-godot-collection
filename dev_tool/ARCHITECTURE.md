@@ -119,8 +119,10 @@ will consume them.
 - Fir wood exports as `model.glb`. Oak has a separate **wood-only**
   `wood.glb` output with the native three bark maturity profiles. The
   existing seam-mapped wood geometry and its triangle count are unchanged.
-  It embeds the same deterministic albedo, normal and roughness generation
-  as the 3D preview, without requiring an external source asset.
+  It embeds the same deterministic albedo, normal, roughness and cavity-AO
+  generation as the 3D preview, without requiring an external source asset.
+  Height maps are intentionally not embedded: glTF 2.0 has no standard
+  displacement material slot.
 - Timber-frame buildings export three variants of `level-*-exterior.glb`,
   plus `level-*-interior.glb` when the recipe enables the interior shell.
   Both views reuse one generated level.
