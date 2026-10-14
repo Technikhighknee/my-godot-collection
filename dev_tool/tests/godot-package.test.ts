@@ -113,6 +113,19 @@ test('package replacement drops only stale variants of the selected root',async(
       ],[{id:'tiles',key:'texture-rev-2'}]),
     ],{'tiles/albedo.png':roof,
       'house/level-1-exterior.glb':newBytes});
+    // A corrupt new build must not replace the previously valid export,
+    // nor leave behind half-written staging directories.
+    const stagedSource=join(projectDir,'build','assets','house','house-rev-2',
+      'level-1-exterior.glb');
+    await writeFile(stagedSource,Buffer.from('corrupted-before-publish'));
+    await assert.rejects(publishGodotPackage(projectDir,'house',second),
+      /Build cache changed before Godot export/);
+    assert.deepEqual(await readFile(join(sent.directory,'assets','house',
+      'level-1-interior.glb')),houseB,
+      'Failure must leave the previous complete package intact');
+    assert.deepEqual(await readdir(join(projectDir,'exports','godot')),
+      ['house'],'Failed publication must remove its staging directory');
+    await writeFile(stagedSource,newBytes);
     const updated=await publishGodotPackage(projectDir,'house',second);
     assert.equal(updated.published,true);
     assert.equal(updated.directory,sent.directory);
