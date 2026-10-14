@@ -1,7 +1,7 @@
 // Shared Dev Tool HTTP host. Tool APIs are mounted independently.
 import {createServer,type IncomingMessage,type Server,type ServerResponse} from 'node:http';
-import {readFile} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {readFile,realpath,lstat} from 'node:fs/promises';
+import {join,resolve,relative,isAbsolute,extname,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=resolve(fileURLToPath(new URL('../',import.meta.url)));
@@ -14,41 +14,6 @@ const staticRoutes:Record<string,[string,string]>={
   '/': ['web/index.html', 'text/html; charset=utf-8'],
   '/dev-tool.css': ['web/dev-tool.css', 'text/css; charset=utf-8'],
   '/dev-tool.js': ['web/dev-tool.js', 'text/javascript; charset=utf-8'],
-  '/tools/map-editor': ['tools/map-editor/web/index.html', 'text/html; charset=utf-8'],
-  '/tools/map-editor/': ['tools/map-editor/web/index.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen': ['tools/asset-procgen/web/index.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen/': ['tools/asset-procgen/web/index.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen/app.js': ['tools/asset-procgen/web/app.js', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/style-study': ['tools/asset-procgen/web/style-study.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen/style-study.html': ['tools/asset-procgen/web/style-study.html', 'text/html; charset=utf-8'],
-  '/tools/asset-procgen/style-study.js': ['tools/asset-procgen/web/style-study.js', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/style-study.css': ['tools/asset-procgen/web/style-study.css', 'text/css; charset=utf-8'],
-  '/tools/asset-procgen/texture-style-study.mjs': ['tools/asset-procgen/web/texture-style-study.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/texture-study-export.mjs': ['tools/asset-procgen/web/texture-study-export.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/seed-model.mjs': ['tools/asset-procgen/web/seed-model.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/generators.mjs': ['tools/asset-procgen/web/generators.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/canonical-model.mjs': ['tools/asset-procgen/web/canonical-model.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/building.mjs': ['tools/asset-procgen/web/building.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/building-materials.mjs': ['tools/asset-procgen/web/building-materials.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/roof-textures.mjs': ['tools/asset-procgen/web/roof-textures.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/clay-style-generation.mjs': ['tools/asset-procgen/web/clay-style-generation.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/material-style-generation.mjs': ['tools/asset-procgen/web/material-style-generation.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/material-language.mjs': ['tools/asset-procgen/web/material-language.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/timber-textures.mjs': ['tools/asset-procgen/web/timber-textures.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/plaster-textures.mjs': ['tools/asset-procgen/web/plaster-textures.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/stone-textures.mjs': ['tools/asset-procgen/web/stone-textures.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/asset-library.mjs': ['tools/asset-procgen/web/asset-library.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/viewport-3d.mjs': ['tools/asset-procgen/web/viewport-3d.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/viewport-2d.mjs': ['tools/asset-procgen/web/viewport-2d.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/style.css': ['tools/asset-procgen/web/style.css', 'text/css; charset=utf-8'],
-  '/tools/asset-procgen/tree.mjs': ['tools/asset-procgen/web/tree.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/fir.mjs': ['tools/asset-procgen/web/fir.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-leaf.mjs': ['tools/asset-procgen/web/oak-leaf.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-foliage.mjs': ['tools/asset-procgen/web/oak-foliage.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-atlas.mjs': ['tools/asset-procgen/web/oak-atlas.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-sprig.mjs': ['tools/asset-procgen/web/oak-sprig.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-bark.mjs': ['tools/asset-procgen/web/oak-bark.mjs', 'text/javascript; charset=utf-8'],
-  '/tools/asset-procgen/oak-bark-uv.mjs': ['tools/asset-procgen/web/oak-bark-uv.mjs', 'text/javascript; charset=utf-8'],
   '/app.js': ['tools/map-editor/web/app.js', 'text/javascript; charset=utf-8'],
   '/road-edit.mjs': ['tools/map-editor/web/road-edit.mjs', 'text/javascript; charset=utf-8'],
   '/terrain-edit.mjs': ['tools/map-editor/web/terrain-edit.mjs', 'text/javascript; charset=utf-8'],
@@ -68,6 +33,46 @@ const staticRoutes:Record<string,[string,string]>={
   '/vendor/three/build/three.core.js': ['node_modules/three/build/three.core.js', 'text/javascript; charset=utf-8'],
   '/vendor/three/examples/jsm/controls/OrbitControls.js': ['node_modules/three/examples/jsm/controls/OrbitControls.js', 'text/javascript; charset=utf-8'],
 };
+
+// Public editor directories are served by a bounded static mount instead of
+// a per-module URL registry. Newly added relative imports work immediately.
+// Root-level Map Editor URLs remain as compatibility aliases in staticRoutes.
+const publicTypes:Record<string,string>={
+  '.html':'text/html; charset=utf-8',
+  '.js':'text/javascript; charset=utf-8',
+  '.mjs':'text/javascript; charset=utf-8',
+  '.css':'text/css; charset=utf-8',
+  '.png':'image/png',
+  '.jpg':'image/jpeg',
+  '.jpeg':'image/jpeg',
+  '.webp':'image/webp',
+  '.svg':'image/svg+xml',
+  '.ico':'image/x-icon',
+  '.wasm':'application/wasm',
+};
+const publicMounts=[
+  {prefix:'/tools/asset-procgen',directory:'tools/asset-procgen/web',
+    aliases:{'style-study':'style-study.html'} as Record<string,string>},
+  {prefix:'/tools/map-editor',directory:'tools/map-editor/web',
+    aliases:{} as Record<string,string>},
+];
+function mountedFile(path:string){
+  for(const mount of publicMounts){
+    const suffix=path===mount.prefix?'':path.startsWith(mount.prefix+'/')?
+      path.slice(mount.prefix.length+1):null;
+    if(suffix===null)continue;
+    const name=mount.aliases[suffix]??(suffix||'index.html');
+    if(name.split('/').some(part=>!part||part.startsWith('.')))return null;
+    const type=publicTypes[extname(name).toLowerCase()];
+    if(!type)return null;
+    return {directory:mount.directory,file:join(mount.directory,name),type};
+  }
+  return null;
+}
+function insideMount(base:string,target:string){
+  const path=relative(base,target);
+  return !!path&&path!=='..'&&!path.startsWith('..'+sep)&&!isAbsolute(path);
+}
 
 export type ToolApiHandler=(req:IncomingMessage,res:ServerResponse,path:string)=>Promise<void>;
 
@@ -95,13 +100,29 @@ export function createDevToolServer(api?:ToolApiHandler):Server{
     if(req.method!=='GET'&&req.method!=='HEAD'){
       res.writeHead(405,{Allow:'GET, HEAD'});res.end();return;
     }
-    const file=staticRoutes[path];
+    const mounted=mountedFile(path);
+    const file=staticRoutes[path]??(mounted?[mounted.file,mounted.type] as const:null);
     if(!file){res.writeHead(404);res.end();return;}
     try{
-      const bytes=await readFile(join(root,file[0]));
+      let source=join(root,file[0]);
+      if(mounted){
+        // Resolve the real filesystem location before reading. Neither
+        // traversal nor symlinks may expose files outside the public folder.
+        const base=await realpath(join(root,mounted.directory));
+        const actual=await realpath(source);
+        if(!insideMount(base,actual)||!(await lstat(source)).isFile()){
+          res.writeHead(404);res.end();return;
+        }
+        source=actual;
+      }
+      const bytes=await readFile(source);
       res.writeHead(200,{'Content-Type':file[1],'Content-Length':bytes.length});
       res.end(req.method==='HEAD'?undefined:bytes);
-    }catch{
+    }catch(error){
+      const code=(error as NodeJS.ErrnoException).code;
+      if(mounted&&['ENOENT','ENOTDIR','ELOOP','EACCES'].includes(code??'')){
+        res.writeHead(404);res.end();return;
+      }
       res.writeHead(500,{'Content-Type':'text/plain; charset=utf-8'});
       res.end('Local tool asset unavailable. Run npm ci in dev_tool.');
     }
