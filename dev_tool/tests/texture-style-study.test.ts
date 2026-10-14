@@ -83,3 +83,31 @@ test('study rejects unsupported IDs, view types and malformed seed inputs',()=>{
   assert.throws(()=>reseedStudySeeds(def,-1),/seed/);
   assert.throws(()=>reseedStudySeeds(def,0x100000000),/seed/);
 });
+
+
+test('classic strategy study visibly repaints even flat material surfaces',()=>{
+  const width=96,height=96;
+  const pixels=new Uint8ClampedArray(width*height*4);
+  for(let i=0;i<pixels.length;i+=4)
+    pixels.set([145,130,111,255],i);
+  for(const material of STUDY_MATERIALS){
+    const options={width,height,seed:7419};
+    const left=applyTextureStudyStyle(material.id,'current','albedo',
+      pixels,options);
+    const right=applyTextureStudyStyle(material.id,
+      'classic-strategy-study','albedo',pixels,options);
+    let lo=255,hi=0,sum=0;
+    for(let i=0;i<right.length;i+=4){
+      lo=Math.min(lo,right[i]!);
+      hi=Math.max(hi,right[i]!);
+      sum+=Math.abs(right[i]!-left[i]!);
+    }
+    assert.ok(hi-lo>55,
+      material.id+' must have large-scale painterly material detail');
+    assert.ok(sum/(width*height)>12,
+      material.id+' must be visibly different from the current material');
+    assert.deepEqual(right,applyTextureStudyStyle(material.id,
+      'classic-strategy-study','albedo',pixels,options));
+    assert.deepEqual(left,pixels);
+  }
+});
