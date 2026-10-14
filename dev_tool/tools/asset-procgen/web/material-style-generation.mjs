@@ -77,19 +77,64 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
     return {strokes};
   }
   if(material==='stone-rubble'){
-    const cols=retro?9:7,rows=retro?9:7,sites=[];
-    for(let iy=0;iy<rows;iy++)for(let ix=0;ix<cols;ix++)
-      sites.push({
-        jx:(hash(ix,iy,structure^0xa137bd21)-.5)*(retro?.70:.91),
-        jy:(hash(ix,iy,structure^0x7f1829ad)-.5)*(retro?.72:.92),
-        wf:.74+hash(ix,iy,structure^0x23b91ced)*.52,
-        af:.75+hash(ix,iy,structure^0x91d782ad)*.43,
-        weight:(hash(ix,iy,structure^0x41c529e3)-.5)*.25,
-        variation:hash(ix,iy,structure^0x48da51b1),
-        color:(hash(ix,iy,pigment^0xa96d325c)-.5)*
-          (retro?.20:.21),
+    // Periodic, approximately level masonry courses. A course is a band of
+    // individually sized stones -- not Voronoi cobbles or rectangular bricks.
+    const w=retro?128:512,h=w;
+    const rows=retro?7:6;
+    const weights=Array.from({length:rows},(_,r)=>
+      .67+hash(r,0,structure^0x321b91ae)*.86);
+    const total=weights.reduce((a,b)=>a+b,0);
+    const elevations=[0];
+    for(const weight of weights)
+      elevations.push(elevations[elevations.length-1]+
+        weight/total*h);
+    elevations[rows]=h;
+    const edges=Array.from({length:w},(_,x)=>{
+      const line=[];
+      for(let k=0;k<=rows;k++){
+        const index=k%rows;
+        const phase=hash(index,7,structure^0x19b7a5e3)*Math.PI*2;
+        const phase2=hash(index,3,structure^0x82c7fa19)*Math.PI*2;
+        const coarse=Math.sin(x/w*Math.PI*4+phase)*(retro?1.6:3.3);
+        const fine=Math.sin(x/w*Math.PI*10+phase2)*(retro?.65:1.45);
+        line.push(elevations[k]+coarse+fine);
+      }
+      return line;
+    });
+    const courses=[];
+    for(let row=0;row<rows;row++){
+      // Include small chinking stones and occasional long slabs; the walls
+      // should not settle into a repetitive uniform rectangular bond.
+      const count=(retro?5:4)+Math.floor(
+        hash(row,1,structure^0x391e4bc2)*4);
+      const small=Math.floor(hash(row,2,structure^0x8fca923d)*count);
+      let large=Math.floor(hash(row,3,structure^0xa127f48b)*count);
+      if(large===small)large=(large+2)%count;
+      const widths=Array.from({length:count},(_,i)=>{
+        const base=.57+hash(row,i,structure^0x38cbd672)*1.35;
+        return base*(i===small?.44:i===large?1.75:1);
       });
-    return {cols,rows,sites};
+      const sum=widths.reduce((a,b)=>a+b,0);
+      const cuts=[0];
+      for(const width of widths)
+        cuts.push(cuts[cuts.length-1]+width/sum*w);
+      cuts[count]=w;
+      const joints=Array.from({length:count},(_,i)=>({
+        a:(hash(row,i,structure^0x317e29af)-.5)*(retro?3:6),
+        b:(hash(row,i,structure^0x981ac3f2)-.5)*(retro?3:6),
+        phase:hash(row,i,structure^0x7a1cbf36)*Math.PI*2,
+      }));
+      const stones=Array.from({length:count},(_,i)=>({
+        relief:.83+hash(row,i,structure^0x92d341ab)*.35,
+        chip:hash(row,i,structure^0xb417c82a),
+        tone:hash(row,i,pigment^0xa96d325c)-.5,
+        // Structure seed only: paint/respray does not move corners.
+        corner:hash(row,i,structure^0xcb58d127),
+      }));
+      courses.push({count,cuts,joints,stones,
+        offset:hash(row,9,structure^0x56b1ca37)*w});
+    }
+    return {masonry:{rows,edges,courses}};
   }
   return {};
 }
@@ -280,51 +325,73 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro,strokes}){
     rough:clamp(.88+fine*.04+grime*.095+pit*.12)};
 }
 
-function stone(x,y,{w,h,structure,pigment,weather,retro,
-  cols,rows,sites}){
-  // Weighted, periodic Voronoi sites are prepared once per raster.
-  // Neighbor lookup is material grammar, not brick-course indexing.
-  const bendX=retro?0:noise(x,y,w,h,12,10,
-    structure^0x9e4273b1)*.15;
-  const bendY=retro?0:noise(x,y,w,h,11,13,
-    structure^0x6d21ac53)*.15;
-  const u=x/w*cols+bendX,v=y/h*rows+bendY;
-  const gx=Math.floor(u),gy=Math.floor(v);
-  let first=1e9,second=1e9;
-  let chosenVariation=0,chosenColor=0;
-  for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
-    const cx=gx+i,cy=gy+j,ix=wrap(cx,cols),iy=wrap(cy,rows);
-    const site=sites[iy*cols+ix];
-    const dx=u-(cx+.5+site.jx),dy=v-(cy+.5+site.jy);
-    const dist=(dx*dx*site.wf+dy*dy*site.af)-site.weight;
-    if(dist<first){
-      second=first;first=dist;
-      chosenVariation=site.variation;chosenColor=site.color;
-    }else if(dist<second)second=dist;
-  }
-  // Face is a polygon-ish chipped cobble, with a broad chamfer and muted
-  // mortar. Retro still samples this stone geometry at coarse texel density.
-  const edge=second-first;
-  const face=smooth((edge-(retro?.045:.025))/(retro?.27:.32));
-  const crown=smooth((edge-.02)/.65);
-  const grain=noise(x,y,w,h,retro?25:61,retro?29:57,
-    structure^0x8d2e17f4);
-  const crack=noise(x,y,w,h,retro?16:42,retro?22:43,
-    structure^0xc8517e2b);
-  const mineral=noise(x,y,w,h,11,12,pigment^0xe7c4591a);
-  const age=noise(x,y,w,h,13,14,weather^0x291fe71c);
-  const varColor=chosenColor;
-  const base=retro?[.588,.552,.477]:[.675,.641,.56];
-  const mortar=retro?[.42,.40,.367]:[.48,.455,.415];
-  const weathered=varColor+mineral*.064+grain*.045-
-    Math.max(0,age)*.11;
-  const splinter=Math.max(0,-crack-.29)*face;
-  const rgb=base.map((v,c)=>mix(mortar[c],
-    v+weathered*[1,.88,.68][c]-splinter*.08,face));
-  return {rgb,z:.20+crown*(.27+chosenVariation*.10)+
-      grain*.025*face-splinter*.07,
-    rough:clamp(mix(.96,.84+grain*.065+
-      Math.max(0,age)*.08,face))};
+function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
+  // Hand-laid masonry: horizontal, irregular courses and stones of wildly
+  // different widths. Each joint is shared by its neighbors. The periodic
+  // first/last course and first/last vertical joint keep the texture tileable.
+  const {rows,edges,courses}=masonry;
+  const boundary=edges[x],seam=boundary[0];
+  const yy=wrap(y-seam,h)+seam;
+  let row=0;
+  while(row<rows-1&&yy>=boundary[row+1])row++;
+  const top=boundary[row],bottom=boundary[row+1],height=bottom-top;
+  const t=clamp((yy-top)/height);
+  const course=courses[row];
+  const jointShift=(i)=>{
+    const j=course.joints[i%course.count];
+    return mix(j.a,j.b,t)+
+      (retro?.30:.70)*Math.sin(t*Math.PI*2+j.phase);
+  };
+  const shift0=jointShift(0);
+  const xx=wrap(x-course.offset-shift0,w)+shift0;
+  let index=0;
+  while(index<course.count-1&&
+    xx>=course.cuts[index+1]+jointShift(index+1))index++;
+  const left=course.cuts[index]+jointShift(index);
+  const right=course.cuts[index+1]+jointShift(index+1);
+  const rock=course.stones[index];
+  const span=Math.max(1,right-left);
+  const fx=clamp((xx-left)/span);
+  const fy=t;
+  // Chamfer some corners on diagonals instead of yielding round Voronoi
+  // polygons. The cut amount belongs to the stone shape seed.
+  const corner=(retro?.10:.11)+rock.corner*(retro?.09:.10);
+  const diagonal=Math.min(
+    fx+fy,fx+1-fy,1-fx+fy,2-fx-fy);
+  const cornerInset=Math.max(0,corner-diagonal)*Math.min(span,height)*.57;
+  const ragged=noise(x,y,w,h,retro?29:51,retro?27:49,
+    structure^0x6db82ca1)*(retro?1.1:2.0);
+  const edge=Math.min(xx-left,right-xx,yy-top,bottom-yy)-
+    cornerInset+ragged;
+  const border=retro?1.0:1.5;
+  const face=smooth((edge-border)/(retro?2.3:3.4));
+  const bevel=smooth((edge-.5)/(retro?5.8:8.8));
+  const micro=noise(x,y,w,h,retro?23:79,retro?29:73,
+    structure^0x718c42d3);
+  const grit=noise(x,y,w,h,retro?32:113,retro?26:109,
+    structure^0x31a5e70c);
+  const medium=noise(x,y,w,h,retro?11:28,retro?12:30,
+    structure^0x9f18ac72);
+  const lichen=noise(x,y,w,h,11,12,weather^0x291fe71c);
+  const mineral=noise(x,y,w,h,12,10,pigment^0x823f9a26);
+  const wash=noise(x,y,w,h,20,19,pigment^0xe7c4591a);
+  const scratch=Math.max(0,-grit-.26)*face;
+  // Different shape grammars share a coherent limestone family. Shallow
+  // value variation does the work, not dark cartoon grout outlines.
+  const base=retro?[.631,.597,.527]:[.679,.642,.558];
+  const mortar=retro?[.46,.439,.403]:[.497,.472,.431];
+  const tone=rock.tone*(retro?.12:.15)+mineral*.075+
+    wash*.035+medium*.054+micro*.040-
+    Math.max(0,lichen)*.090-scratch*.080;
+  // Fine stone lip on the top, but avoid baked directional light gradients.
+  const paleLip=face*(1-bevel)*(retro?.026:.038);
+  const rgb=base.map((v,c)=>mix(mortar[c]+grit*.014,
+    v+tone*[1,.88,.68][c]+paleLip,face));
+  const stoneHeight=(.265+rock.relief*.090)+
+    medium*.044+micro*.032+grit*.015-scratch*.072;
+  return {rgb,z:.15+bevel*stoneHeight,
+    rough:clamp(mix(.945,.86+micro*.05+
+      Math.max(0,lichen)*.055+scratch*.09,face))};
 }
 
 function weldNormalEdges(d,width,height,step){
