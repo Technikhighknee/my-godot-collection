@@ -2,9 +2,9 @@
 // artifacts. Export structure is stable; content-addressed caches stay private.
 // Each root owns one package, so exporting another resource never removes it.
 import {createHash,randomUUID} from 'node:crypto';
-import {lstat,mkdir,readFile,rename,rm,writeFile} from 'node:fs/promises';
-import {join,relative,isAbsolute,sep} from 'node:path';
-import type {BuildResult,BuildArtifact} from './build.ts';
+import {lstat,mkdir,readdir,readFile,rename,rm,writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import type {BuildResult} from './build.ts';
 
 export interface GodotPackageFile {
   path:string;sha256:string;bytes:number;
@@ -54,6 +54,16 @@ function verifyManifest(value:unknown,root:string):GodotPackageManifest{
     !Array.isArray(m.resources)||!m.files.length)
     throw Error('Existing Godot export is not managed by the Dev Tool');
   const names=new Set<string>();
+  const resourceIds=new Set<string>();
+  for(const resource of m.resources){
+    if(!resource||!slug.test(resource.id)||resourceIds.has(resource.id)||
+      !Array.isArray(resource.files)||resource.files.some(path=>
+        typeof path!=='string'||!safeRelative(path)||
+        !path.startsWith('assets/'+resource.id+'/')))
+      throw Error('Unsafe Godot export resources');
+    resourceIds.add(resource.id);
+  }
+  if(!resourceIds.has(root))throw Error('Godot export root is missing');
   for(const f of m.files){
     if(typeof f.path!=='string'||!safeRelative(f.path)||
       typeof f.sha256!=='string'||!/^[a-f0-9]{64}$/.test(f.sha256)||
@@ -61,6 +71,9 @@ function verifyManifest(value:unknown,root:string):GodotPackageManifest{
       throw Error('Unsafe Godot export manifest');
     names.add(f.path);
   }
+  if(m.files.some(f=>!resourceIds.has(f.path.split('/')[1]!))||
+    m.resources.some(resource=>resource.files.some(path=>!names.has(path))))
+    throw Error('Inconsistent Godot export manifest');
   return m;
 }
 async function readPublished(directoryPath:string,root:string):
@@ -75,6 +88,29 @@ async function readPublished(directoryPath:string,root:string):
   }
   const manifest=verifyManifest(JSON.parse((await regular(
     join(directoryPath,'manifest.json'))).toString('utf8')),root);
+  // Never replace a package that contains user files absent from our
+  // manifest. Godot may add .import metadata after a user copies it, but
+  // the managed project export directory must remain wholly generated.
+  const rootItems=(await readdir(directoryPath)).sort();
+  if(JSON.stringify(rootItems)!==JSON.stringify(['assets','manifest.json']))
+    throw Error('Unmanaged files in Godot export directory');
+  const assetsRoot=join(directoryPath,'assets');
+  const assetsInfo=await lstat(assetsRoot);
+  if(!assetsInfo.isDirectory()||assetsInfo.isSymbolicLink())
+    throw Error('Godot export assets directory is redirected');
+  const resourceFolders=(await readdir(assetsRoot)).sort();
+  if(JSON.stringify(resourceFolders)!==JSON.stringify(
+    manifest.resources.map(x=>x.id).sort()))
+    throw Error('Unmanaged resources in Godot export directory');
+  for(const resource of manifest.resources){
+    const folder=join(assetsRoot,resource.id);
+    const info=await lstat(folder);
+    if(!info.isDirectory()||info.isSymbolicLink())
+      throw Error('Godot export resource directory is redirected');
+    const expected=resource.files.map(x=>x.split('/')[2]).sort();
+    if(JSON.stringify((await readdir(folder)).sort())!==JSON.stringify(expected))
+      throw Error('Unmanaged files in Godot resource directory');
+  }
   for(const file of manifest.files){
     const parts=file.path.split('/');
     const folder=join(directoryPath,parts[0]!,parts[1]!);
@@ -134,12 +170,16 @@ export async function publishGodotPackage(projectDir:string,root:string,
   let backupMoved=false,published=false;
   try{
     const buildRoot=join(projectDir,'build','assets');
+    await directory(join(projectDir,'build'));
+    await directory(buildRoot);
     for(const resource of manifest.resources){
       const output=join(staged,'assets');
       await directory(output);
       const targetDir=join(output,resource.id);
       await directory(targetDir);
-      const originDir=join(buildRoot,resource.id,resource.key);
+      const resourceCache=join(buildRoot,resource.id);
+      await directory(resourceCache);
+      const originDir=join(resourceCache,resource.key);
       const cacheDirectory=await lstat(originDir);
       if(!cacheDirectory.isDirectory()||cacheDirectory.isSymbolicLink())
         throw Error('Unsafe build cache directory: '+resource.id);
