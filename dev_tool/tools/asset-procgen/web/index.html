@@ -162,6 +162,10 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
       <button id="loadProjectAsset" type="button">Load selected</button>
       <button id="buildProjectAsset" type="button">Bake selected resource</button>
       <button id="exportGodotPackage" type="button">Export selected to Godot package</button>
+      <label for="godotProjectPath">Godot project folder (absolute path)</label>
+      <input id="godotProjectPath" type="text" spellcheck="false" autocomplete="off"
+        placeholder="C:\\Projects\\MyGame">
+      <button id="syncGodotProject" type="button">Sync selected to Godot project</button>
       <label for="importProjectFile">Import external model or image (.glb / .png)</label>
       <input id="importProjectFile" type="file" accept=".glb,.png,model/gltf-binary,image/png">
       <button id="importProjectAsset" type="button">Import into project</button>
