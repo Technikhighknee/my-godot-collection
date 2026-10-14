@@ -3,6 +3,8 @@
 // Painted and retro differ in tile layout, silhouette, wear, height and
 // roughness -- not just in post-process grading of the same bitmap.
 // UV convention: X runs along ridge, Y downhill. Both axes repeat.
+import {materialSeedStreams,materialElementTraits,materialElementWear}
+  from './material-language.mjs';
 export const CLAY_GENERATIVE_STYLES=Object.freeze([
   'hand-painted-study','retro-3d-study',
   'naturalistic-study','watercolor-study',
@@ -32,6 +34,7 @@ function plan(style,seeds){
   // identity are identical when the watercolor material repeats vertically.
   const rows=style==='naturalistic-study'?10:8;
   const pattern=seeds.pattern>>>0,color=seeds.color>>>0;
+  const streams=materialSeedStreams('roof-clay',seeds);
   const traits=(col,row,salt)=>hash(wrap(col,columns),wrap(row,rows),salt);
   const atlas=[];
   for(let row=0;row<rows;row++){
@@ -40,6 +43,7 @@ function plan(style,seeds){
       const morph=traits(col,row,pattern^0x1a72d32c);
       const kiln=traits(col,row,color^0xa87294a1);
       line.push({
+        materialDetail:materialElementTraits(col,row,columns,rows,streams),
         morph, kiln,
         angle:traits(col,row,pattern^0x74ca2b36)-.5,
         soot:traits(col,row,color^0xa83179e2),
@@ -193,6 +197,7 @@ function naturalWatercolorMaps(p,style){
     const fromAbove=fy<tail(top,p);
     const tile=fromAbove?top:tileAt(x,y,row,p);
     const fyTile=fromAbove?fy+1:fy;
+    const aging=materialElementWear(tile.materialDetail,tile.fx,fyTile);
     const joint=Math.min(tile.fx,1-tile.fx);
     const rounded=Math.pow(Math.max(0,Math.sin(tile.fx*Math.PI)),.83);
     const tip=tail(top,p);
@@ -214,18 +219,25 @@ function naturalWatercolorMaps(p,style){
     const rim=(1-face)*(natural?.095:.135)+
       under*(natural?.085:.110);
     const base=natural?[.56,.335,.224]:[.755,.453,.335];
+    // Aging belongs to individual clay pieces: moisture gathers near the
+    // exposed tail, chips occur at edges, rare fine cracks follow one tile.
+    // No separate global dark-noise overlay may erase the tile identity.
+    const bio=aging.moisture*(natural?.19:.095);
+    const chipped=aging.erosion*(natural?.075:.043);
+    const crack=aging.crack*(natural?.10:.056);
     const tone=fired+fading+wash+mineral*(natural?.093:.13)+
       tide*(natural?.048:.125)+granule*.038-rim-
-      (!natural?pooled*.050:0);
+      (!natural?pooled*.050:0)-bio*.69-chipped-crack;
     const at=sy*resolution+sx,i=at*3;
     colors[i]=clamp(base[0]+tone,.17,.94);
-    colors[i+1]=clamp(base[1]+tone*.78,.08,.76);
-    colors[i+2]=clamp(base[2]+tone*.60,.05,.65);
+    colors[i+1]=clamp(base[1]+tone*.78+bio*.18,.08,.76);
+    colors[i+2]=clamp(base[2]+tone*.60-bio*.12,.05,.65);
     depths[at]=clamp(.18+rounded*.32*face+
       lip*.12-under*.11+pores*.039+brush*.019-
-      (1-face)*.15,0,1);
+      (1-face)*.15-chipped*.33-crack*.54,0,1);
     rough[at]=clamp((natural?.86:.92)+pores*.060+
-      brush*.032+under*.045+(1-face)*.07,0,1);
+      brush*.032+under*.045+(1-face)*.07+
+      bio*.105+chipped*.05,0,1);
   }
   // Smoothly reconstruct the hand-authored native half-res pigment bake.
   // No retro pixel blocks and no filtering of another generator's output.
