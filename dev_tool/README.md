@@ -141,9 +141,9 @@ storage. No existing maps or Godot files were migrated or modified.
 
 ## Tools
 
-- **Home:** the start page at `/` lists available tools and shows the active map workspace.
+- **Home:** the project launcher lives at `/`; opening a project enters `/studio.html`.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. A searchable Asset Library groups oak/fir models, bark and leaf images by asset family; the preview automatically selects 3D or 2D rendering. Master and component seeds are independent. Project recipes can be saved; exports are not yet implemented.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. A searchable Asset Library groups oak/fir models, bark and leaf images by asset family; the preview automatically selects 3D or 2D rendering. Master and component seeds are independent. Project assets support deterministic builds; supported procedural textures bake to PNG and the fir/building adapters export GLB.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -158,11 +158,14 @@ under `tools/<tool-name>/`:
   existing tests and integrations, but delegates HTTP hosting to the shared
   server. Editor-specific web files remain in `tools/map-editor/web/`.
 - `tools/asset-procgen/web/` owns the asset generators and their preview.
-  The shared server serves both tools from an explicit static route list.
+  Each tool's `web/` directory is exposed automatically at `/tools/<tool-name>/`;
+  no per-module or per-tool static routes are registered.
 
-The shared HTTP host can run without a Map Editor API. Starting the normal
-Dev Tool still initializes the map workspace so all existing editor routes
-and saves remain available.
+The shared HTTP host can run without a Map Editor API. Tool scripts use
+canonical URLs within their owning directory, while project and map APIs are
+mounted separately. The server rejects traversal, private file types and
+symlinks escaping public directories. The standard Dev Tool entrypoint
+initializes the project workspace.
 
 ## Run
 
