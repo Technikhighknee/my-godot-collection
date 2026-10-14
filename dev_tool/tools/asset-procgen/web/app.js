@@ -666,7 +666,8 @@ projectEl('buildProjectAsset').addEventListener('click',()=>
     const entry=projectAssets.get(id);
     const definition=entry.source.generator?
       findGenerator(entry.source.generator.id):null;
-    if(entry.source.generator&&!definition?.headlessBake&&!definition?.modelBake)
+    if(entry.source.generator&&!definition?.headlessBake&&
+      !definition?.headlessCanvasBake&&!definition?.modelBake)
       throw Error('This generator does not have a headless build adapter yet');
     assetStatus('Baking '+entry.source.name+'…');
     const result=await projectApi('/api/projects/active/builds/'+
@@ -674,6 +675,17 @@ projectEl('buildProjectAsset').addEventListener('click',()=>
     const artifact=result.artifacts.at(-1);
     assetStatus('Build complete · '+result.built+' generated · '+
       result.reused+' cached · build/assets/'+id+'/'+artifact.key);
+  }));
+projectEl('exportGodotPackage').addEventListener('click',()=>
+  projectOperation(async()=>{
+    const id=projectEl('savedProjectAssets').value;
+    if(!id||!projectAssets.has(id))
+      throw Error('Select a saved resource to export');
+    assetStatus('Publishing Godot package…');
+    const result=await projectApi('/api/projects/active/exports/godot/'+
+      encodeURIComponent(id),{method:'POST'});
+    assetStatus((result.published?'Godot package ready':'Godot package unchanged')+
+      ' · '+result.manifest.files.length+' files · '+result.directory);
   }));
 projectEl('loadProjectAsset').addEventListener('click',
   ()=>projectOperation(loadSelectedProjectAsset));
