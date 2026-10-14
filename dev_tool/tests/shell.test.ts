@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import {posix} from 'node:path';
 import { loadMap } from '../tools/map-editor/src/io/map-io.ts';
 import { createEditorServer } from '../tools/map-editor/src/server.ts';
 import {createDevToolServer} from '../src/server.ts';
@@ -86,7 +87,9 @@ test('shared Dev Tool host works with no Map Editor API attached',async()=>{
     assert.ok(address&&typeof address!=='string');
     const base='http://127.0.0.1:'+address.port;
     for(const route of ['/','/studio/','/studio.js','/studio.css','/dev-tool.js','/tools/map-editor/',
-      '/tools/asset-procgen/','/tools/asset-procgen/app.js']){
+      '/tools/asset-procgen/','/tools/asset-procgen/app.js',
+      '/tools/asset-procgen/generators.mjs',
+      '/tools/asset-procgen/canonical-model.mjs']){
       const res=await fetch(base+route);
       assert.equal(res.status,200,route);
       assert.equal(res.headers.get('x-content-type-options'),'nosniff');
@@ -100,6 +103,37 @@ test('shared Dev Tool host works with no Map Editor API attached',async()=>{
       server.close(error=>error?reject(error):resolve()));
   }
 });
+// Browser imports fail as a whole if *any* transitive relative module is
+// missing from the server's explicit allowlist. Keep the allowlist restrictive,
+// but verify that every shipped asset-procgen entry can load its dependencies.
+test('every asset-procgen browser module import has an explicitly served route',()=>{
+  const host=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
+  const entries=[...host.matchAll(
+    /^\s*'([^']+)': \['([^']+)', '([^']+)'\],?$/gm)];
+  const routes=new Map(entries.map(([,url,source])=>[url,source]));
+  assert.equal(routes.get('/tools/asset-procgen/canonical-model.mjs'),
+    'tools/asset-procgen/web/canonical-model.mjs');
+  let checked=0;
+  for(const [url,source] of routes){
+    if(!url.startsWith('/tools/asset-procgen/')||
+      !/\.(?:mjs|js)$/.test(url))continue;
+    const code=readFileSync(new URL('../'+source,import.meta.url),'utf8');
+    const imports=[
+      ...code.matchAll(/\bfrom\s*['"](\.[^'"]+)['"]/g),
+      ...code.matchAll(/\bimport\s*['"](\.[^'"]+)['"]/g),
+      ...code.matchAll(/\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g),
+    ];
+    for(const match of imports){
+      const dependency=posix.normalize(posix.join(
+        posix.dirname(url),match[1]!));
+      assert.ok(routes.has(dependency),
+        url+' imports '+match[1]+' but '+dependency+' is not served');
+      checked++;
+    }
+  }
+  assert.ok(checked>15,'Module dependency graph should be inspected');
+});
+
 test('Map Editor API mounts through the shared HTTP host unchanged',async()=>{
   const doc=await loadMap('../map_system/coastal_relief.map.json');
   const server=createDevToolServer(createMapEditorHandler(doc));
