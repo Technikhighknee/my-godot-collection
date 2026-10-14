@@ -61,7 +61,7 @@ function weldSeams(m){
   }
   return m;
 }
-function prepareMaterialContext(material,{structure,pigment,retro}){
+function prepareMaterialContext(material,{structure,pigment,retro,resolution}){
   if(material==='plaster-lime'){
     const count=retro?17:25,strokes=[];
     for(let k=0;k<count;k++){
@@ -80,7 +80,7 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
   if(material==='stone-rubble'){
     // Periodic, approximately level masonry courses. A course is a band of
     // individually sized stones -- not Voronoi cobbles or rectangular bricks.
-    const w=retro?128:512,h=w;
+    const w=resolution??(retro?128:512),h=w;
     const rows=retro?7:6;
     const weights=Array.from({length:rows},(_,r)=>
       .67+hash(r,0,structure^0x321b91ae)*.86);
@@ -228,7 +228,12 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
       (natural?grain*.065+stains*.035:dry*.049+pool*.035))};
 }
 function raster(material,style,seeds,profile){
-  const retro=style==='retro-3d-study',scale=retro?4:1;
+  const retro=style==='retro-3d-study';
+  const alternate=style==='naturalistic-study'||style==='watercolor-study';
+  // Bake the new art directions at 256 px and reconstruct with periodic
+  // bilinear sampling. Studio displays them at 256 px; this keeps a full
+  // 512 px export without running every costly pigment field four times.
+  const scale=retro?4:alternate?2:1;
   const height=material==='timber-oak'&&profile==='beam'?2048:W;
   const width=W;
   const w=width/scale,h=height/scale,m=allocate(w,h);
@@ -236,13 +241,13 @@ function raster(material,style,seeds,profile){
     seeds.layout)>>>0;
   const pigment=(seeds.color??seeds.pigment??seeds.mineral)>>>0;
   const weather=(seeds.wear??seeds.weather??pigment)>>>0;
-  const alternate=style==='naturalistic-study'||style==='watercolor-study';
   // Geometry has its own art-direction grammar/seed stream. A color reseed
   // never changes the outlines or the normal/height fields.
   const form=alternate?structure^(style==='naturalistic-study'?
     0x529ae317:0x81f2a64d):structure;
   const dimensions={w,h,structure:form,pigment,weather,retro,
-    ...prepareMaterialContext(material,{structure:form,pigment,retro})};
+    ...prepareMaterialContext(material,{structure:form,pigment,retro,
+      resolution:w})};
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const p=y*w+x;
     let result;
@@ -265,15 +270,32 @@ function raster(material,style,seeds,profile){
   // border pixels flattened the stone relief into conspicuous pale bands
   // whenever the texture was repeated. Other materials still need welding.
   if(material!=='stone-rubble')weldSeams(m);
-  if(!retro)return m;
-  // Pixel-perfect low-resolution *geometry*. All three maps are generated
-  // at native 128px density before nearest-neighbour enlargement.
+  if(scale===1)return m;
+  // Only Retro uses pixel-perfect nearest-neighbor enlargement. Naturalistic
+  // and Watercolor get periodic bilinear reconstruction, preserving smooth
+  // pigments and tangent-space relief rather than obvious 2x2 pixel blocks.
   const full=allocate(width,height);
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-    const src=Math.floor(y/scale)*w+Math.floor(x/scale),dst=y*width+x;
-    full.albedo.set(m.albedo.subarray(src*3,src*3+3),dst*3);
-    full.heightMap[dst]=m.heightMap[src];
-    full.roughness[dst]=m.roughness[src];
+    const dst=y*width+x;
+    if(retro){
+      const src=Math.floor(y/scale)*w+Math.floor(x/scale);
+      full.albedo.set(m.albedo.subarray(src*3,src*3+3),dst*3);
+      full.heightMap[dst]=m.heightMap[src];
+      full.roughness[dst]=m.roughness[src];
+      continue;
+    }
+    const sx=x/scale,sy=y/scale;
+    const px=Math.floor(sx),py=Math.floor(sy);
+    const tx=smooth(sx-px),ty=smooth(sy-py);
+    const a=py*w+px,b=py*w+wrap(px+1,w);
+    const c=wrap(py+1,h)*w+px,d=wrap(py+1,h)*w+wrap(px+1,w);
+    const blend=(arr,channels,channel=0)=>mix(
+      mix(arr[a*channels+channel],arr[b*channels+channel],tx),
+      mix(arr[c*channels+channel],arr[d*channels+channel],tx),ty);
+    for(let ch=0;ch<3;ch++)
+      full.albedo[dst*3+ch]=blend(m.albedo,3,ch);
+    full.heightMap[dst]=blend(m.heightMap,1);
+    full.roughness[dst]=blend(m.roughness,1);
   }
   return full;
 }
