@@ -204,3 +204,25 @@ test('hand-painted rubble forms horizontal masonry courses, not paving cells',()
   assert.ok(variation(rows)>variation(columns)*1.18,
     'Stone joints must predominantly follow laid horizontal courses');
 });
+
+
+test('retro rubble reads as stone faces rather than a dark grout network',()=>{
+  // The previous native 128px raster consumed about a third of the roof-
+  // foundation preview with deep, wide mortar outlines. Test several
+  // unrelated structure seeds to avoid overfitting one attractive layout.
+  for(const layout of [0,42,71803,1337,88231]){
+    const asset=makeStyledMaterialAsset('stone-rubble',
+      {layout,mineral:30192,weather:58212},'retro-3d-study');
+    const {data}=capture(asset,'albedo');
+    let dark=0,veryLight=0;
+    for(let i=0;i<data.length;i+=4){
+      if(data[i]!<140)dark++;
+      if(data[i]!>165)veryLight++;
+    }
+    const pixels=data.length/4;
+    assert.ok(dark/pixels<.17,
+      'Retro rubble grout must not dominate the image at seed '+layout);
+    assert.ok(veryLight/pixels>.24,
+      'Retro rubble must retain readable illuminated stone faces');
+  }
+});
