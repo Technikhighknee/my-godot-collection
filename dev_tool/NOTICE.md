@@ -12,6 +12,10 @@ original source code or project assets.
 - **Three.js** (runtime browser rendering), copyright © 2010-2026 three.js authors,
   MIT License. Installed through npm; the upstream license is in
   `node_modules/three/LICENSE`.
+- **Skia Canvas** (headless vector asset rasterization), copyright its
+  respective contributors, MIT License. Installed through npm; see
+  `node_modules/skia-canvas/LICENSE` where available and its upstream
+  repository for license and notices.
 - **TypeScript** (dev-only), copyright Microsoft Corporation,
   Apache License 2.0. See `node_modules/typescript/LICENSE.txt`.
 - **@types/node** (dev-only), MIT License. See its package license file.
