@@ -206,22 +206,6 @@ export function createModelViewport(container,onChange=()=>{}){
       disposeSurfaceTextures(previous?.maps);
     }
   }
-  const buildingColors={
-    foundation:0x766b5b,stone:0x9a9282,brick:0x895f4c,
-    plaster:0xd2c6a8,plasterWarm:0xbca88b,
-    plasterOchre:0xbda27b,plasterIvory:0xe1d2b6,
-    timber:0x4a3325,trim:0x74523b,shutter:0x544d36,
-    door:0x68432b,metal:0xb5a17e,
-    glass:0x536c65,innerGlass:0x718a82,
-    interior:0xd8cbb4,interiorPlinth:0xa9977e,
-    innerTrim:0x866a4e,innerTimber:0x62442e,
-    roofUnderlay:0x43342f,roofBase:0x64443b,
-    tile:0x9e5b46,tileWarm:0xbb7857,
-    tileDark:0x73483d,tileMoss:0x71715a,
-    ridge:0x5c453b,chimney:0x2d2520,floor:0x967654,gallery:0x806047,
-    // Existing standalone tree previews retain their own materials.
-    wood:0x4a3325,roofTileA:0x9e5b46,roofTileB:0xbb7857,
-  };
   function buildBuildingGroup(mesh){
     const next=new THREE.Group();
     for(const part of mesh.parts){
@@ -231,7 +215,7 @@ export function createModelViewport(container,onChange=()=>{}){
       if(!surface)throw Error('Building part missing surface declaration');
       const source=surface.slot?currentMaterials.get(surface.slot)?.maps:null;
       const shared=surface.profile?source?.[surface.profile]:source;
-      const base=buildingColors[part.material]??0x978572;
+      const base=surface.baseColor;
       const material=new THREE.MeshStandardMaterial({
         color:shared?(surface.tint??0xffffff):base,
         map:shared?.albedo??buildingTextures.get(part.material,surface.kind),
