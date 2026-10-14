@@ -9,6 +9,7 @@ export const STUDY_MATERIALS:readonly StudyMaterial[];
 export function applyTextureStudyStyle(
   id:StudyMaterial['id'],style:StudyStyle['id'],
   view:'albedo'|'normal'|'roughness',data:Uint8ClampedArray,
+  options?:{width?:number;height?:number;seed?:number},
 ):Uint8ClampedArray;
 export function studySeeds(
   definition:ImageGeneratorDefinition,
