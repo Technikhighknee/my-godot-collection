@@ -18,7 +18,7 @@ interface GlbMaterial {
     metallicRoughnessTexture?:{index:number};
   };
   doubleSided:boolean;
-  normalTexture?:{index:number};
+  normalTexture?:{index:number;scale:number};
   extras?:Record<string,string|number>;
 }
 function materialOf(m:CanonicalMaterial):GlbMaterial{
@@ -120,6 +120,8 @@ export function encodeModelGlb(model:CanonicalModel,
         slot+'/'+profile);
       if(!part.uvs)throw Error('Textured mesh has no UVs: '+part.name);
       const pbr=material.pbrMetallicRoughness;
+      // Match the current shared PBR material factors in the 3D viewport.
+      pbr.roughnessFactor=.96;
       const tint=part.material.tint??0xffffff;
       pbr.baseColorFactor=[
         linear((tint>>>16)&255),linear((tint>>>8)&255),
@@ -129,7 +131,8 @@ export function encodeModelGlb(model:CanonicalModel,
         pbr.metallicRoughnessTexture={
           index:bakedTexture(slot,profile,'roughness',maps.roughness)};
       if(maps.normal)
-        material.normalTexture={index:bakedTexture(slot,profile,'normal',maps.normal)};
+        material.normalTexture={
+          index:bakedTexture(slot,profile,'normal',maps.normal),scale:.62};
     }
     materials.push(material);
     const meshIndex=meshes.length;
