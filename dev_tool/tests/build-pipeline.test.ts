@@ -127,10 +127,9 @@ test('saved material recipes bake original generator maps and reuse valid cache'
     const changed=await lib.buildPlan(['clay']);
     assert.notEqual(changed.nodes[0]?.key,artifact.key,
       'Recoloring invalidates the cached build key');
-    await lib.createAsset('oak', {name:'Oak',generator:'oak',
-      masterSeed:7,components:{geometry:7,foliage:8,leaves:9,
-        barkStructure:10,barkSurface:11,barkColor:12}});
-    await assert.rejects(lib.buildAsset('oak'),/No headless model adapter/);
+    await lib.createAsset('atlas',{name:'Leaf atlas',generator:'oak-atlas',
+      masterSeed:9,components:{leaves:9}});
+    await assert.rejects(lib.buildAsset('atlas'),/No headless bake capability/);
   });
 });
 
