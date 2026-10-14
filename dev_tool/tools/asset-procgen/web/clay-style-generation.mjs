@@ -107,8 +107,11 @@ function paintedMaps(p){
     albedo[i]=clamp(embers[0]+pigment+facet,.16,.92);
     albedo[i+1]=clamp(embers[1]+pigment*.72+facet*.72,.075,.72);
     albedo[i+2]=clamp(embers[2]+pigment*.49+facet*.48,.045,.51);
+    const reliefGrain=periodicNoise(x,y,28,25,p.pattern^0x1b3a7d89)*.045+
+      periodicNoise(x,y,9,10,p.pattern^0xa17c225b)*.064+
+      brush*.018+pock*.009;
     height[at]=.22+rounded*.35*vertical+.050*Math.sin(Math.PI*yy)+
-      surface*.37+courseLip*.16-bottomLip*.045-
+      reliefGrain*.45+courseLip*.16-bottomLip*.045-
       (1-vertical)*.16-(cracked?.07:0);
     roughness[at]=clamp(.84+chalk*.048+pock*.02+patina*.14+
       (1-vertical)*.075+courseLip*.045,.62,.99);
@@ -152,7 +155,8 @@ function retroMaps(p){
       const stone=Math.round(clamp(v,.06,.82)*11)/11;
       pigment[at*3+c]=mix([.23,.195,.16][c],stone,bevel);
     }
-    relief[at]=.16+bevel*(.31+cloud*.06)+grain*.017;
+    const reliefField=periodicNoise(x,y,8,8,p.pattern^0x91a3ce21);
+    relief[at]=.16+bevel*(.31+reliefField*.06)+grain*.017;
     matte[at]=clamp(.90+grain*.05+(1-bevel)*.05,.74,.99);
   }
   const albedo=new Float32Array(SIZE*SIZE*3);
