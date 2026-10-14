@@ -91,7 +91,7 @@ async function produce(node:BuildNode,entry:AssetEntry,
       const profiles:EmbeddedMaterialMaps[string]={};
       for(const file of dependency.files){
         if(file.view!=='albedo'&&file.view!=='normal'&&
-          file.view!=='roughness')continue;
+          file.view!=='roughness'&&file.view!=='ao')continue;
         const profile=file.profile??'default';
         const images=profiles[profile]??(profiles[profile]={});
         images[file.view]=await regular(join(buildRoot,dependency.id,
@@ -123,7 +123,7 @@ async function produce(node:BuildNode,entry:AssetEntry,
             const resultViews:NonNullable<EmbeddedMaterialMaps[string][string]>={};
             for(const [view,raw] of Object.entries(views)){
               if(!raw)continue;
-              resultViews[view as 'albedo'|'normal'|'roughness']=
+              resultViews[view as 'albedo'|'normal'|'roughness'|'ao']=
                 encodeRgbaPng(raw.width,raw.height,raw.rgba);
             }
             baked[profile]=resultViews;
