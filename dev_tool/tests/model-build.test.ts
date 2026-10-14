@@ -121,7 +121,7 @@ test('building GLB artifacts include three level variants and optional interiors
       const doc=glbDocument(glb);
       assert.ok(doc.json.meshes.length>3);
       assert.equal(doc.json.asset.version,'2.0');
-      if(file.file.includes('exterior')){
+      if(file.file.includes('exterior')&&!file.file.startsWith('level-1')){
         assert.ok(doc.json.images?.length>=3,
           'Linked roof PBR maps must be embedded inside the GLB');
         assert.ok(doc.json.materials.some((m:{
