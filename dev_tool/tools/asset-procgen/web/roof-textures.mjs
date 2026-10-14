@@ -249,10 +249,14 @@ export function paintRoofTexture(canvas,kind,seeds,view='albedo',style='current'
       const base=[material.albedo[p*3],material.albedo[p*3+1],material.albedo[p*3+2]];
       for(let j=0;j<3;j++)data.data[i+j]=Math.round(clamp(base[j]*255));
     }else if(view==='normal'){
-      const dx=(material.height[y*SIZE+wrap(x+1,SIZE)]-
-        material.height[y*SIZE+wrap(x-1,SIZE)])*1.8;
-      const dy=(material.height[wrap(y+1,SIZE)*SIZE+x]-
-        material.height[wrap(y-1,SIZE)*SIZE+x])*1.8;
+      // Retro shapes are rasterized at 128 px and nearest-neighbor scaled
+      // to 512 px; derive normals between adjacent source texels to avoid
+      // spurious one-pixel bevels on the 4x4 blocks.
+      const delta=style==='retro-3d-study'?4:1;
+      const dx=(material.height[y*SIZE+wrap(x+delta,SIZE)]-
+        material.height[y*SIZE+wrap(x-delta,SIZE)])*1.8;
+      const dy=(material.height[wrap(y+delta,SIZE)*SIZE+x]-
+        material.height[wrap(y-delta,SIZE)*SIZE+x])*1.8;
       const length=Math.hypot(dx,dy,1);
       data.data[i]=Math.round((1-dx/length)*127.5);
       data.data[i+1]=Math.round((1-dy/length)*127.5);
