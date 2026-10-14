@@ -51,7 +51,8 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         // The project ID is part of the resource identity. A stale editor
         // must never accidentally write its recipe into another active project.
         if((path.startsWith('/api/projects/active/assets')||
-          path.startsWith('/api/projects/active/imports'))&&
+          path.startsWith('/api/projects/active/imports')||
+          path.startsWith('/api/projects/active/builds'))&&
           req.headers['x-project-id']!==library.active()?.id){
           return send(res,409,{error:'Active project changed; reopen this asset'});
         }
@@ -108,6 +109,14 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
           return send(res,200,await library.updateAsset(match[1],input,revision));
         }
       }
+      if(path==='/api/projects/active/build-plan'&&req.method==='GET'){
+        const query=new URL(req.url??'/', 'http://127.0.0.1').searchParams;
+        const id=query.get('asset');
+        return send(res,200,await library.buildPlan(id?[id]:undefined));
+      }
+      const buildMatch=/^\/api\/projects\/active\/builds\/([a-z0-9_-]+)$/.exec(path);
+      if(buildMatch&&req.method==='POST')
+        return send(res,200,await library.buildAsset(buildMatch[1]));
       if(path==='/api/projects/active/graph'&&req.method==='GET')
         return send(res,200,await library.graph());
       if(path.startsWith('/api/projects')){
