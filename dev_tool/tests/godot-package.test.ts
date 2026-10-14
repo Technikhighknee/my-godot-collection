@@ -294,13 +294,19 @@ test('Godot sync rejects wrong targets, unowned files and redirected folders',as
     // A separate project using the same logical ID is namespaced by project.
     await rm(foreign,{recursive:true});
     await lib.syncGodot('icon',game);
-    const linked=join(game,'other-root');await mkdir(linked);
-    await writeFile(join(linked,'foreign.txt'),'untouched');
-    const other=join(game,'assets','1400','other');
-    await symlink(linked,other,'junction');
-    await assert.rejects(lib.syncGodot('icon',join(root,'other-game')),
-      /ENOENT|Godot target/);
-    assert.equal(await readFile(join(linked,'foreign.txt'),'utf8'),'untouched');
+    // A symlink inside the managed output must never redirect updates.
+    // Windows symlink creation can require Developer Mode, so this
+    // filesystem-specific assertion runs on POSIX hosts.
+    if(process.platform!=='win32'){
+      const linked=join(game,'other-root');await mkdir(linked);
+      await writeFile(join(linked,'foreign.txt'),'untouched');
+      const managed=join(game,'assets','1400','world','icon');
+      await rm(managed,{recursive:true});
+      await symlink(linked,managed,'dir');
+      await assert.rejects(lib.syncGodot('icon',game),
+        /not a regular directory|redirected/);
+      assert.equal(await readFile(join(linked,'foreign.txt'),'utf8'),'untouched');
+    }
   });
 });
 
