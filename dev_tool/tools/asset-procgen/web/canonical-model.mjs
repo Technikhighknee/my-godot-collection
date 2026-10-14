@@ -39,7 +39,9 @@ function geometry(name,input,material,groups){
     for(const group of groups){
       if(!Number.isInteger(group.start)||!Number.isInteger(group.count)||
         group.start!==end||group.count<=0||group.count%3!==0||
-        group.materialIndex<0||group.materialIndex>=groups.length)
+        !Number.isInteger(group.materialIndex)||group.materialIndex<0||
+        group.materialIndex>=3||
+        !group.material||!Number.isInteger(group.material.baseColor))
         throw Error('Invalid canonical geometry groups: '+name);
       end+=group.count;
     }
@@ -50,6 +52,27 @@ function geometry(name,input,material,groups){
     ...(input.uvs?{uvs:input.uvs}:{}),
     ...(input.colors?{colors:input.colors}:{}),
     material, bounds:{min,max},...(groups?{groups}: {})};
+}
+// Bark rendering duplicates UV seam vertices, never the original growth
+// topology. Preserve the render mesh and its author-assigned maturity groups.
+export function canonicalOakWoodModel(asset){
+  if(asset?.id!=='oak'||!asset.barkWood||!asset.barkSeeds||
+    !asset.foliage||!asset.barkWood.groups?.length)
+    throw Error('Expected complete UV-mapped oak wood and foliage source');
+  const groups=asset.barkWood.groups.map(part=>({
+    start:part.start,count:part.count,
+    materialIndex:part.materialIndex,
+    material:{
+      name:'oak-bark-'+part.profile,
+      baseColor:0xffffff,roughness:1,doubleSided:false,
+      slot:'oakBark',profile:part.profile,
+    },
+  }));
+  return {format:'devtool-canonical-model',version:1,
+    meshes:[geometry('oak-wood',asset.barkWood,{
+      name:'oak-bark',baseColor:0xffffff,roughness:1,
+      doubleSided:false,
+    },groups)]};
 }
 export function canonicalTreeModel(asset){
   if(asset.kind!=='model'||!asset.wood||asset.foliage)
