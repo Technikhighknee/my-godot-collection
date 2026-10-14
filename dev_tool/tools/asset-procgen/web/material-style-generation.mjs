@@ -100,141 +100,206 @@ function raster(material,style,seeds,profile){
   return full;
 }
 function thatch(x,y,{w,h,structure,pigment,retro}){
-  // Coarse overlapping sheaves are part of the actual height geometry;
-  // periodic longitudinal fibers sit inside each sheaf, not confetti dots.
-  const bundles=retro?13:23,courses=retro?8:11;
+  // A thatched roof reads as dense, dangling straw. Avoid rectangular
+  // bundles: each fiber belongs to an irregular overlapping course, with a
+  // staggered and frayed lower edge instead of an artificial tile boundary.
   const u=x/w,v=y/h;
-  const drift=noise(x,y,w,h,5,4,structure^0x73fd56a8)*.39;
-  const px=u*bundles+drift,py=v*courses;
-  const row=Math.floor(py),phase=py-row;
-  const shift=(row&1)*.47;
-  const col=Math.floor(px+shift),within=px+shift-col;
-  const id=hash(wrap(col,bundles),wrap(row,courses),structure^0xa37125ab);
-  const split=Math.min(within,1-within);
-  const edge=.025+(id-.5)*.025;
-  const bundle=smooth((split-edge)/.13);
-  const overlap=smooth((phase-.04)/.12)*(1-smooth((phase-.72)/.25));
-  const fibers=retro?Math.sin(2*Math.PI*within*5):
-    Math.sin(2*Math.PI*(within*9+drift*.9));
-  const fibril=noise(x,y,w,h,retro?26:99,retro?17:37,
-    structure^0xb91ca53d);
-  const roughStraw=retro?Math.round(fibril*6)/6:fibril;
-  const shaft=Math.pow(Math.max(0,fibers),retro?2:3)*bundle;
-  const ridge=bundle*(.20+overlap*.14+shaft*.13)+roughStraw*.043;
-  const strawTone=hash(wrap(col,bundles),wrap(row,courses),
-    pigment^0x9b153c48)-.5;
-  const wash=noise(x,y,w,h,7,9,pigment^0x83ce251f);
-  const tone=strawTone*.16+wash*.11+shaft*.090-
-    (1-bundle)*.072+(overlap-.5)*.025;
-  const base=retro?[.64,.51,.275]:[.72,.56,.30];
-  return {rgb:[base[0]+tone,base[1]+tone*.80,base[2]+tone*.56],
-    z:.20+ridge,rough:clamp(.89+roughStraw*.056+(1-bundle)*.048)};
+  const courses=retro?6:8,strands=retro?67:117;
+  const sweep=noise(x,y,w,h,6,5,structure^0x73fd56a8)*.16;
+  const fiberPos=u*strands+sweep*2.2;
+  const fiber=Math.floor(fiberPos);
+  const f=wrap(fiberPos,1)-.5;
+  const fiberOffset=hash(wrap(fiber,strands),0,structure^0x91ac728b)-.5;
+  const rowPos=v*courses+fiberOffset*.27+
+    noise(x,y,w,h,7,6,structure^0x213b79fa)*.29;
+  const row=Math.floor(rowPos),down=wrap(rowPos,1);
+  const rowId=wrap(row,courses),strandId=wrap(fiber,strands);
+  const fork=hash(strandId,rowId,structure^0x8a3f711d);
+  const tip=clamp(.79+(fork-.5)*.36,.60,.98);
+  // Tip silhouettes feather into the next layer; narrow longitudinal
+  // shafts continue across the entire exposure instead of looking tiled.
+  const fray=smooth((tip-down)/.18);
+  const falloff=smooth((down-.02)/.19);
+  const brightness=hash(strandId,rowId,pigment^0xf3928a13)-.5;
+  const shafts=Math.pow(Math.max(0,1-Math.abs(f)*2),retro?2:3);
+  const splits=noise(x,y,w,h,retro?31:80,retro?17:26,
+    structure^0x2f87a55b);
+  const warp=noise(x,y,w,h,19,7,structure^0x64b2c8d1);
+  const darkFiber=Math.exp(-Math.pow(f/(retro?.18:.14),2));
+  const organic=shafts*.052*(.65+.35*falloff)-
+    darkFiber*.043+splits*.038+warp*.033;
+  const strata=(fray*.07-(1-fray)*.025)*falloff;
+  const relief=.32+organic*.72+shafts*.045+
+    fray*.047+falloff*.018;
+  const mineral=noise(x,y,w,h,8,7,pigment^0x473aa510);
+  const reedColor=retro?[.625,.515,.302]:[.694,.573,.338];
+  const tint=brightness*.18+mineral*.10+organic*.65+strata;
+  return {rgb:[reedColor[0]+tint,
+      reedColor[1]+tint*.84,reedColor[2]+tint*.63],
+    z:relief,rough:clamp(.92+splits*.053+(1-fray)*.043)};
 }
+
 function wood(x,y,{w,h,structure,pigment,retro},profile){
+  // Longitudinal grain follows stretched, domain-warped noise rather than
+  // uniformly spaced sine waves. Knots are sparse local disturbances, not
+  // a repeated full-surface contour-line effect.
   const u=x/w,v=y/h;
-  const large=noise(x,y,w,h,5,profile==='beam'?14:5,
-    structure^0x9a4d83b1);
-  const warp=noise(x,y,w,h,8,profile==='beam'?9:6,
-    structure^0xb836dce1);
-  const growth=retro?18:36;
-  let band,knot=0,ring=0;
-  if(profile==='end'){
-    // End grain needs radial annual rings, not longitudinal fibers.
-    const nx=wrap(u-.44,1);const xx=Math.min(nx,1-nx);
-    const ny=wrap(v-.48,1);const yy=Math.min(ny,1-ny);
-    const radius=Math.hypot(xx,yy)*2;
-    ring=Math.sin((radius+warp*.07)*Math.PI*growth);
-    band=ring*.13+large*.042;
-    knot=Math.exp(-radius*radius*45)*.14;
-  }else{
-    // Streaks run along the beam, with seeded knot interruptions.
-    const bend=warp*.041+large*.013;
-    ring=Math.sin((u+bend)*Math.PI*2*growth);
-    const secondary=Math.sin((u+bend*.53)*Math.PI*2*(growth*.45));
-    band=ring*(retro?.052:.046)+secondary*.023;
-    const centers=retro?3:5;
-    for(let k=0;k<centers;k++){
-      const cx=hash(k,1,structure^0x32f581ac);
-      const cy=hash(k,2,structure^0x6d25cb31);
-      const dx=Math.min(Math.abs(u-cx),1-Math.abs(u-cx));
-      const dy=Math.min(Math.abs(v-cy),1-Math.abs(v-cy));
-      const a=dx/(retro?.085:.07),b=dy/(retro?.12:.085);
-      const r=Math.hypot(a,b);
-      const eye=Math.exp(-r*r*3);
-      const halo=Math.exp(-Math.pow((r-1.08)/.35,2));
-      knot+=eye*.135+halo*.041;
-    }
+  const len=profile==='beam'?19:5;
+  const low=noise(x,y,w,h,5,len,structure^0x9a4d83b1);
+  const bend=noise(x,y,w,h,9,len+2,structure^0xb836dce1);
+  const knots=profile==='end'?0:(retro?3:4);
+  let knotBody=0,knotRing=0,displace=0;
+  if(profile!=='end')for(let k=0;k<knots;k++){
+    const cx=hash(k,1,structure^0x32f581ac);
+    const cy=hash(k,2,structure^0x6d25cb31);
+    const dx=Math.min(Math.abs(u-cx),1-Math.abs(u-cx));
+    const dy=Math.min(Math.abs(v-cy),1-Math.abs(v-cy));
+    const distance=Math.hypot(dx/(retro?.045:.035),
+      dy/(retro?.080:.055));
+    const eye=Math.exp(-distance*distance*1.6);
+    const halo=Math.exp(-Math.pow((distance-1.24)/.42,2));
+    knotBody+=eye;
+    knotRing+=halo;
+    displace+=(u-cx)*Math.exp(-distance*distance*.9)*.30;
   }
-  const cut=retro?Math.round(band*24)/24:band;
-  const pigmentWash=noise(x,y,w,h,9,7,pigment^0xd73431ef);
-  const mineral=hash(3,9,pigment^0xa831db2a)-.5;
-  const tone=cut+pigmentWash*.053+mineral*.052-knot;
-  const base=retro?[.48,.305,.18]:[.50,.315,.172];
-  const surface=.36+ring*.055+large*.047+warp*.029-knot*.56;
-  return {rgb:[base[0]+tone,base[1]+tone*.80,base[2]+tone*.56],
-    z:surface,rough:clamp(.85+large*.09+knot*.17)};
+  let grain,relief;
+  if(profile==='end'){
+    const dx=Math.min(Math.abs(u-.48),1-Math.abs(u-.48));
+    const dy=Math.min(Math.abs(v-.51),1-Math.abs(v-.51));
+    const radius=Math.hypot(dx,dy)*2;
+    const warped=radius+(low+bend*.5)*.034;
+    grain=Math.sin(warped*Math.PI*(retro?26:44))*.054+
+      noise(x,y,w,h,retro?29:73,retro?29:73,
+        structure^0x74ac7de1)*.062;
+    relief=.36+grain*.35+low*.055;
+  }else{
+    // Anisotropic multi-octave fiber fields make irregular interrupted
+    // growth bands. The narrow dark cracks only appear locally.
+    const offset=(bend*.022+low*.014+displace)*w;
+    const g1=noise(x+offset,y,w,h,retro?33:65,len+2,
+      structure^0xd291c4e3);
+    const g2=noise(x+offset*.7,y,w,h,retro?65:121,len+7,
+      structure^0x87a294cd);
+    const g3=noise(x+offset*.31,y,w,h,retro?17:31,len+1,
+      structure^0xe87bd241);
+    const dry=noise(x,y,w,h,retro?27:53,len+4,
+      structure^0x3249b7a6);
+    const crack=Math.max(0,-g2-.23)*
+      Math.max(0,.14+g3+dry*.4);
+    grain=g1*.14+g2*.085+g3*.078+low*.07-
+      crack*.24-knotBody*.23-knotRing*.065;
+    relief=.38+g1*.066+g2*.029+g3*.038+low*.035-
+      knotBody*.16-knotRing*.045;
+  }
+  const aged=noise(x,y,w,h,9,len+2,pigment^0xd73431ef);
+  const heart=hash(3,9,pigment^0xa831db2a)-.5;
+  const tone=grain+aged*.07+heart*.057;
+  const base=retro?[.50,.339,.218]:[.525,.358,.226];
+  return {rgb:[base[0]+tone,base[1]+tone*.80,
+      base[2]+tone*.59],
+    z:relief,rough:clamp(.85+low*.066+knotBody*.13)};
 }
+
 function plaster(x,y,{w,h,structure,pigment,weather,retro}){
-  const base=noise(x,y,w,h,retro?6:13,retro?6:11,
-    structure^0xe238b319);
-  const coarse=noise(x,y,w,h,5,6,structure^0x94b71f52);
-  const small=noise(x,y,w,h,retro?17:53,retro?17:47,
+  // Broad, overlapping hand-applied lime-plaster strokes. Brush/trowel
+  // geometry is authored by the structure seed, NOT by the tint seed.
+  // Distinct raised feathered boundaries replace quantized cloudy blobs.
+  const u=x/w,v=y/h;
+  const strokes=retro?13:19;
+  let raised=0,edgeLip=0,strokeTone=0;
+  for(let k=0;k<strokes;k++){
+    const cx=hash(k,0,structure^0x519ca2e4);
+    const cy=hash(k,1,structure^0x38d7ab52);
+    const angle=(hash(k,2,structure^0x9471a3bc)-.5)*1.25;
+    const length=.13+hash(k,3,structure^0x18af739c)*.19;
+    const width=.025+hash(k,4,structure^0x7a5913fe)*.045;
+    const dx=wrap(u-cx+.5,1)-.5,dy=wrap(v-cy+.5,1)-.5;
+    const ca=Math.cos(angle),sa=Math.sin(angle);
+    const along=dx*ca+dy*sa,across=-dx*sa+dy*ca;
+    const curve=Math.sin((along/length)*Math.PI*.65)*
+      width*.11;
+    const ellipse=Math.hypot(along/length,(across-curve)/width);
+    const cover=1-smooth((ellipse-(retro?.68:.73))/
+      (retro?.22:.24));
+    const rim=smooth((ellipse-.73)/.09)*
+      (1-smooth((ellipse-.99)/.06))*cover;
+    const weight=(hash(k,7,structure^0x6f37b4c9)-.5);
+    raised+=cover*(.024+weight*.026);
+    edgeLip+=rim*(.012+Math.abs(weight)*.01);
+    strokeTone+=cover*weight*.013;
+  }
+  const fine=noise(x,y,w,h,retro?23:79,retro?25:83,
     structure^0x563e11a8);
+  const plasterGrain=noise(x,y,w,h,retro?19:47,retro?17:49,
+    structure^0x94b71f52);
+  const patch=noise(x,y,w,h,8,7,structure^0x52ba8e17);
   const wash=noise(x,y,w,h,8,8,pigment^0x94e13d2f);
   const wear=noise(x,y,w,h,11,13,weather^0x2f83cdea);
-  // Painted plaster uses overlapping broad swept trowel swaths.
-  // Retro plaster instead uses irregular chipped lime patches.
-  const direction=noise(x+Math.sin(y/h*2*Math.PI)*w*.06,y,
-    w,h,retro?7:18,retro?9:13,structure^0x7e13ac94);
-  const swath=retro?Math.round((base*.72+direction*.45+coarse*.28)*5)/5:
-    Math.round((base*.62+direction*.50+small*.15)*7)/7;
-  const lip=retro?Math.abs(swath)*.044:
-    (base-swath)*.055;
-  const stain=Math.max(0,wear+coarse*.6-.15);
-  const tone=swath*(retro?.21:.18)+wash*.052-
-    stain*.082+small*(retro?.03:.029);
-  return {rgb:retro?
-      [.83+tone,.74+tone*.89,.59+tone*.71]:
-      [.88+tone,.82+tone*.91,.69+tone*.75],
-    z:.46+swath*(retro?.10:.095)+lip+coarse*.033+
-      small*.023,
-    rough:clamp(.89+small*.065+stain*.072)};
+  const grime=Math.max(0,wear+patch*.37-.18);
+  const tone=wash*.052+patch*.035+strokeTone-
+    grime*.087+plasterGrain*.020;
+  const base=retro?[.84,.765,.641]:[.9,.842,.722];
+  return {rgb:[base[0]+tone,base[1]+tone*.91,
+      base[2]+tone*.75],
+    z:.435+raised+edgeLip+fine*.023+plasterGrain*.035,
+    rough:clamp(.88+fine*.04+grime*.095)};
 }
+
 function stone(x,y,{w,h,structure,pigment,weather,retro}){
-  const rows=retro?8:6,cols=retro?8:6;
-  const u=x/w,v=y/h;
-  const ry=v*rows,row=Math.floor(ry),fy=ry-row;
-  const stagger=(row&1)*(retro?.5:.38);
-  const uneven=retro?0:
-    noise(x,y,w,h,12,9,structure^0x9e4273b1)*.34;
-  const sx=u*cols+stagger+uneven;
-  const col=Math.floor(sx),fx=sx-col;
-  const shape=hash(wrap(col,cols),wrap(row,rows),
-    structure^0x31b75ea2);
-  const warp=retro?0:
-    noise(x,y,w,h,19,22,structure^0x4a21bf8e)*.075;
-  const bevelDist=Math.min(fx,1-fx,fy,1-fy)+warp;
-  const grout=retro?.035:.031;
-  const face=smooth((bevelDist-grout)/(retro?.105:.105));
-  const plateau=smooth((bevelDist-grout)/(retro?.19:.21));
-  const grain=noise(x,y,w,h,retro?26:51,retro?27:49,
+  // Weighted, periodic Voronoi stones. Irregular cell positions and sizes
+  // replace aligned brick courses; the gap is the boundary between two
+  // competing stone sites. Shape and color use independent seeds.
+  const cols=retro?9:7,rows=retro?9:7;
+  const bendX=retro?0:noise(x,y,w,h,12,10,
+    structure^0x9e4273b1)*.15;
+  const bendY=retro?0:noise(x,y,w,h,11,13,
+    structure^0x6d21ac53)*.15;
+  const u=x/w*cols+bendX,v=y/h*rows+bendY;
+  const gx=Math.floor(u),gy=Math.floor(v);
+  let first=1e9,second=1e9,chosenX=0,chosenY=0;
+  let chosenVariation=0;
+  for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
+    const cx=gx+i,cy=gy+j,ix=wrap(cx,cols),iy=wrap(cy,rows);
+    const jitterX=(hash(ix,iy,structure^0xa137bd21)-.5)*
+      (retro?.70:.91);
+    const jitterY=(hash(ix,iy,structure^0x7f1829ad)-.5)*
+      (retro?.72:.92);
+    const dx=u-(cx+.5+jitterX),dy=v-(cy+.5+jitterY);
+    const widthFactor=.74+hash(ix,iy,structure^0x23b91ced)*.52;
+    const areaFactor=.75+hash(ix,iy,structure^0x91d782ad)*.43;
+    const dist=(dx*dx*widthFactor+dy*dy*areaFactor)-
+      (hash(ix,iy,structure^0x41c529e3)-.5)*.25;
+    if(dist<first){
+      second=first;first=dist;chosenX=ix;chosenY=iy;
+      chosenVariation=hash(ix,iy,structure^0x48da51b1);
+    }else if(dist<second)second=dist;
+  }
+  // Face is a polygon-ish chipped cobble, with a broad chamfer and muted
+  // mortar. Retro still samples this stone geometry at coarse texel density.
+  const edge=second-first;
+  const face=smooth((edge-(retro?.045:.025))/(retro?.27:.32));
+  const crown=smooth((edge-.02)/.65);
+  const grain=noise(x,y,w,h,retro?25:61,retro?29:57,
     structure^0x8d2e17f4);
+  const crack=noise(x,y,w,h,retro?16:42,retro?22:43,
+    structure^0xc8517e2b);
   const mineral=noise(x,y,w,h,11,12,pigment^0xe7c4591a);
   const age=noise(x,y,w,h,13,14,weather^0x291fe71c);
-  const colorVar=(hash(wrap(col,cols),wrap(row,rows),
-    pigment^0xa96d325c)-.5)*(retro?.18:.14);
-  const warmth=retro?[.56,.52,.44]:[.67,.63,.55];
-  const mortar=retro?[.31,.30,.28]:[.48,.455,.415];
-  const stoneTone=colorVar+mineral*.07+grain*(retro?.03:.055)-
-    Math.max(0,age)*.06;
-  const rgb=warmth.map((v,c)=>mix(mortar[c],
-    v+stoneTone*[1,.86,.70][c],face));
-  return {rgb,z:.16+plateau*(.30+shape*.06)+grain*.022*face,
-    rough:clamp(mix(.95,.85+grain*.06+Math.max(0,age)*.08,face))};
+  const varColor=(hash(chosenX,chosenY,pigment^0xa96d325c)-.5)*
+    (retro?.20:.21);
+  const base=retro?[.588,.552,.477]:[.675,.641,.56];
+  const mortar=retro?[.42,.40,.367]:[.48,.455,.415];
+  const weathered=varColor+mineral*.064+grain*.045-
+    Math.max(0,age)*.11;
+  const splinter=Math.max(0,-crack-.29)*face;
+  const rgb=base.map((v,c)=>mix(mortar[c],
+    v+weathered*[1,.88,.68][c]-splinter*.08,face));
+  return {rgb,z:.20+crown*(.27+chosenVariation*.10)+
+      grain*.025*face-splinter*.07,
+    rough:clamp(mix(.96,.84+grain*.065+
+      Math.max(0,age)*.08,face))};
 }
-// Normal maps are derived from periodic height samples, but a discrete
-// 512-pixel seam can still show a derivative mismatch. Average a few tangent
-// normal texels across opposite borders at the same raster granularity.
+
 function weldNormalEdges(d,width,height,step){
   const levels=step===4?4:12;
   const blendBlocks=(a,b,weight,stride)=>{
