@@ -65,7 +65,7 @@ function paintedAlbedo(id,x,y,source,styleSeed,width,height){
       detail=[1.06,1.0,.65];break;
     }
     case 'roof-clay':{
-      palette=[163,91,64];contrast=1.52;opacity=.33;
+      palette=[166,112,92];contrast=1.36;opacity=.30;
       const kiln=field(x,y,width,height,11,10,styleSeed^0x32e1b179);
       const oxidized=field(x,y,width,height,17,25,styleSeed^0x8e439d2b);
       const chipped=field(x,y,width,height,75,66,styleSeed^0x90bc8a11);
@@ -124,7 +124,7 @@ function paintedAlbedo(id,x,y,source,styleSeed,width,height){
 const MATERIAL_ART=Object.freeze({
   'roof-thatch':{natural:[139,128,93],fantasy:[214,165,65],
     retro:[156,138,84],wash:[194,170,111],grain:1.14},
-  'roof-clay':{natural:[147,91,73],fantasy:[211,89,50],
+  'roof-clay':{natural:[147,91,73],fantasy:[221,126,113],
     retro:[169,92,66],wash:[204,133,112],grain:1.18},
   'timber-oak':{natural:[108,86,68],fantasy:[172,97,44],
     retro:[118,82,56],wash:[163,115,83],grain:1.3},
