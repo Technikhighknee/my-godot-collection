@@ -226,3 +226,45 @@ test('retro rubble reads as stone faces rather than a dark grout network',()=>{
       'Retro rubble must retain readable illuminated stone faces');
   }
 });
+
+
+test('rubble tiles without perceptual border bands in 2x2 repetition',()=>{
+  // A previous seam weld made opposite border texels *identical*. It
+  // passed ordinary seam tests, but created a uniform blurred stripe at
+  // every 2x2 join. Compare boundary energy to regular image-neighbor
+  // energy: neither a hard discontinuity nor a flattened stripe is valid.
+  const boundaryEnergy=(data:Uint8ClampedArray)=>{
+    let wrapX=0,wrapY=0,neighborX=0,neighborY=0;
+    const width=512,height=512;
+    for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+      const pixel=data[(y*width+x)*4]!;
+      if(x===0)
+        wrapX+=Math.abs(pixel-data[(y*width+width-1)*4]!);
+      else
+        neighborX+=Math.abs(pixel-data[(y*width+x-1)*4]!);
+      if(y===0)
+        wrapY+=Math.abs(pixel-data[((height-1)*width+x)*4]!);
+      else
+        neighborY+=Math.abs(pixel-data[((y-1)*width+x)*4]!);
+    }
+    return [
+      (wrapX/height)/(neighborX/(height*(width-1))),
+      (wrapY/width)/(neighborY/(width*(height-1))),
+    ];
+  };
+  for(const layout of [0,42,71803,88231]){
+    for(const style of MATERIAL_STUDY_STYLES){
+      const asset=makeStyledMaterialAsset('stone-rubble',
+        {layout,mineral:30192,weather:58212},style);
+      for(const view of ['albedo','normal','roughness'] as const){
+        const {data}=capture(asset,view);
+        for(const energy of boundaryEnergy(data)){
+          assert.ok(energy>.08,
+            'Do not mirror-weld '+view+' borders into a visible flat band');
+          assert.ok(energy<2.2,
+            '2x2 tiling must not introduce a hard '+view+' seam');
+        }
+      }
+    }
+  }
+});
