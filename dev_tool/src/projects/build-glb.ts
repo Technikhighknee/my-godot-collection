@@ -18,6 +18,7 @@ interface GlbMaterial {
     metallicRoughnessTexture?:{index:number};
   };
   doubleSided:boolean;
+  alphaMode?:'MASK';alphaCutoff?:number;
   normalTexture?:{index:number;scale:number};
   occlusionTexture?:{index:number;strength:number};
   extras?:Record<string,string|number>;
@@ -32,6 +33,8 @@ function materialOf(m:CanonicalMaterial):GlbMaterial{
       metallicFactor:0,roughnessFactor:m.roughness,
     },
     doubleSided:m.doubleSided,
+    ...(m.alphaMode?{alphaMode:m.alphaMode,
+      alphaCutoff:m.alphaCutoff??.5}:{}),
     ...(m.slot||m.profile||m.tint!==undefined?{extras:{
       ...(m.slot?{resourceSlot:m.slot}:{}),
       ...(m.profile?{profile:m.profile}:{}),
@@ -56,8 +59,9 @@ export function encodeModelGlb(model:CanonicalModel,
   const samplers=[{wrapS:10497,wrapT:10497,magFilter:9729,minFilter:9987},
     {wrapS:33071,wrapT:33071,magFilter:9729,minFilter:9987}];
   const imageCache=new Map<string,number>();
-  function bakedTexture(slot:string,profile:string,view:string,bytes:Uint8Array){
-    const key=slot+'|'+profile+'|'+view;
+  function bakedTexture(slot:string,profile:string,view:string,
+    bytes:Uint8Array,wrap:'clamp'|'repeat'='repeat'){
+    const key=slot+'|'+profile+'|'+view+'|'+wrap;
     const known=imageCache.get(key);
     if(known!==undefined)return known;
     if(bytes.length<24||!bytes.slice(0,8).every((n,i)=>
@@ -70,7 +74,7 @@ export function encodeModelGlb(model:CanonicalModel,
     const imageIndex=images.length;
     images.push({name:key,mimeType:'image/png',bufferView:index});
     const textureIndex=textures.length;
-    textures.push({source:imageIndex,sampler:profile==='end'?1:0});
+    textures.push({source:imageIndex,sampler:wrap==='clamp'?1:0});
     imageCache.set(key,textureIndex);
     return textureIndex;
   }
@@ -154,17 +158,21 @@ export function encodeModelGlb(model:CanonicalModel,
         pbr.baseColorFactor=[
           linear((tint>>>16)&255),linear((tint>>>8)&255),
           linear(tint&255),1];
-        pbr.baseColorTexture={index:bakedTexture(slot,profile,'albedo',maps.albedo)};
+        pbr.baseColorTexture={index:bakedTexture(slot,profile,'albedo',maps.albedo,
+          bucket.material.textureWrap??'repeat')};
         if(maps.roughness)
           pbr.metallicRoughnessTexture={
-            index:bakedTexture(slot,profile,'roughness',maps.roughness)};
+            index:bakedTexture(slot,profile,'roughness',maps.roughness,
+          bucket.material.textureWrap??'repeat')};
         if(maps.normal)
           material.normalTexture={
-            index:bakedTexture(slot,profile,'normal',maps.normal),
+            index:bakedTexture(slot,profile,'normal',maps.normal,
+          bucket.material.textureWrap??'repeat'),
             scale:bucket.material.normalScale??.62};
         if(maps.ao)
           material.occlusionTexture={
-            index:bakedTexture(slot,profile,'ao',maps.ao),
+            index:bakedTexture(slot,profile,'ao',maps.ao,
+          bucket.material.textureWrap??'repeat'),
             strength:bucket.material.occlusionStrength??1};
       }
       materials.push(material);
