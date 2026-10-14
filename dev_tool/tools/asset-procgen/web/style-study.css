@@ -9,6 +9,8 @@
 .study-page button:hover{background:#304440;border-color:#a78e6d}
 .study-page button.quiet{background:transparent;color:#afc3b8}
 .study-page :is(button,select,a,input):focus-visible{outline:2px solid #e0bd88;outline-offset:3px}
+html.studio-embedded .study-header{display:none}
+html.studio-embedded .study-main{padding-top:24px}
 .study-header{height:68px;padding:0 clamp(15px,3.5vw,58px);background:#152326;border-bottom:1px solid #344643;display:flex;align-items:center;gap:18px}
 .study-return{font-size:12px;font-weight:650}
 .study-header-rule{color:#536763;font-size:20px}
