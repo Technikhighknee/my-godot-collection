@@ -75,6 +75,21 @@ export function canonicalOakWoodModel(asset){
       doubleSided:false,
     },groups)]};
 }
+// A complete oak is composed from the exact existing render meshes.
+// The leaf cards retain their vertex colors and shared atlas UVs.
+export function canonicalOakModel(asset){
+  if(!asset?.foliage||!asset?.barkWood||!asset?.barkSeeds||
+    !Number.isInteger(asset.atlasSeed))
+    throw Error('Complete oak output requires foliage, bark and atlas seeds');
+  const wood=canonicalOakWoodModel(asset);
+  const leaves=geometry('oak-foliage',asset.foliage,{
+    name:'oak-leaf-atlas',baseColor:0xffffff,roughness:.93,
+    doubleSided:true,slot:'oakFoliage',profile:'default',
+    tint:0xc5d0bc,alphaMode:'MASK',alphaCutoff:.43,textureWrap:'clamp',
+  });
+  return {format:'devtool-canonical-model',version:1,
+    meshes:[...wood.meshes,leaves]};
+}
 export function canonicalTreeModel(asset){
   if(asset.kind!=='model'||!asset.wood||asset.foliage)
     throw Error('Tree mesh adapter currently supports wood-only assets');
