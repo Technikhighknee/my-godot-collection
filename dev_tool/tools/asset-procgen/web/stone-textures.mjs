@@ -107,8 +107,8 @@ function generateStone(seeds){
     const right=course.cuts[stoneIndex+1]+shift(stoneIndex+1);
     const stoneId=row*16+stoneIndex;
     // Irregular but narrow mortar; chipped lips vary over a few pixels.
-    const fracture=(noise(x,y,27,25,layout^0x7e8c293a)-.5)*2.6+
-      (noise(x,y,57,55,layout^0x53bc106f)-.5)*1.0;
+    const fracture=(noise(x,y,27,25,layout^0x7e8c293a)-.5)*3.4+
+      (noise(x,y,57,55,layout^0x53bc106f)-.5)*1.5;
     const edge=Math.min(xx-left,right-xx,yy-top,bottom-yy)+fracture;
     const face=smooth(clamp((edge-1.75)/3.3));
     const bevel=smooth(clamp((edge-.4)/8.0));
@@ -123,13 +123,13 @@ function generateStone(seeds){
     const batchTone=(hash(stoneId,7,mineral^0x195cb812)-.5)*.092;
     const stoneType=Math.floor(hash(stoneId,2,mineral^0xa4b2ec19)*palette.length);
     const color=palette[stoneType];
-    const stoneTone=batchTone+batch+broad*.045+medium*.073+
-      grain*.052+pores*.029+wash*.047-oxide*.035-chips*.15+
-      speck*.013;
+    const stoneTone=batchTone+batch+broad*.045+medium*.081+
+      grain*.071+pores*.034+wash*.047-oxide*.035-chips*.15+
+      speck*.024;
     const mortarTone=medium*.024+grain*.025+oxide*.022;
     for(let c=0;c<3;c++){
       const stoneColor=color[c]+stoneTone*[1,.91,.78][c];
-      const groutColor=[.456,.429,.385][c]+mortarTone;
+      const groutColor=[.505,.471,.424][c]+mortarTone;
       albedo[i+c]=clamp(mix(groutColor,stoneColor,face),.22,.79);
     }
     // Stone relief is mostly in the matching normal map. The albedo avoids
