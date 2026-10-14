@@ -219,72 +219,97 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
     rough:clamp(mix(.95,.915+dust*.063+paper*.05,face)),
   };
 }
+// Art direction is a material-aware translation, never an image blur.
+// Geometry and physical relief come only from the structure seed. Pigment
+// fields affect albedo, not the normals, even after a color reseed.
 function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},shape){
   if(style!=='naturalistic-study'&&style!=='watercolor-study')
     return shape;
   if(material==='stone-rubble')return directedStoneSurface(
     style,x,y,{w,h,structure,pigment,weather},shape);
   const natural=style==='naturalistic-study';
-  const macro=noise(x,y,w,h,7,9,pigment^0x2938a15f);
-  const stains=noise(x,y,w,h,15,18,weather^0x7a2e8f31);
-  const pigmentMid=noise(x,y,w,h,28,25,pigment^0x4bc2719e);
-  const grain=noise(x,y,w,h,113,107,structure^0x391ea671);
-  const fibers=noise(x,y,w,h,91,material==='timber-oak'?8:49,
-    structure^0x6b29d435);
-  const stroke=noise(x+y*.17,y,w,h,24,11,structure^0x824ae13c);
-  // Watercolor deposits pigment in diffuse material-aware wash regions.
-  // Narrow iso-value bands create artificial concentric rings; avoid them.
-  const glazed=Math.max(0,macro+pigmentMid*.34+.08);
-  const dry=Math.max(0,grain+.14);
-  let palette,luminosity,edge,physical,roughness;
+  const macro=noise(x,y,w,h,5,7,pigment^0x2938a15f);
+  const stains=noise(x,y,w,h,13,15,weather^0x7a2e8f31);
+  const fine=noise(x,y,w,h,109,107,structure^0x391ea671);
+  const speck=noise(x,y,w,h,87,83,pigment^0x63ba9204);
+  const wet=noise(x,y,w,h,11,13,pigment^0x4bc2719e);
+  // Aquarelle are built from translucent pigment over warm paper. Bleeds,
+  // granulation and darkened drying fronts need a different signal language
+  // from photographic fine-grain or generic soft color noise.
+  const bloom=noise(x,y,w,h,6,7,pigment^0x7482aa13);
+  const tide=noise(x,y,w,h,16,17,pigment^0x118fe437);
+  const paper=noise(x,y,w,h,91,89,structure^0x78223fa1);
+  const front=Math.exp(-Math.pow((Math.abs(tide+bloom*.28)-.22)/.075,2));
+  const dry=clamp((paper+wet*.4+.30)/.65);
+  const bleed=clamp((bloom+wet*.52+.35)/.72);
+  const deposition=front*(.45+.55*bleed);
+  const pigmentGranules=Math.max(0,speck+.08)*(.25+.75*bleed);
+  const fiber=noise(x+noise(x,y,w,h,7,5,structure^0x716e3a29)*w*.018,
+    y,w,h,103,material==='timber-oak'?7:21,structure^0x6b29d435);
+  const lines=noise(x,y,w,h,162,material==='timber-oak'?11:31,
+    structure^0x17b21a4f);
+  let palette,physical=0,detail=0,weathered=0,opacity=.62;
   switch(material){
-    case 'roof-thatch':
-      palette=natural?[.53,.443,.278]:[.80,.68,.418];
-      edge=Math.max(0,.42-shape.z)*.38;
-      luminosity=(natural?fibers*.21+grain*.066:
-        fibers*.14+stroke*.085-grain*.06);
-      physical=fibers*(natural?.066:.033)+grain*.022;
-      roughness=.90;break;
-    case 'timber-oak':
-      palette=natural?[.385,.274,.185]:[.65,.468,.307];
-      edge=Math.max(0,.37-shape.z)*.64;
-      luminosity=(natural?fibers*.19+grain*.08:
-        fibers*.135+stroke*.09);
-      physical=fibers*(natural?.065:.037)+grain*.02;
-      roughness=.85;break;
-    case 'plaster-lime':
-      palette=natural?[.78,.75,.69]:[.915,.859,.737];
-      edge=Math.max(0,.43-shape.z)*.33;
-      luminosity=(natural?grain*.094+stroke*.052:
-        stroke*.15+grain*.045);
-      physical=grain*(natural?.041:.026)+stroke*.032;
-      roughness=.91;break;
-    case 'stone-rubble':
-      palette=natural?[.615,.598,.554]:[.79,.746,.646];
-      // Genuine rubble face geometry remains clearly distinguishable.
-      edge=Math.max(0,.36-shape.z)*(natural?.54:.68);
-      luminosity=(natural?grain*.087+fibers*.038:
-        grain*.049+stroke*.089);
-      physical=grain*(natural?.052:.030)+stroke*.022;
-      roughness=.89;break;
+    case 'roof-thatch':{
+      palette=natural?[.59,.49,.32]:[.81,.69,.47];
+      // Thatch is a comb of overlapping longitudinal stalks, not fuzzy hay.
+      const stalk=Math.max(0,fiber+.12)*.31+lines*.18;
+      const courses=noise(x,y,w,h,9,23,structure^0x3b98c11d);
+      detail=stalk+courses*.070;
+      physical=stalk*.055;
+      weathered=Math.max(0,stains+.17)*.13;
+      opacity=natural?.47:.62;
+      break;
+    }
+    case 'timber-oak':{
+      palette=natural?[.47,.34,.245]:[.70,.53,.38];
+      // Strongly anisotropic early/late wood rather than mottled pixels.
+      detail=fiber*.30+lines*.13+noise(x,y,w,h,27,4,
+        structure^0x9a11e3c8)*.11;
+      physical=fiber*.045+lines*.014;
+      weathered=Math.max(0,stains+.13)*.13;
+      opacity=natural?.42:.58;
+      break;
+    }
+    case 'plaster-lime':{
+      palette=natural?[.82,.79,.73]:[.94,.89,.79];
+      const trowel=noise(x+y*.19,y,w,h,21,13,structure^0x824ae13c);
+      const porous=noise(x,y,w,h,63,59,structure^0xa58d231c);
+      detail=trowel*.10+porous*.075+fine*.057;
+      physical=porous*.019+trowel*.013;
+      weathered=Math.max(0,stains+.16)*.10;
+      opacity=natural?.43:.57;
+      break;
+    }
     default:return shape;
   }
-  const paintedTint=natural?
-    macro*.116+pigmentMid*.088+stains*.075+luminosity-edge:
-    macro*.105+pigmentMid*.09+luminosity+
-      glazed*.046-dry*.028-edge*.84;
-  const weathering=natural?Math.max(0,stains+.15)*.17:0;
-  // Preserve silhouette contrast by retaining a material-specific share
-  // of its native, geometry-aware albedo. Neither art direction blurs it.
-  const nativeWeight=natural?.56:.53;
-  const rgb=palette.map((v,c)=>
-    mix(v,shape.rgb[c],nativeWeight)+
-      paintedTint*[1,.91,.75][c]-
-      weathering*[1,.84,.70][c]);
-  return {rgb,z:clamp(shape.z+physical+
-    (natural?grain*.025:stroke*.023),.02,.97),
-    rough:clamp(mix(shape.rough,roughness,natural?.33:.46)+
-      (natural?grain*.065+stains*.035:dry*.049+glazed*.028))};
+  if(natural){
+    const tint=detail+macro*.060+wet*.042+speck*.023-weathered;
+    return {
+      rgb:palette.map((v,c)=>clamp(mix(v,shape.rgb[c],1-opacity)+
+        tint*[1,.87,.70][c])),
+      z:clamp(shape.z+physical+fine*.012,.02,.97),
+      rough:clamp(shape.rough*.76+.22+fine*.035+weathered*.20),
+    };
+  }
+  // Pigment density changes across translucent washes; white paper appears
+  // in dry gaps, while pigment accumulates at drying fronts. Fiber strokes
+  // remain recognizable but don't imitate a photo-texture filtered pale.
+  const paperBase=[.965,.944,.887];
+  const washDensity=clamp(.42+bleed*.44-dry*.14+deposition*.24);
+  const localPigment=detail*.78+macro*.13+wet*.115+
+    pigmentGranules*.095-deposition*.13;
+  const materialEdge=Math.max(0,.37-shape.z);
+  return {
+    rgb:palette.map((v,c)=>{
+      const stain=clamp(v+localPigment*[1,.82,.68][c]-
+        materialEdge*(.06+.055*bleed),.05,.96);
+      return clamp(mix(paperBase[c],stain,washDensity)+
+        paper*.027-deposition*.034);
+    }),
+    z:clamp(shape.z+physical*.34+paper*.006,.02,.97),
+    rough:clamp(.945+paper*.032+dry*.016),
+  };
 }
 function raster(material,style,seeds,profile){
   const retro=style==='retro-3d-study';
