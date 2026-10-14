@@ -527,26 +527,23 @@ export class ProjectLibrary {
     await this.queue;
     return planAssetBuild(await this.assets(),only);
   }
+  // Called only inside the serialized project operation queue. A single
+  // build path serves both direct baking and target-specific publication.
+  private async buildOneAsset(id:string){
+    const entries=await this.assets();
+    const plan=planAssetBuild(entries,[id]);
+    return produceBuild(this.requireActive(),plan,entries,
+      importedId=>this.importedBytes(importedId),
+      async resourceId=>(await this.asset(resourceId)).revision);
+  }
   async buildAsset(id:string){
-    return this.enqueue(async()=>{
-      id=slug(id);
-      const entries=await this.assets();
-      const plan=planAssetBuild(entries,[id]);
-      return produceBuild(this.requireActive(),plan,entries,
-        importedId=>this.importedBytes(importedId),
-        async resourceId=>(await this.asset(resourceId)).revision);
-    });
+    return this.enqueue(()=>this.buildOneAsset(slug(id)));
   }
   async exportGodot(id:string){
     return this.enqueue(async()=>{
       id=slug(id);
-      const entries=await this.assets();
-      const plan=planAssetBuild(entries,[id]);
-      const project=this.requireActive();
-      const result=await produceBuild(project,plan,entries,
-        importedId=>this.importedBytes(importedId),
-        async resourceId=>(await this.asset(resourceId)).revision);
-      return publishGodotPackage(project,id,result);
+      const result=await this.buildOneAsset(id);
+      return publishGodotPackage(this.requireActive(),id,result);
     });
   }
   async graph(){
