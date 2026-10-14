@@ -40,7 +40,7 @@ function geometry(name,input,material,groups){
       if(!Number.isInteger(group.start)||!Number.isInteger(group.count)||
         group.start!==end||group.count<=0||group.count%3!==0||
         !Number.isInteger(group.materialIndex)||group.materialIndex<0||
-        group.materialIndex>=3||
+        group.materialIndex>=groups.length||
         !group.material||!Number.isInteger(group.material.baseColor))
         throw Error('Invalid canonical geometry groups: '+name);
       end+=group.count;
