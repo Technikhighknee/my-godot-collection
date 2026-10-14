@@ -52,7 +52,8 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         // must never accidentally write its recipe into another active project.
         if((path.startsWith('/api/projects/active/assets')||
           path.startsWith('/api/projects/active/imports')||
-          path.startsWith('/api/projects/active/builds'))&&
+          path.startsWith('/api/projects/active/builds')||
+          path.startsWith('/api/projects/active/exports/'))&&
           req.headers['x-project-id']!==library.active()?.id){
           return send(res,409,{error:'Active project changed; reopen this asset'});
         }
@@ -117,6 +118,9 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       const buildMatch=/^\/api\/projects\/active\/builds\/([a-z0-9_-]+)$/.exec(path);
       if(buildMatch&&req.method==='POST')
         return send(res,200,await library.buildAsset(buildMatch[1]));
+      const exportMatch=/^\/api\/projects\/active\/exports\/godot\/([a-z0-9_-]+)$/.exec(path);
+      if(exportMatch&&req.method==='POST')
+        return send(res,200,await library.exportGodot(exportMatch[1]));
       if(path==='/api/projects/active/graph'&&req.method==='GET')
         return send(res,200,await library.graph());
       if(path.startsWith('/api/projects')){
