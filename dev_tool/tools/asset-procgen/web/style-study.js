@@ -1,5 +1,4 @@
 import {findGenerator,generateAsset} from './generators.mjs';
-import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from './roof-textures.mjs';
 import {STUDY_STYLES,STUDY_MATERIALS,applyTextureStudyStyle,
   studySeeds,reseedStudySeeds} from './texture-style-study.mjs';
 import {drawTextureStudyExport,textureStudyExportFilename}
@@ -108,7 +107,7 @@ function buildBoard(){
 // regenerates the source and cannot accidentally reseed another column.
 const sourceCache=new Map(),previewCache=new Map(),styleCache=new Map();
 function nativeStyle(material,styleId){
-  return material.id==='roof-clay'&&CLAY_GENERATIVE_STYLES.includes(styleId);
+  return !!material.definition.studyGeneration?.styles.includes(styleId);
 }
 function cacheKey(material,view,profile,styleId='current'){
   return [material.id,masterSeed??'default',view,profile??'',
@@ -122,7 +121,7 @@ function getImage(material,view,profile,styleId='current'){
   // Genuinely different ceramic tile geometry/shape rules. Other art-study
   // materials still use transparent post-treatments, explicitly labeled below.
   const asset=nativeStyle(material,styleId)?
-    makeRoofAsset('clay',seeds,{style:styleId}):
+    material.definition.studyGeneration.generate(seeds,styleId):
     generateAsset(material.definition,seeds);
   const canvas=document.createElement('canvas');
   asset.paint(canvas,view,profile??undefined);
