@@ -133,3 +133,17 @@ test('retro uses discrete texels from its own low-resolution shape raster',()=>{
     }
   }
 });
+
+
+test('naturalistic and watercolor clay stay seamlessly staggered across seeds',()=>{
+  for(const style of ['naturalistic-study','watercolor-study'] as const)
+    for(const pattern of [0,90317,71803]){
+      const albedo=paint(style,'albedo',{pattern,color:43091});
+      const normal=paint(style,'normal',{pattern,color:43091});
+      seamsAreTileable(albedo);
+      seamsAreTileable(normal);
+      const changed=paint(style,'normal',{pattern,color:43092});
+      assert.deepEqual(normal,changed,
+        'Changing ceramic pigments must not shift tile silhouettes');
+    }
+});
