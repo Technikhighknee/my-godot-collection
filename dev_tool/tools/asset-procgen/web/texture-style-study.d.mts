@@ -1,5 +1,9 @@
 import type {ImageGeneratorDefinition} from './generators.mjs';
-export interface StudyStyle {readonly id:'current'|'classic-strategy-study';readonly label:string;}
+export interface StudyStyle {
+  readonly id:'current'|'classic-strategy-study'|'naturalistic-study'|
+    'hand-painted-study'|'retro-3d-study'|'watercolor-study';
+  readonly label:string;readonly description:string;
+}
 export interface StudyMaterial {
   readonly id:'roof-thatch'|'roof-clay'|'timber-oak'|'plaster-lime'|'stone-rubble';
   readonly label:string;readonly group:string;readonly profile:string|null;
