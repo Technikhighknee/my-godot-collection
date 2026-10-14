@@ -687,6 +687,23 @@ projectEl('exportGodotPackage').addEventListener('click',()=>
     assetStatus((result.published?'Godot package ready':'Godot package unchanged')+
       ' · '+result.manifest.files.length+' files · '+result.directory);
   }));
+projectEl('syncGodotProject').addEventListener('click',()=>
+  projectOperation(async()=>{
+    const id=projectEl('savedProjectAssets').value;
+    const target=projectEl('godotProjectPath').value.trim();
+    if(!id||!projectAssets.has(id))
+      throw Error('Select a saved resource to synchronize');
+    if(!target)throw Error('Enter the absolute Godot project folder');
+    assetStatus('Synchronizing to Godot project…');
+    const result=await projectApi('/api/projects/active/sync/godot/'+
+      encodeURIComponent(id),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({target}),
+    });
+    if(projectId)localStorage.setItem('godot-sync-target:'+projectId,target);
+    assetStatus((result.synced?'Synchronized':'Already up to date')+
+      ' · '+result.files+' files · '+result.resourcePath);
+  }));
 projectEl('loadProjectAsset').addEventListener('click',
   ()=>projectOperation(loadSelectedProjectAsset));
 projectEl('saveProjectAsset').addEventListener('click',()=>projectOperation(async()=>{
