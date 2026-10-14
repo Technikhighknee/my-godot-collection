@@ -8,6 +8,10 @@
 .study-page button{cursor:pointer}
 .study-page button:hover{background:#304440;border-color:#a78e6d}
 .study-page button.quiet{background:transparent;color:#afc3b8}
+.study-page button.study-export{background:#bc9c6a;border-color:#d0af7a;
+  color:#15221c;font-weight:760;min-width:128px}
+.study-page button.study-export:hover:not(:disabled){background:#e1bd84}
+.study-page button.study-export:disabled{opacity:.5;cursor:wait}
 .study-page :is(button,select,a,input):focus-visible{outline:2px solid #e0bd88;outline-offset:3px}
 html.studio-embedded .study-header{display:none}
 html.studio-embedded .study-main{padding-top:24px}
