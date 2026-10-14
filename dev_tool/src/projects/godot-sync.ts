@@ -35,7 +35,7 @@ export interface GodotSyncResult{
 /** Validate the destination before any expensive asset generation. */
 export async function validateGodotProject(godotProjectDir:string){
   if(typeof godotProjectDir!=='string'||!godotProjectDir.trim()||
-    !isAbsolute(godotProjectDir)||godotProjectDir.includes('\\0'))
+    !isAbsolute(godotProjectDir)||godotProjectDir.includes('\0'))
     throw Error('Choose an absolute Godot project folder');
   const game=resolve(godotProjectDir);
   await existingDirectory(game);
