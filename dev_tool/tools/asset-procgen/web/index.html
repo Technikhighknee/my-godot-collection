@@ -143,56 +143,7 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
       aria-label="Shared project surface materials">
       <div class="pg-settings-title"><span>PROJECT MATERIAL TEXTURES</span></div>
       <p class="pg-building-note">Textures are saved independently. Select one for the model, or create a new shared source.</p>
-      <div class="pg-roof-slot">
-        <label for="foundationStoneAsset">Rubble stone · Foundations
-          <select id="foundationStoneAsset"><option value="">Generator default</option></select>
-        </label>
-        <div class="pg-roof-actions">
-          <button id="foundationStoneNew" type="button">New</button>
-          <button id="foundationStoneEdit" type="button">Edit</button>
-          <button id="foundationStoneReseed" type="button">Reseed shared</button>
-        </div>
-      </div>
-      <div class="pg-roof-slot">
-        <label for="facadePlasterAsset">Lime plaster · Facades
-          <select id="facadePlasterAsset"><option value="">Generator default</option></select>
-        </label>
-        <div class="pg-roof-actions">
-          <button id="facadePlasterNew" type="button">New</button>
-          <button id="facadePlasterEdit" type="button">Edit</button>
-          <button id="facadePlasterReseed" type="button">Reseed shared</button>
-        </div>
-      </div>
-      <div class="pg-roof-slot">
-        <label for="timberWoodAsset">Structural oak timber
-          <select id="timberWoodAsset"><option value="">Generator default</option></select>
-        </label>
-        <div class="pg-roof-actions">
-          <button id="timberWoodNew" type="button">New</button>
-          <button id="timberWoodEdit" type="button">Edit</button>
-          <button id="timberWoodReseed" type="button">Reseed shared</button>
-        </div>
-      </div>
-      <div class="pg-roof-slot">
-        <label for="roofThatchAsset">Thatch · Level 1
-          <select id="roofThatchAsset"><option value="">Generator default</option></select>
-        </label>
-        <div class="pg-roof-actions">
-          <button id="roofThatchNew" type="button">New</button>
-          <button id="roofThatchEdit" type="button">Edit</button>
-          <button id="roofThatchReseed" type="button">Reseed shared</button>
-        </div>
-      </div>
-      <div class="pg-roof-slot">
-        <label for="roofClayAsset">Clay tiles · Levels 2 &amp; 3
-          <select id="roofClayAsset"><option value="">Generator default</option></select>
-        </label>
-        <div class="pg-roof-actions">
-          <button id="roofClayNew" type="button">New</button>
-          <button id="roofClayEdit" type="button">Edit</button>
-          <button id="roofClayReseed" type="button">Reseed shared</button>
-        </div>
-      </div>
+      <div id="materialSlots" aria-label="Shared material slots"></div>
       <p class="pg-building-note">Reseeding changes the selected texture for every model that references it. Save the building to persist new assignments.</p>
     </section>
     <div class="pg-settings-title"><span>MASTER SEED</span></div>
