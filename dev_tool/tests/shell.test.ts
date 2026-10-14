@@ -230,9 +230,10 @@ test('imported asset controls remain separate from procedural editor capabilitie
   const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',
     import.meta.url),'utf8');
   const studio=readFileSync(new URL('../web/studio.js',import.meta.url),'utf8');
-  for(const id of ['importProjectFile','importProjectAsset'])
+  for(const id of ['importProjectFile','importProjectAsset','buildProjectAsset'])
     assert.ok(html.includes('id="'+id+'"'),id+' must exist in project source UI');
   assert.match(app,/Imported assets have no procedural editor yet/);
+  assert.match(app,/api\/projects\/active\/builds/);
   assert.match(app,/importProjectAsset/);
   assert.match(studio,/Imported 3D model/);
   assert.match(studio,/source\.generator\?\.id/);
