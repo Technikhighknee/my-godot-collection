@@ -20,16 +20,18 @@
     <div>
       <span class="study-eyebrow">MATERIAL DEVELOPMENT / ART DIRECTION</span>
       <h1>One world. One material language.</h1>
-      <p>Compare the five real procedural building materials under identical
-        seeds and viewing conditions. The left column is unchanged. The right
-        column explores bolder, hand-painted diffuse textures inspired by classic PC strategy games.</p>
+      <p>Compare six visual directions across the same five procedural
+        materials. The original remains untouched. Toggle styles below to
+        compare their palette, surface language and level of detail with
+        identical seeds and source shapes.</p>
     </div>
     <aside class="study-note">
-      <strong>Exploration, not a finished style preset</strong>
-      <p>The right side deliberately changes material-specific pigment patterns,
-        visual contrast, painted grain and surface emphasis. The underlying
-        generated stone, wood and roof geometry remains identical. No saved
-        asset, project style or generator recipe is modified.</p>
+      <strong>Visual explorations, not saved generator styles</strong>
+      <p>Classic Strategy, Naturalistic, Hand-Painted Fantasy, Retro 3D and
+        Watercolor are preview-only treatments of the same original maps.
+        Geometry and underlying material layout stay unchanged.
+        These are comparisons to choose an art direction, not finished
+        production presets.</p>
     </aside>
   </div>
   <div class="study-toolbar" aria-label="Comparison controls">
@@ -52,18 +54,26 @@
     <button id="studyReset" type="button" class="quiet">Reset</button>
     <span class="study-seed" id="studySeed">Reference seeds</span>
   </div>
+  <div class="study-style-selector" aria-label="Visible art directions">
+    <div class="study-style-heading">
+      <strong>COMPARE ART DIRECTIONS</strong>
+      <span>Toggle any alternatives · scroll sideways to see all columns</span>
+    </div>
+    <div id="studyStyleFilters" class="study-style-filters"
+      role="group" aria-label="Visible texture styles"></div>
+  </div>
   <div class="study-status" id="studyStatus" role="status" aria-live="polite">
     Preparing material comparisons…
   </div>
-  <div class="study-board" id="studyBoard" aria-label="Side by side generated textures">
-    <div class="study-head study-head-name">MATERIAL</div>
-    <div class="study-head">CURRENT <small>As generated today</small></div>
-    <div class="study-head study-head-accent">CLASSIC STRATEGY · PAINTED <small>Different material-specific painted detail, not a color tint</small></div>
+  <div class="study-scroller" id="studyCompareScroller" tabindex="0"
+    role="region" aria-label="Scrollable side-by-side material comparison">
+    <div class="study-board" id="studyBoard" aria-label="Style comparison grid"></div>
   </div>
   <footer class="study-footer">
-    All images are generated locally from the repository's real asset generators.
-    Nothing is uploaded or saved. These are exploratory painted overlays; a
-    future production style must implement the chosen rules in each generator.
+    All materials are generated from the project's real asset recipes.
+    Comparisons run locally and do not modify saved assets.
+    The previews are resampled to a common inspection resolution; production
+    versions would implement chosen styles directly within each generator.
   </footer>
 </main>
 </body>
