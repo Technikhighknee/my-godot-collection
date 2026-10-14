@@ -270,4 +270,12 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   assert.match(app,/getElementById\('styleStudyLink'\)/);
   assert.match(study,/studio:ready/);
   assert.match(study,/seed:masterSeed===null/);
+  assert.match(study,/visibleStyles\(\)/);
+  assert.match(study,/buildBoard\(\)/);
+  assert.match(study,/PREVIEW_SIZE=256/);
+  const comparison=readFileSync(new URL('../tools/asset-procgen/web/style-study.html',import.meta.url),'utf8');
+  assert.match(comparison,/id="studyStyleFilters"/);
+  assert.match(comparison,/id="studyCompareScroller"/);
+  assert.match(comparison,/Watercolor/);
+  assert.match(comparison,/Retro 3D/);
 });
