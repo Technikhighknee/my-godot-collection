@@ -97,10 +97,39 @@ second material generator.
   `npm run build:asset -- <asset-id>`. The `--projects-dir` option can
   override the default project root.
 
-These outputs are intermediate authoring artifacts, not Godot-ready materials
-or a general-purpose imported-model editor. Baked channels are captured from
-the same resource implementation seen in the editor; future target adapters
-will consume them.
+These cached outputs are intermediate authoring artifacts, not a public
+folder or an editable imported-model representation. The Godot package
+publisher consumes their validated files and exposes stable filenames,
+without creating a second generation implementation.
+
+### Stable Godot delivery packages
+
+The binary build cache remains private and content-addressed. Project authors
+export a saved asset using **Export selected to Godot package** or from
+`dev_tool`:
+
+```bash
+npm run export:godot -- oak-market-square
+```
+
+The package is written to
+`projects/<project-id>/exports/godot/<asset-id>/`. It includes stable,
+relative `assets/<resource-id>/<filename>.glb|png` paths for the chosen
+resource and its transitively referenced materials, plus a deterministic
+`manifest.json` with source build keys and SHA-256 checksums. Copy the
+package's `assets/` directory into the destination Godot project's asset
+folder; Godot then imports the GLB/PNG files normally.
+
+- One package belongs to one requested root asset. Re-exporting a different
+  asset never deletes the first package.
+- Publishing identical content is a no-op; changing a recipe republishes only
+  that root package, with obsolete variants removed.
+- Publication stages and validates the complete package before replacing the
+  previous managed directory, with rollback if renaming the staged directory
+  fails. Modified files and unmanaged additions are not silently overwritten.
+- This is an **on-disk Godot handoff**, not an engine project path browser,
+  live reimport, Godot scene generator or automatic deployment into `res://`.
+  The `manifest.json` is authoring metadata, not a Godot importer format.
 
 ### Canonical 3D mesh and GLB output — working scope
 
