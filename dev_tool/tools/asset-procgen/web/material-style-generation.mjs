@@ -60,6 +60,39 @@ function weldSeams(m){
   }
   return m;
 }
+function prepareMaterialContext(material,{structure,pigment,retro}){
+  if(material==='plaster-lime'){
+    const count=retro?13:19,strokes=[];
+    for(let k=0;k<count;k++){
+      const angle=(hash(k,2,structure^0x9471a3bc)-.5)*1.25;
+      strokes.push({
+        cx:hash(k,0,structure^0x519ca2e4),
+        cy:hash(k,1,structure^0x38d7ab52),
+        ca:Math.cos(angle),sa:Math.sin(angle),
+        length:.13+hash(k,3,structure^0x18af739c)*.19,
+        width:.025+hash(k,4,structure^0x7a5913fe)*.045,
+        weight:hash(k,7,structure^0x6f37b4c9)-.5,
+      });
+    }
+    return {strokes};
+  }
+  if(material==='stone-rubble'){
+    const cols=retro?9:7,rows=retro?9:7,sites=[];
+    for(let iy=0;iy<rows;iy++)for(let ix=0;ix<cols;ix++)
+      sites.push({
+        jx:(hash(ix,iy,structure^0xa137bd21)-.5)*(retro?.70:.91),
+        jy:(hash(ix,iy,structure^0x7f1829ad)-.5)*(retro?.72:.92),
+        wf:.74+hash(ix,iy,structure^0x23b91ced)*.52,
+        af:.75+hash(ix,iy,structure^0x91d782ad)*.43,
+        weight:(hash(ix,iy,structure^0x41c529e3)-.5)*.25,
+        variation:hash(ix,iy,structure^0x48da51b1),
+        color:(hash(ix,iy,pigment^0xa96d325c)-.5)*
+          (retro?.20:.21),
+      });
+    return {cols,rows,sites};
+  }
+  return {};
+}
 function raster(material,style,seeds,profile){
   const retro=style==='retro-3d-study',scale=retro?4:1;
   const height=material==='timber-oak'&&profile==='beam'?2048:W;
@@ -69,7 +102,8 @@ function raster(material,style,seeds,profile){
     seeds.layout)>>>0;
   const pigment=(seeds.color??seeds.pigment??seeds.mineral)>>>0;
   const weather=(seeds.wear??seeds.weather??pigment)>>>0;
-  const dimensions={w,h,structure,pigment,weather,retro};
+  const dimensions={w,h,structure,pigment,weather,retro,
+    ...prepareMaterialContext(material,{structure,pigment,retro})};
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
     const p=y*w+x;
     let result;
@@ -200,21 +234,16 @@ function wood(x,y,{w,h,structure,pigment,retro},profile){
     z:relief,rough:clamp(.85+low*.066+knotBody*.13)};
 }
 
-function plaster(x,y,{w,h,structure,pigment,weather,retro}){
+function plaster(x,y,{w,h,structure,pigment,weather,retro,strokes}){
   // Broad, overlapping hand-applied lime-plaster strokes. Brush/trowel
   // geometry is authored by the structure seed, NOT by the tint seed.
   // Distinct raised feathered boundaries replace quantized cloudy blobs.
   const u=x/w,v=y/h;
-  const strokes=retro?13:19;
   let raised=0,edgeLip=0,strokeTone=0;
-  for(let k=0;k<strokes;k++){
-    const cx=hash(k,0,structure^0x519ca2e4);
-    const cy=hash(k,1,structure^0x38d7ab52);
-    const angle=(hash(k,2,structure^0x9471a3bc)-.5)*1.25;
-    const length=.13+hash(k,3,structure^0x18af739c)*.19;
-    const width=.025+hash(k,4,structure^0x7a5913fe)*.045;
-    const dx=wrap(u-cx+.5,1)-.5,dy=wrap(v-cy+.5,1)-.5;
-    const ca=Math.cos(angle),sa=Math.sin(angle);
+  for(const stroke of strokes){
+    const {ca,sa,length,width,weight}=stroke;
+    const dx=wrap(u-stroke.cx+.5,1)-.5;
+    const dy=wrap(v-stroke.cy+.5,1)-.5;
     const along=dx*ca+dy*sa,across=-dx*sa+dy*ca;
     const curve=Math.sin((along/length)*Math.PI*.65)*
       width*.11;
@@ -223,10 +252,9 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro}){
       (retro?.22:.24));
     const rim=smooth((ellipse-.73)/.09)*
       (1-smooth((ellipse-.99)/.06))*cover;
-    const weight=(hash(k,7,structure^0x6f37b4c9)-.5);
-    raised+=cover*(.024+weight*.026);
-    edgeLip+=rim*(.012+Math.abs(weight)*.01);
-    strokeTone+=cover*weight*.013;
+    raised+=cover*(.034+weight*.030);
+    edgeLip+=rim*(.022+Math.abs(weight)*.014);
+    strokeTone+=cover*(weight*.051+.008);
   }
   const fine=noise(x,y,w,h,retro?23:79,retro?25:83,
     structure^0x563e11a8);
@@ -245,33 +273,26 @@ function plaster(x,y,{w,h,structure,pigment,weather,retro}){
     rough:clamp(.88+fine*.04+grime*.095)};
 }
 
-function stone(x,y,{w,h,structure,pigment,weather,retro}){
-  // Weighted, periodic Voronoi stones. Irregular cell positions and sizes
-  // replace aligned brick courses; the gap is the boundary between two
-  // competing stone sites. Shape and color use independent seeds.
-  const cols=retro?9:7,rows=retro?9:7;
+function stone(x,y,{w,h,structure,pigment,weather,retro,
+  cols,rows,sites}){
+  // Weighted, periodic Voronoi sites are prepared once per raster.
+  // Neighbor lookup is material grammar, not brick-course indexing.
   const bendX=retro?0:noise(x,y,w,h,12,10,
     structure^0x9e4273b1)*.15;
   const bendY=retro?0:noise(x,y,w,h,11,13,
     structure^0x6d21ac53)*.15;
   const u=x/w*cols+bendX,v=y/h*rows+bendY;
   const gx=Math.floor(u),gy=Math.floor(v);
-  let first=1e9,second=1e9,chosenX=0,chosenY=0;
-  let chosenVariation=0;
+  let first=1e9,second=1e9;
+  let chosenVariation=0,chosenColor=0;
   for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
     const cx=gx+i,cy=gy+j,ix=wrap(cx,cols),iy=wrap(cy,rows);
-    const jitterX=(hash(ix,iy,structure^0xa137bd21)-.5)*
-      (retro?.70:.91);
-    const jitterY=(hash(ix,iy,structure^0x7f1829ad)-.5)*
-      (retro?.72:.92);
-    const dx=u-(cx+.5+jitterX),dy=v-(cy+.5+jitterY);
-    const widthFactor=.74+hash(ix,iy,structure^0x23b91ced)*.52;
-    const areaFactor=.75+hash(ix,iy,structure^0x91d782ad)*.43;
-    const dist=(dx*dx*widthFactor+dy*dy*areaFactor)-
-      (hash(ix,iy,structure^0x41c529e3)-.5)*.25;
+    const site=sites[iy*cols+ix];
+    const dx=u-(cx+.5+site.jx),dy=v-(cy+.5+site.jy);
+    const dist=(dx*dx*site.wf+dy*dy*site.af)-site.weight;
     if(dist<first){
-      second=first;first=dist;chosenX=ix;chosenY=iy;
-      chosenVariation=hash(ix,iy,structure^0x48da51b1);
+      second=first;first=dist;
+      chosenVariation=site.variation;chosenColor=site.color;
     }else if(dist<second)second=dist;
   }
   // Face is a polygon-ish chipped cobble, with a broad chamfer and muted
@@ -285,8 +306,7 @@ function stone(x,y,{w,h,structure,pigment,weather,retro}){
     structure^0xc8517e2b);
   const mineral=noise(x,y,w,h,11,12,pigment^0xe7c4591a);
   const age=noise(x,y,w,h,13,14,weather^0x291fe71c);
-  const varColor=(hash(chosenX,chosenY,pigment^0xa96d325c)-.5)*
-    (retro?.20:.21);
+  const varColor=chosenColor;
   const base=retro?[.588,.552,.477]:[.675,.641,.56];
   const mortar=retro?[.42,.40,.367]:[.48,.455,.415];
   const weathered=varColor+mineral*.064+grain*.045-
