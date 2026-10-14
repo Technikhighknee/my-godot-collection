@@ -27,6 +27,7 @@ const staticRoutes:Record<string,[string,string]>={
   '/tools/asset-procgen/texture-study-export.mjs': ['tools/asset-procgen/web/texture-study-export.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/seed-model.mjs': ['tools/asset-procgen/web/seed-model.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/generators.mjs': ['tools/asset-procgen/web/generators.mjs', 'text/javascript; charset=utf-8'],
+  '/tools/asset-procgen/canonical-model.mjs': ['tools/asset-procgen/web/canonical-model.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/building.mjs': ['tools/asset-procgen/web/building.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/building-materials.mjs': ['tools/asset-procgen/web/building-materials.mjs', 'text/javascript; charset=utf-8'],
   '/tools/asset-procgen/roof-textures.mjs': ['tools/asset-procgen/web/roof-textures.mjs', 'text/javascript; charset=utf-8'],
