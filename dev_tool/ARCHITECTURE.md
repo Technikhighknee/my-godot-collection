@@ -40,6 +40,16 @@ generator recipes. A scene refers to assets by stable resource identity.
   explicit migrations remains future work.
 - The project's asset graph remains responsible for dependency validation,
   update revisions and prevention of cycles.
+- Imported GLB models and PNG images have a distinct `devtool-asset`
+  source contract (`version: 2`, `origin: imported`) and share the project's
+  stable asset IDs, resource index and dependency graph. Binary payloads are
+  stored in project `assets/imports`, fingerprinted with SHA-256 and
+  validated on retrieval. Import never fabricates a generator recipe.
+- The local project API accepts same-origin, project-bound binary uploads
+  (32 MiB maximum). The project asset editor can create imports. Rendering,
+  material channels and editing imported content require dedicated
+  capabilities; a PNG is **not** implicitly a complete PBR material.
+
 
 ### Version policy
 
@@ -113,9 +123,12 @@ Do not add generic frameworks before a real second consumer needs them.
 
 ## Known remaining work
 
-Existing source records currently require a procedural generator. Renderer
-fallback colors are still presentation-only mappings for the current building
-family. The general model result contract, import pipeline, canonical
-material output, version resolver for historical implementations, build graph
-and target-engine exports are not yet implemented. This migration must not
-claim those capabilities until exercised by end-to-end tests.
+Legacy version-1 source records remain procedural; new imported resources
+have a separate version-2 source shape within the same asset index. Imported
+files can be persisted and verified, but they do not yet have a model renderer,
+PBR texture interpretation, geometry editing or exported artifact pipeline.
+Renderer fallback colors remain presentation mappings for the current building
+family. A general canonical result contract, historical generator version
+resolver, incremental build graph and target-engine exporters remain to be
+implemented. This migration must not claim those capabilities until exercised
+by end-to-end tests.
