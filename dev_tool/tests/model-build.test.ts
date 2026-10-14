@@ -111,7 +111,7 @@ test('building GLB artifacts include three level variants and optional interiors
     const result=await lib.buildAsset('market');
     assert.equal(result.built,2);
     assert.deepEqual(result.artifacts.map(a=>a.id),['tiles','market']);
-    const artifact=result.artifacts[0]!;
+    const artifact=result.artifacts.find(a=>a.id==='market')!;
     assert.equal(artifact.kind,'model');
     assert.equal(artifact.files.length,6);
     for(const file of artifact.files){
