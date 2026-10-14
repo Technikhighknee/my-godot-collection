@@ -64,7 +64,8 @@ export function canonicalOakWoodModel(asset){
     materialIndex:part.materialIndex,
     material:{
       name:'oak-bark-'+part.profile,
-      baseColor:0xffffff,roughness:1,normalScale:.78,doubleSided:false,
+      baseColor:0xffffff,roughness:1,normalScale:.78,
+      occlusionStrength:.85,doubleSided:false,
       slot:'oakBark',profile:part.profile,
     },
   }));
