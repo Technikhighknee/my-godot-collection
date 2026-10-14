@@ -232,6 +232,34 @@ function stone(x,y,{w,h,structure,pigment,weather,retro}){
   return {rgb,z:.16+plateau*(.30+shape*.06)+grain*.022*face,
     rough:clamp(mix(.95,.85+grain*.06+Math.max(0,age)*.08,face))};
 }
+// Normal maps are derived from periodic height samples, but a discrete
+// 512-pixel seam can still show a derivative mismatch. Average a few tangent
+// normal texels across opposite borders at the same raster granularity.
+function weldNormalEdges(d,width,height,step){
+  const levels=step===4?4:12;
+  const blendBlocks=(a,b,weight,stride)=>{
+    for(let c=0;c<3;c++){
+      const ia=a+c,ib=b+c;
+      const mean=(d[ia]+d[ib])*.5;
+      const av=Math.round(mix(d[ia],mean,weight));
+      const bv=Math.round(mix(d[ib],mean,weight));
+      for(let pixel=0;pixel<step;pixel++){
+        d[ia+pixel*stride]=av;
+        d[ib-pixel*stride]=bv;
+      }
+    }
+  };
+  for(let y=0;y<height;y++)for(let k=0;k<levels;k++){
+    const a=(y*width+k*step)*4;
+    const b=(y*width+(width-1-k*step))*4;
+    blendBlocks(a,b,1-smooth(k/levels),4);
+  }
+  for(let x=0;x<width;x++)for(let k=0;k<levels;k++){
+    const a=(k*step*width+x)*4;
+    const b=((height-1-k*step)*width+x)*4;
+    blendBlocks(a,b,1-smooth(k/levels),width*4);
+  }
+}
 function validate(material,style,seeds){
   if(!['roof-thatch','timber-oak','plaster-lime','stone-rubble'].includes(material))
     throw Error('Unknown native study material: '+material);
@@ -295,6 +323,7 @@ export function makeStyledMaterialAsset(material,seeds,style){
         }
         d[i+3]=255;
       }
+      if(view==='normal')weldNormalEdges(d,w,h,step);
       ctx.putImageData(image,0,0);
     },
   };
