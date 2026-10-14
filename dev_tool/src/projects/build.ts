@@ -2,7 +2,7 @@
 // individual resource artifacts are published atomically to a derived folder.
 // Preview and bake invoke the same registered generator implementation.
 import {createHash,randomUUID} from 'node:crypto';
-import {mkdir,readFile,writeFile,readdir,rename,rm,lstat} from 'node:fs/promises';
+import {mkdir,readFile,writeFile,rename,rm,lstat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {findGenerator,generateAsset} from '../../tools/asset-procgen/web/generators.mjs';
 import {capturePaintedPixels,encodeRgbaPng} from './build-image.ts';
@@ -105,6 +105,9 @@ export async function produceBuild(projectDir:string,plan:BuildPlan,
     const parent=join(buildRoot,node.id);
     await mkdir(parent,{recursive:true});
     const destination=join(parent,node.key);
+    // Source payload integrity is checked even on a cache hit. A valid
+    // cached copy must never conceal a damaged imported project file.
+    if(node.origin==='imported')await imported(node.id);
     const cached=await existingArtifact(destination,node);
     if(cached){artifacts.push(cached);reused++;continue;}
     const parts=await produce(node,entry,imported);
