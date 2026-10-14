@@ -26,7 +26,7 @@ function buildCourses(layout){
   // stone edges. Stone widths and course heights differ, but the bonding is
   // approximately horizontal as on actual medieval rubble foundations.
   const weights=Array.from({length:COURSES},(_,r)=>
-    .76+hash(r,0,layout^0x341a7b26)*.57);
+    .61+hash(r,0,layout^0x341a7b26)*.82);
   const total=weights.reduce((a,b)=>a+b,0);
   const elevations=[0];
   for(const w of weights)elevations.push(
@@ -34,9 +34,9 @@ function buildCourses(layout){
   elevations[COURSES]=SIZE;
   const courses=[];
   for(let row=0;row<COURSES;row++){
-    const count=5+Math.floor(hash(row,1,layout^0x39af7251)*4);
+    const count=4+Math.floor(hash(row,1,layout^0x39af7251)*6);
     const segmentWeights=Array.from({length:count},(_,s)=>
-      .54+hash(row,s,layout^0x85b9e416)*1.13);
+      .51+hash(row,s,layout^0x85b9e416)*1.48);
     const sum=segmentWeights.reduce((a,b)=>a+b,0);
     const cuts=[0];
     for(const w of segmentWeights)
@@ -71,9 +71,9 @@ function generateStone(seeds){
     const id=wrap(k,COURSES);
     return elevations[k]-35+
       Math.sin(x*2*Math.PI/SIZE*2+
-        hash(id,3,layout^0x1b7af502)*Math.PI*2)*2.3+
+        hash(id,3,layout^0x1b7af502)*Math.PI*2)*6.0+
       Math.sin(x*2*Math.PI/SIZE*5+
-        hash(id,4,layout^0xc781ef25)*Math.PI*2)*1.1;
+        hash(id,4,layout^0xc781ef25)*Math.PI*2 )*3.15;
   };
   for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
     const p=y*SIZE+x,i=p*3;
@@ -87,9 +87,13 @@ function generateStone(seeds){
     const course=courses[row];
     const t=clamp((yy-top)/(bottom-top));
     const shift=j=>{
-      const [a,b]=course.phases[j%course.count];
-      return 2.0*Math.sin(t*Math.PI*2+a)+
-        1.2*Math.sin(t*Math.PI*4+b);
+      const key=j%course.count;
+      const [a,b]=course.phases[key];
+      // A hand-laid joint is slightly slanted and chipped, not a sine-wave
+      // worm. The two ends need not align vertically in the next course.
+      return mix((hash(row,key,layout^0x4d38b89d)-.5)*10,
+        (hash(row,key,layout^0x7a2c93d5)-.5)*10,t)+
+        1.25*Math.sin(t*Math.PI*2+a)+.65*Math.sin(t*Math.PI*4+b);
     };
     // Place the vertical joint on a periodic, rough line. The first and
     // last boundary share a phase, which makes U seamless as well.
