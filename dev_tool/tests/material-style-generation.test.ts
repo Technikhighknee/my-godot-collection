@@ -16,6 +16,20 @@ const cases=[
 ] as const;
 type Channel='albedo'|'normal'|'roughness';
 
+// Reuse only canonical study fixtures between tests. Each asset memoizes its
+// expensive raster, while calls to paint still exercise every requested
+// channel. Changed-seed fixtures and reproducibility checks remain independent.
+const baselineAssets=new Map<string,ReturnType<typeof makeStyledMaterialAsset>>();
+function baselineAsset(material:(typeof cases)[number],style:string){
+  const key=material.id+'/'+style;
+  let asset=baselineAssets.get(key);
+  if(!asset){
+    asset=makeStyledMaterialAsset(material.id,{...material.seeds},style);
+    baselineAssets.set(key,asset);
+  }
+  return asset;
+}
+
 function capture(asset:{paint:(canvas:HTMLCanvasElement,view?:string,
   profile?:string)=>unknown},view:Channel,profile?:string){
   const state:{rgba:Uint8ClampedArray}={rgba:new Uint8ClampedArray(0)};
@@ -78,7 +92,7 @@ test('every study material has two native visual grammars without changing defau
 });
 test('new material styles generate matching RGB, height normals and roughness',()=>{
   for(const material of cases)for(const style of MATERIAL_STUDY_STYLES){
-    const asset=makeStyledMaterialAsset(material.id,{...material.seeds},style);
+    const asset=baselineAsset(material,style);
     const profile=material.id==='timber-oak'?'panel':undefined;
     const albedo=capture(asset,'albedo',profile);
     const normal=capture(asset,'normal',profile);
@@ -117,7 +131,7 @@ test('new material styles generate matching RGB, height normals and roughness',(
 test('pigment reseeding does not alter the native material relief',()=>{
   for(const material of cases){
     const style='hand-painted-study';
-    const a=makeStyledMaterialAsset(material.id,{...material.seeds},style);
+    const a=baselineAsset(material,style);
     const seeds:Record<string,number>={...material.seeds};
     const changed={...seeds,[material.pigment]:seeds[material.pigment]!+1};
     const b=makeStyledMaterialAsset(material.id,changed,style);
@@ -152,7 +166,7 @@ test('all three oak cuts preserve native shapes and dimensions',()=>{
 test('shape reseeding rebuilds each material while color alone retains geometry',()=>{
   for(const material of cases)for(const style of MATERIAL_STUDY_STYLES){
     const profile=material.id==='timber-oak'?'panel':undefined;
-    const original=makeStyledMaterialAsset(material.id,{...material.seeds},style);
+    const original=baselineAsset(material,style);
     const source:Record<string,number>={...material.seeds};
     const reshaped=makeStyledMaterialAsset(material.id,{
       ...source,[material.shape]:source[material.shape]!+1,
@@ -306,10 +320,8 @@ test('rubble tiles without perceptual border bands in 2x2 repetition',()=>{
 test('naturalistic and watercolor are separate reproducible material languages',()=>{
   for(const material of cases){
     const profile=material.id==='timber-oak'?'panel':undefined;
-    const natural=makeStyledMaterialAsset(material.id,
-      {...material.seeds},'naturalistic-study');
-    const watercolor=makeStyledMaterialAsset(material.id,
-      {...material.seeds},'watercolor-study');
+    const natural=baselineAsset(material,'naturalistic-study');
+    const watercolor=baselineAsset(material,'watercolor-study');
     const n=capture(natural,'albedo',profile);
     const w=capture(watercolor,'albedo',profile);
     const repeat=capture(makeStyledMaterialAsset(material.id,
