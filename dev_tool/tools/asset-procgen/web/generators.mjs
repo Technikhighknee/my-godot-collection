@@ -12,6 +12,8 @@ import {mapOakBarkWood} from './oak-bark-uv.mjs';
 import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
 import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from './roof-textures.mjs';
+import {makeStyledMaterialAsset,MATERIAL_STUDY_STYLES}
+  from './material-style-generation.mjs';
 import {makeTimberAsset} from './timber-textures.mjs';
 import {makePlasterAsset} from './plaster-textures.mjs';
 import {makeStoneAsset} from './stone-textures.mjs';
@@ -79,6 +81,10 @@ export const GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Thatch',navType:'Texture',
     generate:seeds=>makeRoofAsset('thatch',seeds),
+    studyGeneration:Object.freeze({
+      styles:MATERIAL_STUDY_STYLES,
+      generate:(seeds,style)=>makeStyledMaterialAsset('roof-thatch',seeds,style),
+    }),
     overline:'PROJECT TEXTURES / ROOF',
     title:'Thatched roofing.',
     description:'Seamless thatch surface with layered, fibrous courses. Albedo, normal and roughness maps are separately inspectable and lighting-independent.',
@@ -115,6 +121,10 @@ export const GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Wood']),
     navLabel:'Hewn oak',navType:'Texture',
     generate:seeds=>makeTimberAsset(seeds),
+    studyGeneration:Object.freeze({
+      styles:MATERIAL_STUDY_STYLES,
+      generate:(seeds,style)=>makeStyledMaterialAsset('timber-oak',seeds,style),
+    }),
     overline:'PROJECT TEXTURES / TIMBER',
     title:'Hewn oak timber.',
     description:'One reusable hewn oak asset with three surface profiles: beam grain, crosscut end grain and broad flat-sawn wood. Each includes albedo, normal and roughness maps; buildings vary UV sampling per beam.',
@@ -131,6 +141,10 @@ export const GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Walls']),
     navLabel:'Lime plaster',navType:'Texture',
     generate:seeds=>makePlasterAsset(seeds),
+    studyGeneration:Object.freeze({
+      styles:MATERIAL_STUDY_STYLES,
+      generate:(seeds,style)=>makeStyledMaterialAsset('plaster-lime',seeds,style),
+    }),
     overline:'PROJECT TEXTURES / PLASTER',
     title:'Lime plaster.',
     description:'Warm game-stylized lime render with subtle trowel undulations, grain and weathering. Tileable albedo, normal and roughness channels; reuse one material across timber-frame facade panels.',
@@ -148,6 +162,10 @@ export const GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Stone']),
     navLabel:'Rubble stone',navType:'Texture',
     generate:seeds=>makeStoneAsset(seeds),
+    studyGeneration:Object.freeze({
+      styles:MATERIAL_STUDY_STYLES,
+      generate:(seeds,style)=>makeStyledMaterialAsset('stone-rubble',seeds,style),
+    }),
     overline:'PROJECT TEXTURES / STONE',
     title:'Rubble stone masonry.',
     description:'Irregular interlocking fieldstones with recessed mortar, bevelled faces and granular mineral surfaces. Three seamless PBR maps and independent layout, mineral and weather seeds.',
