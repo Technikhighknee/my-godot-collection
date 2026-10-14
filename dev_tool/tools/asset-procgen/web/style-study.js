@@ -9,7 +9,7 @@ const controls={
   tiling:byId('studyTiling'),seed:byId('studySeed'),
 };
 const sources=new Map(),cells=new Map();
-let masterSeed=null,sequence=0;
+let masterSeed=null;
 let activeRender=0;
 for(const material of STUDY_MATERIALS){
   const definition=findGenerator(material.id);
@@ -61,7 +61,7 @@ function getImage(material,view,profile){
   cache.set(key,image);
   return image;
 }
-function paintPreview({canvas,info},source,pixels){
+function paintPreview({canvas,info},source,pixels,profile){
   const scratch=document.createElement('canvas');
   scratch.width=source.width;scratch.height=source.height;
   const ctx=scratch.getContext('2d');
@@ -80,13 +80,17 @@ function paintPreview({canvas,info},source,pixels){
   const square=Math.min(source.width,source.height);
   const sx=Math.floor((source.width-square)/2);
   const sy=Math.floor((source.height-square)/2);
-  const tiles=controls.tiling.checked?2:1;
+  // Long-beam atlas crops and end-grain caps are not individual repeating
+  // square tiles. Showing them 2x2 would falsely suggest a UV seam.
+  const tileable=source.width===source.height&&profile!=='end';
+  const tiles=controls.tiling.checked&&tileable?2:1;
   const cell=size/tiles;
   for(let y=0;y<tiles;y++)for(let x=0;x<tiles;x++)
     output.drawImage(scratch,sx,sy,square,square,x*cell,y*cell,cell,cell);
   info.textContent=source.width+' × '+source.height+
     (source.height>source.width?' · central full-resolution crop':'')+
-    (tiles===2?' · tiled':'');
+    (tiles===2?' · tiled':controls.tiling.checked&&!tileable?
+      ' · tiling disabled for this cut':'');
 }
 async function render(){
   const run=++activeRender;
@@ -104,11 +108,11 @@ async function render(){
     try{
       const profile=material.id==='timber-oak'?timber:material.profile;
       const source=getImage(material,view,profile);
-      paintPreview(cells.get(material.id+'/current'),source,source.data);
+      paintPreview(cells.get(material.id+'/current'),source,source.data,profile);
       const classic=applyTextureStudyStyle(material.id,
         'classic-strategy-study',view,source.data);
       paintPreview(cells.get(material.id+'/classic-strategy-study'),
-        source,classic);
+        source,classic,profile);
       count++;
       status.textContent='Rendering '+view+' · '+count+'/'+sources.size+
         ' materials';
@@ -127,11 +131,11 @@ for(const input of [controls.channel,controls.profile,controls.tiling])
   input.addEventListener('change',()=>void render());
 byId('studyReseed').addEventListener('click',()=>{
   masterSeed=crypto.getRandomValues(new Uint32Array(1))[0];
-  cache.clear();sequence++;
+  cache.clear();
   void render();
 });
 byId('studyReset').addEventListener('click',()=>{
-  masterSeed=null;sequence++;
+  masterSeed=null;
   cache.clear();
   controls.channel.value='albedo';
   controls.profile.value='panel';
