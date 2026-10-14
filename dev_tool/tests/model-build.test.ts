@@ -36,7 +36,9 @@ function glbDocument(glb:Uint8Array){
 }
 function getFloat32(doc:ReturnType<typeof glbDocument>,id:number){
   const accessor=doc.json.accessors[id],view=doc.json.bufferViews[accessor.bufferView];
-  const length=accessor.count*({SCALAR:1,VEC2:2,VEC3:3}[accessor.type] as number);
+  const components:Record<string,number>={SCALAR:1,VEC2:2,VEC3:3};
+  assert.ok(Object.hasOwn(components,accessor.type),'Unsupported glTF accessor type');
+  const length=accessor.count*components[accessor.type];
   const bytes=new DataView(doc.binary.buffer,
     doc.binary.byteOffset+view.byteOffset,view.byteLength);
   return Array.from({length},(_,index)=>bytes.getFloat32(index*4,true));
