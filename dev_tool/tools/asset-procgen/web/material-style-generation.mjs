@@ -212,8 +212,10 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
   const groutOpacity=(1-face)*(.53+.18*fade);
   const stone=[.765,.696,.592],mortar=[.66,.63,.575];
   const paper=[.965,.943,.885];
-  const density=clamp(.69+wash*.23+glaze*.20+bloom*.12-
-    dry*.10);
+  const firstWash=smooth((wash+.31)/.62);
+  const secondWash=smooth((glaze+.30)/.60);
+  const density=clamp(.48+firstWash*.25+secondWash*.22+
+    bloom*.12-dry*.07);
   const granules=Math.max(0,dust+.06)*(.3+.7*fade);
   const jointDeposit=(1-face)*(.020+.016*fade);
   const tint=stoneTone*.70+wash*.13+mineral*.09+
@@ -268,7 +270,10 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
       // Thatch is a comb of overlapping longitudinal stalks, not fuzzy hay.
       const stalk=Math.max(0,fiber+.12)*.31+lines*.18;
       const courses=noise(x,y,w,h,9,23,structure^0x3b98c11d);
-      detail=stalk+courses*.070;
+      detail=natural?stalk+courses*.070:
+        noise(x,y,w,h,51,14,structure^0x516ba04e)*.24+
+        noise(x,y,w,h,19,17,structure^0xc72835e1)*.09+
+        courses*.10;
       physical=stalk*.055;
       weathered=Math.max(0,stains+.17)*.13;
       opacity=natural?.47:.62;
@@ -277,8 +282,11 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
     case 'timber-oak':{
       palette=natural?[.47,.34,.245]:[.70,.53,.38];
       // Strongly anisotropic early/late wood rather than mottled pixels.
-      detail=fiber*.30+lines*.13+noise(x,y,w,h,27,4,
-        structure^0x9a11e3c8)*.11;
+      const widerGrain=noise(x,y,w,h,36,5,
+        structure^0x9a11e3c8);
+      detail=natural?fiber*.30+lines*.13+widerGrain*.11:
+        widerGrain*.34+noise(x,y,w,h,18,4,
+          structure^0x28be719c)*.13+fiber*.045;
       physical=fiber*.045+lines*.014;
       weathered=Math.max(0,stains+.13)*.13;
       opacity=natural?.42:.58;
@@ -288,7 +296,9 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
       palette=natural?[.82,.79,.73]:[.94,.89,.79];
       const trowel=noise(x+y*.19,y,w,h,21,13,structure^0x824ae13c);
       const porous=noise(x,y,w,h,63,59,structure^0xa58d231c);
-      detail=trowel*.10+porous*.075+fine*.057;
+      detail=natural?trowel*.10+porous*.075+fine*.057:
+        trowel*.20+noise(x,y,w,h,14,12,
+          structure^0x91a826f3)*.11+porous*.020;
       physical=porous*.019+trowel*.013;
       weathered=Math.max(0,stains+.16)*.10;
       opacity=natural?.43:.57;
@@ -310,15 +320,19 @@ function artDirectionSurface(material,style,x,y,{w,h,structure,pigment,weather},
   // paper exposure and granular deposits create watercolor character
   // without inventing ring-shaped objects on the surface.
   const paperBase=[.965,.944,.887];
-  const washDensity=clamp(.66+bloom*.24+wet*.20+tide*.12-
-    dry*.13-Math.max(0,paper+.09)*.13);
+  // Two uneven transparent paint passes. Their soft wash boundaries
+  // overlap, rather than tracing the same density threshold as a line.
+  const firstWash=smooth((bloom+.31)/.62);
+  const secondWash=smooth((wet+.29)/.58);
+  const washDensity=clamp(.46+firstWash*.27+secondWash*.24+
+    tide*.10-dry*.09-Math.max(0,paper+.09)*.11);
   const groove=material==='timber-oak'?Math.max(0,-detail)*.16:
     material==='roof-thatch'?Math.max(0,-detail)*.10:0;
   const localPigment=detail*.87+macro*.11+wet*.085+
     pigmentGranules*.068-groove;
   return {
     rgb:palette.map((v,c)=>{
-      const underpaint=mix(v,shape.rgb[c],.36);
+      const underpaint=mix(v,shape.rgb[c],.19);
       const stain=clamp(underpaint+localPigment*[1,.82,.68][c],
         .05,.96);
       return clamp(mix(paperBase[c],stain,washDensity)+
