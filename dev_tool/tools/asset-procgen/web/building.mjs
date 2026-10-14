@@ -56,6 +56,24 @@ const BUILDING_PART_SURFACES=Object.freeze({
   trim:preview('wood'),
 });
 
+// Physical parts carry their fallback albedo so exporters and previews agree.
+const BUILDING_FALLBACK_COLORS=Object.freeze({
+  foundation:0x766b5b,stone:0x9a9282,brick:0x895f4c,
+  plaster:0xd2c6a8,plasterWarm:0xbca88b,
+  plasterOchre:0xbda27b,plasterIvory:0xe1d2b6,
+  timber:0x4a3325,trim:0x74523b,shutter:0x544d36,
+  door:0x68432b,metal:0xb5a17e,
+  glass:0x536c65,innerGlass:0x718a82,
+  interior:0xd8cbb4,interiorPlinth:0xa9977e,
+  innerTrim:0x866a4e,innerTimber:0x62442e,
+  roofUnderlay:0x43342f,roofBase:0x64443b,
+  ridge:0x5c453b,chimney:0x2d2520,floor:0x967654,
+  gallery:0x806047,
+  innerTimberEnd:0x978572,innerTimberPanel:0x978572,
+  timberEnd:0x978572,timberPanel:0x978572,
+  roofThatch:0x978572,roofClay:0x978572,
+});
+
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 const rng=seed=>()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
 const boundsOf=parts=>{
@@ -226,8 +244,11 @@ function geometryBuilder(seed=0){
   function finish(){
     const finished=[...parts.values()].map(p=>({
       material:p.material,
-      surface:BUILDING_PART_SURFACES[p.material]??
-        (()=>{throw Error('Undeclared building material: '+p.material);})(),
+      surface:Object.freeze({
+        ...(BUILDING_PART_SURFACES[p.material]??
+          (()=>{throw Error('Undeclared building material: '+p.material);})()),
+        baseColor:BUILDING_FALLBACK_COLORS[p.material]??0x978572,
+      }),
       positions:new Float32Array(p.positions),
       normals:new Float32Array(p.normals),uvs:new Float32Array(p.uvs),
       indices:new Uint32Array(p.indices),
