@@ -8,6 +8,22 @@ This document records implementation decisions, not a replacement for the
 long-term product requirements. The migration is incremental; working
 generators, their seed behavior, project documents and maps must survive.
 
+## Public HTTP layout
+
+The HTTP server resolves public files by their owning directories, never by
+individual static routes:
+
+- `/` serves `dev_tool/web/` (including `/studio.html`).
+- `/tools/<tool>/` serves `dev_tool/tools/<tool>/web/` automatically.
+  Adding an editor or a JavaScript module needs no HTTP server change.
+- `/vendor/three/` serves installed Three.js JavaScript modules only.
+
+The server enforces explicit browser file extensions, no dotfiles, no encoded
+or parent-directory traversal, and verifies real filesystem containment to
+prevent symlink escape. Project APIs are dispatched separately. Root-level Map
+Editor aliases and extensionless Studio URLs are intentionally not supported;
+the editors use canonical paths.
+
 ## Ownership boundaries
 
 | Owner | Knows | Must not own |

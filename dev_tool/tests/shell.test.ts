@@ -107,9 +107,7 @@ test('shared Dev Tool host works with no Map Editor API attached',async()=>{
 // whenever another generator implementation is added.
 test('public editor mounts serve modules, transitive imports and reject private paths',async()=>{
   const host=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
-  assert.match(host,/url:'\/tools\/asset-procgen\/'/);
-  assert.match(host,/url:'\/tools\/map-editor\/'/);
-  assert.doesNotMatch(host,/staticRoutes|canonical-model\.mjs/);
+  assert.doesNotMatch(host,/staticRoutes|canonical-model\.mjs|tools\/map-editor\/web|tools\/asset-procgen\/web/);
   const folder=new URL('../tools/asset-procgen/web/',import.meta.url);
   const files=readdirSync(folder).filter(name=>/\.(?:mjs|js)$/.test(name));
   assert.ok(files.includes('canonical-model.mjs'));
@@ -193,7 +191,7 @@ test('server ownership stays at the Dev Tool root, not inside the Map Editor',()
   const startup=readFileSync(new URL('../src/serve.ts',import.meta.url),'utf8');
   const mapApi=readFileSync(new URL('../tools/map-editor/src/server.ts',import.meta.url),'utf8');
   assert.match(host,/createDevToolServer/);
-  assert.match(host,/\/tools\/asset-procgen/);
+  assert.ok(host.includes("path.startsWith('/tools/')"));
   assert.doesNotMatch(host,/MapWorkspace|RoadStore|validateDocument/);
   assert.match(startup,/createDevToolServer\(api\)/);
   assert.match(mapApi,/createMapEditorHandler/);
@@ -257,7 +255,6 @@ test('building family editor exposes shell/level controls and serves building so
   assert.match(app,/optionsByGenerator/);
   assert.match(app,/currentBuildingView/);
   assert.match(renderer,/setBuildingView/);
-  assert.match(host,/url:'\/tools\/asset-procgen\/'/);
 });
 
 test('shared stone, plaster, timber and roof materials expose persistent project texture slots',()=>{
@@ -283,7 +280,6 @@ test('shared stone, plaster, timber and roof materials expose persistent project
   assert.doesNotMatch(renderer,/const woodPart=/);
   assert.doesNotMatch(renderer,/const plasterTint=/);
   assert.match(studio,/studio:project-assets-changed/);
-  assert.match(server,/url:'\/tools\/asset-procgen\/'/);
   for(const file of ['roof-textures.mjs','timber-textures.mjs',
     'plaster-textures.mjs','stone-textures.mjs']){
     assert.ok(readFileSync(new URL('../tools/asset-procgen/web/'+file,
