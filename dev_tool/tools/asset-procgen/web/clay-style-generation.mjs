@@ -81,8 +81,8 @@ function paintedMaps(p){
     const bottom=fromAbove?tail(upper,p):tail(tile,p);
     const joint=Math.min(fx,1-fx);
     const vertical=smooth(clamp((joint-.014)/.065));
-    const courseLip=fromAbove?Math.exp(-((fy-bottom)/.052)**2):
-      Math.exp(-((fy-tail(upper,p))/.050)**2);
+    const courseLip=fromAbove?Math.exp(-Math.pow((fy-bottom)/.052,2)):
+      Math.exp(-Math.pow((fy-tail(upper,p))/.050,2));
     const bottomLip=smooth(clamp((yy-.78)/.24));
     const rounded=Math.pow(Math.sin(Math.PI*fx),.8);
     const glaze=periodicNoise(x,y,12,10,p.color^0x832ac711);
