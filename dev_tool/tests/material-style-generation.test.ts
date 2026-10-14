@@ -145,7 +145,7 @@ test('all three oak cuts preserve native shapes and dimensions',()=>{
   assert.throws(()=>makeStyledMaterialAsset('stone-rubble',
     {layout:-1,mineral:5,weather:6},'retro-3d-study'),/seed/);
   assert.throws(()=>makeStyledMaterialAsset('roof-thatch',
-    {pattern:1,color:2},'watercolor-study' as never),/style/);
+    {pattern:1,color:2},'unknown-style' as never),/style/);
 });
 
 
