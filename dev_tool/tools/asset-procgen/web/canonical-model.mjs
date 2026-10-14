@@ -118,6 +118,7 @@ export function canonicalBuildingModel(asset,view='exterior'){
       ...(surface.slot?{slot:surface.slot}:{}),
       ...(surface.profile?{profile:surface.profile}:{}),
       ...(surface.tint!==undefined?{tint:surface.tint}:{}),
+      ...(surface.textureWrap?{textureWrap:surface.textureWrap}:{}),
     });
   });
   return {format:'devtool-canonical-model',version:1,meshes};
