@@ -100,11 +100,17 @@ async function produce(node:BuildNode,entry:AssetEntry,
       maps[slot]=profiles;
     }
     const result:{meta:BuildFile;data:Buffer}[]=[];
+    const generatedLevels=new Map<number,ReturnType<typeof generateAsset>>();
     for(const variant of def.modelBake.variants){
       safeName(variant.name);
-      // Use the exact registered generation path as the interactive preview.
-      const generated=generateAsset(def,source.generator.components,
-        options,variant.level??1);
+      const level=variant.level??1;
+      // Exterior and interior are two views of one generated building.
+      // Never regenerate geometry just to export the second view.
+      let generated=generatedLevels.get(level);
+      if(!generated){
+        generated=generateAsset(def,source.generator.components,options,level);
+        generatedLevels.set(level,generated);
+      }
       const canonical=def.modelBake.canonicalize(generated,variant);
       if(!canonical)continue; // Optional interior scene disabled by recipe.
       const bytes=Buffer.from(encodeModelGlb(canonical,maps));
