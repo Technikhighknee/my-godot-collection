@@ -24,6 +24,7 @@ test('five real texture generators make a consistent non-persistent study board'
     assert.equal(asset.id,material.id);
     // Study recipes never introduce a new source style field into persisted
     // generators, so existing project sources and seed formats remain valid.
+    assert.ok('sourceSeeds' in asset);
     assert.deepEqual(asset.sourceSeeds,seeds);
     const derived=reseedStudySeeds(def,12345);
     assert.deepEqual(derived,reseedStudySeeds(def,12345));
@@ -70,11 +71,11 @@ test('normal and roughness study passes retain physically valid channels',()=>{
 });
 test('study rejects unsupported IDs, view types and malformed seed inputs',()=>{
   const rgba=new Uint8ClampedArray(4);
-  assert.throws(()=>applyTextureStudyStyle('bogus','current','albedo',rgba),
+  assert.throws(()=>applyTextureStudyStyle('bogus' as never,'current','albedo',rgba),
     /material/);
-  assert.throws(()=>applyTextureStudyStyle('stone-rubble','bogus','albedo',rgba),
+  assert.throws(()=>applyTextureStudyStyle('stone-rubble','bogus' as never,'albedo',rgba),
     /style/);
-  assert.throws(()=>applyTextureStudyStyle('stone-rubble','current','height',rgba),
+  assert.throws(()=>applyTextureStudyStyle('stone-rubble','current','height' as never,rgba),
     /view/);
   assert.throws(()=>applyTextureStudyStyle('stone-rubble','current',
     'albedo',new Uint8ClampedArray(3)),/RGBA/);
