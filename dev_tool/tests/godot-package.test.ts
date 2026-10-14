@@ -222,6 +222,13 @@ test('Godot sync copies only selected asset, keeps paths stable and retains impo
       '[remap]\nuid="uid://test"\n');
     assert.deepEqual((await readdir(join(game,'assets','1400','world'))).sort(),
       ['market-image','oak-image']);
+    const {syncGodotPackage}=await import('../src/projects/godot-sync.ts');
+    const pkg=await lib.exportGodot('oak-image');
+    const isolated=await syncGodotPackage('second-project','oak-image',pkg,game);
+    assert.equal(isolated.synced,true);
+    assert.equal(isolated.resourcePath,
+      'res://assets/1400/second-project/oak-image/');
+    assert.deepEqual(await readFile(file),original);
     assert.deepEqual(await readFile(join(root,'world','exports','godot',
       'oak-image','assets','oak-image','oak-image.png')),original);
     // Managed outputs are immutable from the synchronizer's perspective.
@@ -292,6 +299,9 @@ test('Godot sync rejects wrong targets, unowned files and redirected folders',as
     await assert.rejects(lib.syncGodot('icon',notGame),/ENOENT|project.godot/);
     await assert.rejects(lib.syncGodot('icon','relative/path'),
       /absolute Godot project folder/);
+    await assert.rejects(readFile(join(root,'world','exports','godot','icon',
+      'manifest.json')),{code:'ENOENT'},
+      'A bad Godot path must be rejected before generating an export');
     const game=join(root,'game');await mkdir(game);
     await writeFile(join(game,'project.godot'),'config_version=5\n');
     const foreign=join(game,'assets','1400','world','icon');
