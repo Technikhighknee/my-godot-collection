@@ -241,6 +241,7 @@ test('texture style workbench serves its independent non-destructive comparison 
       ['/tools/asset-procgen/texture-study-export.mjs','javascript','drawTextureStudyExport'],
       ['/tools/asset-procgen/clay-style-generation.mjs','javascript','generateStyledClay'],
       ['/tools/asset-procgen/material-style-generation.mjs','javascript','makeStyledMaterialAsset'],
+      ['/tools/asset-procgen/material-language.mjs','javascript','materialElementTraits'],
     ] as const){
       const response=await fetch(base+path);
       assert.equal(response.status,200,path);
