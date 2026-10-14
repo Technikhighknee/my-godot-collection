@@ -407,6 +407,13 @@ test('imported files join existing project resources without a fake generator',a
     assert.deepEqual(await lib.graph(),{
       edges:[{from:'map:world',to:'asset:blender-hall'}],missing:[],
     });
+    // A standalone PNG is not a three-channel PBR material and must not
+    // silently satisfy a procedural roof material slot.
+    await assert.rejects(lib.createAsset('invalid-building',{
+      name:'Invalid Building',generator:'timber-building',masterSeed:19043,
+      components:{structure:19043,material:62191},
+      materials:{roofClay:'asset:imported-wall'},
+    }),/existing compatible texture asset/);
     await lib.createAsset('fir-one',fir());
     assert.equal((await lib.assets()).length,3);
     assert.equal(procedural(await lib.asset('fir-one')).id,'fir');
@@ -467,6 +474,8 @@ test('import API requires project identity and verifies served bytes',async()=>{
       assert.equal(crossOrigin.status,400);
       const uploaded=await fetch(url+path,{method:'POST',headers,body:png});
       assert.equal(uploaded.status,201,await uploaded.text());
+      const duplicate=await fetch(url+path,{method:'POST',headers,body:png});
+      assert.equal(duplicate.status,409);
       const entry=await lib.asset('wood-beam');
       assert.equal(entry.source.name,'Wood Beam');
       assert.equal(entry.kind,'image');
