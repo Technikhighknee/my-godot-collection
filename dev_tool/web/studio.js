@@ -532,6 +532,8 @@ window.addEventListener('focus',()=>{if(project)verifyProject().catch(e=>showErr
       if(saved.active==='overview'||tabs.has(saved.active))selectTab(saved.active);
       else selectTab('overview');
     }else selectTab('overview');
+    if(new URLSearchParams(location.search).get('study')==='materials')
+      openStyleStudy();
     if(!tabs.size&&activeMap)byId('openMap').disabled=false;
     setStatus('READY');
   }catch(e){showError('Unable to open project workspace: '+e.message);}
