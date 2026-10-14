@@ -100,7 +100,8 @@ async function produce(node:BuildNode,entry:AssetEntry,
       maps[slot]=profiles;
     }
     const result:{meta:BuildFile;data:Buffer}[]=[];
-    const generatedLevels=new Map<number,ReturnType<typeof generateAsset>>();
+    const generatedLevels=new Map<number,
+      Parameters<typeof def.modelBake.canonicalize>[0]>();
     for(const variant of def.modelBake.variants){
       safeName(variant.name);
       const level=variant.level??1;
