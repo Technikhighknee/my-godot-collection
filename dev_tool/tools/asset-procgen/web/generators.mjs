@@ -11,7 +11,8 @@ import {OAK_BARK_SIZE,OAK_BARK_MAPS,OAK_BARK_PROFILES,
 import {mapOakBarkWood} from './oak-bark-uv.mjs';
 import {DEFAULT_BUILDING_OPTIONS,validateBuildingOptions,generateBuildingFamily}
   from './building.mjs';
-import {canonicalTreeModel,canonicalBuildingModel} from './canonical-model.mjs';
+import {canonicalTreeModel,canonicalBuildingModel,canonicalOakWoodModel}
+  from './canonical-model.mjs';
 import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from './roof-textures.mjs';
 import {makeStyledMaterialAsset,MATERIAL_STUDY_STYLES}
   from './material-style-generation.mjs';
@@ -35,6 +36,21 @@ function generateFirAsset(seeds){
   return {id:'fir',kind:'model',
     wood:generateFir({seed:seeds.geometry}),
     foliage:null,atlasSeed:null};
+}
+// Generate export channels from the same bark implementation used in the
+// viewport. No alternate material algorithm is introduced for baking.
+function oakBarkBakeMaps(asset){
+  if(!asset.barkSeeds)throw Error('Missing oak bark recipe');
+  const profiles={};
+  for(const profile of OAK_BARK_PROFILES){
+    const maps=generateOakBarkMaterial({...asset.barkSeeds,profile});
+    profiles[profile]={
+      albedo:{width:maps.width,height:maps.height,rgba:maps.albedo},
+      normal:{width:maps.width,height:maps.height,rgba:maps.normal},
+      roughness:{width:maps.width,height:maps.height,rgba:maps.roughness},
+    };
+  }
+  return {oakBark:profiles};
 }
 function generateOakAtlasAsset(seeds){
   return {
@@ -217,10 +233,15 @@ export const GENERATORS=Object.freeze([
   }),
   Object.freeze({
     id:'oak',kind:'model',recipeVersion:1,symbol:'♠',label:'Oak tree',subtitle:'Oak wood & leaves',
+    modelBake:Object.freeze({
+      variants:Object.freeze([Object.freeze({name:'wood',level:1})]),
+      canonicalize:asset=>canonicalOakWoodModel(asset),
+      materialMaps:asset=>oakBarkBakeMaps(asset),
+    }),
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Tree',navType:'3D',
     generate:generateOakAsset,
     overline:'OAK / WOOD + FOLIAGE',title:'Oak in leaf.',
-    description:'European oak with seeded bark PBR material (albedo, normal, roughness and cavity AO), continuous axial UVs along each woody chain, and independently generated foliage. No export.',
+    description:'European oak with bark PBR and independently seeded foliage. Wood-only GLB export preserves the existing UV-mapped trunk and maturity-profile materials; leaf atlas export is not yet headless.',
     previewLabel:'Interactive 3D oak tree wood preview',
     initialMasterSeed:DEFAULT_TREE.seed,
     components:Object.freeze([
