@@ -1,6 +1,8 @@
 import {findGenerator,generateAsset} from './generators.mjs';
 import {STUDY_STYLES,STUDY_MATERIALS,applyTextureStudyStyle,
   studySeeds,reseedStudySeeds} from './texture-style-study.mjs';
+import {drawTextureStudyExport,textureStudyExportFilename}
+  from './texture-study-export.mjs';
 
 const byId=id=>document.getElementById(id);
 const embedded=new URLSearchParams(location.search).get('embedded')==='1';
@@ -17,7 +19,12 @@ const controls={
 };
 const sources=new Map(),cells=new Map(),filterInputs=new Map();
 const selectedStyles=new Set(STUDY_STYLES.map(style=>style.id));
-let masterSeed=null,activeRender=0;
+let masterSeed=null,activeRender=0,renderReady=false,exporting=false;
+const exportButton=byId('studyExportPNG');
+function updateExportButton(){
+  exportButton.disabled=!renderReady||exporting;
+  exportButton.textContent=exporting?'Preparing PNG…':'Export PNG ↓';
+}
 const PREVIEW_SIZE=256;
 
 // The original is always present as a stable visual reference. Alternatives
@@ -185,6 +192,7 @@ function paintPreview(cell,material,style,preview,pixels,profile){
 }
 async function render(){
   const run=++activeRender;
+  renderReady=false;updateExportButton();
   const view=controls.channel.value,profile=controls.profile.value;
   const styles=visibleStyles();
   controls.seed.textContent=masterSeed===null?'Reference seeds':
@@ -212,11 +220,57 @@ async function render(){
     }
   }
   if(run===activeRender){
+    renderReady=true;updateExportButton();
     status.textContent='Ready · '+sources.size+' materials · '+
       styles.length+' art directions · identical source seeds';
     studioSignal({type:'studio:ready'});
   }
 }
+async function exportPng(){
+  if(!renderReady||exporting)return;
+  const generation=activeRender;
+  exporting=true;updateExportButton();
+  try{
+    // Use every rendered cell, including columns beyond the scroll viewport.
+    // This is intentionally separate from any DOM screenshot implementation.
+    const canvas=document.createElement('canvas');
+    const styles=visibleStyles();
+    const materials=[...sources.values()];
+    const view=controls.channel.value,profile=controls.profile.value;
+    const seed=masterSeed,tiling=controls.tiling.checked;
+    const layout=drawTextureStudyExport(canvas,{
+      styles,materials,cells,view,profile,seed,tiling,
+    });
+    const blob=await new Promise((resolve,reject)=>{
+      canvas.toBlob(result=>result?resolve(result):
+        reject(Error('Browser could not encode the PNG')),'image/png');
+    });
+    if(blob.type!=='image/png')throw Error('PNG encoding failed');
+    const url=URL.createObjectURL(blob);
+    try{
+      const link=document.createElement('a');
+      link.href=url;
+      link.download=textureStudyExportFilename({view,seed,styles});
+      document.body.append(link);
+      link.click();
+      link.remove();
+    }finally{
+      // Allow the browser's download manager time to open the Blob URL.
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }
+    if(generation===activeRender)
+      status.textContent='PNG prepared · '+layout.width+' × '+
+        layout.height+' · '+styles.length+' styles / '+materials.length+
+        ' materials';
+  }catch(error){
+    status.textContent='PNG export failed: '+
+      (error instanceof Error?error.message:String(error));
+    console.error(error);
+  }finally{
+    exporting=false;updateExportButton();
+  }
+}
+exportButton.addEventListener('click',()=>void exportPng());
 for(const input of [controls.channel,controls.profile,controls.tiling])
   input.addEventListener('change',()=>void render());
 byId('studyReseed').addEventListener('click',()=>{
