@@ -56,8 +56,8 @@ test('periodic element features keep pigment, geometry and aging separate',()=>{
   assert.equal(weathered.form,original.form);
   assert.equal(weathered.variation,original.variation);
   assert.equal(weathered.fracture,original.fracture);
-  assert.throws(()=>get({form:1,pigment:2,aging:3})&&
-    materialElementTraits(1,1,0,8,seeds),/positive integers/);
+  assert.throws(()=>materialElementTraits(1,1,0,8,seeds),
+    /positive integers/);
 });
 
 test('element damage masks are local and independent of tint',()=>{
@@ -77,8 +77,10 @@ test('element damage masks are local and independent of tint',()=>{
     {...detail,deposits:1,age:1},.5,.08);
   assert.ok(wet.moisture>dry.moisture,
     'Deposits should build up near exposed lower edges');
+  const crackLine=.5+Math.sin(5.5)*.012;
   const cracked=materialElementWear(
-    {...detail,fracture:1,fracturePosition:.5,fractureSkew:0},.5,.5);
+    {...detail,fracture:1,fracturePosition:.5,fractureSkew:0},
+    crackLine,.5);
   assert.ok(cracked.crack>.5,'Rare seeded cracks need a real crack mask');
 });
 
