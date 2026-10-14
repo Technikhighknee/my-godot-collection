@@ -119,8 +119,12 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       if(buildMatch&&req.method==='POST')
         return send(res,200,await library.buildAsset(buildMatch[1]));
       const exportMatch=/^\/api\/projects\/active\/exports\/godot\/([a-z0-9_-]+)$/.exec(path);
-      if(exportMatch&&req.method==='POST')
-        return send(res,200,await library.exportGodot(exportMatch[1]));
+      if(exportMatch){
+        if(req.method==='POST')
+          return send(res,200,await library.exportGodot(exportMatch[1]));
+        res.writeHead(405,{Allow:'POST'});
+        res.end();return;
+      }
       if(path==='/api/projects/active/graph'&&req.method==='GET')
         return send(res,200,await library.graph());
       if(path.startsWith('/api/projects')){
