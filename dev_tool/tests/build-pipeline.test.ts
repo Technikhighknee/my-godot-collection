@@ -124,9 +124,9 @@ test('saved material recipes bake original generator maps and reuse valid cache'
       'Renaming a source should not rebake its pixels');
     await lib.updateAsset('clay',{...source,components:{pattern:11,color:14}},
       rename.revision);
-    const rebuilt=await lib.buildAsset('clay');
-    assert.equal(rebuilt.built,1);
-    assert.notEqual(rebuilt.artifacts[0]?.key,artifact.key);
+    const changed=await lib.buildPlan(['clay']);
+    assert.notEqual(changed.nodes[0]?.key,artifact.key,
+      'Recoloring invalidates the cached build key');
     await lib.createAsset('fir', {name:'Fir',generator:'fir',
       masterSeed:7,components:{geometry:7}});
     await assert.rejects(lib.buildAsset('fir'),/No headless bake capability/);
