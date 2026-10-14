@@ -225,7 +225,7 @@ function directedStoneSurface(style,x,y,{w,h,structure,pigment,weather},shape){
     rgb,
     z:clamp(.19+chamfer*shape.stoneRelief*.66+
       grain*.013*face-erosion*.014-crack*.019),
-    rough:clamp(mix(.95,.915+dust*.063+paper*.05,face)),
+    rough:clamp(mix(.95,.915+dust*.063+dry*.05,face)),
   };
 }
 // Art direction is a material-aware translation, never an image blur.
