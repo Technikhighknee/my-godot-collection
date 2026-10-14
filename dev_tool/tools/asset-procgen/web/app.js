@@ -9,6 +9,11 @@ import {createAssetLibrary} from './asset-library.mjs';
 
 const byId=id=>document.getElementById(id);
 const embedded=new URLSearchParams(location.search).get('embedded')==='1';
+document.getElementById('styleStudyLink')?.addEventListener('click',event=>{
+  if(!embedded)return;
+  event.preventDefault();
+  window.parent.postMessage({type:'studio:open-style-study'},location.origin);
+});
 if(embedded)document.documentElement.classList.add('studio-embedded');
 function studioSignal(message){
   if(embedded&&window.parent!==window)window.parent.postMessage(message,location.origin);
