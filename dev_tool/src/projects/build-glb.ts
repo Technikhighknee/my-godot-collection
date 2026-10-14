@@ -10,7 +10,18 @@ const linear=v=>{
   v/=255;
   return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4);
 };
-function materialOf(m:CanonicalMaterial){
+interface GlbMaterial {
+  name:string;
+  pbrMetallicRoughness:{
+    baseColorFactor:number[];metallicFactor:number;roughnessFactor:number;
+    baseColorTexture?:{index:number};
+    metallicRoughnessTexture?:{index:number};
+  };
+  doubleSided:boolean;
+  normalTexture?:{index:number};
+  extras?:Record<string,string|number>;
+}
+function materialOf(m:CanonicalMaterial):GlbMaterial{
   const rgb=m.baseColor;
   const srgb=[(rgb>>>16)&255,(rgb>>>8)&255,rgb&255];
   return {
