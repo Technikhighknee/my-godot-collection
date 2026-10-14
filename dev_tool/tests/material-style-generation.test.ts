@@ -316,12 +316,14 @@ test('naturalistic and watercolor are separate reproducible material languages',
       {...material.seeds},'watercolor-study'),'albedo',profile);
     assert.deepEqual(w.data,repeat.data,
       material.id+' watercolor must be reproducible');
-    assert.ok(difference(n.data,w.data)>25000,
-      material.id+' must not collapse to a watercolor color filter');
+    // difference() returns a fraction of sampled pixels, not a count.
+    // This verifies distinct albedo output, not artistic quality.
+    assert.ok(difference(n.data,w.data)>.75,
+      material.id+' styles must produce visibly different albedo');
     // Neither paper/pigment nor color reseeding is allowed to mutate
     // material relief for a given style.
-    const recolored={...material.seeds,
-      [material.pigment]:material.seeds[material.pigment]!+1};
+    const recolored:Record<string,number>={...material.seeds};
+    recolored[material.pigment]=recolored[material.pigment]!+1;
     for(const style of ['naturalistic-study','watercolor-study'] as const){
       const a=makeStyledMaterialAsset(material.id,
         {...material.seeds},style);
