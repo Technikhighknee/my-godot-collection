@@ -1,5 +1,6 @@
 export type NativeMaterialId='roof-thatch'|'timber-oak'|'plaster-lime'|'stone-rubble';
-export type NativeStyleId='hand-painted-study'|'retro-3d-study';
+export type NativeStyleId='hand-painted-study'|'retro-3d-study'|
+  'naturalistic-study'|'watercolor-study';
 export const MATERIAL_STUDY_STYLES:readonly NativeStyleId[];
 export interface NativeStyledImage {
   id:NativeMaterialId;kind:'image';width:number;height:number;
