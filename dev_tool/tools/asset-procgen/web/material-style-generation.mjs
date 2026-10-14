@@ -105,14 +105,16 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
     for(let row=0;row<rows;row++){
       // Include small chinking stones and occasional long slabs; the walls
       // should not settle into a repetitive uniform rectangular bond.
-      const count=(retro?5:4)+Math.floor(
-        hash(row,1,structure^0x391e4bc2)*4);
+      const count=4+Math.floor(
+        hash(row,1,structure^0x391e4bc2)*(retro?3:4));
       const small=Math.floor(hash(row,2,structure^0x8fca923d)*count);
       let large=Math.floor(hash(row,3,structure^0xa127f48b)*count);
       if(large===small)large=(large+2)%count;
       const widths=Array.from({length:count},(_,i)=>{
-        const base=.36+hash(row,i,structure^0x38cbd672)*1.67;
-        return base*(i===small?.37:i===large?2.1:1);
+        const base=(retro?.74:.36)+hash(row,i,structure^0x38cbd672)*
+          (retro?.92:1.67);
+        return base*(i===small?(retro?.68:.37):
+          i===large?(retro?1.65:2.1):1);
       });
       const sum=widths.reduce((a,b)=>a+b,0);
       const cuts=[0];
@@ -375,12 +377,14 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
     fx+fy,fx+1-fy,1-fx+fy,2-fx-fy);
   const cornerInset=Math.max(0,corner-diagonal)*Math.min(span,height)*.57;
   const ragged=noise(x,y,w,h,retro?29:51,retro?27:49,
-    structure^0x6db82ca1)*(retro?1.7:3.5);
+    structure^0x6db82ca1)*(retro?.55:3.5);
   const edge=Math.min(xx-left,right-xx,yy-top,bottom-yy)-
     cornerInset+ragged;
-  const border=retro?1.15:1.6;
-  const face=smooth((edge-border)/(retro?2.3:3.4));
-  const bevel=smooth((edge-.5)/(retro?6.4:9.3));
+  // Retro is authored at 128 px: each side of a joint needs only ~1 texel,
+  // not the old 3-4 texels that joined into an unreadable dark network.
+  const border=retro?.10:1.6;
+  const face=smooth((edge-border)/(retro?1.15:3.4));
+  const bevel=smooth((edge-(retro?.06:.5))/(retro?2.25:9.3));
   const micro=noise(x,y,w,h,retro?23:79,retro?29:73,
     structure^0x718c42d3);
   const grit=noise(x,y,w,h,retro?32:113,retro?26:109,
@@ -393,8 +397,8 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
   const scratch=Math.max(0,-grit-.26)*face;
   // Different shape grammars share a coherent limestone family. Shallow
   // value variation does the work, not dark cartoon grout outlines.
-  const base=retro?[.631,.597,.527]:[.679,.642,.558];
-  const mortar=retro?[.46,.439,.403]:[.497,.472,.431];
+  const base=retro?[.663,.629,.554]:[.679,.642,.558];
+  const mortar=retro?[.518,.497,.451]:[.497,.472,.431];
   const tone=rock.tone*(retro?.12:.15)+mineral*.075+
     wash*.035+medium*.054+micro*.040-
     Math.max(0,lichen)*.090-scratch*.080;
