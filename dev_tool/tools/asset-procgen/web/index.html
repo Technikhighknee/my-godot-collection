@@ -160,6 +160,9 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
       <label for="savedProjectAssets">Saved sources</label>
       <select id="savedProjectAssets"><option value="">New asset</option></select>
       <button id="loadProjectAsset" type="button">Load selected</button>
+      <label for="importProjectFile">Import external model or image (.glb / .png)</label>
+      <input id="importProjectFile" type="file" accept=".glb,.png,model/gltf-binary,image/png">
+      <button id="importProjectAsset" type="button">Import into project</button>
       <label for="projectAssetName">Asset name</label>
       <input id="projectAssetName" type="text" maxlength="100" placeholder="Oak — Market Square">
       <label for="projectAssetId">Stable ID</label>
