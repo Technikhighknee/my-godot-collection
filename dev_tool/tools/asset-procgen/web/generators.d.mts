@@ -35,7 +35,8 @@ export interface ModelBakeCapability {
     variant:ModelBakeVariant)=>import('./canonical-model.mjs').CanonicalModel|null;
   materialMaps?:(generated:GeneratedModel|GeneratedBuilding)=>Record<string,
     Record<string,Partial<Record<'albedo'|'normal'|'roughness'|'ao',
-      {width:number;height:number;rgba:Uint8Array}>>>>;
+      {width:number;height:number;rgba:Uint8Array}|
+      {paint:(canvas:HTMLCanvasElement)=>unknown}>>>>;
 }
 export interface TreeGeneratorDefinition extends GeneratorMeta {
   kind:'model';modelBake?:ModelBakeCapability;
@@ -51,7 +52,7 @@ export interface BuildingGeneratorDefinition extends GeneratorMeta {
 }
 export type ModelGeneratorDefinition=TreeGeneratorDefinition|BuildingGeneratorDefinition;
 export interface ImageGeneratorDefinition extends GeneratorMeta {
-  kind:'image';headlessBake?:boolean;
+  kind:'image';headlessBake?:boolean;headlessCanvasBake?:boolean;
   generate:(seeds:Record<string,number>)=>GeneratedImage;
   // Optional native procedural style capabilities used by the non-persistent
   // art-direction study. Other generators still use preview treatments.
