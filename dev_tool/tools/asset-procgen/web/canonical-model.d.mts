@@ -1,5 +1,6 @@
 export interface CanonicalMaterial {
-  name:string;baseColor:number;roughness:number;doubleSided:boolean;
+  name:string;baseColor:number;roughness:number;normalScale?:number;
+  doubleSided:boolean;
   slot?:string;profile?:string;tint?:number;
 }
 export interface CanonicalMesh {
