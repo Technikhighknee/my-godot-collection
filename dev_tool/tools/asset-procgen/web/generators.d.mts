@@ -34,7 +34,7 @@ export interface ModelBakeCapability {
   canonicalize:(generated:GeneratedModel|GeneratedBuilding,
     variant:ModelBakeVariant)=>import('./canonical-model.mjs').CanonicalModel|null;
   materialMaps?:(generated:GeneratedModel|GeneratedBuilding)=>Record<string,
-    Record<string,Partial<Record<'albedo'|'normal'|'roughness',
+    Record<string,Partial<Record<'albedo'|'normal'|'roughness'|'ao',
       {width:number;height:number;rgba:Uint8Array}>>>>;
 }
 export interface TreeGeneratorDefinition extends GeneratorMeta {
