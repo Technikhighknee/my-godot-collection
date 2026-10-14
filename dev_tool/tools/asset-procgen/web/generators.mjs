@@ -48,6 +48,7 @@ function oakBarkBakeMaps(asset){
       albedo:{width:maps.width,height:maps.height,rgba:maps.albedo},
       normal:{width:maps.width,height:maps.height,rgba:maps.normal},
       roughness:{width:maps.width,height:maps.height,rgba:maps.roughness},
+      ao:{width:maps.width,height:maps.height,rgba:maps.ao},
     };
   }
   return {oakBark:profiles};
