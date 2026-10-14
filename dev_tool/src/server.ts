@@ -22,30 +22,31 @@ const contentTypes:Readonly<Record<string,string>>=Object.freeze({
   '.woff2':'font/woff2',
 });
 
-// Specific mounts precede the application root. No legacy URL aliases:
-// browser references must use the owning public directory.
-const mounts=Object.freeze([
-  {url:'/tools/map-editor/',dir:'tools/map-editor/web'},
-  {url:'/tools/asset-procgen/',dir:'tools/asset-procgen/web'},
-  {url:'/vendor/three/',dir:'node_modules/three',scriptsOnly:true},
-  {url:'/',dir:'web'},
-]);
-
+// Each public tool owns /tools/<tool>/ via tools/<tool>/web/.
+// There is no per-tool or per-module registration in the HTTP server.
 type PublicAsset={file:string;directory:string;contentType:string};
 function publicAsset(path:string):PublicAsset|null{
-  for(const mount of mounts){
-    if(!path.startsWith(mount.url))continue;
-    const name=path.slice(mount.url.length)||'index.html';
-    // In addition to rejecting traversal in the request itself, reject
-    // dotfiles, empty segments and all non-public extensions.
-    if(name.split('/').some(part=>!part||part.startsWith('.')))return null;
-    const extension=extname(name).toLowerCase();
-    const contentType=contentTypes[extension];
-    if(!contentType||(mount.scriptsOnly&&extension!=='.js'))return null;
-    return {file:join(root,mount.dir,name),
-      directory:join(root,mount.dir),contentType};
+  let directory:string,name:string,scriptsOnly=false;
+  if(path.startsWith('/tools/')){
+    const match=/^\/tools\/([a-z][a-z0-9-]*)\/(.*)$/.exec(path);
+    if(!match)return null;
+    directory=join(root,'tools',match[1]!,'web');
+    name=match[2]||'index.html';
+  }else if(path.startsWith('/vendor/three/')){
+    directory=join(root,'node_modules/three');
+    name=path.slice('/vendor/three/'.length);
+    scriptsOnly=true;
+  }else{
+    directory=join(root,'web');
+    name=path.slice(1)||'index.html';
   }
-  return null;
+  // Request checks below also reject encoded traversal and extra slashes.
+  // Realpath validation below prevents symlinks escaping the public folder.
+  if(!name||name.split('/').some(part=>!part||part.startsWith('.')))return null;
+  const extension=extname(name).toLowerCase();
+  const contentType=contentTypes[extension];
+  if(!contentType||(scriptsOnly&&extension!=='.js'))return null;
+  return {file:join(directory,name),directory,contentType};
 }
 function within(directory:string,file:string){
   const path=relative(directory,file);
