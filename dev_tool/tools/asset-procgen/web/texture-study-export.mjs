@@ -42,25 +42,24 @@ export function textureStudyExportLayout(styles,materials){
   });
 }
 function wrapped(ctx,text,x,y,maxWidth,lineHeight,maxLines=2){
-  const words=String(text).split(/\s+/).filter(Boolean);
-  let line='',row=0;
+  const words=String(text).split(/\s+/).filter(Boolean),lines=[];
+  let line='';
   for(const word of words){
     const candidate=line?line+' '+word:word;
     if(line&&ctx.measureText(candidate).width>maxWidth){
-      ctx.fillText(line,x,y+row*lineHeight);
-      row++;line=word;
-      if(row>=maxLines-1)break;
+      lines.push(line);
+      line=word;
     }else line=candidate;
   }
-  if(row<maxLines&&line){
-    // Keep descriptions entirely inside their own export columns.
-    const remainder=words.join(' ');
-    if(row===maxLines-1&&ctx.measureText(remainder).width>maxWidth){
-      while(ctx.measureText(line+'…').width>maxWidth&&line.length>1)
-        line=line.slice(0,-1);
-      if(line!==remainder)line+='…';
+  if(line)lines.push(line);
+  for(let row=0;row<Math.min(lines.length,maxLines);row++){
+    let content=row===maxLines-1?lines.slice(row).join(' '):lines[row];
+    if(ctx.measureText(content).width>maxWidth){
+      while(content.length>1&&ctx.measureText(content+'…').width>maxWidth)
+        content=content.slice(0,-1);
+      content+='…';
     }
-    ctx.fillText(line,x,y+row*lineHeight);
+    ctx.fillText(content,x,y+row*lineHeight);
   }
 }
 const asTitle=value=>String(value??'').trim();
