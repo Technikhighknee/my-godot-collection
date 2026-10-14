@@ -19,6 +19,17 @@ async function body(req:IncomingMessage):Promise<Record<string,unknown>>{
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('Expected a JSON object');
   return raw as Record<string,unknown>;
 }
+const MAX_UPLOAD=32*1024*1024;
+async function binaryBody(req:IncomingMessage):Promise<Buffer>{
+  const chunks:Buffer[]=[];let size=0;
+  for await(const chunk of req){
+    const bytes=Buffer.from(chunk);
+    size+=bytes.length;
+    if(size>MAX_UPLOAD)throw Error('Import exceeds 32 MiB');
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks,size);
+}
 function assertWrite(req:IncomingMessage){
   const address=req.socket.localAddress;
   const host='127.0.0.1:'+req.socket.localPort;
@@ -39,7 +50,8 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         assertWrite(req);
         // The project ID is part of the resource identity. A stale editor
         // must never accidentally write its recipe into another active project.
-        if(path.startsWith('/api/projects/active/assets')&&
+        if((path.startsWith('/api/projects/active/assets')||
+          path.startsWith('/api/projects/active/imports'))&&
           req.headers['x-project-id']!==library.active()?.id){
           return send(res,409,{error:'Active project changed; reopen this asset'});
         }
@@ -56,6 +68,26 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         if(req.method==='PUT'){
           const x=await body(req);exact(x,['id']);
           return send(res,200,{project:await library.select(x.id as string)});
+        }
+      }
+      const importMatch=/^\\/api\\/projects\\/active\\/imports\\/([a-z0-9_-]+)$/.exec(path);
+      if(importMatch){
+        if(req.method==='POST'){
+          const contentType=req.headers['content-type']?.toLowerCase();
+          const format=contentType==='model/gltf-binary'?'glb':
+            contentType==='image/png'?'png':null;
+          if(!format)throw Error('Import requires model/gltf-binary or image/png');
+          const requestUrl=new URL(req.url??'/', 'http://127.0.0.1');
+          const name=requestUrl.searchParams.get('name')??importMatch[1];
+          return send(res,201,await library.importAsset(
+            importMatch[1],name,format,await binaryBody(req)));
+        }
+        if(req.method==='GET'){
+          const {bytes,source}=await library.importedBytes(importMatch[1]);
+          res.writeHead(200,{'Content-Type':source.imported.format==='glb'?
+            'model/gltf-binary':'image/png','Content-Length':bytes.length,
+            'Cache-Control':'no-store'});
+          res.end(bytes);return;
         }
       }
       if(path==='/api/projects/active/assets'){
