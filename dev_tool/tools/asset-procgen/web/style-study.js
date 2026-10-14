@@ -28,16 +28,11 @@ for(const material of STUDY_MATERIALS){
   const group=document.createElement('small');group.textContent=material.group;
   const title=document.createElement('strong');title.textContent=material.label;
   const link=document.createElement('a');
-  link.href='/tools/asset-procgen/?generator='+encodeURIComponent(material.id);
-  if(embedded){
-    link.href='/studio/?generator='+encodeURIComponent(material.id);
-    link.addEventListener('click',event=>{
-      event.preventDefault();
-      studioSignal({type:'studio:open-generator',id:material.id});
-    });
-  }else{
-    link.href='/studio/?generator='+encodeURIComponent(material.id);
-  }
+  link.href='/studio/?generator='+encodeURIComponent(material.id);
+  if(embedded)link.addEventListener('click',event=>{
+    event.preventDefault();
+    studioSignal({type:'studio:open-generator',id:material.id});
+  });
   link.textContent='Open generator ↗';
   label.append(group,title,link);
   board.append(label);
@@ -161,4 +156,6 @@ byId('studyReset').addEventListener('click',()=>{
   controls.tiling.checked=false;
   void render();
 });
+// A responsive Studio tab must become visible even if a generator fails.
+studioSignal({type:'studio:ready'});
 void render();
