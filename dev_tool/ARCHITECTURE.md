@@ -116,14 +116,25 @@ will consume them.
   images for assigned shared project PBR maps. GLB material metadata retains
   the resource slot and texture profile. The result is usable by glTF-capable
   tools including Godot, pending actual in-engine visual validation.
-- Fir wood exports as `model.glb`. Timber-frame buildings export three
-  variants of `level-*-exterior.glb`, plus `level-*-interior.glb` when the
-  recipe enables the interior shell. Both views reuse one generated level.
-- Only *explicitly assigned* project materials get baked PBR maps.
-  Unassigned surfaces use authored fallback colors; this is not equivalent
-  to the procedural fallback textures currently visible in the editor.
-  Oak foliage and mature bark still lack a complete integrated model export
-  adapter and are rejected, not silently exported with missing leaf cards.
+- Fir wood exports as `model.glb`. Oak has a separate **wood-only**
+  `wood.glb` output with the native three bark maturity profiles. The
+  existing seam-mapped wood geometry and its triangle count are unchanged.
+  It embeds the same deterministic albedo, normal and roughness generation
+  as the 3D preview, without requiring an external source asset.
+- Timber-frame buildings export three variants of `level-*-exterior.glb`,
+  plus `level-*-interior.glb` when the recipe enables the interior shell.
+  Both views reuse one generated level.
+- Only explicitly assigned project materials are embedded for buildings;
+  unassigned surfaces use authored fallback colors, not the preview's
+  generated fallback textures. Oak bark is generator-owned rather than a
+  shared project material; it is baked from the saved bark seeds.
+- Oak **foliage is not exported** yet. The 1024px transparent leaf atlas uses
+  browser Canvas path painting and currently has no faithful, headless pixel
+  implementation. The wood-only filename and catalog description make this
+  limitation explicit: do not imply the GLB contains foliage.
+- Production output format versions are separate from stored recipe versions.
+  Changing a GLB exporter invalidates affected model cache keys without
+  rewriting a project's saved generator source.
 
 This is the beginning of the canonical scene contract, not a generalized
 runtime scene graph or a final Godot-specific import preset.
@@ -205,10 +216,10 @@ have a separate version-2 source shape within the same asset index. Imported
 files can be persisted, verified and copied into derived build artifacts,
 but they do not yet have an imported-model preview or PBR interpretation.
 Procedural material maps now have a headless, cached PNG build.
-Fir wood and three-level timber-frame building families have canonical GLB
-model output, optionally embedding assigned project texture maps. Oak trees,
-vector-painted foliage and other incomplete model material systems still
-lack lossless end-to-end production support.
+Fir wood, three-level timber-frame buildings and oak wood have canonical
+GLB model output. Oak bark uses native PBR maps; the leaf-card atlas and
+fully leafed tree output remain pending. Other vector-painted foliage also
+lacks a faithful headless raster path.
 
 A complete scene graph, runtime placement metadata, historical generator
 version resolver, style-aware production recipes, importable texture defaults
