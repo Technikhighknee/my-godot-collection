@@ -9,13 +9,13 @@ export const STUDY_STYLES=Object.freeze([
   Object.freeze({id:'classic-strategy-study',label:'Classic PC Strategy',
     description:'Painted color, rough pigment and clearly readable details'}),
   Object.freeze({id:'naturalistic-study',label:'Naturalistic',
-    description:'Subdued mineral pigments, stains and weathering'}),
+    description:'Material-aware wear, fine physical grain and realistic pigments'}),
   Object.freeze({id:'hand-painted-study',label:'Hand-Painted Fantasy',
     description:'Bold illustrated shapes, simplified colors and contrast'}),
   Object.freeze({id:'retro-3d-study',label:'Retro 3D',
     description:'Chunky texels, ordered dithering and limited color depth'}),
   Object.freeze({id:'watercolor-study',label:'Watercolor',
-    description:'Translucent pigment washes and soft granulation'}),
+    description:'Illustrated material forms with pooled pigment and dry-brush grain'}),
 ]);
 export const STUDY_MATERIALS=Object.freeze([
   Object.freeze({id:'roof-thatch',label:'Thatch',group:'Roof',profile:null}),
