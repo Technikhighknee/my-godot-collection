@@ -160,7 +160,7 @@ export function encodeModelGlb(model:CanonicalModel,
         if(maps.normal)
           material.normalTexture={
             index:bakedTexture(slot,profile,'normal',maps.normal),
-            scale:slot==='oakBark'?.78:.62};
+            scale:bucket.material.normalScale??.62};
       }
       materials.push(material);
       primitives.push({attributes,indices,material:materialIndex,mode:4});
