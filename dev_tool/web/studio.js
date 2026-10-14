@@ -532,8 +532,14 @@ window.addEventListener('focus',()=>{if(project)verifyProject().catch(e=>showErr
       if(saved.active==='overview'||tabs.has(saved.active))selectTab(saved.active);
       else selectTab('overview');
     }else selectTab('overview');
-    if(new URLSearchParams(location.search).get('study')==='materials')
-      openStyleStudy();
+    const route=new URLSearchParams(location.search);
+    if(route.get('study')==='materials')openStyleStudy();
+    const requestedGenerator=route.get('generator');
+    if(requestedGenerator){
+      const {findGenerator}=await import('/tools/asset-procgen/generators.mjs');
+      const definition=findGenerator(requestedGenerator);
+      if(definition)openGenerator(definition);
+    }
     if(!tabs.size&&activeMap)byId('openMap').disabled=false;
     setStatus('READY');
   }catch(e){showError('Unable to open project workspace: '+e.message);}
