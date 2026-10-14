@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {ProjectLibrary} from '../src/projects/library.ts';
 import {encodeModelGlb} from '../src/projects/build-glb.ts';
 import {encodeRgbaPng} from '../src/projects/build-image.ts';
-import {canonicalBuildingModel,canonicalTreeModel,canonicalOakWoodModel}
+import {canonicalBuildingModel,canonicalTreeModel,canonicalOakWoodModel,
+  canonicalOakModel}
   from '../tools/asset-procgen/web/canonical-model.mjs';
 import {findGenerator,generateAsset} from
   '../tools/asset-procgen/web/generators.mjs';
@@ -116,8 +117,18 @@ test('oak bark export retains the accepted wood triangles and all native profile
     ['limb','trunk','young']);
   assert.ok(mesh.groups!.length>3);
   assert.equal(mesh.groups!.reduce((n,g)=>n+g.count,0),mesh.indices.length);
-  assert.equal(def.modelBake?.variants[0]?.name,'wood');
+  assert.equal(def.modelBake?.variants[0]?.name,'model');
   assert.ok(def.modelBake?.materialMaps);
+  const complete=canonicalOakModel(oak);
+  assert.equal(complete.meshes.length,2);
+  const foliage=complete.meshes[1]!;
+  assert.strictEqual(foliage.positions,oak.foliage.positions);
+  assert.strictEqual(foliage.indices,oak.foliage.indices);
+  assert.strictEqual(foliage.uvs,oak.foliage.uvs);
+  assert.strictEqual(foliage.colors,oak.foliage.colors);
+  assert.equal(foliage.material.alphaMode,'MASK');
+  assert.equal(foliage.material.alphaCutoff,.43);
+  assert.equal(foliage.material.textureWrap,'clamp');
   // Tiny valid PNGs test material binding and grouped GLB serialization
   // without incurring nine 1024px material renders in this unit test.
   const pixels=encodeRgbaPng(1,1,Uint8Array.from([110,116,85,255]));
@@ -142,6 +153,29 @@ test('oak bark export retains the accepted wood triangles and all native profile
     m.normalTexture?.scale===.78&&m.occlusionTexture?.strength===.85&&
     m.pbrMetallicRoughness.baseColorTexture));
   assert.deepEqual(encodeModelGlb(canonical,maps),data);
+  const fullData=encodeModelGlb(complete,{
+    ...maps,oakFoliage:{default:{albedo:pixels}},
+  });
+  const tree=glbDocument(fullData);
+  assert.equal(tree.json.meshes.length,2);
+  assert.equal(tree.json.meshes[1].primitives.length,1);
+  const leaves=tree.json.materials.find((m:{
+    extras?:{resourceSlot:string};
+  })=>m.extras?.resourceSlot==='oakFoliage');
+  assert.ok(leaves);
+  assert.equal(leaves.alphaMode,'MASK');
+  assert.equal(leaves.alphaCutoff,.43);
+  assert.equal(leaves.doubleSided,true);
+  const atlasTexture=tree.json.textures[
+    leaves.pbrMetallicRoughness.baseColorTexture.index];
+  const atlasSampler=tree.json.samplers[atlasTexture.sampler];
+  assert.equal(atlasSampler.wrapS,33071);
+  assert.equal(atlasSampler.wrapT,33071);
+  assert.ok(tree.json.meshes[1].primitives[0].attributes.COLOR_0!==undefined);
+  assert.equal(tree.json.images.length,13);
+  assert.deepEqual(encodeModelGlb(complete,{
+    ...maps,oakFoliage:{default:{albedo:pixels}},
+  }),fullData);
 });
 
 test('building GLB artifacts include three level variants and optional interiors',async()=>{
@@ -220,25 +254,34 @@ test('building GLB artifacts include three level variants and optional interiors
   }finally{await rm(root,{recursive:true,force:true});}
 });
 
-test('oak wood build embeds all three native bark profiles and reuses the artifact',async()=>{
-  const root=await mkdtemp(join(tmpdir(),'oak-wood-build-'));
+test('full oak build embeds bark profiles and transparent foliage atlas and reuses cache',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'oak-tree-build-'));
   try{
     const lib=await ProjectLibrary.open(root,undefined,findGenerator);
     await lib.create('world','World');
-    const recipe={name:'Oak wood',generator:'oak',masterSeed:101,
+    const recipe={name:'Oak tree',generator:'oak',masterSeed:101,
       components:{geometry:101,foliage:101,leaves:21749,
         barkStructure:19641,barkSurface:48507,barkColor:21749}};
     const saved=await lib.createAsset('oak',recipe);
     const result=await lib.buildAsset('oak');
     assert.equal(result.built,1);
     const artifact=result.artifacts[0]!;
-    assert.deepEqual(artifact.files.map(f=>f.file),['wood.glb']);
+    assert.deepEqual(artifact.files.map(f=>f.file),['model.glb']);
     const data=await readFile(join(root,'world','build','assets','oak',
-      artifact.key,'wood.glb'));
+      artifact.key,'model.glb'));
     const doc=glbDocument(data);
-    assert.equal(doc.json.meshes.length,1);
+    assert.equal(doc.json.meshes.length,2);
     assert.equal(doc.json.meshes[0].primitives.length,3);
-    assert.equal(doc.json.images.length,12);
+    assert.equal(doc.json.meshes[1].primitives.length,1);
+    assert.equal(doc.json.images.length,13);
+    const atlasMaterial=doc.json.materials.find(
+      (m:{extras?:{resourceSlot?:string}})=>
+        m.extras?.resourceSlot==='oakFoliage');
+    assert.equal(atlasMaterial?.alphaMode,'MASK');
+    assert.equal(atlasMaterial?.alphaCutoff,.43);
+    const atlasTex=doc.json.textures[
+      atlasMaterial.pbrMetallicRoughness.baseColorTexture.index];
+    assert.equal(doc.json.samplers[atlasTex.sampler].wrapS,33071);
     assert.deepEqual([...new Set(doc.json.materials.map(
       (m:{extras:{profile:string}})=>m.extras.profile))].sort(),
       ['limb','trunk','young']);
@@ -248,6 +291,11 @@ test('oak wood build embeds all three native bark profiles and reuses the artifa
         view.byteOffset+8)],[137,80,78,71,13,10,26,10]);
     }
     assert.equal((await lib.buildAsset('oak')).reused,1);
+    const atlasSource=doc.json.images.find((i:{name:string})=>
+      i.name==='oakFoliage|default|albedo|clamp');
+    assert.ok(atlasSource,'Leaf atlas must be embedded in the exported GLB');
+    const atlasView=doc.json.bufferViews[atlasSource.bufferView];
+    assert.ok(atlasView.byteLength>10000);
     const renamed=await lib.updateAsset('oak',{...recipe,name:'Oak renamed'},
       saved.revision);
     assert.ok(renamed.revision!==saved.revision);
