@@ -101,6 +101,10 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
       }
       return line;
     });
+    // Put the vertical tiling cut within a wide course instead of
+    // directly on the boundary between the first and last courses.
+    const widestRow=weights.indexOf(Math.max(...weights));
+    const originY=(elevations[widestRow]+elevations[widestRow+1])*.5;
     const courses=[];
     for(let row=0;row<rows;row++){
       // Include small chinking stones and occasional long slabs; the walls
@@ -140,10 +144,17 @@ function prepareMaterialContext(material,{structure,pigment,retro}){
         // Structure seed only: paint/respray does not move corners.
         corner:hash(row,i,structure^0xcb58d127),
       }));
+      // Place the horizontal tiling cut within a stone, rather than
+      // on an arbitrary vertical joint. Vary the cut within that stone
+      // independently per course so it doesn't create a repeated pillar.
+      const largest=widths.indexOf(Math.max(...widths));
+      const span=cuts[largest+1]-cuts[largest];
+      const center=(cuts[largest]+cuts[largest+1])*.5;
+      const drift=(hash(row,9,structure^0x56b1ca37)-.5)*span*.36;
       courses.push({count,cuts,joints,stones,
-        offset:hash(row,9,structure^0x56b1ca37)*w});
+        offset:wrap(w-center-drift,w)});
     }
-    return {masonry:{rows,edges,courses}};
+    return {masonry:{rows,edges,courses,originY}};
   }
   return {};
 }
@@ -174,7 +185,10 @@ function raster(material,style,seeds,profile){
     }
     colorize(m,p,result.rgb,result.z,result.rough);
   }
-  weldSeams(m);
+  // Rubble already wraps geometrically along both axes. Averaging mirrored
+  // border pixels flattened the stone relief into conspicuous pale bands
+  // whenever the texture was repeated. Other materials still need welding.
+  if(material!=='stone-rubble')weldSeams(m);
   if(!retro)return m;
   // Pixel-perfect low-resolution *geometry*. All three maps are generated
   // at native 128px density before nearest-neighbour enlargement.
@@ -346,9 +360,11 @@ function stone(x,y,{w,h,structure,pigment,weather,retro,masonry}){
   // Hand-laid masonry: horizontal, irregular courses and stones of wildly
   // different widths. Each joint is shared by its neighbors. The periodic
   // first/last course and first/last vertical joint keep the texture tileable.
-  const {rows,edges,courses}=masonry;
+  const {rows,edges,courses,originY}=masonry;
   const boundary=edges[x],seam=boundary[0];
-  const yy=wrap(y-seam,h)+seam;
+  // A fixed, seeded origin inside an actual stone course keeps both edges
+  // periodic without creating an artificial continuous mortar line.
+  const yy=wrap(y+originY-seam,h)+seam;
   let row=0;
   while(row<rows-1&&yy>=boundary[row+1])row++;
   const top=boundary[row],bottom=boundary[row+1],height=bottom-top;
@@ -501,7 +517,7 @@ export function makeStyledMaterialAsset(material,seeds,style){
         }
         d[i+3]=255;
       }
-      if(view==='normal')weldNormalEdges(d,w,h,step);
+      if(view==='normal'&&material!=='stone-rubble')weldNormalEdges(d,w,h,step);
       ctx.putImageData(image,0,0);
     },
   };
