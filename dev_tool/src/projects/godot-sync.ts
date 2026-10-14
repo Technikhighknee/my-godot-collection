@@ -2,8 +2,8 @@
 // The only writable target is res://assets/1400/<project>/<resource>/.
 // Binary outputs come exclusively from a previously verified project package.
 import {randomUUID} from 'node:crypto';
-import {isAbsolute,join,resolve,sep} from 'node:path';
-import {lstat,mkdir,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises';
+import {isAbsolute,join,resolve} from 'node:path';
+import {lstat,mkdir,readFile,rename,rm,writeFile} from 'node:fs/promises';
 import {readGodotPackage,type GodotPackageResult} from './godot-package.ts';
 
 const validId=/^[a-z0-9][a-z0-9_-]{0,47}$/;
@@ -32,6 +32,18 @@ export interface GodotSyncResult{
   built:number;
   reused:number;
 }
+/** Validate the destination before any expensive asset generation. */
+export async function validateGodotProject(godotProjectDir:string){
+  if(typeof godotProjectDir!=='string'||!godotProjectDir.trim()||
+    !isAbsolute(godotProjectDir)||godotProjectDir.includes('\\0'))
+    throw Error('Choose an absolute Godot project folder');
+  const game=resolve(godotProjectDir);
+  await existingDirectory(game);
+  const info=await lstat(join(game,'project.godot'));
+  if(!info.isFile()||info.isSymbolicLink()||info.size===0)
+    throw Error('Expected a regular nonempty Godot project.godot');
+  return game;
+}
 /** Export must be a successfully published and verified package. */
 export async function syncGodotPackage(
   projectId:string,root:string,packageResult:GodotPackageResult,
@@ -39,14 +51,7 @@ export async function syncGodotPackage(
   if(!validId.test(projectId)||!validId.test(root)||
     root!==packageResult.manifest.root)
     throw Error('Invalid Godot sync resource identity');
-  if(typeof godotProjectDir!=='string'||!godotProjectDir.trim()||
-    !isAbsolute(godotProjectDir)||godotProjectDir.includes('\0'))
-    throw Error('Choose an absolute Godot project folder');
-  const game=resolve(godotProjectDir);
-  await existingDirectory(game);
-  const projectFile=await readRegular(join(game,'project.godot'));
-  if(!projectFile.length)
-    throw Error('Godot project.godot is empty');
+  const game=await validateGodotProject(godotProjectDir);
   // Re-verify the package after generation. A stale or modified package
   // cannot be copied to a game just because its manifest looks valid.
   const source=await readGodotPackage(packageResult.directory,root);
