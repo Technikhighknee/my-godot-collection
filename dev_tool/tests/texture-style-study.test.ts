@@ -186,7 +186,8 @@ test('native texture style grammars register with their material generator',()=>
   const clay=findGenerator('roof-clay');
   assert.ok(clay?.studyGeneration);
   assert.deepEqual(clay.studyGeneration.styles,
-    ['hand-painted-study','retro-3d-study']);
+    ['hand-painted-study','retro-3d-study',
+      'naturalistic-study','watercolor-study']);
   const source=studySeeds(clay);
   const native=clay.studyGeneration.generate(source,'hand-painted-study');
   const original=generateAsset(clay,source);
@@ -201,7 +202,8 @@ test('native texture style grammars register with their material generator',()=>
     assert.ok(generator.studyGeneration,
       material.id+' must advertise native generative studies');
     assert.deepEqual(generator.studyGeneration.styles,
-      ['hand-painted-study','retro-3d-study']);
+      ['hand-painted-study','retro-3d-study',
+      'naturalistic-study','watercolor-study']);
     const original=generateAsset(generator,studySeeds(generator));
     assert.ok(!('sourceStyle' in original),
       'Legacy generator must never inherit a study style implicitly');
