@@ -27,7 +27,7 @@ function projectCard(project,activeId){
         method:'PUT',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({id:project.id}),
       });
-      location.assign('/studio/');
+      location.assign('/studio.html');
     }catch(e){item.disabled=false;issue(e.message);}
   });
   return item;
@@ -60,7 +60,7 @@ form.addEventListener('submit',async(event)=>{
     await api('/api/projects',{method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({id:id.value.trim(),name:name.value.trim()})});
-    location.assign('/studio/');
+    location.assign('/studio.html');
   }catch(e){button.disabled=false;issue(e.message);}
 });
 await refresh();

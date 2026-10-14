@@ -60,7 +60,7 @@ function createMaterialName(material){
   const group=document.createElement('small');group.textContent=material.group;
   const title=document.createElement('strong');title.textContent=material.label;
   const link=document.createElement('a');
-  link.href='/studio/?generator='+encodeURIComponent(material.id);
+  link.href='/studio.html?generator='+encodeURIComponent(material.id);
   if(embedded)link.addEventListener('click',event=>{
     event.preventDefault();
     studioSignal({type:'studio:open-generator',id:material.id});

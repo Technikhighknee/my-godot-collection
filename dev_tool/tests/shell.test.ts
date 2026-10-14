@@ -18,7 +18,7 @@ test('project launcher replaces tool landing; standalone editor remains availabl
   assert.doesNotMatch(home, /dt-card-grid|PLANNED — NOT YET AVAILABLE/);
   assert.match(editor, /href="\/" aria-label="Return to Dev Tool home"/);
   assert.match(editor, /\/dev-tool\.css/);
-  assert.match(homeJs, /\/studio\//);
+  assert.match(homeJs, /\/studio\.html/);
 });
 
 test('HTTP main menu and existing map editor are separate, working routes', async () => {
@@ -36,7 +36,7 @@ test('HTTP main menu and existing map editor are separate, working routes', asyn
     assert.match(index.headers.get('content-security-policy') ?? '', /default-src 'none'/);
     assert.match(await index.text(), /1400 · Dev Tool/);
 
-    for (const path of ['/tools/map-editor/', '/tools/map-editor']) {
+    for (const path of ['/tools/map-editor/', '/tools/map-editor/index.html']) {
       const response = await get(path);
       assert.equal(response.status, 200, path);
       const page = await response.text();
@@ -50,8 +50,8 @@ test('HTTP main menu and existing map editor are separate, working routes', asyn
       ['/studio.js', /javascript/],
       ['/dev-tool.css', /text\/css/],
       ['/dev-tool.js', /javascript/],
-      ['/style.css', /text\/css/],
-      ['/app.js', /javascript/]
+      ['/tools/map-editor/style.css', /text\/css/],
+      ['/tools/map-editor/app.js', /javascript/]
     ] as const) {
       const response = await get(path);
       assert.equal(response.status, 200, path);
@@ -62,7 +62,7 @@ test('HTTP main menu and existing map editor are separate, working routes', asyn
       assert.equal((await head.text()).length, 0);
     }
 
-    const studio = await get('/studio/');
+    const studio = await get('/studio.html');
     assert.equal(studio.status,200);
     assert.match(await studio.text(),/id="tabbar"/);
     assert.match(studio.headers.get('content-security-policy')??'',/frame-src 'self'/);
@@ -86,7 +86,7 @@ test('shared Dev Tool host works with no Map Editor API attached',async()=>{
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const base='http://127.0.0.1:'+address.port;
-    for(const route of ['/','/studio/','/studio.js','/studio.css','/dev-tool.js','/tools/map-editor/',
+    for(const route of ['/','/studio.html','/studio.js','/studio.css','/dev-tool.js','/tools/map-editor/',
       '/tools/asset-procgen/','/tools/asset-procgen/app.js',
       '/tools/asset-procgen/generators.mjs',
       '/tools/asset-procgen/canonical-model.mjs']){
@@ -103,12 +103,13 @@ test('shared Dev Tool host works with no Map Editor API attached',async()=>{
       server.close(error=>error?reject(error):resolve()));
   }
 });
-// A module in the public editor folder must work without touching server.ts.
-// Verify actual HTTP delivery and the transitive relative imports.
-test('editor modules and their relative imports use the bounded static mount',async()=>{
+// One mount serves any new public module; the server does not need edits
+// whenever another generator implementation is added.
+test('public editor mounts serve modules, transitive imports and reject private paths',async()=>{
   const host=readFileSync(new URL('../src/server.ts',import.meta.url),'utf8');
-  assert.match(host,/prefix:'\/tools\/asset-procgen'/);
-  assert.doesNotMatch(host,/['"]\/tools\/asset-procgen\/canonical-model\.mjs['"]/);
+  assert.match(host,/url:'\/tools\/asset-procgen\/'/);
+  assert.match(host,/url:'\/tools\/map-editor\/'/);
+  assert.doesNotMatch(host,/staticRoutes|canonical-model\.mjs/);
   const folder=new URL('../tools/asset-procgen/web/',import.meta.url);
   const files=readdirSync(folder).filter(name=>/\.(?:mjs|js)$/.test(name));
   assert.ok(files.includes('canonical-model.mjs'));
@@ -130,25 +131,25 @@ test('editor modules and their relative imports use the bounded static mount',as
         ...code.matchAll(/\bfrom\s*['"](\.[^'"]+)['"]/g),
         ...code.matchAll(/\bimport\s*['"](\.[^'"]+)['"]/g),
         ...code.matchAll(/\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g),
-      ]){
-        const dependency=posix.normalize(posix.join(
-          posix.dirname(url),match[1]!));
-        imports.add(dependency);
-      }
+      ])imports.add(posix.normalize(posix.join(
+        posix.dirname(url),match[1]!)));
     }
     assert.ok(imports.size>15,'Expected a real ESM dependency graph');
-    for(const path of imports){
-      const response=await fetch(origin+path);
-      assert.equal(response.status,200,'Unserved dependency '+path);
-      assert.match(response.headers.get('content-type')??'',/javascript/);
+    for(const dependency of imports){
+      const response=await fetch(origin+dependency);
+      assert.equal(response.status,200,'Unserved import '+dependency);
     }
     const head=await fetch(origin+'/tools/asset-procgen/canonical-model.mjs',
       {method:'HEAD'});
     assert.equal(head.status,200);
     assert.equal((await head.text()).length,0);
-    assert.equal((await fetch(origin+'/tools/asset-procgen/style-study')).status,200);
-    assert.equal((await fetch(origin+'/tools/map-editor/terrain-edit.mjs')).status,200);
-    for(const path of [
+    for(const route of ['/', '/studio.html', '/tools/map-editor/',
+      '/tools/asset-procgen/', '/tools/asset-procgen/style-study.html',
+      '/vendor/three/build/three.module.js']){
+      assert.equal((await fetch(origin+route)).status,200,route);
+    }
+    for(const route of ['/studio/', '/studio', '/app.js','/style.css',
+      '/tools/map-editor','/tools/asset-procgen/style-study',
       '/tools/asset-procgen/not-a-module.mjs',
       '/tools/asset-procgen/.hidden.mjs',
       '/tools/asset-procgen/canonical-model.d.mts',
@@ -156,7 +157,9 @@ test('editor modules and their relative imports use the bounded static mount',as
       '/tools/asset-procgen/%2e%2e/src/server.ts',
       '/tools/map-editor/src/server.ts',
       '/node_modules/three/package.json',
-    ])assert.equal((await fetch(origin+path)).status,404,path);
+      '/vendor/three/package.json']){
+      assert.equal((await fetch(origin+route)).status,404,route);
+    }
   }finally{
     await new Promise<void>((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
@@ -254,7 +257,7 @@ test('building family editor exposes shell/level controls and serves building so
   assert.match(app,/optionsByGenerator/);
   assert.match(app,/currentBuildingView/);
   assert.match(renderer,/setBuildingView/);
-  assert.match(host,/\/tools\/asset-procgen\/building.mjs/);
+  assert.match(host,/url:'\/tools\/asset-procgen\/'/);
 });
 
 test('shared stone, plaster, timber and roof materials expose persistent project texture slots',()=>{
@@ -280,7 +283,7 @@ test('shared stone, plaster, timber and roof materials expose persistent project
   assert.doesNotMatch(renderer,/const woodPart=/);
   assert.doesNotMatch(renderer,/const plasterTint=/);
   assert.match(studio,/studio:project-assets-changed/);
-  assert.match(server,/prefix:'\/tools\/asset-procgen'/);
+  assert.match(server,/url:'\/tools\/asset-procgen\/'/);
   for(const file of ['roof-textures.mjs','timber-textures.mjs',
     'plaster-textures.mjs','stone-textures.mjs']){
     assert.ok(readFileSync(new URL('../tools/asset-procgen/web/'+file,

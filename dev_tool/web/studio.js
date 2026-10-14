@@ -148,7 +148,7 @@ function openStyleStudy(){
   const tab=makeTab({key,kind:'study',id:'materials',
     label:'Texture Style Study'});
   if(!tab.frame.getAttribute('src'))
-    tab.frame.src='/tools/asset-procgen/style-study?embedded=1';
+    tab.frame.src='/tools/asset-procgen/style-study.html?embedded=1';
   selectTab(key);
 }
 function openGenerator(generator){
