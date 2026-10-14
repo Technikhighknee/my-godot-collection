@@ -5,6 +5,7 @@
 // UV convention: X runs along ridge, Y downhill. Both axes repeat.
 export const CLAY_GENERATIVE_STYLES=Object.freeze([
   'hand-painted-study','retro-3d-study',
+  'naturalistic-study','watercolor-study',
 ]);
 const SIZE=512;
 const wrap=(v,m)=>(v%m+m)%m;
@@ -24,8 +25,10 @@ function periodicNoise(x,y,cx,cy,seed){
     mix(h(ix,iy+1),h(ix+1,iy+1),fx),fy)-.5;
 }
 function plan(style,seeds){
-  const fantasy=style==='hand-painted-study';
-  const columns=fantasy?7:8,rows=8;
+  const fantasy=style!=='retro-3d-study';
+  const columns=style==='naturalistic-study'?11:
+    style==='watercolor-study'?9:fantasy?7:8;
+  const rows=style==='naturalistic-study'?10:style==='watercolor-study'?9:8;
   const pattern=seeds.pattern>>>0,color=seeds.color>>>0;
   const traits=(col,row,salt)=>hash(wrap(col,columns),wrap(row,rows),salt);
   const atlas=[];
@@ -170,6 +173,79 @@ function retroMaps(p){
   }
   return {albedo,height,roughness};
 }
+
+// Clay isn't a color-graded source roof. Each art direction generates its own
+// beaver-tail tile coverage, slip pigment, near-joint relief and roughness.
+// Painted watercolor edges follow the tile silhouettes, never random blobs.
+function naturalWatercolorMaps(p,style){
+  const natural=style==='naturalistic-study';
+  const resolution=256,scale=SIZE/resolution;
+  const colors=new Float32Array(resolution*resolution*3);
+  const depths=new Float32Array(resolution*resolution);
+  const rough=new Float32Array(resolution*resolution);
+  const step=SIZE/p.rows;
+  for(let sy=0;sy<resolution;sy++)for(let sx=0;sx<resolution;sx++){
+    const x=(sx+.5)*scale,y=(sy+.5)*scale;
+    const row=Math.floor(y/step),fy=y/step-row;
+    const top=tileAt(x,y,row-1,p);
+    const fromAbove=fy<tail(top,p);
+    const tile=fromAbove?top:tileAt(x,y,row,p);
+    const fyTile=fromAbove?fy+1:fy;
+    const joint=Math.min(tile.fx,1-tile.fx);
+    const rounded=Math.pow(Math.max(0,Math.sin(tile.fx*Math.PI)),.83);
+    const tip=tail(top,p);
+    const lip=Math.exp(-Math.pow((fy-tip)/.035,2));
+    const face=smooth(clamp((joint-.007)/.071));
+    const under=Math.exp(-Math.pow((fy-tip)/.071,2));
+    const coarse=periodicNoise(x,y,natural?12:8,natural?11:9,
+      p.pattern^0xa35172bc);
+    const brush=periodicNoise(x,y,natural?54:32,natural?39:18,
+      p.pattern^0x849ac271);
+    const pores=periodicNoise(x,y,113,106,p.pattern^0x519a6c2f);
+    const tide=periodicNoise(x,y,14,12,p.color^0x721ca5d1);
+    const mineral=periodicNoise(x,y,31,28,p.color^0x3ec5ad71);
+    const granule=periodicNoise(x,y,93,87,p.color^0xa12ce93b);
+    const wash=coarse*.11+brush*.075+pores*.027;
+    const fired=(tile.kiln-.5)*(natural?.20:.14);
+    const fading=(tile.wear-.5)*(natural?.11:.07);
+    const pooled=Math.exp(-Math.pow((Math.abs(tide+.35*mineral)-.22)/.061,2));
+    const rim=(1-face)*(natural?.095:.135)+
+      under*(natural?.085:.110);
+    const base=natural?[.56,.335,.224]:[.755,.453,.335];
+    const tone=fired+fading+wash+mineral*(natural?.093:.13)+
+      tide*(natural?.048:.125)+granule*.038-rim-
+      (!natural?pooled*.11:0);
+    const at=sy*resolution+sx,i=at*3;
+    colors[i]=clamp(base[0]+tone,.17,.94);
+    colors[i+1]=clamp(base[1]+tone*.78,.08,.76);
+    colors[i+2]=clamp(base[2]+tone*.60,.05,.65);
+    depths[at]=clamp(.18+rounded*.32*face+
+      lip*.12-under*.11+pores*.039+brush*.019-
+      (1-face)*.15,0,1);
+    rough[at]=clamp((natural?.86:.92)+pores*.060+
+      brush*.032+under*.045+(1-face)*.07,0,1);
+  }
+  // Smoothly reconstruct the hand-authored native half-res pigment bake.
+  // No retro pixel blocks and no filtering of another generator's output.
+  const albedo=new Float32Array(SIZE*SIZE*3);
+  const height=new Float32Array(SIZE*SIZE);
+  const roughness=new Float32Array(SIZE*SIZE);
+  for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+    const xx=x/scale,yy=y/scale,cx=Math.floor(xx),cy=Math.floor(yy);
+    const tx=smooth(xx-cx),ty=smooth(yy-cy);
+    const a=cy*resolution+cx,b=cy*resolution+wrap(cx+1,resolution);
+    const c=wrap(cy+1,resolution)*resolution+cx;
+    const d=wrap(cy+1,resolution)*resolution+wrap(cx+1,resolution);
+    const avg=(arr,n,k=0)=>mix(mix(arr[a*n+k],arr[b*n+k],tx),
+      mix(arr[c*n+k],arr[d*n+k],tx),ty);
+    const dst=y*SIZE+x;
+    for(let k=0;k<3;k++)albedo[dst*3+k]=avg(colors,3,k);
+    height[dst]=avg(depths,1);
+    roughness[dst]=avg(rough,1);
+  }
+  return {albedo,height,roughness};
+}
+
 export function generateStyledClay(seeds,style){
   if(!CLAY_GENERATIVE_STYLES.includes(style))
     throw Error('Unsupported generative clay style: '+style);
@@ -178,5 +254,7 @@ export function generateStyledClay(seeds,style){
        seeds[name]>0xffffffff)
       throw Error('Invalid clay style seed: '+name);
   const definition=plan(style,seeds);
-  return definition.fantasy?paintedMaps(definition):retroMaps(definition);
+  return style==='naturalistic-study'||style==='watercolor-study'?
+    naturalWatercolorMaps(definition,style):
+    definition.fantasy?paintedMaps(definition):retroMaps(definition);
 }
