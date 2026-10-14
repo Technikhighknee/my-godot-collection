@@ -136,6 +136,15 @@ function openAsset(source){
     encodeURIComponent(source.id)+'&generator='+encodeURIComponent(source.generator.id);
   selectTab(key);
 }
+function openStyleStudy(){
+  if(blocked)return;
+  const key='study:materials';
+  const tab=makeTab({key,kind:'study',id:'materials',
+    label:'Texture Style Study'});
+  if(!tab.frame.getAttribute('src'))
+    tab.frame.src='/tools/asset-procgen/style-study?embedded=1';
+  selectTab(key);
+}
 function openGenerator(generator){
   if(blocked)return;
   const key='new:'+generator.id;
@@ -330,6 +339,12 @@ async function showCatalog(){
     const {GENERATORS}=await import('/tools/asset-procgen/generators.mjs');
     catalog.dataset.loaded='true';
     catalog.replaceChildren();
+    const study=make('button','resource studio-study-resource');
+    study.type='button';
+    study.append(make('span','resource-icon','◈'),
+      make('span','resource-name','Texture Style Study · All materials'));
+    study.addEventListener('click',openStyleStudy);
+    catalog.append(study);
     for(const family of [...new Set(GENERATORS.map(g=>g.libraryPath[0]))]){
       const group=make('section','tree-group');
       const header=make('div','group-title',family);
@@ -413,6 +428,14 @@ window.addEventListener('message',event=>{
     tab.id=msg.file;
     renameTab(tab,msg.name);
     refreshResources().catch(e=>showError(e.message));
+  }else if(msg.type==='studio:open-style-study'){
+    openStyleStudy();
+  }else if(msg.type==='studio:open-generator'&&typeof msg.id==='string'){
+    import('/tools/asset-procgen/generators.mjs').then(({findGenerator})=>{
+      const generator=findGenerator(msg.id);
+      if(generator)openGenerator(generator);
+      else showError('Unknown generator '+msg.id);
+    }).catch(e=>showError(e.message));
   }else if(msg.type==='studio:open-asset'&&typeof msg.id==='string'){
     const found=assets.find(a=>a.source.id===msg.id);
     if(found)openAsset(found.source);else showError('Asset '+msg.id+' is not in this project');
@@ -434,6 +457,7 @@ byId('openMap').addEventListener('click',()=>{
   else showError('This project has no maps yet.');
 });
 byId('createAsset').addEventListener('click',()=>openCatalog().catch(e=>showError(e.message)));
+byId('openStyleStudy').addEventListener('click',openStyleStudy);
 byId('newResource').addEventListener('click',()=>{
   if(mode==='generators'){openCatalog().catch(e=>showError(e.message));return;}
   newMap().catch(e=>showError(e.message));
@@ -493,6 +517,8 @@ window.addEventListener('focus',()=>{if(project)verifyProject().catch(e=>showErr
         if(info.kind==='map'&&activeMap?.file===info.id){
           const tab=makeTab({...info,key:'map:active'});
           tab.frame.src='/tools/map-editor/?embedded=1';
+        }else if(info.key==='study:materials'){
+          openStyleStudy();
         }else if(info.key?.startsWith('asset:')){
           const found=assets.find(a=>a.source.id===info.id);
           if(found)openAsset(found.source);
