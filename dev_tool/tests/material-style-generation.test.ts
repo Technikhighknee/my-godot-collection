@@ -146,3 +146,25 @@ test('all three oak cuts preserve native shapes and dimensions',()=>{
   assert.throws(()=>makeStyledMaterialAsset('roof-thatch',
     {pattern:1,color:2},'watercolor-study' as never),/style/);
 });
+
+
+test('shape reseeding rebuilds each material while color alone retains geometry',()=>{
+  for(const material of cases)for(const style of MATERIAL_STUDY_STYLES){
+    const profile=material.id==='timber-oak'?'panel':undefined;
+    const original=makeStyledMaterialAsset(material.id,{...material.seeds},style);
+    const source:Record<string,number>={...material.seeds};
+    const reshaped=makeStyledMaterialAsset(material.id,{
+      ...source,[material.shape]:source[material.shape]!+1,
+    },style);
+    const colorized=makeStyledMaterialAsset(material.id,{
+      ...source,[material.pigment]:source[material.pigment]!+1,
+    },style);
+    const baseNormal=capture(original,'normal',profile).data;
+    const changedNormal=capture(reshaped,'normal',profile).data;
+    const colorNormal=capture(colorized,'normal',profile).data;
+    assert.ok(difference(baseNormal,changedNormal)>.04,
+      material.id+' '+style+' must regenerate actual surface relief');
+    assert.deepEqual(baseNormal,colorNormal,
+      material.id+' '+style+' must keep geometry independent of pigment');
+  }
+});
