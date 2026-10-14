@@ -53,7 +53,8 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         if((path.startsWith('/api/projects/active/assets')||
           path.startsWith('/api/projects/active/imports')||
           path.startsWith('/api/projects/active/builds')||
-          path.startsWith('/api/projects/active/exports/'))&&
+          path.startsWith('/api/projects/active/exports/')||
+          path.startsWith('/api/projects/active/sync/'))&&
           req.headers['x-project-id']!==library.active()?.id){
           return send(res,409,{error:'Active project changed; reopen this asset'});
         }
@@ -124,6 +125,16 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
           return send(res,200,await library.exportGodot(exportMatch[1]));
         res.writeHead(405,{Allow:'POST'});
         res.end();return;
+      }
+      const syncMatch=/^\/api\/projects\/active\/sync\/godot\/([a-z0-9_-]+)$/.exec(path);
+      if(syncMatch){
+        if(req.method==='POST'){
+          const input=await body(req);exact(input,['target']);
+          if(typeof input.target!=='string'||input.target.length>2048)
+            throw Error('Invalid Godot target folder');
+          return send(res,200,await library.syncGodot(syncMatch[1],input.target));
+        }
+        res.writeHead(405,{Allow:'POST'});res.end();return;
       }
       if(path==='/api/projects/active/graph'&&req.method==='GET')
         return send(res,200,await library.graph());
