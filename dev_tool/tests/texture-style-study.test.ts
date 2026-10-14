@@ -8,7 +8,8 @@ import {STUDY_STYLES,STUDY_MATERIALS,applyTextureStudyStyle,
 
 test('five real texture generators make a consistent non-persistent study board',()=>{
   assert.deepEqual(STUDY_STYLES.map(s=>s.id),[
-    'current','classic-strategy-study',
+    'current','classic-strategy-study','naturalistic-study',
+    'hand-painted-study','retro-3d-study','watercolor-study',
   ]);
   assert.deepEqual(STUDY_MATERIALS.map(m=>m.id),[
     'roof-thatch','roof-clay','timber-oak','plaster-lime','stone-rubble',
@@ -55,11 +56,11 @@ test('material-specific albedo direction stays deterministic and keeps alpha',()
 test('normal and roughness study passes retain physically valid channels',()=>{
   const normals=new Uint8ClampedArray([108,145,252,255,150,115,250,128]);
   const rough=new Uint8ClampedArray([221,221,221,255,242,242,242,128]);
-  for(const material of STUDY_MATERIALS){
+  for(const material of STUDY_MATERIALS)for(const style of STUDY_STYLES){
     const n=applyTextureStudyStyle(material.id,
-      'classic-strategy-study','normal',normals);
+      style.id,'normal',normals);
     const r=applyTextureStudyStyle(material.id,
-      'classic-strategy-study','roughness',rough);
+      style.id,'roughness',rough);
     for(let i=0;i<n.length;i+=4){
       assert.ok(n[i+2]>=128,'Tangent-space normal must still point outwards');
       assert.equal(n[i+3],normals[i+3]);
@@ -109,5 +110,73 @@ test('classic strategy study visibly repaints even flat material surfaces',()=>{
     assert.deepEqual(right,applyTextureStudyStyle(material.id,
       'classic-strategy-study','albedo',pixels,options));
     assert.deepEqual(left,pixels);
+  }
+});
+
+test('every art direction has a reproducible distinct color language',()=>{
+  const width=96,height=96;
+  const source=new Uint8ClampedArray(width*height*4);
+  for(let i=0;i<source.length;i+=4)
+    source.set([148,132,109,255],i);
+  for(const material of STUDY_MATERIALS){
+    const signatures=new Set<string>();
+    for(const style of STUDY_STYLES){
+      const options={width,height,seed:29181};
+      const pixels=applyTextureStudyStyle(material.id,style.id,
+        'albedo',source,options);
+      const again=applyTextureStudyStyle(material.id,style.id,
+        'albedo',source,options);
+      assert.deepEqual(pixels,again,'Style must reproduce: '+style.id);
+      assert.ok(pixels.every((v,i)=>i%4!==3||v===255));
+      let a=0,b=0,c=0;
+      for(let i=0;i<pixels.length;i+=4){
+        a+=pixels[i]!;b+=pixels[i+1]!;c+=pixels[i+2]!;
+      }
+      const sig=[a,b,c].map(x=>Math.round(x/(width*height))).join(',');
+      assert.ok(!signatures.has(sig),'Two styles have the same material palette: '+
+        material.id+' '+style.id);
+      signatures.add(sig);
+    }
+    assert.equal(signatures.size,STUDY_STYLES.length);
+  }
+});
+
+test('retro study uses stable blocky texels and quantized colors',()=>{
+  const width=96,height=96;
+  const source=new Uint8ClampedArray(width*height*4);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const i=(y*width+x)*4;
+    source.set([80+x%27,105+y%31,150+(x+y)%37,255],i);
+  }
+  const retro=applyTextureStudyStyle('roof-clay','retro-3d-study','albedo',
+    source,{width,height,seed:22});
+  const block=3; // 96 / 32
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const i=(y*width+x)*4;
+    assert.equal(retro[i]%35,0);
+    assert.equal(retro[i+1]!%35,0);
+    assert.equal(retro[i+2]!%35,0);
+    if(x%block!==0)assert.deepEqual(
+      [...retro.slice(i,i+3)], [...retro.slice(i-4,i-1)]);
+    if(y%block!==0)assert.deepEqual(
+      [...retro.slice(i,i+3)],
+      [...retro.slice(i-width*4,i-width*4+3)]);
+  }
+});
+
+test('style previews validate pixel dimensions and do not mutate source',()=>{
+  const source=new Uint8ClampedArray(5*3*4);
+  for(let i=0;i<source.length;i+=4)
+    source.set([144,138,120,255],i);
+  const original=new Uint8ClampedArray(source);
+  assert.throws(()=>applyTextureStudyStyle('roof-clay',
+    'naturalistic-study','albedo',source,{width:3,height:3}),
+    /dimensions/);
+  for(const style of STUDY_STYLES)for(const material of STUDY_MATERIALS){
+    const output=applyTextureStudyStyle(material.id,style.id,
+      'albedo',source,{width:5,height:3,seed:123});
+    assert.equal(output.length,source.length);
+    assert.ok(output.every((v,i)=>i%4!==3||v===255));
+    assert.deepEqual(source,original);
   }
 });
