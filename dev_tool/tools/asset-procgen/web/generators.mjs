@@ -76,7 +76,7 @@ function generateOakBarkAsset(seeds){
 }
 export const GENERATORS=Object.freeze([
   Object.freeze({
-    id:'roof-thatch',kind:'image',recipeVersion:1,symbol:'▤',
+    id:'roof-thatch',kind:'image',recipeVersion:1,headlessBake:true,symbol:'▤',
     label:'Thatch roofing',subtitle:'Layered straw/reed material',
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Thatch',navType:'Texture',
@@ -96,7 +96,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'roof-clay',kind:'image',recipeVersion:1,symbol:'▤',
+    id:'roof-clay',kind:'image',recipeVersion:1,headlessBake:true,symbol:'▤',
     label:'Clay roof tiles',subtitle:'Staggered overlapping ceramic roof tiles',
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Clay tiles',navType:'Texture',
@@ -116,7 +116,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'timber-oak',kind:'image',recipeVersion:1,symbol:'▤',
+    id:'timber-oak',kind:'image',recipeVersion:1,headlessBake:true,symbol:'▤',
     label:'Hewn oak timber',subtitle:'Weathered structural wood with longitudinal grain',
     libraryPath:Object.freeze(['Textures','Wood']),
     navLabel:'Hewn oak',navType:'Texture',
@@ -136,7 +136,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'plaster-lime',kind:'image',recipeVersion:1,symbol:'▦',
+    id:'plaster-lime',kind:'image',recipeVersion:1,headlessBake:true,symbol:'▦',
     label:'Lime plaster',subtitle:'Warm hand-applied mineral facade render',
     libraryPath:Object.freeze(['Textures','Walls']),
     navLabel:'Lime plaster',navType:'Texture',
@@ -157,7 +157,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'stone-rubble',kind:'image',recipeVersion:1,symbol:'▦',
+    id:'stone-rubble',kind:'image',recipeVersion:1,headlessBake:true,symbol:'▦',
     label:'Rubble stone',subtitle:'Irregular limestone and mortar masonry',
     libraryPath:Object.freeze(['Textures','Stone']),
     navLabel:'Rubble stone',navType:'Texture',
@@ -264,7 +264,7 @@ export const GENERATORS=Object.freeze([
     ]),
   }),
   Object.freeze({
-    id:'oak-bark',kind:'image',recipeVersion:1,symbol:'▤',
+    id:'oak-bark',kind:'image',recipeVersion:1,headlessBake:true,symbol:'▤',
     libraryPath:Object.freeze(['Vegetation','Oak']),navLabel:'Bark',navType:'Texture',
     label:'Oak bark',subtitle:'Seamless mature oak bark PBR material',
     generate:generateOakBarkAsset,
