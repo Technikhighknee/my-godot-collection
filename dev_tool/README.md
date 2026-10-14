@@ -45,7 +45,7 @@ openings follow the exterior plan, with timber roof joists and, at the
 highest level, an architectural gallery. This is an artistic medieval
 building grammar, not a historically accurate reconstruction.
 
-The generated building is currently a source/preview, **not a GLB export**.
+The generated building is a source/preview with separate GLB exports for its levels and optional interiors.
 No automatic furniture, stairs, room decoration or linked Godot scene is
 provided. Building assets are saved alongside other project recipes and
 listed under *Buildings* in the Studio explorer.
@@ -143,7 +143,7 @@ storage. No existing maps or Godot files were migrated or modified.
 
 - **Home:** the project launcher lives at `/`; opening a project enters `/studio.html`.
 - **Map Editor:** open from the home screen or directly at `/tools/map-editor/`. It remains a Node.js / TypeScript browser editor for the Godot map format in `../map_system/`.
-- **Asset ProcGen:** available at `/tools/asset-procgen/`. A searchable Asset Library groups oak/fir models, bark and leaf images by asset family; the preview automatically selects 3D or 2D rendering. Master and component seeds are independent. Project assets support deterministic builds; supported procedural textures bake to PNG and the fir/building adapters export GLB.
+- **Asset ProcGen:** available at `/tools/asset-procgen/`. A searchable Asset Library groups oak/fir models, bark and leaf images by asset family; the preview automatically selects 3D or 2D rendering. Master and component seeds are independent. Project assets support deterministic builds; supported procedural textures bake to PNG and the fir, complete oak, and building adapters export GLB.
 
 The tool navigation is shared visually; existing map editing, saving and API operations are unchanged. Returning home from the Map Editor triggers the browser's unsaved-changes warning when necessary.
 
@@ -388,7 +388,7 @@ depicts many overlapping leaves with a dense, scalloped silhouette.
 The wood mesh is unchanged. Seeded variation affects lobe shape,
 card position, orientation and color.
 
-The browser paints a deterministic 1024 × 1024 RGBA texture atlas with
+The browser and headless Skia painter produce a seeded 1024 × 1024 RGBA atlas with
 sixteen oak sprays using Canvas 2D. Each spray layers broad
 *Quercus robur* leaf silhouettes into a filled clump, with unobtrusive
 fine branchlets; every tile is clipped to prevent atlas bleeding. The existing
@@ -407,7 +407,7 @@ controls still work.
 
 The detailed leaf-card mesh contains roughly 3,400–3,600 triangles,
 in addition to 6,444 existing wood triangles. There are **no LOD levels**
-or asset exports yet. Bark textures and wind animation remain future
+or runtime wind animation yet. Complete oak GLB assets, including bark and foliage, are exported; wind animation remains future
 work. Tests verify seeded output, connected group structure, correct
 UV tile boundaries, finite indexed geometry and the triangle budget.
 
