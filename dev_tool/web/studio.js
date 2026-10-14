@@ -31,6 +31,8 @@ function make(tag,className,text){
   return element;
 }
 function assetType(asset){
+  if(!asset.source.generator)
+    return asset.kind==='model'?'Imported 3D model':'Imported image';
   return asset.source.generator.id.startsWith('roof-')?'Project texture':
     asset.kind==='model'?'3D model':'2D image';
 }
@@ -129,6 +131,10 @@ function renameTab(tab,label){
 }
 function openAsset(source){
   if(blocked)return;
+  if(!source.generator){
+    setStatus('IMPORTED SOURCE · NO PROCEDURAL EDITOR');
+    return;
+  }
   const key='asset:'+source.id;
   const tab=makeTab({key,kind:source.generator.id, id:source.id,label:source.name});
   // A mounted frame stays alive as the user switches between documents.
@@ -205,6 +211,8 @@ async function newMap(){
 }
 async function placeAsset(source){
   if(!source||source.kind!=='model')return;
+  if(!source.source.generator)
+    throw Error('Imported model placement is not supported by the map editor yet');
   if(!activeMap)throw Error('Create a map before placing an asset');
   pendingPlacement=source.source.id;
   await openMap(activeMap);
@@ -214,8 +222,9 @@ async function placeAsset(source){
 function details(source){
   selected=source;
   byId('detailsMetadata').replaceChildren();
-  byId('detailsOpen').hidden=!source;
-  byId('detailsPlace').hidden=!source||source.kind!=='model';
+  byId('detailsOpen').hidden=!source||(!source.file&&!source.source.generator);
+  byId('detailsPlace').hidden=!source||source.kind!=='model'||
+    !source.source.generator;
   if(!source){
     byId('detailsTitle').textContent=project?.name||'Project';
     byId('detailsIcon').textContent='▦';
@@ -226,11 +235,14 @@ function details(source){
   byId('detailsIcon').textContent=resourceIcon(source.kind);
   byId('detailsDescription').textContent=source.kind==='map'?
     'Editable map source · Terrain, roads, water and placement data.':
-    'Editable procedural asset source. Changes are saved as a project recipe.';
+    source.source.generator?
+      'Editable procedural source. Changes are saved as a project recipe.':
+      'Imported file source. The original bytes are stored and verified in this project.';
   const fields=source.kind==='map'?
     [['Source',source.file],['Status',source.valid?'Ready':'Invalid']]:
     [['ID','asset:'+source.source.id],['Type',assetType(source)],
-      ['Generator',source.source.generator.id],
+      [source.source.generator?'Generator':'Import format',
+        source.source.generator?.id??source.source.imported?.format??'unknown'],
       ['Used by',String(graph.edges.filter(e=>e.to==='asset:'+source.source.id).length)+' resources']];
   for(const [label,value] of fields){
     const term=make('dt',null,label),definition=make('dd',null,value);
@@ -285,13 +297,13 @@ function renderTree(){
   const filteredMaps=maps.filter(matches),filteredAssets=assets.filter(matches);
   tree.replaceChildren(section('Worlds',filteredMaps,'map'),
     section('Buildings',filteredAssets.filter(a=>
-      a.source.generator.id==='timber-building'),'building'),
+      a.source.generator?.id==='timber-building'),'building'),
     section('Models & Vegetation',filteredAssets.filter(a=>
-      a.kind==='model'&&a.source.generator.id!=='timber-building'),'model'),
+      a.kind==='model'&&a.source.generator?.id!=='timber-building'),'model'),
     section('Textures',filteredAssets.filter(a=>a.kind==='image'&&
-      a.source.generator.id.startsWith('roof-')),'texture'),
+      a.source.generator?.id?.startsWith('roof-')),'texture'),
     section('Images & Materials',filteredAssets.filter(a=>a.kind==='image'&&
-      !a.source.generator.id.startsWith('roof-')),'image'));
+      !a.source.generator?.id?.startsWith('roof-')),'image'));
   byId('resourceCount').textContent=(maps.length+assets.length)+' SOURCES';
 }
 function summaryButton(label,kind,action){
