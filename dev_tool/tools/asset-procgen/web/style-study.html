@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>1400 · Texture Style Study</title>
+<link rel="stylesheet" href="/dev-tool.css">
+<link rel="stylesheet" href="/tools/asset-procgen/style-study.css">
+<script type="module" src="/tools/asset-procgen/style-study.js"></script>
+</head>
+<body class="study-page">
+<header class="study-header">
+  <a class="study-return" href="/tools/asset-procgen/" aria-label="Back to Asset ProcGen">← Asset ProcGen</a>
+  <span class="study-header-rule">/</span>
+  <span class="study-header-title">Texture Style Study</span>
+  <span class="study-header-tag">ART DIRECTION WORKBENCH</span>
+</header>
+<main class="study-main">
+  <div class="study-intro">
+    <div>
+      <span class="study-eyebrow">MATERIAL DEVELOPMENT / ART DIRECTION</span>
+      <h1>One world. One material language.</h1>
+      <p>Compare the five real procedural building materials under identical
+        seeds and viewing conditions. The left column is unchanged. The right
+        column explores a warmer, more readable classic PC-strategy direction.</p>
+    </div>
+    <aside class="study-note">
+      <strong>Exploration, not a finished style preset</strong>
+      <p>The right side currently experiments with material-specific palette
+        and PBR response. Stone shapes, timber fibers, roof courses and other
+        generated geometry are still identical on both sides. No saved asset,
+        project style or generator recipe is modified.</p>
+    </aside>
+  </div>
+  <div class="study-toolbar" aria-label="Comparison controls">
+    <label>Channel
+      <select id="studyChannel">
+        <option value="albedo">Albedo</option>
+        <option value="normal">Normal</option>
+        <option value="roughness">Roughness</option>
+      </select>
+    </label>
+    <label>Timber cut
+      <select id="studyTimberProfile">
+        <option value="panel">Wide face</option>
+        <option value="beam">Long grain</option>
+        <option value="end">End grain</option>
+      </select>
+    </label>
+    <label class="study-check"><input type="checkbox" id="studyTiling"> Repeat 2 × 2</label>
+    <button id="studyReseed" type="button">New shared seed set</button>
+    <button id="studyReset" type="button" class="quiet">Reset</button>
+    <span class="study-seed" id="studySeed">Reference seeds</span>
+  </div>
+  <div class="study-status" id="studyStatus" role="status" aria-live="polite">
+    Preparing material comparisons…
+  </div>
+  <div class="study-board" id="studyBoard" aria-label="Side by side generated textures">
+    <div class="study-head study-head-name">MATERIAL</div>
+    <div class="study-head">CURRENT <small>As generated today</small></div>
+    <div class="study-head study-head-accent">CLASSIC PC STRATEGY <small>Art-direction study · not a finished generator style</small></div>
+  </div>
+  <footer class="study-footer">
+    All images are generated locally from the repository's real asset generators.
+    Nothing is uploaded or saved. Shape and surface-detail studies can follow
+    only after the material family reads consistently as a whole.
+  </footer>
+</main>
+</body>
+</html>
