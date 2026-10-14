@@ -337,3 +337,28 @@ test('rubble stone is a reusable validated foundation texture dependency',async(
     }),/Material/);
   });
 });
+
+test('stored recipes pin generator versions and reject silent algorithm upgrades',async()=>{
+  await temporary(async root=>{
+    const lib=await ProjectLibrary.open(root,undefined,findGenerator);
+    await lib.create('versioned-world','Versioned');
+    const saved=await lib.createAsset('fir-one',fir());
+    const def=findGenerator('fir');
+    assert.ok(def);
+    assert.equal(saved.source.generator.version,def.recipeVersion);
+    assert.equal(def.recipeVersion,1,'Existing projects keep their v1 contract');
+    const incompatible={...saved.source,generator:{
+      ...saved.source.generator,version:def.recipeVersion+1,
+    }};
+    assert.throws(()=>validateSource(incompatible,undefined,findGenerator),
+      /Unsupported generator version/);
+    const sourcePath=join(root,'versioned-world','assets','fir-one.asset.json');
+    const original=await readFile(sourcePath,'utf8');
+    await writeFile(sourcePath,JSON.stringify(incompatible)+'\n');
+    await assert.rejects(lib.asset('fir-one'),/Unsupported generator version/);
+    assert.equal(await readFile(sourcePath,'utf8'),JSON.stringify(incompatible)+'\n',
+      'Unsupported recipes must not be rewritten while reading');
+    await writeFile(sourcePath,original);
+    assert.deepEqual((await lib.asset('fir-one')).source,saved.source);
+  });
+});
