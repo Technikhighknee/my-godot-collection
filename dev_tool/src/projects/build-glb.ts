@@ -19,6 +19,7 @@ interface GlbMaterial {
   };
   doubleSided:boolean;
   normalTexture?:{index:number;scale:number};
+  occlusionTexture?:{index:number;strength:number};
   extras?:Record<string,string|number>;
 }
 function materialOf(m:CanonicalMaterial):GlbMaterial{
@@ -39,7 +40,7 @@ function materialOf(m:CanonicalMaterial):GlbMaterial{
   };
 }
 export type EmbeddedMaterialMaps=Record<string,Record<string,
-  Partial<Record<'albedo'|'normal'|'roughness',Uint8Array>>>>;
+  Partial<Record<'albedo'|'normal'|'roughness'|'ao',Uint8Array>>>>;
 export function encodeModelGlb(model:CanonicalModel,
   mapSources:EmbeddedMaterialMaps={}):Uint8Array{
   if(model.format!=='devtool-canonical-model'||model.version!==1||
@@ -161,6 +162,10 @@ export function encodeModelGlb(model:CanonicalModel,
           material.normalTexture={
             index:bakedTexture(slot,profile,'normal',maps.normal),
             scale:bucket.material.normalScale??.62};
+        if(maps.ao)
+          material.occlusionTexture={
+            index:bakedTexture(slot,profile,'ao',maps.ao),
+            strength:bucket.material.occlusionStrength??1};
       }
       materials.push(material);
       primitives.push({attributes,indices,material:materialIndex,mode:4});
