@@ -28,7 +28,9 @@ function plan(style,seeds){
   const fantasy=style!=='retro-3d-study';
   const columns=style==='naturalistic-study'?11:
     style==='watercolor-study'?9:fantasy?7:8;
-  const rows=style==='naturalistic-study'?10:style==='watercolor-study'?9:8;
+  // An even number of staggered courses ensures the row parity and tile
+  // identity are identical when the watercolor material repeats vertically.
+  const rows=style==='naturalistic-study'?10:8;
   const pattern=seeds.pattern>>>0,color=seeds.color>>>0;
   const traits=(col,row,salt)=>hash(wrap(col,columns),wrap(row,rows),salt);
   const atlas=[];
