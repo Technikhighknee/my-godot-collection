@@ -197,7 +197,7 @@ function paintPreview(cell,material,style,preview,pixels,profile){
     (preview.originalHeight>preview.originalWidth?' · central crop':'')+
     (tiles===2?' · repeat ×4':controls.tiling.checked&&!tileable?
       ' · repeat unavailable':'')+
-    (nativeStyle(material,style.id)?' · generative shape':' · surface study')+
+    (nativeStyle(material,style.id)?' · native generation':' · surface study')+
     ' · 256px study bake';
 }
 async function render(){
