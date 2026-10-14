@@ -66,8 +66,9 @@ function paint(kind){
 export function createBuildingTextures(renderer){
   const cache=new Map();
   return {
-    get(material){
-      const kind=buildingSurfaceKind(material);
+    get(material,explicitKind){
+      const kind=explicitKind===undefined?
+        buildingSurfaceKind(material):explicitKind;
       if(!kind)return null;
       if(!cache.has(kind)){
         const texture=new THREE.CanvasTexture(paint(kind));
