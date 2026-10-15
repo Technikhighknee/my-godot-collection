@@ -52,7 +52,7 @@ test('offline map production outputs complete importable terrain, road and water
     assert.equal(exported.published,true);
     const tscn=await readFile(join(exported.directory,'world.tscn'),'utf8');
     for(const name of ['terrain','roads','water']){
-      assert.match(tscn,new RegExp('geometry/'+name+'\\\\.glb'));
+      assert.ok(tscn.includes('geometry/'+name+'.glb'));
       assert.deepEqual(await readFile(join(exported.directory,'geometry',name+'.glb')),
         await readFile(join(portable.directory,'geometry',name+'.glb')));
     }

@@ -54,7 +54,7 @@ test('Godot scene instantiates reused GLBs with stable relative paths and map tr
     const tscn=await readFile(join(first.directory,'world.tscn'),'utf8');
     assert.doesNotMatch(tscn,/^#/m,'Godot text scenes do not accept hash comments');
     assert.match(tscn,/\[gd_scene load_steps=3 format=3\]/);
-    assert.equal(tscn.match(/\[ext_resource type="PackedScene"/g)?.length,1);
+    assert.equal(tscn.match(/\[ext_resource type="PackedScene"/g)?.length,2);
     assert.equal(tscn.match(/instance=ExtResource\("model_1"\)/g)?.length,2);
     assert.match(tscn,/path="assets\/oak\/oak.glb"/);
     assert.match(tscn,/position = Vector3\(20, 0, 30\)/);
@@ -133,7 +133,8 @@ test('serializer escapes arbitrary semantic names and rejects unverified model p
   const output=serializeGodotScene(base).toString('utf8');
   assert.match(output,/metadata\/placement_id = "strange\\\"\\nnode"/);
   assert.match(output,/metadata\/definition_id = "object\.\\\"sample\\\""/);
-  assert.doesNotMatch(output,/\[ext_resource/);
+  assert.match(output,/\[ext_resource type="PackedScene" path="geometry\/terrain\.glb"/);
+  assert.doesNotMatch(output,/id="model_/);
   assert.match(output,/type="Marker3D"/);
   assert.throws(()=>serializeGodotScene({...base,placements:[{
     ...base.placements[0]!,source:'project-asset',assetId:'missing',
