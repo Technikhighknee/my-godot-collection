@@ -1,0 +1,190 @@
+# Canonical template: dev_tool/docs/ci/isolated-ci.yml
+# Executable copy (.github/workflows/isolated-ci.yml) lives ONLY on CI.
+# CI HEAD^ = exact source commit; CI HEAD = one workflow-only overlay commit.
+name: Isolated repository verification
+
+on:
+  push:
+    branches:
+      - CI
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Node.js 22 / Typecheck + full tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout candidate plus CI overlay
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Identify the exact source commit
+        shell: bash
+        run: |
+          echo "Source commit under test: $(git rev-parse HEAD^)"
+          echo "CI overlay commit: $(git rev-parse HEAD)"
+          echo "SOURCE_COMMIT=$(git rev-parse HEAD^)" >> "$GITHUB_ENV"
+
+      - name: Validate isolated CI overlay
+        shell: bash
+        run: |
+          files="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+          if [ "$files" != ".github/workflows/isolated-ci.yml" ]; then
+            echo "::error::CI overlay must only add .github/workflows/isolated-ci.yml"
+            printf '%s\n' "$files"
+            exit 1
+          fi
+          if [ -f dev_tool/docs/ci/isolated-ci.yml ]; then
+            if ! cmp -s dev_tool/docs/ci/isolated-ci.yml .github/workflows/isolated-ci.yml; then
+              echo "::error::Executable workflow differs from the canonical documentation template"
+              exit 1
+            fi
+          else
+            echo "::warning::Historical source commit has no documented CI template; use a trusted canonical template revision."
+          fi
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dev_tool/package-lock.json
+
+      - name: Install locked dependencies
+        id: install
+        working-directory: dev_tool
+        run: npm ci
+
+      - name: Typecheck
+        id: typecheck
+        working-directory: dev_tool
+        run: npm run typecheck
+
+      - name: Production material and art-direction acceptance tests
+        working-directory: dev_tool
+        run: |
+          node --experimental-strip-types --test --test-concurrency=1 \
+            tests/material-production-integration.test.ts \
+            tests/production-artstyles.test.ts \
+            tests/project-art-direction.test.ts
+
+      - name: Python deploy and portable map contract tests
+        run: python3 -m unittest discover -s tests
+
+      # Pinned official Godot 4 release. The SHA256 is taken from the
+      # corresponding upstream GitHub release asset digest.
+      - name: Install and verify Godot 4.7.2
+        id: godot
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="Godot_v4.7.2-stable_linux.x86_64"
+          archive="$RUNNER_TEMP/$name.zip"
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/godotengine/godot/releases/download/4.7.2-stable/$name.zip" \
+            --output "$archive"
+          echo "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  $archive" | sha256sum --check
+          unzip -q "$archive" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/$name"
+          echo "GODOT_BINARY=$RUNNER_TEMP/$name" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/$name" --version
+
+      - name: Generate exported Godot scene from the real project pipeline
+        if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
+        working-directory: dev_tool
+        run: |
+          node --experimental-strip-types \
+            tests/godot-headless/make-fixture.ts "$RUNNER_TEMP/godot-scene-fixture"
+
+      - name: Godot imports the generated GLB and scene
+        if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BINARY" --headless --path "$RUNNER_TEMP/godot-scene-fixture" \
+            --editor --import 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          if grep -E '(^|[[:space:]])(ERROR:|SCRIPT ERROR:)' "$RUNNER_TEMP/godot-import.log"; then
+            echo "::error::Godot importer reported errors"
+            exit 1
+          fi
+
+      - name: Godot instantiates the exported scene and verifies placements
+        if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BINARY" --headless --path "$RUNNER_TEMP/godot-scene-fixture" \
+            --script res://verify_scene.gd 2>&1 | tee "$RUNNER_TEMP/godot-scene-test.log"
+          if grep -E '(^|[[:space:]])(ERROR:|SCRIPT ERROR:)' "$RUNNER_TEMP/godot-scene-test.log"; then
+            echo "::error::Godot reported runtime errors"
+            exit 1
+          fi
+          grep -F "GODOT INTEGRATION PASSED" "$RUNNER_TEMP/godot-scene-test.log"
+
+      - name: Godot imports and verifies prebaked map geometry
+        if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BINARY" --headless --path "$RUNNER_TEMP/godot-scene-fixture" \
+            --script res://verify_map.gd 2>&1 | tee "$RUNNER_TEMP/godot-map-test.log"
+          if grep -E '(^|[[:space:]])(ERROR:|SCRIPT ERROR:)' "$RUNNER_TEMP/godot-map-test.log"; then
+            echo "::error::Godot offline map geometry reported errors"
+            exit 1
+          fi
+          grep -F "OFFLINE MAP EXPORT PASSED" "$RUNNER_TEMP/godot-map-test.log"
+
+  # Run the complete Node suite in independent runner jobs. Native texture
+  # synthesis can consume substantial CPU and memory: it must not compete
+  # with Godot or with four simultaneous Node test processes on one runner.
+  # The patterns are exhaustive for dev_tool/tests and the Map Editor tests.
+  regression:
+    name: Node.js 22 / regressions / ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: assets-and-builds
+            concurrency: 2
+            files: 'tests/[a-g]*.test.ts'
+          - group: materials-and-models
+            concurrency: 2
+            files: 'tests/[h-o]*.test.ts'
+          - group: projects-and-tools
+            concurrency: 2
+            files: 'tests/[p-z]*.test.ts'
+          - group: map-editor-basics
+            files: 'tools/map-editor/tests/[a-m]*.test.ts'
+            concurrency: 1
+          - group: map-editor-terrain
+            files: 'tools/map-editor/tests/[n-z]*.test.ts'
+            concurrency: 1
+    steps:
+      - name: Checkout candidate plus CI overlay
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dev_tool/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: dev_tool
+        run: npm ci
+
+      - name: Run complete test shard
+        working-directory: dev_tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          free -h
+          node --experimental-strip-types --test --test-concurrency=${{ matrix.concurrency }} ${{ matrix.files }}
