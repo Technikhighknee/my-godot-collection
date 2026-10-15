@@ -10,6 +10,7 @@ export interface ProductionStyleProvider {
   };
 }
 export const PRODUCTION_ARTSTYLES:readonly ProductionArtstyle[];
+export const PRODUCTION_MATERIAL_STYLES:readonly ProductionArtstyle[];
 export function validateProductionArtstyle(value:unknown):ProductionArtstyleReference;
 export function assertGeneratorArtstyleSupport(
   definition:ProductionStyleProvider|null|undefined,value:unknown,

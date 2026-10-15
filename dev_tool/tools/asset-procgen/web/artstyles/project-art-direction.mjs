@@ -1,7 +1,10 @@
 // Authoritative project-level visual identity policy. Pure and portable:
 // no filesystem, editor state, canvas, or build implementation dependencies.
-import {validateProductionArtstyle,assertGeneratorArtstyleSupport}
-  from './production-artstyles.mjs';
+import {
+  validateProductionArtstyle,
+  assertGeneratorArtstyleSupport,
+  availableProductionArtstyles,
+} from './production-artstyles.mjs';
 
 export function emptyProjectArtDirection(){
   return {format:'devtool-art-direction',version:1,name:'Project identity',
@@ -39,15 +42,27 @@ export function validateProjectArtDirection(raw,lookup){
 // effective production inputs, never the persisted asset source itself.
 export function resolveProjectArtstyle(generatorId,definition,
   explicitArtstyle,artDirection){
-  const chosen=explicitArtstyle??
-    artDirection.generatorArtstyles[generatorId]??
-    artDirection.defaultArtstyle??undefined;
-  return chosen===undefined?undefined:
-    assertGeneratorArtstyleSupport(definition,chosen);
+  // Explicit asset and generator pins must always be supported, or fail.
+  const pinned = explicitArtstyle ?? artDirection.generatorArtstyles[generatorId];
+  if (pinned !== undefined) {
+    return assertGeneratorArtstyleSupport(definition, pinned);
+  }
+
+  // A project-wide art direction applies to every capable generator.
+  // A model without that native grammar can continue to be modeled, while
+  // its assigned shared materials still inherit the visual identity.
+  const fallback = artDirection.defaultArtstyle;
+  if (fallback === null) {
+    return undefined;
+  }
+  const supported = availableProductionArtstyles(definition).some(
+    style => style.id === fallback.id && style.version === fallback.version
+  );
+  return supported ? assertGeneratorArtstyleSupport(definition, fallback) : undefined;
 }
 
 // Build plans and bakers receive one identical resolved view. Unstyled and
-// imported resources retain exact identities and legacy cache fingerprints.
+// imported resources retain exact identities and source build fingerprints.
 export function applyProjectArtDirection(entries,artDirection,lookup){
   return entries.map(entry=>{
     const source=entry.source;

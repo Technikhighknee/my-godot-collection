@@ -424,7 +424,7 @@ async function renderProjectArtDirection(){
     container.append(label);
   }
   byId('artDirectionStatus').textContent=artDirectionRevision?
-    'Saved project resource':'Using legacy defaults (not saved)';
+    'Saved project resource':'Not configured · using generator defaults';
 }
 function valueArtstyle(value,styles){
   if(!value)return null;

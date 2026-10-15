@@ -47,7 +47,7 @@ test('project Art Direction has strict versioning, assignments and explicit prec
   /artstyle version/);
 });
 
-test('project identity remains optional for legacy projects and never rewrites recipes',async()=>{
+test('project identity remains optional and never rewrites asset recipes',async()=>{
   await temporary(async root=>{
     const lib=await ProjectLibrary.open(root,undefined,findGenerator);
     await lib.create('town','Town');
@@ -84,7 +84,7 @@ test('project identity remains optional for legacy projects and never rewrites r
     assert.deepEqual((await reopened.artDirection()).source,modified.source);
     const cleared=await reopened.updateArtDirection(plain.source,modified.revision);
     assert.equal((await reopened.buildPlan(['tiles'])).nodes[0]!.key,before,
-      'Removing a project override restores the exact legacy build fingerprint');
+      'Removing a project override restores the original build fingerprint');
     assert.ok(cleared.revision);
   });
 });
@@ -160,4 +160,28 @@ test('Studio owns project identity UI while asset preview uses the same resolver
   assert.match(studio,/ArtDirection/);
   assert.match(editor,/resolveProjectArtstyle/);
   assert.match(editor,/projectArtDirection=\(await projectApi/);
+});
+
+test('project-wide art direction styles materials but does not force unsupported model grammars', () => {
+  const project = {
+    ...emptyProjectArtDirection(),
+    defaultArtstyle: {id: 'naturalistic', version: 1},
+  };
+  const roof = findGenerator('roof-clay');
+  const building = findGenerator('timber-building');
+  assert.ok(roof && building);
+  assert.deepEqual(
+    resolveProjectArtstyle('roof-clay', roof, undefined, project),
+    {id: 'naturalistic', version: 1}
+  );
+  assert.equal(
+    resolveProjectArtstyle('timber-building', building, undefined, project),
+    undefined
+  );
+  assert.throws(
+    () => resolveProjectArtstyle(
+      'timber-building', building, {id: 'naturalistic', version: 1}, project
+    ),
+    /does not support/
+  );
 });

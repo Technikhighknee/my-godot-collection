@@ -580,3 +580,27 @@ for unassigned materials, verified Godot scene imports and generic
 target-engine export adapters remain future work. Browser painting still
 defines the current image generator contract; the headless baker implements
 only its pixel-data subset.
+
+## Production material artstyles
+
+The five core procedural materials (thatch, clay roof tiles, oak timber, lime
+plaster and rubble masonry) now implement **Original**, **Hand-Painted
+Fantasy**, **Retro 3D**, **Naturalistic** and **Watercolor** as selectable
+production art directions. They share the same native material-grammar
+implementations with the Texture Style Study: there is no second style rasterizer
+or post-filter in the export path. The Study is comparison-only; a selected
+production style is a versioned saved asset property or inherited project
+art-direction setting.
+
+Material shape, pigment and aging use their independent established seeds.
+The resulting PBR channels use the same image object for editor preview,
+content-addressed asset builds, building slots, map materials and Godot export.
+Timber keeps its distinct beam, panel and end-grain profiles.
+
+A project-wide style affects generators that advertise the corresponding native
+interpretation. Unsupported model generators continue with their native shapes,
+while their referenced material assets inherit the project style. Explicit
+generator/asset style pins remain strict and fail on unsupported assignments.
+
+Changing production style or material seeds creates a new reproducible build
+key. Existing default recipes remain valid and produce their existing outputs.

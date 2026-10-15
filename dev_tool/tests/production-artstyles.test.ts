@@ -21,11 +21,13 @@ const recipe=()=>({name:'Village roof',generator:'roof-thatch',
   masterSeed:18174,components:{pattern:18174,color:23512}});
 
 test('production artstyles reject experimental and incompatible versions',()=>{
-  assert.deepEqual(PRODUCTION_ARTSTYLES.map(x=>x.id),['original']);
+  assert.deepEqual(PRODUCTION_ARTSTYLES.map(x => x.id), [
+    'original', 'hand-painted', 'retro-3d', 'naturalistic', 'watercolor'
+  ]);
   assert.deepEqual(validateProductionArtstyle(original),original);
   const roof=findGenerator('roof-thatch');
   assert.ok(roof);
-  assert.equal(availableProductionArtstyles(roof).length,1);
+  assert.equal(availableProductionArtstyles(roof).length, 5);
   assert.deepEqual(assertGeneratorArtstyleSupport(roof,original),original);
   for(const bad of [{id:'naturalistic-study',version:1},
     {id:'original',version:2},{id:'original',version:1,seed:123},
