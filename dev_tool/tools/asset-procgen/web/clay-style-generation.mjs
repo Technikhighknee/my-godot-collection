@@ -3,9 +3,10 @@
 // Painted and retro differ in tile layout, silhouette, wear, height and
 // roughness -- not just in post-process grading of the same bitmap.
 // UV convention: X runs along ridge, Y downhill. Both axes repeat.
+import {defineExperimentalStyleSupport} from './artstyles/experimental-artstyles.mjs';
 import {materialSeedStreams,materialElementTraits,materialElementWear}
   from './material-language.mjs';
-export const CLAY_GENERATIVE_STYLES=Object.freeze([
+export const CLAY_GENERATIVE_STYLES=defineExperimentalStyleSupport([
   'hand-painted-study','retro-3d-study',
   'naturalistic-study','watercolor-study',
 ]);

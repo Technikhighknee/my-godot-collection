@@ -55,6 +55,20 @@ These domain modules must not import the project library, editor UI or
 rendering implementations. Adding a source origin or a material assignment
 rule should be a local domain change, not a new persistence special case.
 
+### Experimental artstyle identity
+
+`artstyles/experimental-artstyles.mjs` is the authoritative catalogue of
+experimental style identities, labels, versions and lifecycle status. Material
+capabilities explicitly declare supported experimental IDs through a validated
+opt-in helper; each material retains full ownership of its specialized style
+interpretation and semantic seeds. The Texture Style Study consumes the same
+catalogue and adds only the unstyled `current` comparison baseline.
+
+These identifiers are **not** production-ready asset recipe or project art
+direction versions. Promotion requires a versioned persisted contract,
+preview/build parity and explicit migration policy first. Style studies remain
+non-persistent and must never silently become stored recipe inputs.
+
 ### Generator capability ownership
 
 Generator definitions now live with their capability families under

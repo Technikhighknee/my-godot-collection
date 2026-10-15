@@ -3,6 +3,7 @@ export interface StudyStyle {
   readonly id:'current'|'classic-strategy-study'|'naturalistic-study'|
     'hand-painted-study'|'retro-3d-study'|'watercolor-study';
   readonly label:string;readonly description:string;
+  readonly version?:number;readonly status?:'experimental';
 }
 export interface StudyMaterial {
   readonly id:'roof-thatch'|'roof-clay'|'timber-oak'|'plaster-lime'|'stone-rubble';

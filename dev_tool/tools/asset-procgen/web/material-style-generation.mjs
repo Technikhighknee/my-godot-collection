@@ -2,9 +2,10 @@
 // Every material is re-authored from its semantic seeds: no recoloring or
 // processing of pixels from the original generator. Experimental, non-persisted
 // study only. Each grammar yields matching albedo/height/roughness maps.
+import {defineExperimentalStyleSupport} from './artstyles/experimental-artstyles.mjs';
 import {materialSeedStreams,materialElementTraits,materialElementWear}
   from './material-language.mjs';
-export const MATERIAL_STUDY_STYLES=Object.freeze([
+export const MATERIAL_STUDY_STYLES=defineExperimentalStyleSupport([
   'hand-painted-study','retro-3d-study',
   'naturalistic-study','watercolor-study',
 ]);
