@@ -20,6 +20,13 @@ a separate `SceneTree` script then loads and instantiates the exported
 `.tscn`, asserting model hierarchies, transforms, references and semantic
 markers. Errors in either engine invocation fail the CI job.
 
+A separate `verify_map.gd` gate loads the **same exported map** using
+unmodified Map System scripts from the repository. It validates the imported
+65×65 EXR grid, surface index palette, textured terrain mesh, collision,
+road, terrain-derived sea and all three authored placements. Their runtime
+transforms must match the exported Godot placement scene. This does not
+require importing a second hand-written example map or exporting a game.
+
 This does not change the contract that executable workflows only exist on
 the permanent `CI` branch, or claim to exercise full gameplay/terrain
 rendering. The test fixture itself belongs to the versioned source commit.

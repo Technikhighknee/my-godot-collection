@@ -45,8 +45,16 @@ executable GitHub Actions workflow**. The authoritative, versioned workflow is
 - Both Godot passes fail on a nonzero exit **or** Godot's reported
   `ERROR:`/`SCRIPT ERROR:` lines. This is a real engine import and
   instantiate gate, not just textual assertions about `.tscn`.
-  It does **not** yet test gameplay, the Map System terrain/road/water
-  renderer, or a packaged exported game.
+  It does **not** test gameplay or a packaged exported game.
+- A second Godot `SceneTree` test runs the **real Map System GDScript
+  package** copied directly from `map_system/{core,io,terrain,rendering}/`
+  into the fixture. It reads the same exported JSON/EXR/PNG through
+  `GameMapLoader`, builds terrain with visual mesh and collider plus
+  authored road and terrain-derived water through `GameMapBuilder`,
+  and compares map-runtime placement transforms to the exported
+  `.tscn`. These are engine-runtime checks, not screenshots. Their
+  failure is an isolated CI failure.
+
 
 - Record the tested SOURCE SHA, the overlay CI SHA, the workflow run
   URL and the conclusions. A successful CI run proves the tested SHA,

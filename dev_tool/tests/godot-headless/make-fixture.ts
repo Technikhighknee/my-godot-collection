@@ -65,6 +65,11 @@ async function main(){
       {id:'tree_b',definition:'asset:fixture-tree',position:[20,30],rotation:-45},
       {id:'well',definition:'object.well',position:[40,60],rotation:0},
     ];
+    // Real Map System coverage: collision-bearing terrain, a road overlay
+    // and terrain-derived sea geometry, all from the exported map source.
+    map.roads=[{id:'ci_road',definition:'road.gravel',width:3,
+      points:[[8,10],[90,10]]}];
+    map.water=[{id:'ci_sea',definition:'water.sea',height:1}];
     await writeFile(mapFile,JSON.stringify(map,null,2)+'\n');
     const exported=await library.exportGodotScene('world');
     if(!exported.published||exported.manifest.files.length<4)
@@ -75,6 +80,15 @@ async function main(){
       'config_version=5\n\n[application]\nconfig/name="1400 CI Godot Scene"\n\n[rendering]\nrenderer/rendering_method="gl_compatibility"\n');
     await copyFile(fileURLToPath(new URL('./verify_scene.gd',import.meta.url)),
       join(output,'verify_scene.gd'));
+    await copyFile(fileURLToPath(new URL('./verify_map.gd',import.meta.url)),
+      join(output,'verify_map.gd'));
+    // Load the *real* Godot Map System scripts, not CI-only substitutes.
+    // This fixture is intentionally independent of the package's example
+    // maps, which can be changed without covering the exported project.
+    const mapSystem=fileURLToPath(new URL('../../../map_system/',import.meta.url));
+    for(const section of ['core','io','terrain','rendering'])
+      await cp(join(mapSystem,section),join(output,'map_system',section),
+        {recursive:true});
     console.log('Godot scene fixture generated at '+output);
     console.log('Bundle fingerprint: '+exported.manifest.sourceKey);
   }finally{await rm(temp,{recursive:true,force:true});}
