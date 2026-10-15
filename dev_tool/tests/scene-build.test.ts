@@ -166,3 +166,24 @@ test('Studio and CLI expose scene production without duplicating the map rendere
   assert.equal(packageData.scripts['build:scene'],
     'node --experimental-strip-types src/projects/scene-cli.ts');
 });
+
+test('cached portable scenes reject tampered reference semantics before export',async()=>{
+  await project(async(lib,root)=>{
+    await lib.importAsset('tree','Tree','glb',glb());
+    await changeMap(root,map=>{map.objects=[
+      {id:'tree_1',definition:'asset:tree',position:[12,14],rotation:0},
+    ];});
+    const first=await lib.buildScene('world');
+    const path=join(first.directory,'manifest.json');
+    const original=await readFile(path,'utf8');
+    const tampered=JSON.parse(original);
+    tampered.placements[0].modelFile='assets/tree/ghost.glb';
+    await writeFile(path,JSON.stringify(tampered,null,2)+'\n');
+    await assert.rejects(lib.buildScene('world'),/Unresolved scene model/);
+    await assert.rejects(lib.exportGodotScene('world'),/Unresolved scene model/);
+    assert.equal(await readFile(path,'utf8'),JSON.stringify(tampered,null,2)+'\n',
+      'A failed build must not overwrite the untrusted cached source');
+    await writeFile(path,original);
+    assert.equal((await lib.buildScene('world')).published,false);
+  });
+});

@@ -1,9 +1,8 @@
 // Deterministic Godot 4 scene-text serialization of a *verified* portable
 // scene manifest. No model generation, map geometry, or filesystem access.
 import type {SceneBundleManifest} from './scene-bundle.ts';
+import {validateSceneContract} from './scene-contract.ts';
 
-const safeId=/^[a-z0-9][a-z0-9_-]{0,47}$/;
-const safeModel=/^assets\/[a-z0-9][a-z0-9_-]{0,47}\/[a-z0-9][a-z0-9_-]*(?:--[a-z][a-z0-9_-]*)?\.glb$/;
 function number(value:number):string{
   if(typeof value!=='number'||!Number.isFinite(value))
     throw Error('Non-finite Godot scene transform');
@@ -12,31 +11,10 @@ function number(value:number):string{
 const quoted=(value:string)=>JSON.stringify(value);
 
 export function serializeGodotScene(manifest:SceneBundleManifest):Buffer{
-  if(manifest.format!=='devtool-scene-bundle'||manifest.version!==1||
-    !safeId.test(manifest.mapId))
-    throw Error('Invalid portable scene for Godot export');
-  const resourceFiles=new Set(manifest.resources.flatMap(x=>x.files));
+  validateSceneContract(manifest);
   const selections=new Set<string>();
-  for(const placement of manifest.placements){
-    if(!placement||!placement.id||typeof placement.id!=='string'||
-      !Array.isArray(placement.position)||placement.position.length!==3||
-      !placement.position.every(x=>Number.isFinite(x))||
-      !Number.isFinite(placement.rotationDegrees))
-      throw Error('Invalid Godot scene placement');
-    if(placement.source==='project-asset'){
-      if(!placement.assetId||!safeId.test(placement.assetId)||
-        !placement.modelFile||!safeModel.test(placement.modelFile)||
-        !placement.modelFile.startsWith('assets/'+placement.assetId+'/')||
-        !resourceFiles.has(placement.modelFile))
-        throw Error('Unresolved Godot scene model: '+placement.id);
-      selections.add(placement.modelFile);
-    }else if(placement.source==='game-definition'){
-      if(placement.modelFile!==undefined||placement.assetId!==undefined)
-        throw Error('Game definitions cannot imply a built Godot model');
-    }else throw Error('Unknown Godot scene placement source');
-    if(placement.kind!=='building'&&placement.kind!=='object')
-      throw Error('Unknown Godot scene placement kind');
-  }
+  for(const placement of manifest.placements)
+    if(placement.source==='project-asset')selections.add(placement.modelFile!);
   const paths=[...selections].sort();
   const ids=new Map(paths.map((path,index)=>[path,'model_'+(index+1)]));
   const geometryEntries=[
@@ -44,12 +22,6 @@ export function serializeGodotScene(manifest:SceneBundleManifest):Buffer{
     ['Roads',manifest.geometry?.roads],
     ['Water',manifest.geometry?.water],
   ].filter((x):x is [string,string]=>typeof x[1]==='string');
-  if(!geometryEntries.length||geometryEntries[0][1]!=='geometry/terrain.glb')
-    throw Error('Portable scene lacks baked terrain geometry');
-  for(const [kind,path] of geometryEntries){
-    if(path!=='geometry/'+kind.toLowerCase()+'.glb'||!manifest.files.some(x=>x.path===path))
-      throw Error('Portable scene contains invalid baked '+kind+' geometry');
-  }
   const lines=[
     '[gd_scene load_steps='+String(paths.length+geometryEntries.length+1)+' format=3]',
     '',

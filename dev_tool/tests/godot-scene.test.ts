@@ -125,7 +125,12 @@ test('serializer escapes arbitrary semantic names and rejects unverified model p
     terrain:{heightmap:'maps/assets/world.height.exr',
       surfaceMap:'maps/assets/world.surface.png'},
     geometry:{terrain:'geometry/terrain.glb'},
-    resources:[],files:[{path:'geometry/terrain.glb',bytes:100,sha256:'b'.repeat(64)}],placements:[{
+    resources:[],files:[
+      {path:'maps/world.map.json',bytes:100,sha256:'b'.repeat(64)},
+      {path:'maps/assets/world.height.exr',bytes:100,sha256:'c'.repeat(64)},
+      {path:'maps/assets/world.surface.png',bytes:100,sha256:'d'.repeat(64)},
+      {path:'geometry/terrain.glb',bytes:100,sha256:'e'.repeat(64)},
+    ],placements:[{
       id:'strange"\nnode',kind:'object',definition:'object."sample"',
       source:'game-definition',position:[1,2,3],rotationDegrees:360,
     }],
@@ -139,10 +144,14 @@ test('serializer escapes arbitrary semantic names and rejects unverified model p
   assert.throws(()=>serializeGodotScene({...base,placements:[{
     ...base.placements[0]!,source:'project-asset',assetId:'missing',
     modelFile:'assets/missing/missing.glb',
-  }]}),/Unresolved Godot scene model/);
+  }]}),/Unresolved scene model/);
   assert.throws(()=>serializeGodotScene({...base,placements:[{
     ...base.placements[0]!,position:[Number.NaN,2,3],
-  }]}),/Invalid Godot scene placement/);
+  }]}),/Invalid scene placement/);
+  assert.throws(()=>serializeGodotScene({...base,mapFile:'maps/other.map.json'}),
+    /Invalid scene map source/);
+  assert.throws(()=>serializeGodotScene({...base,geometry:{terrain:'geometry/other.glb'}}),
+    /lacks baked terrain geometry/);
 });
 
 test('Godot scene export API rejects GET, forged origin and wrong project',async()=>{

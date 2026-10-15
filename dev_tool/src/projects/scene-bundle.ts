@@ -8,6 +8,7 @@ import type {BuildResult} from './build.ts';
 import type {ScenePlan,ScenePlacement} from './scene-plan.ts';
 import type {MapDocument} from '../../tools/map-editor/src/core/map.ts';
 import {bakeMapBinaries} from './map-glb.ts';
+import {validateSceneContract} from './scene-contract.ts';
 
 export interface SceneBundleFile {path:string;bytes:number;sha256:string}
 export interface SceneBundleResource {
@@ -66,6 +67,7 @@ export async function readSceneBundle(path:string):Promise<SceneBundleManifest|n
     !validId.test(manifest.mapId)||!/^[a-f0-9]{64}$/.test(manifest.key)||
     !Array.isArray(manifest.files))
     throw Error('Invalid scene bundle manifest');
+  validateSceneContract(manifest);
   const declared=new Set(['manifest.json']);
   for(const entry of manifest.files){
     if(!validRelative(entry.path)||declared.has(entry.path)||
@@ -167,6 +169,7 @@ export async function publishSceneBundle(projectDir:string,plan:ScenePlan,
     terrain:{heightmap:'maps/'+heightmap,surfaceMap:'maps/'+surfaceMap},
     geometry,resources,placements,files,
   };
+  validateSceneContract(manifest);
   const buildDir=join(projectDir,'build');
   await safeDirectory(buildDir);
   const scenes=join(buildDir,'scenes');await safeDirectory(scenes);

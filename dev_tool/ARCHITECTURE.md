@@ -110,6 +110,16 @@ Gameplay-specific semantic definitions still require the target game's
 registry. The markers keep unresolved definitions visible rather than
 silently inventing a model.
 
+## Portable scene contract
+
+The engine-neutral `scene-contract.ts` validates every produced or reopened
+scene manifest before it can be reused or exported. It owns map-source,
+geometry, model-resource and placement reference semantics, including missing
+or conflicting dependencies. `scene-bundle.ts` owns bytes, hashes, caching
+and publication; `godot-scene-format.ts` only serializes validated
+scene references. The same contract guards independently edited cached
+manifests, which are not protected by individual file hashes.
+
 ## Portable map-scene production
 
 `ProjectLibrary.buildScene(mapId)` produces a separate, content-addressed
