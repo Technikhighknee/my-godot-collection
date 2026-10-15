@@ -225,9 +225,8 @@ editor session; sessionStorage restores open documents after reload, but
   invalidates stale sessions; project asset writes require the matching
   project identity as well as same-origin protection.
 
-The standalone editor routes remain for compatibility. This workbench
-reuses their rendering and edit functionality rather than duplicating
-procedural geometry or adding a new runtime renderer.
+The Map Editor shares the one project-owned Dev Tool HTTP host and authoring
+pipeline. Its rendering functions remain reusable in isolated tests.
 
 ## Projects (source workspaces)
 
@@ -284,10 +283,9 @@ and uses optimistic revision checks when updating asset sources.
 Source data remains portable; the project API is only a local workspace
 controller.
 
-To keep working with an existing standalone map without moving it,
-`npm start -- ../map_system/coastal_relief.map.json` still starts the
-legacy single-map workspace. That mode does not provide project asset
-storage. No existing maps or Godot files were migrated or modified.
+To open an existing map, copy its `*.map.json` and referenced EXR/PNG files
+into the active project's `maps/` directory. The Map Editor verifies the
+references before opening the map. There is no alternate standalone runtime.
 
 ## Tools
 
@@ -335,11 +333,8 @@ where project resources, generators and editor tabs share one workspace.
 The Map Editor's existing **Maps** panel can create or open maps; the
 Studio's project explorer also offers a create-map shortcut.
 
-Existing standalone maps can still be edited in the compatibility mode:
-
-```sh
-npm start -- ../map_system/example.map.json --port 4372
-```
+Start the Dev Tool project workspace with `npm start`; individual map files
+are selected within the Studio and cannot be passed as startup arguments.
 
 ## Asset ProcGen — searchable Asset Library
 
@@ -606,11 +601,11 @@ are inspection views. The Map Editor and game assets remain unchanged.
 ## Map workspace
 
 - **Open:** choose an existing `*.map.json` from the active map folder; opening another map reloads the editor. Unsaved changes require confirmation.
-- **Create:** provide a new lowercase filename slug, name, physical dimensions, height-sample grid, height range and surface palette. New maps start with flat terrain at elevation 0 (clamped to the configured range), and the first palette entry across every cell. The editor writes EXR/PNG/JSON without overwriting existing paths and registers all three files in a present Godot deployment manifest.
+- **Create:** provide a new lowercase filename slug, name, physical dimensions, height-sample grid, height range and surface palette. New maps start with flat terrain at elevation 0 (clamped to the configured range), and the first palette entry across every cell. The editor writes EXR/PNG/JSON without overwriting existing paths and publishes the map JSON last without a deployment manifest.
 - **Settings:** rename a map, adjust its height range or change surface definition IDs. Changing the height range changes world-space elevations without modifying normalized EXR samples; changing palette labels changes the meaning of saved surface indices. Both require deliberate confirmation of unsaved edits and a reload. Map width/depth and sample resolution remain fixed after creation.
 - **Active assets:** inspect the current EXR and PNG paths in the panel. Terrain painting and sculpting continue to manage immutable generated revisions. The editor does not automatically delete older asset versions.
 
-The workspace is intentionally limited to one directory and does **not** expose an arbitrary file browser or delete maps. The map picker verifies linked EXR/PNG assets before marking entries valid. Changes from another process are detected by revision and asset integrity checks. Creating a map uses a final JSON publish point; if interrupted before publication, unused generated assets or manifest entries may remain, but existing maps are not replaced.
+The workspace is intentionally limited to one directory and does **not** expose an arbitrary file browser or delete maps. The map picker verifies linked EXR/PNG assets before marking entries valid. Changes from another process are detected by revision and asset integrity checks. Creating a map uses a final JSON publish point; if interrupted before publication, unused generated images may remain, but existing maps are not replaced.
 
 ## Controls
 
@@ -629,9 +624,9 @@ The workspace is intentionally limited to one directory and does **not** expose 
 - **Save map:** `Ctrl+S`. Nothing changes on disk before saving.
 
 Terrain saves create immutable content-addressed EXR/PNG assets. The map JSON is
-published last; the original files stay intact. If `../map_system/manifest.json` exists,
-new assets are included for deployment. Old generated assets are not removed
-automatically. External file changes cause a save conflict.
+published last; the original files stay intact. No Godot deployment manifest
+is maintained. Old generated assets are not removed automatically.
+External file changes cause a save conflict.
 
 The editor is bound to `127.0.0.1`; writes require same-origin requests. Binary map reads use conditional revisions to avoid mixing map assets across workspace switches. Preview colors and road ribbons approximate Godot rendering;
 height geometry, triangular interpolation and stored surface indices use its map contract.
@@ -652,7 +647,7 @@ included definitions (`building.house` and `building.workshop`) are **editable
 examples**, not canonical game content. Supply your own file with:
 
 ```sh
-npm start -- ../map_system/coastal_relief.map.json --definitions ./tools/map-editor/placement-definitions.json
+npm start -- --definitions ./tools/map-editor/placement-definitions.json
 ```
 
 Each `buildings` entry contains `id` and `footprint` `[width,depth]` (meters),

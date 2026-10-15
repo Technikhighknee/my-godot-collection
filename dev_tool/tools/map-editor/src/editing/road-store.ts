@@ -44,7 +44,6 @@ export class RoadStore {
   private readonly doc: MapDocument;
   private queue: Promise<void> = Promise.resolve();
   private assets = new Map<string, string>();
-  private manifestHash: string | null = null;
   private readonly definitions?: PlacementDefinitions;
 
   private constructor(file: string, doc: MapDocument, revision: string, definitions?: PlacementDefinitions) {
@@ -62,9 +61,6 @@ export class RoadStore {
       try { store.assets.set(path, hash(await store.assetBytes(path))); }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     }
-    const manifest = resolve(dirname(target), 'manifest.json');
-    try { store.manifestHash = hash(await safeFile(manifest)); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     return store;
   }
 
@@ -93,9 +89,6 @@ export class RoadStore {
     if (hash(await safeFile(this.file)) !== this.revision) throw new RoadConflict('Map changed on disk; edits were not written');
     for (const [path, digest] of this.assets) {
       if (hash(await this.assetBytes(path)) !== digest) throw new RoadConflict('Map asset changed on disk; edits were not written');
-    }
-    if (this.manifestHash !== null && hash(await safeFile(join(dirname(this.file), 'manifest.json'))) !== this.manifestHash) {
-      throw new RoadConflict('Deployment manifest changed on disk; edits were not written');
     }
   }
 
@@ -187,22 +180,6 @@ export class RoadStore {
         if (!await this.assetBytes(path).then(bytes => hash(bytes) === name.match(/\.edit-([a-f0-9]{64})\./)?.[1])) throw new RoadConflict('Staged asset changed unexpectedly');
       }
     };
-    // Manifest is published before the map starts referencing generated assets.
-    if (generated.length && this.manifestHash !== null) {
-      const manifestFile = join(dirname(this.file), 'manifest.json');
-      const original = await safeFile(manifestFile);
-      if (hash(original) !== this.manifestHash) throw new RoadConflict('Deployment manifest changed on disk');
-      const manifest: unknown = JSON.parse(original.toString('utf8'));
-      if (!manifest || typeof manifest !== 'object' || !('files' in manifest) ||
-          !Array.isArray(manifest.files) || !manifest.files.every(x => typeof x === 'string')) {
-        throw new Error('Invalid deployment manifest');
-      }
-      for (const name of generated) if (!manifest.files.includes(name)) manifest.files.push(name);
-      const output = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
-      await this.verifySource();
-      await atomicWrite(manifestFile, output, (await stat(manifestFile)).mode & 0o777);
-      this.manifestHash = hash(output);
-    }
     const bytes = Buffer.from(JSON.stringify(next, null, 2) + '\n');
     await this.verifySource();
     await verifyGenerated();

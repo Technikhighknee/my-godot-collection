@@ -16,7 +16,7 @@ const form = (slug: string) => ({
   slug, name: `New ${slug}`, worldSize: [100, 80], heightSamples: [9, 7],
   minHeight: -10, maxHeight: 50, surfacePalette: ['terrain.grass', 'terrain.dirt'],
 });
-async function tempWorkspace(manifest = false) {
+async function tempWorkspace() {
   const dir = await mkdtemp(join(tmpdir(), 'm8-maps-'));
   await mkdir(join(dir, 'assets'));
   const map = {
@@ -27,12 +27,11 @@ async function tempWorkspace(manifest = false) {
   await writeFile(join(dir, 'first.map.json'), JSON.stringify(map));
   await writeFile(join(dir, 'assets/first.height.exr'), encodeExr({ width: 5, height: 4, data: new Float32Array(20).fill(0.5) }));
   await writeFile(join(dir, 'assets/first.surface.png'), encodeSurfacePng({ width: 4, height: 3, data: new Uint8Array(12) }));
-  if (manifest) await writeFile(join(dir, 'manifest.json'), JSON.stringify({ files: ['first.map.json', 'assets/first.height.exr', 'assets/first.surface.png'] }));
   return { dir, map };
 }
 
-test('new map creation publishes EXR, PNG and JSON, updates manifest and opens the result', async () => {
-  const { dir } = await tempWorkspace(true);
+test('new map creation publishes EXR, PNG and JSON without deploy manifests', async () => {
+  const { dir } = await tempWorkspace();
   try {
     const workspace = await MapWorkspace.open(join(dir, 'first.map.json'));
     const current = workspace.getRevision();
@@ -47,10 +46,7 @@ test('new map creation publishes EXR, PNG and JSON, updates manifest and opens t
     assert.equal(loaded.surfaces.height, 6);
     assert.ok(loaded.heights.data.every(n => Math.abs(n - 1/6) < 0.00001));
     assert.ok(loaded.surfaces.data.every(n => n === 0));
-    const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
-    for (const asset of ['second.map.json', 'assets/second.height.exr', 'assets/second.surface.png']) {
-      assert.ok(manifest.files.includes(asset), asset);
-    }
+    await assert.rejects(readFile(join(dir,'manifest.json')),/ENOENT/);
     assert.deepEqual((await workspace.list()).map(m => [m.file, m.active, m.valid]), [
       ['first.map.json', false, true], ['second.map.json', true, true],
     ]);
@@ -80,7 +76,7 @@ test('workspace rejects bad names and stale revisions without touching existing 
 });
 
 test('workspace applies only safe metadata, preserving existing terrain images', async () => {
-  const { dir } = await tempWorkspace(true);
+  const { dir } = await tempWorkspace();
   try {
     const workspace = await MapWorkspace.open(join(dir, 'first.map.json'));
     const revision = workspace.getRevision();
@@ -129,7 +125,7 @@ test('workspace refuses an externally modified active map', async () => {
 });
 
 test('HTTP workspace operations enforce origin, revision, and reject traversal, while retaining M7 saves', async () => {
-  const { dir } = await tempWorkspace(true);
+  const { dir } = await tempWorkspace();
   const workspace = await MapWorkspace.open(join(dir, 'first.map.json'));
   const server = createEditorServer(workspace.getDocument(), workspace.getStore(), undefined, workspace);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

@@ -138,7 +138,7 @@ export function createMapEditorHandler(source:MapDocument,store?:RoadStore,
   };
 }
 
-/** Compatibility helper for existing Map Editor tests and integrations. */
+/** Isolated map editor fixture for HTTP/browser module tests. */
 export function createEditorServer(source:MapDocument,store?:RoadStore,
   placementDefinitions?:PlacementDefinitions,workspace?:MapWorkspace):Server{
   return createDevToolServer(createMapEditorHandler(source,store,placementDefinitions,workspace));

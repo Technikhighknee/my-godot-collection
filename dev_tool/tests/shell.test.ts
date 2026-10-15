@@ -11,7 +11,7 @@ const home = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8')
 const editor = readFileSync(new URL('../tools/map-editor/web/index.html', import.meta.url), 'utf8');
 const homeJs = readFileSync(new URL('../web/dev-tool.js', import.meta.url), 'utf8');
 
-test('project launcher replaces tool landing; standalone editor remains available', () => {
+test('project launcher and project map editor are available', () => {
   assert.match(home, /<title>1400 · Dev Tool<\/title>/);
   assert.match(home, /id="projectList"/);
   assert.match(home, /id="createForm"/);
@@ -401,4 +401,14 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   assert.match(study,/URL\.createObjectURL/);
   assert.match(study,/toBlob\(/);
   assert.match(study,/updateExportButton/);
+});
+
+test('production startup has no standalone map-file entry point',async()=>{
+  const source=readFileSync(new URL('../src/serve.ts',import.meta.url),'utf8');
+  assert.doesNotMatch(source,/createMapEditorHandler|MapWorkspace\.open|loadMap/);
+  assert.match(source,/Standalone map arguments are not supported/);
+  assert.match(source,/createProjectRouter\(library,definitions\)/);
+  const {existsSync}=await import('node:fs');
+  assert.equal(existsSync(new URL('../tools/map-editor/src/serve.ts',import.meta.url)),
+    false);
 });

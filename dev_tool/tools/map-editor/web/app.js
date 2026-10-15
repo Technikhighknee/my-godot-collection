@@ -132,7 +132,7 @@ async function getDocument() {
     try{
       const response=await fetch('/api/projects/active',{cache:'no-store'});
       if(response.ok)projectId=(await response.json()).project?.id??null;
-    }catch{/* Legacy map mode. */}
+    }catch{/* Map-only fixture host. */}
     if(projectId!==before)continue;
     return { readOnly: meta.readOnly, revision: meta.revision, mapFile: meta.mapFile, workspace: meta.workspace, projectId, definitions, map: meta.map, height: { ...meta.height, data: decodeFloats(heights) }, surface: { ...meta.surface, data: new Uint8Array(surfaces) } };
   }
@@ -2158,7 +2158,7 @@ try {
         choices.append(option);
       }
     }
-  }catch{/* Legacy map mode has no project assets. */}
+  }catch{/* Map-only fixture host has no project assets. */}
   initializeEntityEditing();
   initializePolygonEditing();
   initializeWaterEditing();

@@ -168,36 +168,11 @@ export class MapWorkspace {
         try { await lstat(resolve(this.root, path)); throw new RoadConflict('Map or asset file already exists'); }
         catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
       }
-      const manifestPath = join(this.root, 'manifest.json');
-      let manifest: { files: string[] } | null = null;
-      let manifestBytes: Buffer | null = null;
-      try {
-        manifestBytes = await safeRead(manifestPath);
-        const data: unknown = JSON.parse(manifestBytes.toString('utf8'));
-        if (!data || typeof data !== 'object' || !('files' in data) || !Array.isArray(data.files) || !data.files.every(x => typeof x === 'string'))
-          throw new Error('Invalid deployment manifest');
-        manifest = data as { files: string[] };
-      } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
       const created: string[] = [];
-      let manifestPublished = false;
       try {
         for (const [path, bytes] of outputs.slice(0, 2)) {
           await publishNew(join(this.root, path), bytes);
           created.push(join(this.root, path));
-        }
-        if (manifest && manifestBytes) {
-          const updated = { ...manifest, files: [...manifest.files] };
-          for (const [path] of outputs) if (!updated.files.includes(path)) updated.files.push(path);
-          if (sha(await safeRead(manifestPath)) !== sha(manifestBytes)) throw new RoadConflict('Deployment manifest changed on disk');
-          const temp = join(this.root, `.manifest.${randomUUID()}.tmp`);
-          try {
-            const handle = await open(temp, 'wx', (await stat(manifestPath)).mode & 0o777);
-            try { await handle.writeFile(JSON.stringify(updated, null, 2) + '\n'); await handle.sync(); } finally { await handle.close(); }
-            await chmod(temp, (await stat(manifestPath)).mode & 0o777);
-            if (sha(await safeRead(manifestPath)) !== sha(manifestBytes)) throw new RoadConflict('Deployment manifest changed on disk');
-            await rename(temp, manifestPath);
-            manifestPublished = true;
-          } finally { await rm(temp, { force: true }); }
         }
         for (const [path, bytes] of outputs.slice(0, 2)) {
           if (sha(await safeRead(join(this.root, path))) !== sha(bytes))
@@ -209,9 +184,9 @@ export class MapWorkspace {
         this.activeFile = file;
         this.activeStore = store;
       } catch (error) {
-        // Before the map file is published the newly created assets have no owner.
-        // Once a deployment manifest references assets, never remove those files on failure.
-        if (!manifestPublished && !created.includes(join(this.root, file))) for (const path of created) await rm(path, { force: true });
+        // The JSON is the commit point: unpublished images can be discarded.
+        if (!created.includes(join(this.root, file)))
+          for (const path of created) await rm(path, { force: true });
         throw error;
       }
     });
