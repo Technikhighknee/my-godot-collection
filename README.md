@@ -4,59 +4,49 @@ Some Godot bits and bobs.
 
 ## Collection
 
-- [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
-- [Map System](map_system/) — deployable Godot map runtime and portable map format.
-- [Dev Tool](dev_tool/) — local Node.js development tools with a main menu and browser-based Map Editor.
+- [Strategy Camera](strategy_camera/) — deployable Godot 3D strategy / city-builder camera.
+- [Map format examples](map_system/) — portable JSON, EXR and PNG map sources for the offline Dev Tool. **Not a Godot runtime package.**
+- [Dev Tool](dev_tool/) — Node.js/Three.js project workspace, procedural assets, maps and offline Godot export.
+
+## One map production path
+
+Map source documents belong to the Dev Tool. It generates finished
+`terrain.glb`, `roads.glb` and `water.glb` offline and publishes a Godot scene.
+The game consumes those imported resources; it does not install a separate
+`MapSystem` script package or construct terrain from JSON at runtime.
+
+See [Dev Tool architecture](dev_tool/ARCHITECTURE.md) and
+[map format](map_system/README.md).
 
 ## Deploy tool
 
->You're probably thinking, “Jason... why don't you just copy them by hand?”
->No. That primitive act of manually moving files is personally insulting to me. I need manifest files, byte-by-byte comparison, selective conflict resolution, and atomic writes.
+The installer is for **deployable Godot packages**, currently Strategy Camera.
+It operates on complete manifest-owned package folders; it is not used for
+Dev Tool maps, procedural textures, models or generated Godot scene exports.
 
-Each deployable Godot package declares its files in `manifest.json` (for Map System: `map_system/manifest.json`). The project manifest
-chooses the installed folder names, and `deploy.py` installs **entire packages** into
-`packages/` next to the project manifest:
+Example project manifest:
 
 ```json
 {
   "packages": {
-    "strategy_camera": "StrategyCamera",
-    "map_system": "MapSystem"
+    "strategy_camera": "StrategyCamera"
   }
 }
 ```
 
-Running:
-
 ```powershell
-python .\tools\deploy.py C:\Users\posch\Documents\1400\manifest.json -y
+python .\tools\deploy.py C:\Projects\Game\manifest.json -y
 ```
 
-installs `packages/StrategyCamera/` and `packages/MapSystem/` in that Godot project.
-Names and casing come from the values in the manifest; the keys identify repository packages.
-Manifest values are single folder names, not arbitrary paths. Files in the package are
-installed with their internal relative layout intact.
+The installer creates `packages/StrategyCamera/`, backs up any previously
+installed managed package under `~/.my-godot-collection/backups/`, and then
+atomically replaces it. The `-y` flag skips confirmation, **not** backups.
+Don't use a Godot project root as a direct destination.
 
-**Owned directories:** the installed package folders are disposable copies, not workspaces.
-The installer stages a complete replacement, saves the entire existing folder as a ZIP under
-`~/.my-godot-collection/backups/` (outside the Godot project), and then swaps the directory.
-Local edits and extra files are preserved **in that backup**, not mixed with the new package.
-`-y` skips confirmation but NEVER skips backups. If preparation or backup fails, nothing is
-replaced; a swap failure attempts to restore the previous directory.
-
-On the first new-style deploy, the older `MapSystem/` and `StrategyCamera/` folders next
-to the project manifest are also backed up and retired to avoid duplicate Godot `class_name`
-declarations. Other project folders are untouched. Update any game paths from
-`res://MapSystem/...` to `res://packages/MapSystem/...` and likewise for the camera.
-
-For a single package, you can still supply its **exact managed folder** directly:
-
-```powershell
-python .\tools\deploy.py map_system C:\Projects\Game\packages\MapSystem -y
-```
-
-A missing `-y` prompts once before replacing directories. This is an intentionally
-opinionated installer, not a per-file synchronizer. Do not use a project root as a destination.
+When upgrading an existing Godot project that previously installed the
+retired `MapSystem` scripts, remove its old `packages/MapSystem/` directory
+manually after backing up your project; this installer no longer deploys that
+package. Generated scenes from the Dev Tool do not depend on it.
 
 ## Godot scene and resource files
 

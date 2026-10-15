@@ -48,9 +48,9 @@ The portable scene-bundle producer owns the baked geometry and its hashes;
 the Godot adapter merely references these GLBs as PackedScenes. Thus
 **Godot runtime does not load map source JSON or generate procedural map
 geometry**. Archived JSON/EXR/PNG remain in the exported artifact only as
-authoring/provenance inputs. The old MapSystem/GDScript geometry path
-remains in the repository as legacy code but is not part of the active
-scene-export pipeline and is not an integration requirement.
+authoring/provenance inputs. The obsolete MapSystem GDScript renderer, runtime geometry builders and
+standalone map package manifest have been removed. Portable map source
+examples remain in `map_system/`; there is only one active geometry builder.
 
 Headless engine verification imports the GLBs and loads the final `.tscn`,
 asserting mesh geometry, collision, textured terrain, roads, water and

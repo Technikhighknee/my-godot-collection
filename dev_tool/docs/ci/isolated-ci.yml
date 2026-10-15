@@ -73,6 +73,9 @@ jobs:
         working-directory: dev_tool
         run: npm test
       
+      - name: Python deploy and portable map contract tests
+        run: python3 -m unittest discover -s tests
+
       # Pinned official Godot 4 release. The SHA256 is taken from the
       # corresponding upstream GitHub release asset digest.
       - name: Install and verify Godot 4.7.2
