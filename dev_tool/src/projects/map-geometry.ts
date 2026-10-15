@@ -142,7 +142,9 @@ export function buildWorldGeometry(doc:MapDocument):WorldGeometry{
   let k=0;
   for(let z=0;z<heights.height;z++)for(let x=0;x<heights.width;x++){
     uv[k++]=x/(heights.width-1);
-    uv[k++]=1-z/(heights.height-1);
+    // glTF texture coordinates use the source image's top-left origin.
+    // Surface PNG row 0 is world Z=0, just as in the editor's paint grid.
+    uv[k++]=z/(heights.height-1);
   }
   return {
     terrain:{...terrain,uv},
@@ -187,7 +189,8 @@ export function buildSurfaceTransitions(doc:MapDocument):SurfaceTransition[]{
         if(cross>0)[tri[1],tri[2]]=[tri[2],tri[1]];
         for(const [px,pz] of tri){
           data.positions.push(px,heightAt(doc,px,pz)+0.025,pz);
-          data.uv.push(px/sx,1-pz/sz);
+          // Feather overlays must share the same orientation as base PBR.
+          data.uv.push(px/sx,pz/sz);
           const dist=Math.abs((axis==='x'?px:pz)-seam);
           // Exact transparent/half-mixed endpoints despite clip float error.
           const blend=Math.max(0,Math.min(1,1-dist/halfWidth));

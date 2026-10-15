@@ -70,6 +70,16 @@ func _initialize() -> void:
 		return
 
 	var ground_mesh := terrains[0] as MeshInstance3D
+	# glTF UV origin is the image top-left, matching world Z=0 in the editor.
+	# A future accidental V-flip must fail an actual Godot engine import.
+	var ground_arrays := ground_mesh.mesh.surface_get_arrays(0)
+	var surface_uvs: PackedVector2Array = ground_arrays[Mesh.ARRAY_TEX_UV]
+	if surface_uvs.is_empty() or surface_uvs[0].distance_to(Vector2.ZERO) > 0.00001 or \
+			surface_uvs[surface_uvs.size()-1].distance_to(Vector2.ONE) > 0.00001:
+		fail("Imported Godot terrain UVs flip the map surface PNG orientation")
+		scene.free()
+		return
+
 	var bounds := ground_mesh.mesh.get_aabb()
 	if absf(bounds.size.x - 128.0) > 0.01 or absf(bounds.size.z - 128.0) > 0.01:
 		fail("The baked terrain dimensions differ from the authored map")

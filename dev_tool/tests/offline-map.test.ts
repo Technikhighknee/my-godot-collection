@@ -5,7 +5,9 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {ProjectLibrary} from '../src/projects/library.ts';
 import {findGenerator} from '../tools/asset-procgen/web/generators.mjs';
-import {buildSurfaceTransitions} from '../src/projects/map-geometry.ts';
+import {buildSurfaceTransitions,buildWorldGeometry} from '../src/projects/map-geometry.ts';
+import {paletteColor,surfaceAt} from '../tools/map-editor/web/mesh-data.mjs';
+import {inflateSync} from 'node:zlib';
 
 function glbMetadata(bytes:Buffer){
   assert.equal(bytes.toString('ascii',0,4),'glTF');
@@ -218,5 +220,106 @@ test('feathered map material boundaries bake reproducible GLB visual geometry, n
     assert.deepEqual(await readFile(join(exported.directory,
       'geometry','terrain.glb')),file,
       'Godot must receive the identical blended scene geometry');
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+
+// GLB binary payload checks instead of only checking that the PNG and UVs
+// exist. This covers the complete PNG->GLB seam that once mirrored paint in
+// Godot while leaving the heightfield unchanged.
+function glbBinary(bytes:Buffer,manifest:any):Buffer{
+  const jsonLength=bytes.readUInt32LE(12);
+  const offset=20+jsonLength;
+  assert.equal(bytes.readUInt32LE(offset+4),0x004e4942);
+  const length=bytes.readUInt32LE(offset);
+  assert.equal(manifest.buffers[0].byteLength,length);
+  return bytes.subarray(offset+8,offset+8+length);
+}
+function floatAttribute(bytes:Buffer,manifest:any,accessorId:number):number[]{
+  const accessor=manifest.accessors[accessorId];
+  const view=manifest.bufferViews[accessor.bufferView];
+  assert.equal(accessor.componentType,5126,'Expected float32 glTF accessor');
+  const dimensions=accessor.type==='VEC2'?2:accessor.type==='VEC3'?3:0;
+  assert.ok(dimensions>0);
+  const binary=glbBinary(bytes,manifest);
+  const offset=view.byteOffset+(accessor.byteOffset??0);
+  return Array.from({length:accessor.count*dimensions},(_,i)=>
+    binary.readFloatLE(offset+i*4));
+}
+function embeddedRgbaPng(bytes:Buffer,manifest:any):Uint8Array{
+  const image=manifest.images[0];
+  assert.equal(image.mimeType,'image/png');
+  const view=manifest.bufferViews[image.bufferView];
+  const binary=glbBinary(bytes,manifest);
+  const png=binary.subarray(view.byteOffset,view.byteOffset+view.byteLength);
+  assert.equal(png.toString('ascii',12,16),'IHDR');
+  const width=png.readUInt32BE(16),height=png.readUInt32BE(20);
+  assert.equal(png[25],6,'The palette is stored as RGBA8');
+  const blocks:Buffer[]=[];
+  for(let p=8;p<png.length;){
+    const len=png.readUInt32BE(p),type=png.toString('ascii',p+4,p+8);
+    if(type==='IDAT')blocks.push(png.subarray(p+8,p+8+len));
+    p+=len+12;
+    if(type==='IEND')break;
+  }
+  const raw=inflateSync(Buffer.concat(blocks));
+  const imageBytes=new Uint8Array(width*height*4);
+  for(let y=0;y<height;y++){
+    assert.equal(raw[y*(width*4+1)],0,'Palette PNG must use filter 0');
+    imageBytes.set(raw.subarray(y*(width*4+1)+1,(y+1)*(width*4+1)),y*width*4);
+  }
+  return imageBytes;
+}
+
+test('asymmetric painted surfaces retain exact editor world orientation in Godot GLB',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'map-uv-orientation-'));
+  try{
+    const library=await ProjectLibrary.open(dir,undefined,findGenerator);
+    await library.create('world','World');
+    const workspace=library.mapWorkspace()!,doc=workspace.getDocument();
+    const surface=new Uint8Array(doc.surfaces.data.length);
+    const w=doc.surfaces.width,h=doc.surfaces.height;
+    // Different colors in unambiguous corners: a flipped vertical UV changes
+    // the sampled paint even though the terrain positions remain identical.
+    surface[1*w+3]=1;                // Near (x=3,z=1)
+    surface[(h-4)*w+(w-6)]=2;        // Far opposite corner
+    await workspace.saveDocument({roads:doc.map.roads,surfaces:surface},
+      workspace.getRevision(),workspace.getFile());
+    const saved=workspace.getDocument();
+    const baked=buildWorldGeometry(saved);
+    const firstVertex=(z:number,x:number)=>z*saved.heights.width+x;
+    assert.deepEqual(Array.from(baked.terrain.uv!.slice(
+      firstVertex(0,0)*2,firstVertex(0,0)*2+2)),[0,0]);
+    assert.deepEqual(Array.from(baked.terrain.uv!.slice(
+      firstVertex(h,w)*2,firstVertex(h,w)*2+2)),[1,1]);
+    const scene=await library.exportGodotScene('world');
+    const bytes=await readFile(join(scene.directory,'geometry','terrain.glb'));
+    const gltf=glbMetadata(bytes);
+    const primitive=gltf.meshes[0].primitives[0];
+    const uv=floatAttribute(bytes,gltf,primitive.attributes.TEXCOORD_0);
+    assert.deepEqual(uv.slice(0,2),[0,0]);
+    assert.deepEqual(uv.slice(-2),[1,1]);
+    assert.equal(uv[firstVertex(0,Math.floor(w/2))*2+1],0);
+    assert.equal(uv[firstVertex(h,Math.floor(w/2))*2+1],1);
+    const pixels=embeddedRgbaPng(bytes,gltf);
+    for(const [x,z] of [[3,1],[w-6,h-4],[3,h-4],[w-6,1]]){
+      const index=surfaceAt(saved.map.terrain,saved.surfaces,
+        (x+0.5)*saved.map.terrain.size[0]/w,
+        (z+0.5)*saved.map.terrain.size[1]/h);
+      const [r,g,b]=paletteColor(saved.map.terrain.surface_palette[index]);
+      const actual=Array.from(pixels.slice((z*w+x)*4,(z*w+x)*4+4));
+      assert.deepEqual(actual,[r,g,b].map(v=>Math.round(v*255)).concat(255));
+    }
+    // Material feather UVs must use the identical top-left convention.
+    const transitions=buildSurfaceTransitions(saved);
+    assert.ok(transitions.length>0);
+    for(const {mesh} of transitions){
+      for(let i=0;i<mesh.uv!.length;i+=2){
+        const x=mesh.positions[i/2*3],z=mesh.positions[i/2*3+2];
+        assert.ok(Math.abs(mesh.uv![i]-x/saved.map.terrain.size[0])<1e-5);
+        assert.ok(Math.abs(mesh.uv![i+1]-z/saved.map.terrain.size[1])<1e-5);
+      }
+    }
+    assert.equal((await library.exportGodotScene('world')).published,false);
   }finally{await rm(dir,{recursive:true,force:true});}
 });
