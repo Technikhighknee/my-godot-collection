@@ -110,6 +110,26 @@ Gameplay-specific semantic definitions still require the target game's
 registry. The markers keep unresolved definitions visible rather than
 silently inventing a model.
 
+## Offline terrain material boundary feathering
+
+Categorical surface identifiers remain authoritative map source data. When a
+scene has any saved PBR surface binding, `buildSurfaceTransitions()` emits
+deterministic, narrow cross-fade strips **only at boundaries** of unlike cells.
+Each half of a boundary borrows the other cell's material and ramps from zero
+opacity inside its own cell to 50% at the seam, using the exact triangle-clipped
+terrain height sampler. The strips reuse the existing built PBR textures
+and `KHR_texture_transform` UVs. They are included in **the same terrain GLB**
+as a second visual-only `TerrainTransitions` glTF node using vertex alpha
+and glTF `BLEND` materials; only `Terrain-col` receives import-time Godot
+collision. Uniform maps and old maps without assigned project materials keep
+their original GLB shape and material policy. The editor's baked geometry
+preview loads the unchanged canonical output.
+
+This is an initial edge-feather pass, not a terrain splat shader, atlas or
+height-based material mixing system. Junctions where three or more surfaces
+meet may still expose alpha blending artifacts. Transition strips incur
+geometry only around changed surface-cell borders, not across entire maps.
+
 ## Shared PBR terrain surface materials
 
 An optional `terrain.surface_materials` mapping in editable Map JSON assigns

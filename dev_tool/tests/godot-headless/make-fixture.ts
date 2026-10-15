@@ -62,6 +62,13 @@ async function main(){
       name:'Fixture PBR surface',generator:'roof-clay',masterSeed:19,
       components:{pattern:19,color:47},
     });
+    const workspace=library.mapWorkspace()!;
+    const sourceMap=workspace.getDocument();
+    const surface=Uint8Array.from(sourceMap.surfaces.data);
+    for(let z=12;z<20;z++)for(let x=14;x<24;x++)
+      surface[z*sourceMap.surfaces.width+x]=1;
+    await workspace.saveDocument({roads:sourceMap.map.roads,surfaces:surface},
+      workspace.getRevision(),workspace.getFile());
     const mapFile=join(temp,'world','maps','world.map.json');
     const map=JSON.parse(await readFile(mapFile,'utf8'));
     map.objects=[

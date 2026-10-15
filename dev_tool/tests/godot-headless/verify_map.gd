@@ -54,6 +54,21 @@ func _initialize() -> void:
 			scene.free()
 			return
 
+	var feather := terrain.find_child("TerrainTransitions", true, false) as MeshInstance3D
+	if feather == null:
+		fail("No offline-baked visual transition mesh was imported")
+		scene.free()
+		return
+	if feather.mesh.get_surface_count() < 2:
+		fail("Terrain must contain both category feather materials")
+		scene.free()
+		return
+	var feather_material := feather.mesh.surface_get_material(0)
+	if not (feather_material is BaseMaterial3D) or 			(feather_material as BaseMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+		fail("Terrain feather surfaces must use transparent PBR materials")
+		scene.free()
+		return
+
 	var ground_mesh := terrains[0] as MeshInstance3D
 	var bounds := ground_mesh.mesh.get_aabb()
 	if absf(bounds.size.x - 128.0) > 0.01 or absf(bounds.size.z - 128.0) > 0.01:
@@ -76,6 +91,6 @@ func _initialize() -> void:
 		scene.free()
 		return
 
-	print("OFFLINE MAP EXPORT PASSED: imported terrain, project PBR maps, static collider, roads, water; no runtime geometry builder")
+	print("OFFLINE MAP EXPORT PASSED: imported terrain with PBR feather transitions, static collider, roads, water; no runtime geometry builder")
 	scene.free()
 	quit(0)

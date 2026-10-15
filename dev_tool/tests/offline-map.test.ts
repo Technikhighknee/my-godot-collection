@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {ProjectLibrary} from '../src/projects/library.ts';
 import {findGenerator} from '../tools/asset-procgen/web/generators.mjs';
+import {buildSurfaceTransitions} from '../src/projects/map-geometry.ts';
 
 function glbMetadata(bytes:Buffer){
   assert.equal(bytes.toString('ascii',0,4),'glTF');
@@ -147,5 +148,75 @@ test('map surface material references and profiles fail explicitly',async()=>{
     await writeFile(file,JSON.stringify(map,null,2)+'\n');
     const built=await lib.buildScene('world');
     assert.equal(built.manifest.resources[0]?.id,'oak');
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+
+test('feathered map material boundaries bake reproducible GLB visual geometry, not collision',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'terrain-feather-'));
+  try{
+    const lib=await ProjectLibrary.open(dir,undefined,findGenerator);
+    await lib.create('world','World');
+    const ws=lib.mapWorkspace()!,doc=ws.getDocument();
+    assert.deepEqual(buildSurfaceTransitions(doc),[],
+      'A uniform surface needs no transition mesh');
+    const painted=Uint8Array.from(doc.surfaces.data);
+    // A 4x4 patch creates straight boundaries and four corners.
+    for(let z=23;z<27;z++)for(let x=24;x<28;x++)
+      painted[z*doc.surfaces.width+x]=1;
+    await ws.saveDocument({roads:doc.map.roads,surfaces:painted},
+      ws.getRevision(),ws.getFile());
+    const transitions=buildSurfaceTransitions(ws.getDocument());
+    assert.deepEqual(transitions.map(t=>t.definition),
+      ['terrain.grass','terrain.dirt']);
+    assert.deepEqual(buildSurfaceTransitions(ws.getDocument()),transitions,
+      'Transition geometry must be independent of build order');
+    for(const t of transitions){
+      assert.equal(t.mesh.positions.length/3,t.opacity.length);
+      assert.equal(t.mesh.uv!.length,t.opacity.length*2);
+      assert.ok(t.opacity.includes(0.5),'Seams must meet at 50% coverage');
+      assert.ok(t.opacity.includes(0),'Feathers must end at zero coverage');
+      assert.ok(t.opacity.every(x=>x>=0&&x<=0.5));
+      assert.ok(t.mesh.indices.length>0);
+    }
+    await lib.createAsset('clay',{name:'Clay',generator:'roof-clay',
+      masterSeed:27,components:{pattern:27,color:39}});
+    const saved=ws.getDocument().map;
+    await ws.saveSettings({name:saved.name,
+      min_height:saved.terrain.min_height,max_height:saved.terrain.max_height,
+      surface_palette:saved.terrain.surface_palette,
+      surface_materials:{'terrain.grass':{asset:'asset:clay',tile_size:4}}},
+      ws.getRevision(),ws.getFile());
+    const first=await lib.buildScene('world');
+    const file=await readFile(join(first.directory,'geometry','terrain.glb'));
+    const gltf=glbMetadata(file);
+    assert.deepEqual(gltf.scenes[0].nodes,[0,1]);
+    assert.equal(gltf.nodes[0].name,'Terrain-col');
+    assert.equal(gltf.nodes[1].name,'TerrainTransitions',
+      'The overlay must not be marked for static collision');
+    assert.equal(gltf.meshes.length,2);
+    assert.equal(gltf.meshes[1].primitives.length,2);
+    const baseCount=gltf.accessors[gltf.meshes[0].primitives[0].attributes.POSITION].count;
+    assert.equal(baseCount,doc.heights.width*doc.heights.height,
+      'Only the original terrain mesh retains the collidable heightfield');
+    for(const primitive of gltf.meshes[1].primitives){
+      const attr=primitive.attributes;
+      assert.equal(gltf.accessors[attr.COLOR_0].type,'VEC4');
+      assert.equal(gltf.accessors[attr.POSITION].count,
+        gltf.accessors[attr.COLOR_0].count);
+      const overlay=gltf.materials[primitive.material];
+      assert.equal(overlay.alphaMode,'BLEND');
+      assert.equal(overlay.extras.surfaceTransition,true);
+      assert.equal(overlay.doubleSided,true);
+      assert.ok(overlay.pbrMetallicRoughness.baseColorFactor);
+    }
+    assert.ok(gltf.meshes[1].primitives.some((p:any)=>
+      gltf.materials[p.material].pbrMetallicRoughness.baseColorTexture),
+      'Project PBR maps must be reused in the transition overlays');
+    assert.equal((await lib.buildScene('world')).published,false);
+    const exported=await lib.exportGodotScene('world');
+    assert.deepEqual(await readFile(join(exported.directory,
+      'geometry','terrain.glb')),file,
+      'Godot must receive the identical blended scene geometry');
   }finally{await rm(dir,{recursive:true,force:true});}
 });
