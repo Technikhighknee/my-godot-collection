@@ -67,7 +67,11 @@ function polygon(value: unknown, path: string, bounds: Point): Point[] {
 export function validateMap(value: unknown): MapJson {
   const root = fields(value,'map',['name','terrain','roads','settlements','water','buildings','objects']);
   requiredString(root.name,'map.name');
-  const terrain = fields(root.terrain,'map.terrain',['size','heightmap','min_height','max_height','surface_map','surface_palette','surface_materials']);
+  const terrain = fields(root.terrain,'map.terrain',[
+    'size','heightmap','min_height','max_height','surface_map','surface_palette',
+    ...(record(root.terrain)&&Object.hasOwn(root.terrain,'surface_materials')?
+      ['surface_materials']:[]),
+  ]);
   const size=point(terrain.size,'map.terrain.size',null);
   if(size[0]<=0||size[1]<=0) error('map.terrain.size','must be positive');
   const min=number(terrain.min_height,'terrain.min_height'),max=number(terrain.max_height,'terrain.max_height');

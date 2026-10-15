@@ -90,7 +90,7 @@ test('offline terrain uses shared project material PBR outputs and invalidates s
     assert.deepEqual(first.manifest.resources.map(r=>r.id),['clay']);
     const glb=glbMetadata(await readFile(join(first.directory,'geometry','terrain.glb')));
     assert.ok(glb.extensionsUsed.includes('KHR_texture_transform'));
-    const textured=glb.materials.find(m=>m.extras?.assetResourceId==='clay');
+    const textured=glb.materials.find((m:any)=>m.extras?.assetResourceId==='clay');
     assert.ok(textured,'Terrain must use actual saved project material');
     assert.equal(textured.extras.surfaceDefinition,surface);
     assert.equal(textured.extras.tileSize,4);
