@@ -1,7 +1,7 @@
 // Content-addressed project build planning. This module never renders assets,
 // mutates project sources, or decides how a generator is implemented.
 import {createHash} from 'node:crypto';
-import type {AssetEntry,ProjectAssetSource} from './library.ts';
+import type {AssetEntry,ProjectAssetSource} from './asset-source.ts';
 
 const digest=(value:string)=>createHash('sha256').update(value).digest('hex');
 function canonical(value:unknown):unknown{

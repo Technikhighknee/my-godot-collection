@@ -10,7 +10,7 @@ import {captureVectorPixels} from './build-canvas.ts';
 import {encodeModelGlb} from './build-glb.ts';
 import type {EmbeddedMaterialMaps} from './build-glb.ts';
 import type {BuildNode,BuildPlan} from './build-plan.ts';
-import type {AssetEntry,ImportedAssetSource} from './library.ts';
+import type {AssetEntry,ImportedAssetSource} from './asset-source.ts';
 
 export interface BuildFile {
   file:string;sha256:string;bytes:number;

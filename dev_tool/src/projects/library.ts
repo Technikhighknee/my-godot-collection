@@ -31,14 +31,6 @@ export {validateSource,validateImportedSource,validateProjectSource} from './ass
 const hash=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
 const samePath=(a:string,b:string)=>process.platform==='win32'?
   a.toLowerCase()===b.toLowerCase():a===b;
-function slug(value:unknown):string {
-  if(typeof value!=='string'||!slugPattern.test(value))throw Error('Invalid resource ID (use lowercase letters, numbers, - or _)');
-  return value;
-}
-function title(value:unknown):string {
-  if(typeof value!=='string'||!value.trim()||value.trim().length>100)throw Error('Name must contain 1–100 characters');
-  return value.trim();
-}
 async function regular(path:string):Promise<Buffer>{
   const info=await lstat(path);
   if(!info.isFile()||info.isSymbolicLink()||!samePath(await realpath(path),path))
