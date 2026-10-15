@@ -74,11 +74,21 @@ func _initialize() -> void:
 	# A future accidental V-flip must fail an actual Godot engine import.
 	var ground_arrays := ground_mesh.mesh.surface_get_arrays(0)
 	var surface_uvs: PackedVector2Array = ground_arrays[Mesh.ARRAY_TEX_UV]
-	if surface_uvs.is_empty() or surface_uvs[0].distance_to(Vector2.ZERO) > 0.00001 or \
-			surface_uvs[surface_uvs.size()-1].distance_to(Vector2.ONE) > 0.00001:
-		fail("Imported Godot terrain UVs flip the map surface PNG orientation")
+	var surface_vertices: PackedVector3Array = ground_arrays[Mesh.ARRAY_VERTEX]
+	if surface_uvs.is_empty() or surface_uvs.size() != surface_vertices.size():
+		fail("Godot imported terrain without complete UVs")
 		scene.free()
 		return
+	# Godot may reorder vertices. Compare each UV against its world position,
+	# never assume that the first and last imported vertices are the corners.
+	for index in surface_uvs.size():
+		var point := surface_vertices[index]
+		var expected := Vector2(point.x / 128.0, point.z / 128.0)
+		if surface_uvs[index].distance_to(expected) > 0.0001:
+			fail("Terrain UV at " + str(point) + " is " +
+				str(surface_uvs[index]) + ", expected " + str(expected))
+			scene.free()
+			return
 
 	var bounds := ground_mesh.mesh.get_aabb()
 	if absf(bounds.size.x - 128.0) > 0.01 or absf(bounds.size.z - 128.0) > 0.01:
