@@ -13,7 +13,7 @@ import {validateSource} from '../src/projects/asset-source.ts';
 import {ProjectLibrary} from '../src/projects/library.ts';
 import {planAssetBuild} from '../src/projects/build-plan.ts';
 import {capturePaintedPixels,encodeRgbaPng} from '../src/projects/build-image.ts';
-import type {AssetEntry} from '../src/projects/asset-source.ts';
+import type {AssetEntry,AssetSource} from '../src/projects/asset-source.ts';
 
 const original={id:'original',version:1};
 const styleOf=(entry:AssetEntry)=>'origin' in entry.source?undefined:entry.source.artstyle;
@@ -61,6 +61,27 @@ test('an explicit original style preserves generator results and only affects pi
   assert.deepEqual(pinnedPixels.rgba,legacyPixels.rgba);
   assert.throws(()=>generateAsset(def,input.components,undefined,1,
     {id:'naturalistic-study',version:1}),/artstyle/i);
+});
+
+test('artstyle pin invalidates its own subgraph but not unrelated resources',()=>{
+  const source={format:'devtool-asset' as const,version:1 as const,
+    id:'roof',name:'Roof',
+    generator:{id:'roof-thatch',version:1,masterSeed:1,
+      components:{pattern:1,color:2}},dependencies:[]};
+  const related={...source,id:'linked',name:'Linked',dependencies:['asset:roof']};
+  const independent={...source,id:'unrelated',name:'Other'};
+  const entry=(value:AssetSource):AssetEntry=>({source:value,revision:'source',kind:'image'});
+  const originalPlan=planAssetBuild([entry(source),entry(related),entry(independent)],
+    ['linked','unrelated']);
+  const styledPlan=planAssetBuild([{
+    ...entry(source),source:{...source,artstyle:original},
+  },entry(related),entry(independent)],['linked','unrelated']);
+  const keys=(plan:ReturnType<typeof planAssetBuild>)=>
+    new Map(plan.nodes.map(node=>[node.id,node.key]));
+  const before=keys(originalPlan),after=keys(styledPlan);
+  assert.notEqual(before.get('roof'),after.get('roof'));
+  assert.notEqual(before.get('linked'),after.get('linked'));
+  assert.equal(before.get('unrelated'),after.get('unrelated'));
 });
 
 test('saved style pin survives reopening and preview PNG equals production PNG',async()=>{
