@@ -2,13 +2,12 @@
 // Semantic shape, color and aging seeds remain independent across artstyles.
 import {materialSeedStreams,materialElementTraits,materialElementWear}
   from './material-language.mjs';
+import {PRODUCTION_MATERIAL_STYLES}
+  from './artstyles/production-artstyles.mjs';
 
-export const MATERIAL_STYLES = Object.freeze([
-  'hand-painted',
-  'retro-3d',
-  'naturalistic',
-  'watercolor',
-]);
+export const MATERIAL_STYLES = Object.freeze(
+  PRODUCTION_MATERIAL_STYLES.map(style => style.id)
+);
 
 const W=512;
 const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));

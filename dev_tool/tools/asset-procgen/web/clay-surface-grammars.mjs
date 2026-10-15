@@ -2,13 +2,12 @@
 // Structural tile shapes and fired pigment channels are independently seeded.
 import {materialSeedStreams,materialElementTraits,materialElementWear}
   from './material-language.mjs';
+import {PRODUCTION_MATERIAL_STYLES}
+  from './artstyles/production-artstyles.mjs';
 
-export const CLAY_STYLE_IDS = Object.freeze([
-  'hand-painted',
-  'retro-3d',
-  'naturalistic',
-  'watercolor',
-]);
+export const CLAY_STYLE_IDS = Object.freeze(
+  PRODUCTION_MATERIAL_STYLES.map(style => style.id)
+);
 
 const SIZE=512;
 const wrap=(v,m)=>(v%m+m)%m;
