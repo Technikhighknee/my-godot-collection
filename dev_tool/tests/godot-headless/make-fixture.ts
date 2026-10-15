@@ -61,6 +61,7 @@ async function main(){
     await library.createAsset('fixture-material',{
       name:'Fixture PBR surface',generator:'roof-clay',masterSeed:19,
       components:{pattern:19,color:47},
+      artstyle: {id: 'naturalistic', version: 1},
     });
     const workspace=library.mapWorkspace()!;
     const sourceMap=workspace.getDocument();

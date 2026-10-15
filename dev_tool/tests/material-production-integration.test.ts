@@ -88,10 +88,11 @@ test('a saved Naturalistic material is baked into the actual Godot terrain expor
       artstyle: styleRef('naturalistic'),
     };
     const saved = await library.createAsset('clay', source);
-    assert.deepEqual(
-      (await library.asset('clay')).source.artstyle,
-      styleRef('naturalistic')
-    );
+    const asset = (await library.asset('clay')).source;
+    if ('origin' in asset) {
+      throw Error('Expected an authored procedural material');
+    }
+    assert.deepEqual(asset.artstyle, styleRef('naturalistic'));
     const first = await library.buildAsset('clay');
     const artifact = first.artifacts.find(value => value.id === 'clay');
     assert.ok(artifact);

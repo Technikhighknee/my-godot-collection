@@ -68,11 +68,14 @@ jobs:
         working-directory: dev_tool
         run: npm run typecheck
 
-      - name: Full test suite
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+      - name: Production material and art-direction acceptance tests
         working-directory: dev_tool
-        run: npm test
-      
+        run: |
+          node --experimental-strip-types --test --test-concurrency=1 \
+            tests/material-production-integration.test.ts \
+            tests/production-artstyles.test.ts \
+            tests/project-art-direction.test.ts
+
       - name: Python deploy and portable map contract tests
         run: python3 -m unittest discover -s tests
 
@@ -139,3 +142,11 @@ jobs:
             exit 1
           fi
           grep -F "OFFLINE MAP EXPORT PASSED" "$RUNNER_TEMP/godot-map-test.log"
+
+      # Full regressions remain mandatory after the focused production and
+      # real Godot checks, keeping failure diagnostics visible on busy runners.
+      - name: Full test suite
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        working-directory: dev_tool
+        run: npm test
+      
