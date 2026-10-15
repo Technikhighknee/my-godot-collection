@@ -94,6 +94,28 @@ rejects manually modified package files rather than silently deleting
 your edits. This exports files for Godot; it does not write into an external
 Godot project or generate `.tscn` scenes automatically.
 
+## Export a Godot 4 placement scene
+
+Use **Export Godot** beside a saved map in Studio, or from `dev_tool/`:
+
+```bash
+npm run export:godot-scene -- world
+npm run export:godot-scene -- world --projects-dir /path/to/projects
+```
+
+The tool builds/reuses the existing portable scene, then publishes a Godot
+4 `.tscn` under `projects/<project>/exports/godot-scenes/<map-id>/`.
+Copy the **whole** exported directory into a Godot 4 project's `res://`
+filesystem. Relative GLB references continue to work when moved together,
+after Godot finishes importing them. Generated model instances already have
+their map positions and rotations. The scene includes metadata referencing
+the original map and its terrain image files. Unresolved game-definition
+placements appear as explicitly identified `Marker3D` nodes.
+
+The `.tscn` is a placement scene; the existing Godot Map System must still
+render terrain, roads and water from the included portable map data. It is
+not a second terrain generator, nor a gameplay-building registry.
+
 ## Build portable map scenes
 
 Studio has a **Build scene** action beside each saved map. It snapshots

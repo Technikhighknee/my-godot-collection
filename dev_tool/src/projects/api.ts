@@ -142,6 +142,12 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         if(req.method==='POST')return send(res,200,await library.buildScene(sceneMatch[1]));
         res.writeHead(405,{Allow:'POST'});res.end();return;
       }
+      const sceneExport=/^\/api\/projects\/active\/exports\/godot-scene\/([a-z0-9_-]+)$/.exec(path);
+      if(sceneExport){
+        if(req.method==='POST')return send(res,200,
+          await library.exportGodotScene(sceneExport[1]));
+        res.writeHead(405,{Allow:'POST'});res.end();return;
+      }
       const exportMatch=/^\/api\/projects\/active\/exports\/godot\/([a-z0-9_-]+)$/.exec(path);
       if(exportMatch){
         if(req.method==='POST')

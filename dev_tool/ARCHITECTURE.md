@@ -24,6 +24,39 @@ prevent symlink escape. Project APIs are dispatched separately. Root-level Map
 Editor aliases and extensionless Studio URLs are intentionally not supported;
 the editors use canonical paths.
 
+## Godot scene export adapter
+
+`ProjectLibrary.exportGodotScene(mapId)` first runs the **same** portable
+scene builder and validates the resulting source bundle against its manifest
+and file hashes. The `godot-scene-format.ts` adapter only serializes a Godot
+4 text scene: one external `PackedScene` resource per selected GLB, actual
+instances for `asset:<id>` placements, and `Marker3D` nodes for semantic
+game definitions that have no project model. Nodes carry the original
+placement IDs and semantic definition IDs as metadata; Godot Y rotation
+matches the existing Map System mapping, in radians.
+
+All paths in `<map-id>.tscn` are relative to the scene folder. The export
+contains the original portable map JSON, EXR heightmap and PNG surface map
+as well as its asset binaries, with *no rerunning* of authoring generation.
+Godot still imports the GLBs using its normal import pipeline. No UID
+values are fabricated.
+
+The managed export lives at
+`projects/<project>/exports/godot-scenes/<map-id>/`. Its own manifest
+records hashes for **all** generated files. Repeated exports are verified
+and reused; modified/unmanaged files block overwrite. Updates stage a new
+directory and replace the previous managed export atomically, with rollback
+on a failed publish. Exports for different maps cannot overwrite each other.
+A project-bound `POST /api/projects/active/exports/godot-scene/:mapId`,
+Studio **Export Godot**, and `npm run export:godot-scene -- <map-id>`
+expose the same operation.
+
+**Scope:** This is an importable placement scene plus map/terrain sources.
+It does not duplicate the Map System's terrain/road/water renderer; terrain
+and semantic gameplay definitions still require the target game's Map System
+and game registry. The markers make unresolved placements visible in the
+Godot editor rather than silently inventing a model.
+
 ## Portable map-scene production
 
 `ProjectLibrary.buildScene(mapId)` produces a separate, content-addressed

@@ -10,6 +10,7 @@ import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 import {loadMap,serializeMap} from '../../tools/map-editor/src/io/map-io.ts';
 import {planMapScene} from './scene-plan.ts';
 import {publishSceneBundle} from './scene-bundle.ts';
+import {publishGodotScene} from './godot-scene.ts';
 import {planAssetBuild} from './build-plan.ts';
 import {produceBuild} from './build.ts';
 import {publishGodotPackage} from './godot-package.ts';
@@ -330,8 +331,7 @@ export class ProjectLibrary {
   async buildProject(){
     return this.enqueue(()=>this.buildAssets());
   }
-  async buildScene(mapId:string){
-    return this.enqueue(async()=>{
+  private async buildSceneInternal(mapId:string){
       mapId=resourceId(mapId);
       const mapFile=join(this.requireActive(),'maps',mapId+'.map.json');
       // Refuse redirected map documents. loadMap validates both terrain images
@@ -353,6 +353,14 @@ export class ProjectLibrary {
         throw Error('Map terrain changed during scene build: '+mapId);
       return publishSceneBundle(this.requireActive(),plan,serialized,
         doc.map.terrain.heightmap,doc.map.terrain.surface_map,build);
+  }
+  async buildScene(mapId:string){
+    return this.enqueue(()=>this.buildSceneInternal(mapId));
+  }
+  async exportGodotScene(mapId:string){
+    return this.enqueue(async()=>{
+      const bundle=await this.buildSceneInternal(mapId);
+      return publishGodotScene(this.requireActive(),bundle);
     });
   }
   private async exportOneAsset(id:string){

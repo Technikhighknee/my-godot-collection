@@ -49,7 +49,7 @@ async function regular(path:string){
     throw Error('Scene bundle file redirected: '+path);
   return readFile(path);
 }
-async function prior(path:string):Promise<SceneBundleManifest|null>{
+export async function readSceneBundle(path:string):Promise<SceneBundleManifest|null>{
   try{
     const info=await lstat(path);
     if(!info.isDirectory()||info.isSymbolicLink())
@@ -163,7 +163,7 @@ export async function publishSceneBundle(projectDir:string,plan:ScenePlan,
   const scenes=join(buildDir,'scenes');await safeDirectory(scenes);
   const mapRoot=join(scenes,plan.mapId);await safeDirectory(mapRoot);
   const destination=join(mapRoot,key);
-  const cached=await prior(destination);
+  const cached=await readSceneBundle(destination);
   if(cached){
     if(JSON.stringify(cached)!==JSON.stringify(manifest))
       throw Error('Existing scene bundle conflicts with new manifest');

@@ -317,7 +317,7 @@ function summaryButton(label,kind,action){
   button.addEventListener('click',()=>Promise.resolve(action()).catch(e=>showError(e.message)));
   return button;
 }
-async function buildSceneFromStudio(map,button){
+async function buildSceneFromStudio(map,button,format='portable'){
   const id=map.file?.replace(/\.map\.json$/,'');
   if(!id||!map.valid||buildingScenes.has(id))
     throw Error('Select a valid saved map to build');
@@ -327,17 +327,25 @@ async function buildSceneFromStudio(map,button){
   if(!(await verifyProject()))return;
   buildingScenes.add(id);
   button.disabled=true;
-  setStatus('BUILDING SCENE '+id.toUpperCase());
+  setStatus((format==='godot'?'EXPORTING GODOT SCENE ':'BUILDING SCENE ')+id.toUpperCase());
   try{
-    const result=await api('/api/projects/active/scenes/'+id+'/build',{
+    const path=format==='godot'?
+      '/api/projects/active/exports/godot-scene/'+id:
+      '/api/projects/active/scenes/'+id+'/build';
+    const result=await api(path,{
       method:'POST',headers:{'X-Project-Id':project.id},
     });
-    const report=result.manifest.placements.length+' placements · '+
-      result.built+' generated · '+result.reused+' reused';
-    setStatus(result.published?'SCENE BUNDLE PUBLISHED':'SCENE BUNDLE REUSED');
-    byId('statusRight').textContent=map.name.toUpperCase()+' · '+report.toUpperCase();
+    const report=result.built+' generated · '+result.reused+' reused';
+    if(format==='godot'){
+      setStatus(result.published?'GODOT SCENE EXPORTED':'GODOT SCENE UNCHANGED');
+      byId('statusRight').textContent=id.toUpperCase()+'.TSCN · '+report.toUpperCase();
+    }else{
+      setStatus(result.published?'SCENE BUNDLE PUBLISHED':'SCENE BUNDLE REUSED');
+      byId('statusRight').textContent=map.name.toUpperCase()+' · '+
+        result.manifest.placements.length+' placements · '+report.toUpperCase();
+    }
   }catch(error){
-    showError('Scene build failed: '+error.message);
+    showError((format==='godot'?'Godot scene export':'Scene build')+' failed: '+error.message);
   }finally{
     buildingScenes.delete(id);
     button.disabled=false;
@@ -357,6 +365,13 @@ function renderOverview(){
     build.addEventListener('click',()=>buildSceneFromStudio(m,build)
       .catch(error=>showError(error.message)));
     row.append(build);
+    const exportButton=make('button','scene-build-button','Export Godot');
+    exportButton.type='button';
+    exportButton.disabled=!m.valid||buildingScenes.has(m.file.replace(/\.map\.json$/,''));
+    exportButton.title='Generate an importable Godot 4 scene from this saved map';
+    exportButton.addEventListener('click',()=>buildSceneFromStudio(m,exportButton,'godot')
+      .catch(error=>showError(error.message)));
+    row.append(exportButton);
     return row;
   }));
   assetList.replaceChildren(...assets.slice(0,6).map(a=>
