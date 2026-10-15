@@ -126,7 +126,16 @@ static func triangle_points(t: int, terrain: TerrainHeightField) -> Array[Vector
 	var b := Vector3(float(x) * spacing.x, terrain.height_at_sample(x, z + 1), float(z + 1) * spacing.y);
 	var c := Vector3(float(x + 1) * spacing.x, terrain.height_at_sample(x + 1, z), float(z) * spacing.y);
 	var d := Vector3(float(x + 1) * spacing.x, terrain.height_at_sample(x + 1, z + 1), float(z + 1) * spacing.y);
-	return [c, b, d] if t % 2 != 0 else [a, b, c];
+	var triangle: Array[Vector3] = [];
+	if t % 2 != 0:
+		triangle.append(c);
+		triangle.append(b);
+		triangle.append(d);
+	else:
+		triangle.append(a);
+		triangle.append(b);
+		triangle.append(c);
+	return triangle;
 
 
 static func clip_below(triangle: Array[Vector3], level: float) -> PackedVector2Array:

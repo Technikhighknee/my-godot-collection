@@ -50,9 +50,15 @@ func _initialize() -> void:
 		fail("Textured terrain mesh is missing")
 		holder.free()
 		return
-	var collision := rendered.get_node_or_null("Terrain/Collision/CollisionShape3D") as CollisionShape3D
+	var collision_body := rendered.get_node_or_null("Terrain/Collision") as StaticBody3D
+	var collision: CollisionShape3D = null
+	if collision_body != null:
+		for child in collision_body.get_children():
+			if child is CollisionShape3D:
+				collision = child as CollisionShape3D
+				break
 	if collision == null or collision.shape == null:
-		fail("Terrain collision shape is missing")
+		fail("Terrain collision shape is missing from StaticBody3D")
 		holder.free()
 		return
 	if not (rendered.get_node_or_null("Roads/ci_road") is MeshInstance3D):
