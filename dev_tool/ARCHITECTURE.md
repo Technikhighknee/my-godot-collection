@@ -110,6 +110,25 @@ Gameplay-specific semantic definitions still require the target game's
 registry. The markers keep unresolved definitions visible rather than
 silently inventing a model.
 
+## Shared PBR terrain surface materials
+
+An optional `terrain.surface_materials` mapping in editable Map JSON assigns
+a project image resource (`asset:<id>`), optional material profile and
+`tile_size` in world units to each categorical surface definition. Legacy
+maps without bindings retain identical baked GLB output. The scene planner
+resolves these images through the ordinary versioned project asset build DAG.
+`scene-materials.ts` reads and re-verifies existing baked albedo, normal and
+roughness PNGs; it does not regenerate materials or reinterpret seeds.
+
+Bound terrain surfaces are separated into triangle-index groups sharing
+the original height-field mesh and normals. The offline glTF writer attaches
+their production PBR maps, repeating in world units via
+`KHR_texture_transform`. Unbound surfaces retain category-colored materials
+in these mixed scenes. The finished GLB is the same resource referenced by
+portable bundles and Godot exports. The map JSON format remains independent
+of any target engine. Material assignment authoring UI, terrain blending and
+final terrain-specific artistic quality remain follow-on work.
+
 ## Portable scene contract
 
 The engine-neutral `scene-contract.ts` validates every produced or reopened

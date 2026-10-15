@@ -8,6 +8,7 @@ import type {BuildResult} from './build.ts';
 import type {ScenePlan,ScenePlacement} from './scene-plan.ts';
 import type {MapDocument} from '../../tools/map-editor/src/core/map.ts';
 import {bakeMapBinaries} from './map-glb.ts';
+import {resolveSceneMaterials} from './scene-materials.ts';
 import {validateSceneContract} from './scene-contract.ts';
 
 export interface SceneBundleFile {path:string;bytes:number;sha256:string}
@@ -135,7 +136,8 @@ export async function publishSceneBundle(projectDir:string,plan:ScenePlan,
   add(mapFile,map.json);
   add('maps/'+heightmap,map.exr);
   add('maps/'+surfaceMap,map.png);
-  const baked=bakeMapBinaries(doc);
+  const materials=await resolveSceneMaterials(projectDir,doc,artifacts);
+  const baked=bakeMapBinaries(doc,materials);
   const geometry:SceneBundleManifest['geometry']={terrain:'geometry/terrain.glb'};
   add(geometry.terrain,baked.terrain);
   if(baked.roads){geometry.roads='geometry/roads.glb';add(geometry.roads,baked.roads);}
