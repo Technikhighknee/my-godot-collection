@@ -131,3 +131,10 @@ review/commit it there, and then repeat the overlay process. That new
 source revision carries its own canonical template and documentation.
 Do **not** edit the executable copy on `CI`: the next overlay intentionally
 discards everything on that branch that is not part of SOURCE.
+
+## Test workload control
+
+The full `npm test` runner caps concurrent test files at **4**. Texture and
+model generation tests are CPU- and memory-heavy; the cap avoids launching
+all suites simultaneously on GitHub's shared runners. Individual tests and
+coverage remain unchanged.
