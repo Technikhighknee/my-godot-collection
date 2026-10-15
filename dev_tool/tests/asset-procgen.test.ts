@@ -387,6 +387,8 @@ test('modular asset workspace keeps its existing controls and serves new modules
 
   const app=readFileSync(new URL('../tools/asset-procgen/web/app.js',import.meta.url),'utf8');
   const catalog=readFileSync(new URL('../tools/asset-procgen/web/generators.mjs',import.meta.url),'utf8');
+  const vegetation=readFileSync(new URL('../tools/asset-procgen/web/generator-definitions/vegetation.mjs',import.meta.url),'utf8');
+  const materials=readFileSync(new URL('../tools/asset-procgen/web/generator-definitions/materials.mjs',import.meta.url),'utf8');
   const preview=readFileSync(new URL('../tools/asset-procgen/web/viewport-3d.mjs',import.meta.url),'utf8');
   const imagePreview=readFileSync(new URL('../tools/asset-procgen/web/viewport-2d.mjs',import.meta.url),'utf8');
   const seedModel=readFileSync(new URL('../tools/asset-procgen/web/seed-model.mjs',import.meta.url),'utf8');
@@ -411,16 +413,18 @@ test('modular asset workspace keeps its existing controls and serves new modules
   assert.match(library,/button\.addEventListener\('click'/);
   assert.match(app,/updateComponentSeed/);
   assert.match(app,/updateMasterSeed/);
-  assert.match(catalog,/generateTree\(\{seed:seeds.geometry\}\)/);
-  assert.match(catalog,/generateFir\(\{seed:seeds.geometry\}\)/);
-  assert.match(catalog,/generateOakFoliage\(wood,\{seed:seeds.foliage\}\)/);
+  assert.match(vegetation,/generateTree\(\{seed:seeds.geometry\}\)/);
+  assert.match(vegetation,/generateFir\(\{seed:seeds.geometry\}\)/);
+  assert.match(vegetation,/generateOakFoliage\(wood,\{seed:seeds.foliage\}\)/);
   assert.match(catalog,/return definition\.generate\(componentSeeds,options,level\)/);
-  assert.match(catalog,/kind:'image'/);
-  assert.match(catalog,/generateOakSprigAsset/);
-  assert.match(catalog,/generateOakBarkAsset/);
-  assert.match(catalog,/mapOakBarkWood/);
-  assert.match(catalog,/barkSeeds/);
-  assert.match(catalog,/OAK_BARK_PROFILES/);
+  assert.match(materials,/kind:'image'/);
+  assert.match(catalog,/\.\.\.VEGETATION_GENERATORS/);
+  assert.doesNotMatch(catalog,/generateTree\(|generateOakFoliage\(/);
+  assert.match(vegetation,/generateOakSprigAsset/);
+  assert.match(vegetation,/generateOakBarkAsset/);
+  assert.match(vegetation,/mapOakBarkWood/);
+  assert.match(vegetation,/barkSeeds/);
+  assert.match(vegetation,/OAK_BARK_PROFILES/);
   assert.match(imagePreview,/createImageViewport/);
   assert.match(imagePreview,/validateImageAsset/);
   assert.match(imagePreview,/imageZoomAt/);

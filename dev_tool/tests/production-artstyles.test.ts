@@ -23,8 +23,10 @@ const recipe=()=>({name:'Village roof',generator:'roof-thatch',
 test('production artstyles reject experimental and incompatible versions',()=>{
   assert.deepEqual(PRODUCTION_ARTSTYLES.map(x=>x.id),['original']);
   assert.deepEqual(validateProductionArtstyle(original),original);
-  assert.equal(availableProductionArtstyles(findGenerator('roof-thatch')).length,1);
-  assert.deepEqual(assertGeneratorArtstyleSupport(findGenerator('roof-thatch'),original),original);
+  const roof=findGenerator('roof-thatch');
+  assert.ok(roof);
+  assert.equal(availableProductionArtstyles(roof).length,1);
+  assert.deepEqual(assertGeneratorArtstyleSupport(roof,original),original);
   for(const bad of [{id:'naturalistic-study',version:1},
     {id:'original',version:2},{id:'original',version:1,seed:123},
     {id:'unknown',version:1},null]){

@@ -267,13 +267,16 @@ test('shared stone, plaster, timber and roof materials expose persistent project
     '../tools/asset-procgen/web/generators.mjs',import.meta.url),'utf8');
   const building=readFileSync(new URL(
     '../tools/asset-procgen/web/building.mjs',import.meta.url),'utf8');
+  const architecture=readFileSync(new URL(
+    '../tools/asset-procgen/web/generator-definitions/architecture.mjs',import.meta.url),'utf8');
+  assert.match(generators,/ARCHITECTURE_GENERATORS/);
   assert.match(html,/id="materialSlots"/);
   assert.match(app,/mountMaterialControls/);
   assert.match(app,/for\(const slot of active\.materialSlots\?\?\[\]\)/);
   assert.match(app,/materialAssignments/);
   assert.match(app,/changeSharedMaterial/);
   for(const slot of ['foundationStone','facadePlaster','timberWood','roofThatch','roofClay'])
-    assert.ok(generators.includes("id:'"+slot+"'"),slot+' declared');
+    assert.ok(architecture.includes("id:'"+slot+"'"),slot+' declared');
   assert.match(building,/BUILDING_PART_SURFACES/);
   assert.match(renderer,/updateSurfaceTextures/);
   assert.match(renderer,/part\.surface/);
@@ -375,18 +378,26 @@ test('Studio opens texture studies as tabs and restores them with the session',(
   const styleCatalog=readFileSync(
     new URL('../tools/asset-procgen/web/texture-style-study.mjs',import.meta.url),
     'utf8');
+  const artstyles=readFileSync(
+    new URL('../tools/asset-procgen/web/artstyles/experimental-artstyles.mjs',import.meta.url),
+    'utf8');
+  const materialDefinitions=readFileSync(
+    new URL('../tools/asset-procgen/web/generator-definitions/materials.mjs',import.meta.url),
+    'utf8');
   assert.match(study,/STUDY_STYLES/);
-  assert.match(styleCatalog,/label:'Watercolor'/);
-  assert.match(styleCatalog,/label:'Retro 3D'/);
+  assert.match(styleCatalog,/\.\.\.EXPERIMENTAL_ARTSTYLES/);
+  assert.match(artstyles,/label:'Watercolor'/);
+  assert.match(artstyles,/label:'Retro 3D'/);
   assert.match(comparison,/id="studyExportPNG"/);
   assert.match(study,/texture-study-export\.mjs/);
   assert.match(study,/studyGeneration\?\.styles\.includes/);
   assert.match(study,/studyGeneration\.generate\(seeds,styleId\)/);
   const generators=readFileSync(new URL('../tools/asset-procgen/web/generators.mjs',import.meta.url),'utf8');
-  assert.match(generators,/studyGeneration:Object\.freeze/);
-  assert.match(generators,/CLAY_GENERATIVE_STYLES/);
-  assert.match(generators,/MATERIAL_STUDY_STYLES/);
-  assert.match(generators,/makeStyledMaterialAsset/);
+  assert.match(generators,/MATERIAL_GENERATORS/);
+  assert.match(materialDefinitions,/studyGeneration:Object\.freeze/);
+  assert.match(materialDefinitions,/CLAY_GENERATIVE_STYLES/);
+  assert.match(materialDefinitions,/MATERIAL_STUDY_STYLES/);
+  assert.match(materialDefinitions,/makeStyledMaterialAsset/);
   assert.match(study,/URL\.createObjectURL/);
   assert.match(study,/toBlob\(/);
   assert.match(study,/updateExportButton/);
