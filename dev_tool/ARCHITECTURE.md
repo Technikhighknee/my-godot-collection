@@ -20,12 +20,11 @@ a separate `SceneTree` script then loads and instantiates the exported
 `.tscn`, asserting model hierarchies, transforms, references and semantic
 markers. Errors in either engine invocation fail the CI job.
 
-A separate `verify_map.gd` gate loads the **same exported map** using
-unmodified Map System scripts from the repository. It validates the imported
-65×65 EXR grid, surface index palette, textured terrain mesh, collision,
-road, terrain-derived sea and all three authored placements. Their runtime
-transforms must match the exported Godot placement scene. This does not
-require importing a second hand-written example map or exporting a game.
+A separate `verify_map.gd` gate loads the actual **offline-baked glTF
+geometry** from the exported Godot scene, verifies terrain dimensions,
+the imported albedo texture and static collision, plus actual road and water
+mesh instances. The fixture does not install or invoke any Map System
+GDScript runtime geometry generator.
 
 This does not change the contract that executable workflows only exist on
 the permanent `CI` branch, or claim to exercise full gameplay/terrain
@@ -104,11 +103,12 @@ A project-bound `POST /api/projects/active/exports/godot-scene/:mapId`,
 Studio **Export Godot**, and `npm run export:godot-scene -- <map-id>`
 expose the same operation.
 
-**Scope:** This is an importable placement scene plus map/terrain sources.
-It does not duplicate the Map System's terrain/road/water renderer; terrain
-and semantic gameplay definitions still require the target game's Map System
-and game registry. The markers make unresolved placements visible in the
-Godot editor rather than silently inventing a model.
+**Scope:** This is an importable, complete **static map geometry** and
+placement scene. All terrain, road and water meshes are produced offline and
+imported as GLB resources; the old Map System is **not** required.
+Gameplay-specific semantic definitions still require the target game's
+registry. The markers keep unresolved definitions visible rather than
+silently inventing a model.
 
 ## Portable map-scene production
 
@@ -139,8 +139,10 @@ map or terrain abort the build before publication.
 Studio exposes **Build scene** beside saved maps. CLI:
 `npm run build:scene -- <map-id>`. The project-bound endpoint is
 `POST /api/projects/active/scenes/<map-id>/build`.
-This is an engine-neutral scene production **contract**, not yet
-automatic Godot `.tscn` instantiation or target-game scene deployment.
+This is an engine-neutral scene production **contract** containing baked
+map GLBs and model dependencies; the Godot export adapter produces the
+corresponding importable `.tscn`. Deployment and gameplay integration remain
+target-game responsibilities.
 
 ## Complete project builds
 

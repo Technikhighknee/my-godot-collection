@@ -131,9 +131,10 @@ their map positions and rotations. The scene includes metadata referencing
 the original map and its terrain image files. Unresolved game-definition
 placements appear as explicitly identified `Marker3D` nodes.
 
-The `.tscn` is a placement scene; the existing Godot Map System must still
-render terrain, roads and water from the included portable map data. It is
-not a second terrain generator, nor a gameplay-building registry.
+The `.tscn` already instantiates finished terrain, road and water GLBs,
+plus model placements. Godot imports those resources and creates the tagged
+terrain collision **once during import**, not by triangulating a heightmap
+at runtime. Gameplay-specific object definitions still need a game registry.
 
 ## Build portable map scenes
 
@@ -152,8 +153,9 @@ npm run build:scene -- world --projects-dir /path/to/projects
 Scene bundles are produced at
 `projects/<project>/build/scenes/<map-id>/<fingerprint>/` with a
 `manifest.json` containing placement transforms, selected GLB files,
-resource keys and verified file hashes. Godot scene generation and the
-Map System installation remain separate steps.
+resource keys, offline geometry GLBs and verified file hashes. Godot
+scene generation is a separate delivery step; no Map System installation
+is needed.
 
 ## Build all project assets
 
@@ -675,11 +677,12 @@ until their definitions are supplied. Unknown neighboring footprints block
 new placement to avoid pretending no collision exists.
 
 The browser/server checks use the same map coordinates, rectangle rotation,
-triangle-based slope and definition contract as Godot. Road collision in the
-Node tool is a **centerline-buffer approximation**, whereas
-Godot uses `Geometry2D.offset_polyline` miter geometry. The Godot runtime is
-still authoritative at this boundary; the preview is not a pixel-exact
-replacement for Godot geometry. Editor preview is geometry, not a rendered
+triangle-based slope and definition contract as Godot. Road-placement clearance in the
+Node authoring tool is a **centerline-buffer approximation**, whereas the
+offline road baker uses mitered ribbons clipped to terrain triangles.
+The offline authoring and build systems are authoritative; Godot does not
+reconstruct road geometry at runtime. Editor previews may still differ from
+the final baked geometry. Editor preview is geometry, not a rendered
 building model. This feature does **not** make the editor a building modeller.
 
 ## Terrain-derived water format
