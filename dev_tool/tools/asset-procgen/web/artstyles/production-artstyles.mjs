@@ -2,7 +2,15 @@
 // Experimental study styles are deliberately not production capabilities.
 export const PRODUCTION_ARTSTYLES=Object.freeze([
   Object.freeze({id:'original',version:1,status:'production',label:'Generator original'}),
+  Object.freeze({id:'hand-painted',version:1,status:'production',label:'Hand-Painted Fantasy'}),
+  Object.freeze({id:'retro-3d',version:1,status:'production',label:'Retro 3D'}),
+  Object.freeze({id:'naturalistic',version:1,status:'production',label:'Naturalistic'}),
+  Object.freeze({id:'watercolor',version:1,status:'production',label:'Watercolor'}),
 ]);
+export const PRODUCTION_MATERIAL_STYLES = Object.freeze(
+  PRODUCTION_ARTSTYLES.filter(style => style.id !== 'original')
+);
+
 // Keep every released version addressable. Registering v2 must not evict v1.
 const byVersion=new Map(PRODUCTION_ARTSTYLES.map(style=>[
   style.id+'@'+style.version,style,

@@ -2,6 +2,8 @@
 import {makeRoofAsset,CLAY_GENERATIVE_STYLES} from '../roof-textures.mjs';
 import {makeStyledMaterialAsset,MATERIAL_STUDY_STYLES}
   from '../material-style-generation.mjs';
+import {makeMaterialSurface} from '../material-surface-grammars.mjs';
+import {PRODUCTION_MATERIAL_STYLES} from '../artstyles/production-artstyles.mjs';
 import {makeTimberAsset} from '../timber-textures.mjs';
 import {makePlasterAsset} from '../plaster-textures.mjs';
 import {makeStoneAsset} from '../stone-textures.mjs';
@@ -13,6 +15,10 @@ export const MATERIAL_GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Thatch',navType:'Texture',
     generate:seeds=>makeRoofAsset('thatch',seeds),
+    productionStyleGeneration: Object.freeze({
+      styles: PRODUCTION_MATERIAL_STYLES,
+      generate: (seeds, style) => makeMaterialSurface('roof-thatch', seeds, style.id),
+    }),
     studyGeneration:Object.freeze({
       styles:MATERIAL_STUDY_STYLES,
       generate:(seeds,style)=>makeStyledMaterialAsset('roof-thatch',seeds,style),
@@ -33,6 +39,10 @@ export const MATERIAL_GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Roofs']),
     navLabel:'Clay tiles',navType:'Texture',
     generate:seeds=>makeRoofAsset('clay',seeds),
+    productionStyleGeneration: Object.freeze({
+      styles: PRODUCTION_MATERIAL_STYLES,
+      generate: (seeds, style) => makeRoofAsset('clay', seeds, {style: style.id}),
+    }),
     studyGeneration:Object.freeze({
       styles:CLAY_GENERATIVE_STYLES,
       generate:(seeds,style)=>makeRoofAsset('clay',seeds,{style}),
@@ -53,6 +63,10 @@ export const MATERIAL_GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Wood']),
     navLabel:'Hewn oak',navType:'Texture',
     generate:seeds=>makeTimberAsset(seeds),
+    productionStyleGeneration: Object.freeze({
+      styles: PRODUCTION_MATERIAL_STYLES,
+      generate: (seeds, style) => makeMaterialSurface('timber-oak', seeds, style.id),
+    }),
     studyGeneration:Object.freeze({
       styles:MATERIAL_STUDY_STYLES,
       generate:(seeds,style)=>makeStyledMaterialAsset('timber-oak',seeds,style),
@@ -73,6 +87,10 @@ export const MATERIAL_GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Walls']),
     navLabel:'Lime plaster',navType:'Texture',
     generate:seeds=>makePlasterAsset(seeds),
+    productionStyleGeneration: Object.freeze({
+      styles: PRODUCTION_MATERIAL_STYLES,
+      generate: (seeds, style) => makeMaterialSurface('plaster-lime', seeds, style.id),
+    }),
     studyGeneration:Object.freeze({
       styles:MATERIAL_STUDY_STYLES,
       generate:(seeds,style)=>makeStyledMaterialAsset('plaster-lime',seeds,style),
@@ -94,6 +112,10 @@ export const MATERIAL_GENERATORS=Object.freeze([
     libraryPath:Object.freeze(['Textures','Stone']),
     navLabel:'Rubble stone',navType:'Texture',
     generate:seeds=>makeStoneAsset(seeds),
+    productionStyleGeneration: Object.freeze({
+      styles: PRODUCTION_MATERIAL_STYLES,
+      generate: (seeds, style) => makeMaterialSurface('stone-rubble', seeds, style.id),
+    }),
     studyGeneration:Object.freeze({
       styles:MATERIAL_STUDY_STYLES,
       generate:(seeds,style)=>makeStyledMaterialAsset('stone-rubble',seeds,style),
