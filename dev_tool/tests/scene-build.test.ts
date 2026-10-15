@@ -187,3 +187,47 @@ test('cached portable scenes reject tampered reference semantics before export',
     assert.equal((await lib.buildScene('world')).published,false);
   });
 });
+
+
+test('preview serves the exact verified baked terrain without invoking a GET build',async()=>{
+  await project(async(lib,root)=>{
+    const server=createDevToolServer(createProjectRouter(lib,{buildings:[]}));
+    await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+    try{
+      const address=server.address();
+      assert.ok(address&&typeof address!=='string');
+      const base='http://127.0.0.1:'+address.port;
+      const revision=lib.mapWorkspace()!.getRevision();
+      const headers={'X-Project-Id':'world','If-Match':'"'+revision+'"'};
+      const nonexistent='a'.repeat(64);
+      const url=key=>base+'/api/projects/active/scenes/world/bundles/'+key+'/terrain.glb';
+      assert.equal((await fetch(url(nonexistent),{headers})).status,404);
+      const built=await fetch(base+'/api/projects/active/scenes/world/build',{
+        method:'POST',headers:{...headers,Origin:base},
+      });
+      assert.equal(built.status,200);
+      const manifest=(await built.json()).manifest;
+      const expected=await readFile(join(root,'world','build','scenes','world',
+        manifest.key,'geometry','terrain.glb'));
+      const response=await fetch(url(manifest.key),{headers});
+      assert.equal(response.status,200);
+      assert.match(response.headers.get('content-type')??'',/model\/gltf-binary/);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()),expected);
+      assert.equal((await fetch(url(manifest.key),{headers:{
+        ...headers,'X-Project-Id':'wrong'}})).status,409);
+      assert.equal((await fetch(url(manifest.key),{headers:{
+        ...headers,'If-Match':'"'+('0'.repeat(64))+'"'}})).status,409);
+      assert.equal((await fetch(url(manifest.key),{method:'POST',headers:{
+        Origin:base,...headers}})).status,405);
+      const cached=(await lib.buildScene('world'));
+      assert.equal(cached.published,false,'GET preview must not publish new scenes');
+      await writeFile(join(root,'world','build','scenes','world',
+        manifest.key,'geometry','terrain.glb'),Buffer.from('corrupted'));
+      const corrupt=await fetch(url(manifest.key),{headers});
+      assert.notEqual(corrupt.status,200,'Modified cached bytes must never be served');
+    }finally{
+      await new Promise<void>((resolve,reject)=>
+        server.close(e=>e?reject(e):resolve()));
+    }
+  });
+});

@@ -9,7 +9,7 @@ import {MapWorkspace} from '../../tools/map-editor/src/editing/map-workspace.ts'
 import {validateMap} from '../../tools/map-editor/src/core/map.ts';
 import {loadMap,serializeMap} from '../../tools/map-editor/src/io/map-io.ts';
 import {planMapScene} from './scene-plan.ts';
-import {publishSceneBundle} from './scene-bundle.ts';
+import {publishSceneBundle,readSceneBundle} from './scene-bundle.ts';
 import {publishGodotScene} from './godot-scene.ts';
 import {planAssetBuild} from './build-plan.ts';
 import {produceBuild} from './build.ts';
@@ -356,6 +356,25 @@ export class ProjectLibrary {
   }
   async buildScene(mapId:string){
     return this.enqueue(()=>this.buildSceneInternal(mapId));
+  }
+  /** Read only an existing, hash-verified portable terrain artifact.
+   * Never initiates a build or exposes an arbitrary project filesystem path.
+   */
+  async sceneTerrain(mapId:string,key:string):Promise<Buffer|null>{
+    await this.queue;
+    mapId=resourceId(mapId);
+    if(!/^[a-f0-9]{64}$/.test(key))throw Error('Invalid scene bundle key');
+    const root=join(this.requireActive(),'build','scenes',mapId,key);
+    const scene=await readSceneBundle(root);
+    if(!scene)return null;
+    if(scene.mapId!==mapId||scene.key!==key)
+      throw Error('Scene bundle identity mismatch');
+    const entry=scene.files.find(item=>item.path===scene.geometry.terrain);
+    if(!entry)throw Error('Missing baked scene terrain');
+    const bytes=await regular(join(root,...entry.path.split('/')));
+    if(bytes.length!==entry.bytes||hash(bytes)!==entry.sha256)
+      throw Error('Scene terrain changed during preview retrieval');
+    return bytes;
   }
   async exportGodotScene(mapId:string){
     return this.enqueue(async()=>{
