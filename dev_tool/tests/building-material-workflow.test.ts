@@ -154,6 +154,18 @@ test('the same building geometry exports different saved PBR styles and retains 
         mat.pbrMetallicRoughness?.baseColorTexture && mat.normalTexture
       ), 'Model must embed project PBR channels for ' + slot);
     }
+    const packageFirst = await lib.exportGodot('natural-house');
+    assert.equal(packageFirst.manifest.root, 'natural-house');
+    for (const id of [...selected.map(asset => asset.id), 'natural-house']) {
+      assert.ok(packageFirst.manifest.resources.some(resource => resource.id === id),
+        'Godot package must include source dependency ' + id);
+    }
+    assert.deepEqual(
+      await readFile(join(packageFirst.directory, 'assets',
+        'natural-house', 'level-2-exterior.glb')),
+      firstGlb,
+      'Godot package must copy exact baked textured model bytes'
+    );
     const sourceRecord = await lib.asset('natural-house');
     assert.deepEqual(
       'origin' in sourceRecord.source ? null : sourceRecord.source.materials,
@@ -195,6 +207,13 @@ test('the same building geometry exports different saved PBR styles and retains 
       await png(firstRoof.id, firstRoof.key, firstAlbedo.file),
       await png(secondRoof.id, secondRoof.key, secondAlbedo.file),
       'Style must change actual saved pigment pixels, not only metadata'
+    );
+    const packageSecond = await lib.exportGodot('watercolor-house');
+    assert.deepEqual(
+      await readFile(join(packageSecond.directory, 'assets',
+        'watercolor-house', 'level-2-exterior.glb')),
+      secondGlb,
+      'The alternate style must also arrive in the actual Godot package'
     );
     assert.equal((await lib.buildAsset('watercolor-house')).built, 0);
   });

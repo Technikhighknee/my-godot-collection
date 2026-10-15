@@ -604,3 +604,24 @@ generator/asset style pins remain strict and fail on unsupported assignments.
 
 Changing production style or material seeds creates a new reproducible build
 key. Existing default recipes remain valid and produce their existing outputs.
+
+## Styled building material sets
+
+The timber-frame building editor can create a **reusable material set** in a
+chosen production style. Each declared model material slot receives an ordinary
+saved project image source with an explicit versioned artstyle and its own
+structure/pigment/weather seeds. When recreating the set in a different style,
+the recipes copy seeds from the currently assigned materials; the building's
+geometry and component seeds stay unchanged.
+
+A single project operation validates and saves the five image sources together;
+the server rolls back newly created resources if any file cannot be published.
+The editor then assigns their `asset:<id>` references to the building draft.
+The building itself is saved separately, preserving the user's decision to
+keep or discard the new assignments. Existing individual **Edit** and **Reseed**
+controls still operate on the shared resources, affecting every referring model.
+
+The 3D building preview hashes generator, component seeds **and artstyle** when
+caching the three PBR channels. Reusing unchanged seeds with a different style
+must repaint the textures rather than displaying an earlier cache entry.
+No separate preview generator or model-specific material painter is introduced.
