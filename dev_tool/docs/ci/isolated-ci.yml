@@ -11,10 +11,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: isolated-ci
-  cancel-in-progress: true
-
 jobs:
   verify:
     name: Node.js 22 / Typecheck + full tests
