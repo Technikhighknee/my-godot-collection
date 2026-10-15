@@ -13,7 +13,8 @@ import {ProjectLibrary} from '../src/projects/library.ts';
 const materialIds = [
   'roof-thatch', 'roof-clay', 'timber-oak', 'plaster-lime', 'stone-rubble'
 ] as const;
-const styles = ['hand-painted', 'retro-3d', 'naturalistic', 'watercolor'] as const;
+const selectableStyles = ['hand-painted', 'retro-3d', 'naturalistic'] as const;
+const supportedGrammars = [...selectableStyles, 'watercolor'] as const;
 const styleRef = (id: string) => ({id, version: 1});
 
 function seedsOf(id: typeof materialIds[number]): Record<string, number> {
@@ -32,17 +33,17 @@ function image(id: typeof materialIds[number], style: string, seeds = seedsOf(id
   return result;
 }
 
-test('five material producers advertise all four saved native artstyles', () => {
+test('five material producers offer three active styles and retain disabled Watercolor grammars', () => {
   for (const id of materialIds) {
     const generator = findGenerator(id);
     assert.ok(generator?.kind === 'image');
     assert.deepEqual(
       availableProductionArtstyles(generator).map(style => style.id),
-      ['original', ...styles]
+      ['original', ...selectableStyles]
     );
     assert.deepEqual(
       generator.productionStyleGeneration?.styles.map(style => style.id),
-      styles
+      supportedGrammars
     );
   }
   const building = findGenerator('timber-building');
@@ -62,7 +63,7 @@ test('production and Study consume identical seeded surface grammars', () => {
     assert.ok(generator?.kind === 'image' && generator.studyGeneration);
     const seeds = seedsOf(id);
     const profile = id === 'timber-oak' ? 'panel' : undefined;
-    for (const style of styles) {
+    for (const style of supportedGrammars) {
       const production = image(id, style, seeds);
       const study = generator.studyGeneration.generate(seeds, style + '-study');
       const a = capturePaintedPixels(production, 'albedo', profile);

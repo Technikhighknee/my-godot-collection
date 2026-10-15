@@ -394,7 +394,16 @@ function selectProductionStyle(select,styles,active,label){
     option.value=style.id+'@'+style.version;
     select.append(option);
   }
-  select.value=active?active.id+'@'+active.version:'';
+  if (active && !styles.some(style =>
+    style.id === active.id && style.version === active.version
+  )) {
+    // Preserve a saved style that is no longer offered for new selections.
+    const option = make('option', null, active.id +
+      ' (disabled · existing assignment)');
+    option.value = active.id + '@' + active.version;
+    select.append(option);
+  }
+  select.value = active ? active.id + '@' + active.version : '';
 }
 async function renderProjectArtDirection(){
   if(!artDirectionSource)return;
@@ -426,11 +435,12 @@ async function renderProjectArtDirection(){
   byId('artDirectionStatus').textContent=artDirectionRevision?
     'Saved project resource':'Not configured · using generator defaults';
 }
-function valueArtstyle(value,styles){
-  if(!value)return null;
-  const chosen=styles.find(style=>style.id+'@'+style.version===value);
-  if(!chosen)throw Error('Unknown production artstyle: '+value);
-  return {id:chosen.id,version:chosen.version};
+function valueArtstyle(value, styles, existing = null) {
+  if (!value) return null;
+  const chosen = styles.find(style => style.id + '@' + style.version === value) ??
+    (existing && existing.id + '@' + existing.version === value ? existing : null);
+  if (!chosen) throw Error('Unknown production artstyle: ' + value);
+  return {id: chosen.id, version: chosen.version};
 }
 async function saveProjectArtDirection(){
   if(!project||!artDirectionSource)throw Error('No active project');
@@ -441,12 +451,16 @@ async function saveProjectArtDirection(){
     for(const style of availableProductionArtstyles(definition))
       supported.set(style.id+'@'+style.version,style);
   const defaultArtstyle=valueArtstyle(
-    byId('artDirectionDefault').value,[...supported.values()]);
+    byId('artDirectionDefault').value, [...supported.values()],
+    artDirectionSource.defaultArtstyle);
   const generatorArtstyles={};
   for(const field of byId('artDirectionGenerators').querySelectorAll('select')){
     const def=GENERATORS.find(item=>item.id===field.dataset.generator);
     if(!def)throw Error('Unknown generator in Art Direction editor');
-    const value=valueArtstyle(field.value,availableProductionArtstyles(def));
+    const value = valueArtstyle(
+      field.value, availableProductionArtstyles(def),
+      artDirectionSource.generatorArtstyles[def.id]
+    );
     if(value)generatorArtstyles[def.id]=value;
   }
   const source={format:'devtool-art-direction',version:1,

@@ -2,7 +2,7 @@ export interface ProductionArtstyleReference {
   readonly id:string;readonly version:number;
 }
 export interface ProductionArtstyle extends ProductionArtstyleReference {
-  readonly status:'production';readonly label:string;
+  readonly status: 'production' | 'disabled'; readonly label: string;
 }
 export interface ProductionStyleProvider {
   readonly productionStyleGeneration?:{

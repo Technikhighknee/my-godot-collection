@@ -27,7 +27,19 @@ test('production artstyles reject experimental and incompatible versions',()=>{
   assert.deepEqual(validateProductionArtstyle(original),original);
   const roof=findGenerator('roof-thatch');
   assert.ok(roof);
-  assert.equal(availableProductionArtstyles(roof).length, 5);
+  assert.equal(availableProductionArtstyles(roof).length, 4);
+  assert.deepEqual(availableProductionArtstyles(roof).map(style => style.id), [
+    'original', 'hand-painted', 'retro-3d', 'naturalistic'
+  ]);
+  assert.equal(
+    PRODUCTION_ARTSTYLES.find(style => style.id === 'watercolor')?.status,
+    'disabled'
+  );
+  assert.deepEqual(
+    assertGeneratorArtstyleSupport(roof, {id: 'watercolor', version: 1}),
+    {id: 'watercolor', version: 1},
+    'Existing saved Watercolor resources must remain readable'
+  );
   assert.deepEqual(assertGeneratorArtstyleSupport(roof,original),original);
   for(const bad of [{id:'naturalistic-study',version:1},
     {id:'original',version:2},{id:'original',version:1,seed:123},

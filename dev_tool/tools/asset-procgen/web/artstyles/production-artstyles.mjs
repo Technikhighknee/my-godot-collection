@@ -5,7 +5,8 @@ export const PRODUCTION_ARTSTYLES=Object.freeze([
   Object.freeze({id:'hand-painted',version:1,status:'production',label:'Hand-Painted Fantasy'}),
   Object.freeze({id:'retro-3d',version:1,status:'production',label:'Retro 3D'}),
   Object.freeze({id:'naturalistic',version:1,status:'production',label:'Naturalistic'}),
-  Object.freeze({id:'watercolor',version:1,status:'production',label:'Watercolor'}),
+  // Temporarily hidden from new selections; saved Watercolor assets still open.
+  Object.freeze({id: 'watercolor', version: 1, status: 'disabled', label: 'Watercolor'}),
 ]);
 export const PRODUCTION_MATERIAL_STYLES = Object.freeze(
   PRODUCTION_ARTSTYLES.filter(style => style.id !== 'original')
@@ -44,8 +45,12 @@ export function assertGeneratorArtstyleSupport(definition,value){
     throw Error('Generator does not support production artstyle: '+style.id);
   return style;
 }
-export function availableProductionArtstyles(definition){
-  return PRODUCTION_ARTSTYLES.filter(style=>style.id==='original'||
-    definition?.productionStyleGeneration?.styles?.some(s=>
-      s.id===style.id&&s.version===style.version));
+export function availableProductionArtstyles(definition) {
+  return PRODUCTION_ARTSTYLES.filter(style =>
+    style.status === 'production' &&
+    (style.id === 'original' ||
+      definition?.productionStyleGeneration?.styles?.some(candidate =>
+        candidate.id === style.id && candidate.version === style.version
+      ))
+  );
 }

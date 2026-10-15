@@ -585,8 +585,10 @@ only its pixel-data subset.
 
 The five core procedural materials (thatch, clay roof tiles, oak timber, lime
 plaster and rubble masonry) now implement **Original**, **Hand-Painted
-Fantasy**, **Retro 3D**, **Naturalistic** and **Watercolor** as selectable
-production art directions. They share the same native material-grammar
+Fantasy**, **Retro 3D** and **Naturalistic** as selectable production art
+directions. **Watercolor is temporarily disabled** in new selections because
+the visual quality is not yet satisfactory; existing saved Watercolor recipes
+remain readable and buildable, and the Study still retains its grammar. They share the same native material-grammar
 implementations with the Texture Style Study: there is no second style rasterizer
 or post-filter in the export path. The Study is comparison-only; a selected
 production style is a versioned saved asset property or inherited project

@@ -14,6 +14,7 @@ import {DEFAULT_BUILDING_OPTIONS}
   from '../tools/asset-procgen/web/building.mjs';
 
 const naturalistic = {id: 'naturalistic', version: 1};
+const handPainted = {id: 'hand-painted', version: 1};
 const watercolor = {id: 'watercolor', version: 1};
 const building = findGenerator('timber-building');
 assert.ok(building?.kind === 'model' && building.materialSlots);
@@ -78,7 +79,7 @@ test('a building creates five reusable materials with independent style and stab
     },
   }]));
   const before = structuredClone(first.assets);
-  const second = plan(watercolor, first.materials, available, 'cd5678');
+  const second = plan(handPainted, first.materials, available, 'cd5678');
   assert.deepEqual(
     second.assets.map(({generator, masterSeed, components}) =>
       ({generator, masterSeed, components})),
@@ -89,8 +90,10 @@ test('a building creates five reusable materials with independent style and stab
   assert.notDeepEqual(second.materials, first.materials);
   assert.deepEqual(first.assets, before, 'Planner cannot change saved resources');
   assert.throws(() => plan({id: 'original', version: 1}), /artstyle/i);
-  assert.throws(() => plan(watercolor, first.materials), /Missing project material/);
-  assert.throws(() => plan(watercolor, {}, new Map(), 'bad!'), /identifier/);
+  assert.throws(() => plan(watercolor), /artstyle/i,
+    'Disabled Watercolor cannot be used for new building material sets');
+  assert.throws(() => plan(handPainted, first.materials), /Missing project material/);
+  assert.throws(() => plan(handPainted, {}, new Map(), 'bad!'), /identifier/);
 });
 
 test('material set creation validates the whole request and rolls back on conflicts', async () => {
@@ -106,7 +109,7 @@ test('material set creation validates the whole request and rolls back on confli
       assert.deepEqual(entry.source.artstyle, naturalistic);
     }
     const before = (await lib.assets()).length;
-    const next = plan(watercolor, {}, new Map(), 'zz7654').assets;
+    const next = plan(handPainted, {}, new Map(), 'zz7654').assets;
     await assert.rejects(lib.createMaterialAssets([
       next[0], {...next[1], artstyle: {id: 'missing', version: 1}}
     ]), /artstyle/i);
@@ -217,7 +220,7 @@ test('the same building geometry exports different saved PBR styles and retains 
       'origin' in sourceRecord.source ? null : sourceRecord.source.materials,
       slots
     );
-    const changed = plan(watercolor, first.materials,
+    const changed = plan(handPainted, first.materials,
       new Map(first.assets.map(asset => [asset.id, {
         source: {generator: {
           id: asset.generator,
@@ -230,12 +233,12 @@ test('the same building geometry exports different saved PBR styles and retains 
     await lib.createMaterialAssets(next);
     const nextSlots = Object.fromEntries(Object.entries(changed.materials)
       .filter(([slot]) => slot === 'roofClay' || slot === 'facadePlaster'));
-    await lib.createAsset('watercolor-house', {...source, materials: nextSlots});
-    const other = await lib.buildAsset('watercolor-house');
-    const otherModel = other.artifacts.find(value => value.id === 'watercolor-house');
+    await lib.createAsset('hand-painted-house', {...source, materials: nextSlots});
+    const other = await lib.buildAsset('hand-painted-house');
+    const otherModel = other.artifacts.find(value => value.id === 'hand-painted-house');
     assert.ok(otherModel);
     const secondGlb = await readFile(join(root, 'world', 'build',
-      'assets', 'watercolor-house', otherModel.key, 'level-2-exterior.glb'));
+      'assets', 'hand-painted-house', otherModel.key, 'level-2-exterior.glb'));
     assert.deepEqual(meshPositions(firstGlb), meshPositions(secondGlb),
       'The geometry must stay identical across material artstyles');
     assert.notDeepEqual(firstGlb, secondGlb,
@@ -254,14 +257,14 @@ test('the same building geometry exports different saved PBR styles and retains 
       await png(secondRoof.id, secondRoof.key, secondAlbedo.file),
       'Style must change actual saved pigment pixels, not only metadata'
     );
-    const packageSecond = await lib.exportGodot('watercolor-house');
+    const packageSecond = await lib.exportGodot('hand-painted-house');
     assert.deepEqual(
       await readFile(join(packageSecond.directory, 'assets',
-        'watercolor-house', 'level-2-exterior.glb')),
+        'hand-painted-house', 'level-2-exterior.glb')),
       secondGlb,
       'The alternate style must also arrive in the actual Godot package'
     );
-    assert.equal((await lib.buildAsset('watercolor-house')).built, 0);
+    assert.equal((await lib.buildAsset('hand-painted-house')).built, 0);
   });
 });
 

@@ -162,8 +162,16 @@ function renderArtstyleControls(){
     choice.textContent=style.label+' · v'+style.version;
     select.append(choice);
   }
-  const pinned=selectedArtstyle();
-  select.value=pinned?pinned.id+'@'+pinned.version:'';
+  const pinned = selectedArtstyle();
+  if (pinned && !available.some(style =>
+    style.id === pinned.id && style.version === pinned.version
+  )) {
+    const retained = document.createElement('option');
+    retained.value = pinned.id + '@' + pinned.version;
+    retained.textContent = pinned.id + ' (disabled · saved material)';
+    select.append(retained);
+  }
+  select.value = pinned ? pinned.id + '@' + pinned.version : '';
 }
 byId('assetArtstyle').addEventListener('change',event=>{
   const value=event.target.value;
