@@ -173,3 +173,33 @@ test('map manager input validation refuses duplicates, empty palette and invalid
   assert.throws(() => validateCreate({ ...form('hello'), slug: '../../bad' }), /Filename/);
   assert.deepEqual(validateCreate(form('valid')).surfacePalette, ['terrain.grass', 'terrain.dirt']);
 });
+
+test('map settings save optional project material bindings without rewriting old maps',async()=>{
+  const {dir}=await tempWorkspace();
+  try{
+    const workspace=await MapWorkspace.open(join(dir,'first.map.json'));
+    const binding={asset:'asset:clay',tile_size:3};
+    await workspace.saveSettings({...settings('Textured'),surface_materials:{
+      'terrain.grass':binding,
+    }},workspace.getRevision(),'first.map.json');
+    assert.deepEqual(workspace.getDocument().map.terrain.surface_materials,
+      {'terrain.grass':binding});
+    const saved=await loadMap(join(dir,'first.map.json'));
+    assert.deepEqual(saved.map.terrain.surface_materials,{'terrain.grass':binding});
+    await workspace.saveSettings(settings('Renamed'),workspace.getRevision(),
+      'first.map.json');
+    assert.deepEqual(workspace.getDocument().map.terrain.surface_materials,
+      {'terrain.grass':binding},'Other edits preserve existing assignments');
+    await assert.rejects(workspace.saveSettings({...settings('Bad'),surface_materials:{
+      'terrain.unknown':binding,
+    }},workspace.getRevision(),'first.map.json'),/unknown palette ID/);
+    await assert.rejects(workspace.saveSettings({...settings('Bad'),surface_materials:{
+      'terrain.grass':{asset:'asset:clay',tile_size:0},
+    }},workspace.getRevision(),'first.map.json'),/tile_size/);
+    await workspace.saveSettings({...settings('Clear'),surface_materials:{}},
+      workspace.getRevision(),'first.map.json');
+    assert.equal(workspace.getDocument().map.terrain.surface_materials,undefined);
+    assert.equal((await loadMap(join(dir,'first.map.json'))).map.terrain.surface_materials,
+      undefined);
+  }finally{await rm(dir,{recursive:true,force:true});}
+});

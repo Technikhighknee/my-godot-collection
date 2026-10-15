@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { open, readFile, lstat, rename, rm, realpath, chmod, stat, link } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, resolve, sep, isAbsolute } from 'node:path';
-import { validateMap, validateDocument, type MapDocument } from '../core/map.ts';
+import { validateMap, validateDocument, type MapDocument, type SurfaceMaterialBinding } from '../core/map.ts';
 import { encodeExr } from '../formats/exr.ts';
 import { encodeSurfacePng } from '../formats/png.ts';
 import { validateBuildingChanges, type PlacementDefinitions } from '../../web/building-placement.mjs';
@@ -12,6 +12,7 @@ export interface MapSettings {
   min_height: number;
   max_height: number;
   surface_palette: string[];
+  surface_materials?: Record<string, SurfaceMaterialBinding>;
 }
 const hash = (data: Buffer): string => createHash('sha256').update(data).digest('hex');
 const samePath = (a: string, b: string): boolean => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
@@ -137,11 +138,22 @@ export class RoadStore {
     if (changes.settings !== undefined) {
       const settings = changes.settings;
       if (!settings || typeof settings !== 'object' || Array.isArray(settings) ||
-          Object.keys(settings).sort().join() !== 'max_height,min_height,name,surface_palette') throw new Error('Invalid map settings');
+          !['max_height','min_height','name','surface_palette'].every(k=>Object.hasOwn(settings,k)) ||
+          Object.keys(settings).some(k=>!['max_height','min_height','name',
+            'surface_palette','surface_materials'].includes(k)))
+        throw new Error('Invalid map settings');
       next.name = settings.name;
       next.terrain.min_height = settings.min_height;
       next.terrain.max_height = settings.max_height;
       next.terrain.surface_palette = settings.surface_palette;
+      if (Object.hasOwn(settings, 'surface_materials')) {
+        if (!settings.surface_materials || typeof settings.surface_materials !== 'object' ||
+            Array.isArray(settings.surface_materials))
+          throw new Error('Invalid surface material assignments');
+        if (Object.keys(settings.surface_materials).length)
+          next.terrain.surface_materials = structuredClone(settings.surface_materials);
+        else delete next.terrain.surface_materials;
+      }
     }
     const heights = changes.heights ?? this.doc.heights.data;
     const surfaces = changes.surfaces ?? this.doc.surfaces.data;
