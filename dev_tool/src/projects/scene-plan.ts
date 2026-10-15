@@ -27,6 +27,8 @@ export function planMapScene(mapId:string,doc:MapDocument,
   ] as const){
     for(const entry of list){
       const match=ASSET_REFERENCE_PATTERN.exec(entry.definition);
+      if(entry.definition.startsWith('asset:')&&!match)
+        throw Error('Invalid scene asset reference: '+entry.definition);
       const assetId=match?.[1];
       if(assetId){
         const asset=known.get(assetId);

@@ -98,6 +98,10 @@ test('missing, incompatible scene resources and modified cached files fail close
       map.objects=[{id:'bad',definition:'asset:missing',position:[12,14],rotation:0}];
     });
     await assert.rejects(lib.buildScene('world'),/Missing scene asset dependency/);
+    await changeMap(root,map=>{
+      map.objects=[{id:'bad',definition:'asset:Bad ID',position:[12,14],rotation:0}];
+    });
+    await assert.rejects(lib.buildScene('world'),/Invalid scene asset reference/);
     const texture=encodeRgbaPng(1,1,Uint8Array.from([2,17,44,255]));
     await lib.importAsset('icon','Icon','png',texture);
     await changeMap(root,map=>{
