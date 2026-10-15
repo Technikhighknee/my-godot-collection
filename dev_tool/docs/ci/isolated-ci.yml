@@ -72,3 +72,54 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         working-directory: dev_tool
         run: npm test
+      
+      # Pinned official Godot 4 release. The SHA256 is taken from the
+      # corresponding upstream GitHub release asset digest.
+      - name: Install and verify Godot 4.7.2
+        id: godot
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="Godot_v4.7.2-stable_linux.x86_64"
+          archive="$RUNNER_TEMP/$name.zip"
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/godotengine/godot/releases/download/4.7.2-stable/$name.zip" \
+            --output "$archive"
+          echo "cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4  $archive" | sha256sum --check
+          unzip -q "$archive" -d "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/$name"
+          echo "GODOT_BINARY=$RUNNER_TEMP/$name" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/$name" --version
+
+      - name: Generate exported Godot scene from the real project pipeline
+        if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
+        working-directory: dev_tool
+        run: |
+          node --experimental-strip-types \
+            tests/godot-headless/make-fixture.ts "$RUNNER_TEMP/godot-scene-fixture"
+
+      - name: Godot imports the generated GLB and scene
+        if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BINARY" --headless --path "$RUNNER_TEMP/godot-scene-fixture" \
+            --editor --import 2>&1 | tee "$RUNNER_TEMP/godot-import.log"
+          if grep -E '(^|[[:space:]])(ERROR:|SCRIPT ERROR:)' "$RUNNER_TEMP/godot-import.log"; then
+            echo "::error::Godot importer reported errors"
+            exit 1
+          fi
+
+      - name: Godot instantiates the exported scene and verifies placements
+        if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BINARY" --headless --path "$RUNNER_TEMP/godot-scene-fixture" \
+            --script res://verify_scene.gd 2>&1 | tee "$RUNNER_TEMP/godot-scene-test.log"
+          if grep -E '(^|[[:space:]])(ERROR:|SCRIPT ERROR:)' "$RUNNER_TEMP/godot-scene-test.log"; then
+            echo "::error::Godot reported runtime errors"
+            exit 1
+          fi
+          grep -F "GODOT INTEGRATION PASSED" "$RUNNER_TEMP/godot-scene-test.log"

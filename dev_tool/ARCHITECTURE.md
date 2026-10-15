@@ -8,6 +8,22 @@ This document records implementation decisions, not a replacement for the
 long-term product requirements. The migration is incremental; working
 generators, their seed behavior, project documents and maps must survive.
 
+## Isolated Godot engine integration gate
+
+The canonical `docs/ci/isolated-ci.yml` also invokes a pinned Godot 4.7.2
+Linux editor binary, verified against the upstream release SHA-256. After
+TypeScript and Node tests, it creates a fresh, real project fixture from
+`tests/godot-headless/make-fixture.ts`, which uses the normal
+`ProjectLibrary.exportGodotScene` path with a triangle-mesh GLB and multiple
+placement instances. Godot `--headless --editor --import` imports the GLB;
+a separate `SceneTree` script then loads and instantiates the exported
+`.tscn`, asserting model hierarchies, transforms, references and semantic
+markers. Errors in either engine invocation fail the CI job.
+
+This does not change the contract that executable workflows only exist on
+the permanent `CI` branch, or claim to exercise full gameplay/terrain
+rendering. The test fixture itself belongs to the versioned source commit.
+
 ## Public HTTP layout
 
 The HTTP server resolves public files by their owning directories, never by
