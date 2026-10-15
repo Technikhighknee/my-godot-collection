@@ -55,6 +55,15 @@ These domain modules must not import the project library, editor UI or
 rendering implementations. Adding a source origin or a material assignment
 rule should be a local domain change, not a new persistence special case.
 
+### Generator capability ownership
+
+Generator definitions now live with their capability families under
+`tools/asset-procgen/web/generator-definitions/`: materials, architecture and
+vegetation. Each family owns native generation, seed roles, art studies and
+production adapters. The public `generators.mjs` contains only registration,
+lookup and generic validation. Changes preserve the existing IDs, versions,
+component seeds, generator ordering and algorithm implementations.
+
 ### Current executable contracts
 
 - `GENERATORS` contains the canonical generator descriptions, including
