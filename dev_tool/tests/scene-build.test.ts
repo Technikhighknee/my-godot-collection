@@ -244,3 +244,32 @@ test('preview serves exact verified terrain, roads and water without invoking a 
     }
   });
 });
+
+
+test('preview omits absent optional road and water GLBs without manufacturing geometry',async()=>{
+  await project(async(lib,root)=>{
+    await changeMap(root,map=>{map.roads=[];map.water=[];});
+    const scene=await lib.buildScene('world');
+    assert.equal(scene.manifest.geometry.roads,undefined);
+    assert.equal(scene.manifest.geometry.water,undefined);
+    const server=createDevToolServer(createProjectRouter(lib,{buildings:[]}));
+    await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+    try{
+      const address=server.address();
+      assert.ok(address&&typeof address!=='string');
+      const base='http://127.0.0.1:'+address.port;
+      const headers={'X-Project-Id':'world',
+        'If-Match':'"'+lib.mapWorkspace()!.getRevision()+'"'};
+      const url=(kind:string)=>base+'/api/projects/active/scenes/world/bundles/'+
+        scene.manifest.key+'/'+kind+'.glb';
+      assert.equal((await fetch(url('terrain'),{headers})).status,200);
+      for(const kind of ['roads','water'])
+        assert.equal((await fetch(url(kind),{headers})).status,404,
+          'Unconfigured optional geometry should have no build artifact');
+      assert.equal((await lib.buildScene('world')).published,false);
+    }finally{
+      await new Promise<void>((resolve,reject)=>
+        server.close(e=>e?reject(e):resolve()));
+    }
+  });
+});

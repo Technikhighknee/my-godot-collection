@@ -381,7 +381,9 @@ async function toggleBakedTerrainPreview(){
     const loader=new GLTFLoader();
     // No procedural browser reconstruction: every selected GLB is the
     // byte-identical geometry resource used by the Godot scene adapter.
-    const parts=await Promise.all(kinds.map(async kind=>{
+    // Load sequentially so an error cannot leave another asynchronous
+    // parse producing orphaned WebGL geometry after cleanup has started.
+    for(const kind of kinds){
       const response=await fetch('/api/projects/active/scenes/'+mapId+
         '/bundles/'+key+'/'+kind+'.glb',{headers,cache:'no-store'});
       if(!response.ok){
@@ -391,14 +393,11 @@ async function toggleBakedTerrainPreview(){
       const data=await response.arrayBuffer();
       const gltf=await new Promise((resolve,reject)=>
         loader.parse(data,'',resolve,reject));
+      gltf.scene.name='Baked'+kind[0].toUpperCase()+kind.slice(1);
+      candidate.add(gltf.scene);
       let meshes=0;
       gltf.scene.traverse(node=>{if(node.isMesh)meshes++;});
       if(!meshes)throw Error('Baked '+kind+' GLB contains no renderable mesh');
-      return {kind,group:gltf.scene};
-    }));
-    for(const {kind,group} of parts){
-      group.name='Baked'+kind[0].toUpperCase()+kind.slice(1);
-      candidate.add(group);
     }
     if(edits.isDirty||editingInProgress()||epoch!==bakedTerrainEpoch||
       currentDoc.projectId!==projectId||currentDoc.revision!==revision)
