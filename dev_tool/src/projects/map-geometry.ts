@@ -12,6 +12,12 @@ export interface WorldMesh {
   indices:Uint32Array;
   uv?:Float32Array;
 }
+export interface SurfaceTransition {
+  /** Target palette material. The transition mesh has no collision. */
+  definition:string;
+  mesh:WorldMesh;
+  opacity:Float32Array;
+}
 export interface WorldGeometry {
   terrain:WorldMesh;
   roads:WorldMesh|null;
@@ -144,4 +150,85 @@ export function buildWorldGeometry(doc:MapDocument):WorldGeometry{
     water:buildWater(doc),
     surfacePixels:rgba,surfaceWidth:surfaces.width,surfaceHeight:surfaces.height,
   };
+}
+
+
+/** Procedurally author only narrow visual seams between categorical cells.
+ * Each side borrows its neighbour's material, feathering from zero opacity
+ * inside the cell to half-opacity at the boundary. The two sides meet with
+ * equal mixture and preserve the original source material away from edges.
+ *
+ * Each quad is clipped to the same two planar triangles as the authoritative
+ * heightfield; no height interpolation or runtime shader is reimplemented.
+ * This geometry is never part of the terrain's static collision mesh.
+ */
+export function buildSurfaceTransitions(doc:MapDocument):SurfaceTransition[]{
+  validateDocument(doc);
+  const {surfaces,map}=doc;
+  const [sx,sz]=map.terrain.size;
+  const dx=sx/surfaces.width,dz=sz/surfaces.height;
+  const groups=new Map<number,{positions:number[];uv:number[];opacity:number[]}>();
+  const samples=surfaces.data;
+  const point=(x:number,z:number):Point=>[x,z];
+  function append(cellX:number,cellZ:number,target:number,quad:Point[],
+    axis:'x'|'z',seam:number,halfWidth:number){
+    if(!groups.has(target))groups.set(target,{positions:[],uv:[],opacity:[]});
+    const data=groups.get(target)!;
+    const x=cellX*dx,z=cellZ*dz;
+    const a=point(x,z),b=point(x+dx,z);
+    const c=point(x,z+dz),d=point(x+dx,z+dz);
+    for(const triangle of [[a,b,c],[b,d,c]] as Point[][]){
+      const clipped=clipConvex(quad,triangle);
+      for(let n=1;n+1<clipped.length;n++){
+        const tri=[clipped[0],clipped[n],clipped[n+1]];
+        const cross=(tri[1][0]-tri[0][0])*(tri[2][1]-tri[0][1])-
+          (tri[1][1]-tri[0][1])*(tri[2][0]-tri[0][0]);
+        if(Math.abs(cross)<1e-10)continue;
+        if(cross>0)[tri[1],tri[2]]=[tri[2],tri[1]];
+        for(const [px,pz] of tri){
+          data.positions.push(px,heightAt(doc,px,pz)+0.025,pz);
+          data.uv.push(px/sx,1-pz/sz);
+          const dist=Math.abs((axis==='x'?px:pz)-seam);
+          data.opacity.push(0.5*Math.max(0,1-dist/halfWidth));
+        }
+      }
+    }
+  }
+  for(let z=0;z<surfaces.height;z++)for(let x=0;x<surfaces.width;x++){
+    const index=z*surfaces.width+x,from=samples[index];
+    if(x+1<surfaces.width){
+      const next=samples[index+1];
+      if(next!==from){
+        const seam=(x+1)*dx,width=Math.min(1.5,0.45*dx);
+        const z0=z*dz,z1=(z+1)*dz;
+        append(x,z,next,[point(seam-width,z0),point(seam,z0),
+          point(seam,z1),point(seam-width,z1)],'x',seam,width);
+        append(x+1,z,from,[point(seam,z0),point(seam+width,z0),
+          point(seam+width,z1),point(seam,z1)],'x',seam,width);
+      }
+    }
+    if(z+1<surfaces.height){
+      const next=samples[index+surfaces.width];
+      if(next!==from){
+        const seam=(z+1)*dz,width=Math.min(1.5,0.45*dz);
+        const x0=x*dx,x1=(x+1)*dx;
+        append(x,z,next,[point(x0,seam-width),point(x1,seam-width),
+          point(x1,seam),point(x0,seam)],'z',seam,width);
+        append(x,z+1,from,[point(x0,seam),point(x1,seam),
+          point(x1,seam+width),point(x0,seam+width)],'z',seam,width);
+      }
+    }
+  }
+  const result:SurfaceTransition[]=[];
+  for(const [surface,data] of [...groups].sort(([a],[b])=>a-b)){
+    if(surface>=map.terrain.surface_palette.length||!data.opacity.length)
+      throw Error('Invalid surface transition palette index');
+    const vertices=data.opacity.length;
+    result.push({definition:map.terrain.surface_palette[surface],
+      opacity:Float32Array.from(data.opacity),
+      mesh:{positions:Float32Array.from(data.positions),
+        uv:Float32Array.from(data.uv),
+        indices:Uint32Array.from({length:vertices},(_,i)=>i)}});
+  }
+  return result;
 }
