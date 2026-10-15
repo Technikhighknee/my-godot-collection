@@ -137,18 +137,20 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       const buildMatch=/^\/api\/projects\/active\/builds\/([a-z0-9_-]+)$/.exec(path);
       if(buildMatch&&req.method==='POST')
         return send(res,200,await library.buildAsset(buildMatch[1]));
-      const terrainPreview=/^\/api\/projects\/active\/scenes\/([a-z0-9_-]+)\/bundles\/([a-f0-9]{64})\/terrain\.glb$/.exec(path);
-      if(terrainPreview){
+      const geometryPreview=/^\/api\/projects\/active\/scenes\/([a-z0-9_-]+)\/bundles\/([a-f0-9]{64})\/(terrain|roads|water)\.glb$/.exec(path);
+      if(geometryPreview){
         if(req.method!=='GET'){
           res.writeHead(405,{Allow:'GET'});res.end();return;
         }
         const workspace=library.mapWorkspace();
         if(!library.active()||req.headers['x-project-id']!==library.active()?.id||
-          workspace?.getFile()!==terrainPreview[1]+'.map.json'||
+          workspace?.getFile()!==geometryPreview[1]+'.map.json'||
           req.headers['if-match']!=='"'+workspace?.getRevision()+'"')
           return send(res,409,{error:'Preview map or project changed; reload'});
-        const bytes=await library.sceneTerrain(terrainPreview[1],terrainPreview[2]);
-        if(!bytes)return send(res,404,{error:'No verified scene bundle exists'});
+        const bytes=await library.sceneGeometry(
+          geometryPreview[1],geometryPreview[2],
+          geometryPreview[3] as 'terrain'|'roads'|'water');
+        if(!bytes)return send(res,404,{error:'Requested scene geometry is not available'});
         res.writeHead(200,{'Content-Type':'model/gltf-binary',
           'Content-Length':bytes.length,'Cache-Control':'no-store'});
         res.end(bytes);return;

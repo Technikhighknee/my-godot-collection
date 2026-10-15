@@ -360,7 +360,8 @@ export class ProjectLibrary {
   /** Read only an existing, hash-verified portable terrain artifact.
    * Never initiates a build or exposes an arbitrary project filesystem path.
    */
-  async sceneTerrain(mapId:string,key:string):Promise<Buffer|null>{
+  async sceneGeometry(mapId:string,key:string,
+    kind:'terrain'|'roads'|'water'):Promise<Buffer|null>{
     await this.queue;
     mapId=resourceId(mapId);
     if(!/^[a-f0-9]{64}$/.test(key))throw Error('Invalid scene bundle key');
@@ -369,11 +370,17 @@ export class ProjectLibrary {
     if(!scene)return null;
     if(scene.mapId!==mapId||scene.key!==key)
       throw Error('Scene bundle identity mismatch');
-    const entry=scene.files.find(item=>item.path===scene.geometry.terrain);
-    if(!entry)throw Error('Missing baked scene terrain');
+    if(!['terrain','roads','water'].includes(kind))
+      throw Error('Invalid requested scene geometry');
+    const file=scene.geometry[kind];
+    if(!file)return null; // Optional road and water GLBs may not exist.
+    if(file!=='geometry/'+kind+'.glb')
+      throw Error('Invalid baked scene geometry: '+kind);
+    const entry=scene.files.find(item=>item.path===file);
+    if(!entry)throw Error('Missing baked scene geometry: '+kind);
     const bytes=await regular(join(root,...entry.path.split('/')));
     if(bytes.length!==entry.bytes||hash(bytes)!==entry.sha256)
-      throw Error('Scene terrain changed during preview retrieval');
+      throw Error('Scene geometry changed during preview retrieval: '+kind);
     return bytes;
   }
   async exportGodotScene(mapId:string){

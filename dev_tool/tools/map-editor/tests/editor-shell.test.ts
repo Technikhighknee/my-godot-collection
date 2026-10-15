@@ -31,11 +31,15 @@ test('all literal editor DOM IDs still exist exactly once after rearranging cont
   }
 });
 
-test('map editor offers opt-in glTF terrain preview without a browser material generator',async()=>{
+test('map editor offers opt-in complete baked scene preview without a browser geometry generator',async()=>{
   const script=readFileSync(new URL('../web/app.js',import.meta.url),'utf8');
   const markup=readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
   assert.match(script,/three\/addons\/loaders\/GLTFLoader\.js/);
-  assert.match(script,/bundles\/.*terrain\.glb/);
+  assert.match(script,/bundles\/.*kind\+'\.glb/);
+  assert.match(script,/\['terrain','roads','water'\]/);
+  assert.match(script,/roadGroup\.visible = !bakedTerrainPreview/);
+  assert.match(script,/waterGroup\.visible = !bakedTerrainPreview/);
+  assert.match(script,/epoch!==bakedTerrainEpoch/);
   assert.match(script,/clearBakedTerrainPreview/);
   assert.match(markup,/id="previewBakedTerrain"/);
   assert.doesNotMatch(script,/bakeMapBinaries|writeWorldGlb/);

@@ -25,7 +25,10 @@ function studioSignal(message){
 let lastDirty=null;
 function syncDirty(){
   const dirty=Boolean(edits?.isDirty);
-  if(dirty&&bakedTerrainPreview)clearBakedTerrainPreview();
+  if(dirty){
+    bakedTerrainEpoch++;
+    if(bakedTerrainPreview)clearBakedTerrainPreview();
+  }
   if(dirty!==lastDirty){lastDirty=dirty;studioSignal({type:'studio:dirty',dirty});}
 }
 const viewport = el('viewport');
@@ -40,6 +43,7 @@ let scene;
 let terrainMesh;
 let bakedTerrainPreview=null;
 let bakedTerrainPending=false;
+let bakedTerrainEpoch=0;
 let primaryMaterial;
 let roadGroup;
 let waterGroup;
@@ -296,16 +300,15 @@ function buildEntity(entity, map, height, color) {
 function updateBakedTerrainButton(){
   const control=el('previewBakedTerrain');
   if(!control)return;
-  control.disabled=bakedTerrainPending||!currentDoc?.projectId||!currentDoc?.workspace;
-  control.textContent=bakedTerrainPending?'Building terrain…':
-    bakedTerrainPreview?'Return to editable terrain':'Preview baked terrain';
+  control.disabled=bakedTerrainPending||!currentDoc?.projectId||!currentDoc?.workspace||
+    !!edits?.isDirty||savePending||workspacePending;
+  control.textContent=bakedTerrainPending?'Building scene…':
+    bakedTerrainPreview?'Return to editable terrain':'Preview baked geometry';
   control.setAttribute('aria-pressed',String(!!bakedTerrainPreview));
 }
-function clearBakedTerrainPreview(){
-  if(!bakedTerrainPreview)return;
-  scene.remove(bakedTerrainPreview);
+function disposeBakedGeometry(root){
   const geometries=new Set(),materials=new Set(),textures=new Set();
-  bakedTerrainPreview.traverse(node=>{
+  root.traverse(node=>{
     if(!node.isMesh)return;
     if(node.geometry)geometries.add(node.geometry);
     for(const mat of (Array.isArray(node.material)?node.material:[node.material]))
@@ -318,6 +321,11 @@ function clearBakedTerrainPreview(){
   }
   for(const texture of textures)texture.dispose();
   for(const geometry of geometries)geometry.dispose();
+}
+function clearBakedTerrainPreview(){
+  if(!bakedTerrainPreview)return;
+  scene.remove(bakedTerrainPreview);
+  disposeBakedGeometry(bakedTerrainPreview);
   bakedTerrainPreview=null;
   setLayerVisibility();
   updateBakedTerrainButton();
@@ -328,13 +336,14 @@ function clearBakedTerrainPreview(){
  */
 async function toggleBakedTerrainPreview(){
   if(bakedTerrainPreview){
+    bakedTerrainEpoch++;
     clearBakedTerrainPreview();
-    setMessage('Editable terrain palette restored.');
+    setMessage('Editable scene geometry restored.');
     return;
   }
   if(bakedTerrainPending||!currentDoc.projectId||!currentDoc.workspace)return;
   if(edits.isDirty||editingInProgress()||savePending||workspacePending){
-    setMessage('Save or finish map edits before previewing built terrain.',true);
+    setMessage('Save or finish map edits before previewing baked geometry.',true);
     return;
   }
   const mapId=currentDoc.mapFile?.replace(/\.map\.json$/,'');
@@ -343,59 +352,88 @@ async function toggleBakedTerrainPreview(){
     return;
   }
   const projectId=currentDoc.projectId,revision=currentDoc.revision;
+  const epoch=++bakedTerrainEpoch;
+  let candidate=null;
   bakedTerrainPending=true;updateBakedTerrainButton();
-  setMessage('Building a verified terrain snapshot from the saved map…');
+  setMessage('Building a verified scene geometry snapshot from the saved map…');
   try{
     const headers={'X-Project-Id':projectId,'If-Match':'"'+revision+'"'};
     const built=await fetch('/api/projects/active/scenes/'+mapId+'/build',{
       method:'POST',headers,
     });
     const result=await built.json();
-    if(!built.ok)throw Error(result.error??'Terrain build failed');
+    if(!built.ok)throw Error(result.error??'Scene build failed');
     const key=result.manifest?.key;
     if(!/^[a-f0-9]{64}$/.test(key)||result.manifest?.mapId!==mapId)
-      throw Error('Invalid baked terrain scene identity');
-    const response=await fetch('/api/projects/active/scenes/'+mapId+
-      '/bundles/'+key+'/terrain.glb',{
-      headers,cache:'no-store',
+      throw Error('Invalid baked scene identity');
+    const geometry=result.manifest?.geometry;
+    if(!geometry||geometry.terrain!=='geometry/terrain.glb')
+      throw Error('Scene manifest has no baked terrain');
+    const kinds=['terrain','roads','water'].filter(kind=>{
+      const file=geometry[kind];
+      if(file===undefined)return false;
+      if(file!=='geometry/'+kind+'.glb')
+        throw Error('Invalid baked scene geometry reference: '+kind);
+      return true;
     });
-    if(!response.ok){
-      const info=await response.json().catch(()=>({}));
-      throw Error(info.error??'Verified terrain artifact unavailable');
+    candidate=new THREE.Group();
+    candidate.name='BakedSceneGeometry';
+    const loader=new GLTFLoader();
+    // No procedural browser reconstruction: every selected GLB is the
+    // byte-identical geometry resource used by the Godot scene adapter.
+    const parts=await Promise.all(kinds.map(async kind=>{
+      const response=await fetch('/api/projects/active/scenes/'+mapId+
+        '/bundles/'+key+'/'+kind+'.glb',{headers,cache:'no-store'});
+      if(!response.ok){
+        const info=await response.json().catch(()=>({}));
+        throw Error(info.error??'Verified '+kind+' geometry unavailable');
+      }
+      const data=await response.arrayBuffer();
+      const gltf=await new Promise((resolve,reject)=>
+        loader.parse(data,'',resolve,reject));
+      let meshes=0;
+      gltf.scene.traverse(node=>{if(node.isMesh)meshes++;});
+      if(!meshes)throw Error('Baked '+kind+' GLB contains no renderable mesh');
+      return {kind,group:gltf.scene};
+    }));
+    for(const {kind,group} of parts){
+      group.name='Baked'+kind[0].toUpperCase()+kind.slice(1);
+      candidate.add(group);
     }
-    const data=await response.arrayBuffer();
-    const gltf=await new Promise((resolve,reject)=>
-      new GLTFLoader().parse(data,'',resolve,reject));
-    let meshCount=0;
-    gltf.scene.traverse(node=>{if(node.isMesh)meshCount++;});
-    if(!meshCount)throw Error('Baked terrain GLB contains no renderable mesh');
-    if(edits.isDirty||editingInProgress()||
+    if(edits.isDirty||editingInProgress()||epoch!==bakedTerrainEpoch||
       currentDoc.projectId!==projectId||currentDoc.revision!==revision)
       throw Error('Map changed during preview; save or reload');
     setEditMode('select');
-    bakedTerrainPreview=gltf.scene;
+    bakedTerrainPreview=candidate;
+    candidate=null;
     scene.add(bakedTerrainPreview);
     setLayerVisibility();
     updateBakedTerrainButton();
-    setMessage('Viewing the exact baked terrain GLB. Choose an editing tool to return.');
+    setMessage('Viewing baked terrain, roads and water where available. Editing restores the authored view.');
   }catch(error){
-    setMessage('Baked terrain preview: '+(error instanceof Error?error.message:String(error)),true);
+    setMessage('Baked geometry preview: '+(error instanceof Error?error.message:String(error)),true);
   }finally{
+    if(candidate)disposeBakedGeometry(candidate);
     bakedTerrainPending=false;
     updateBakedTerrainButton();
   }
 }
-
 function setLayerVisibility() {
   if (!terrainMesh) return;
   terrainMesh.visible=!bakedTerrainPreview||!el('surfaces').checked;
-  if(bakedTerrainPreview)bakedTerrainPreview.visible=el('surfaces').checked;
+  if(bakedTerrainPreview){
+    bakedTerrainPreview.getObjectByName('BakedTerrain').visible=el('surfaces').checked;
+    for(const [kind,control] of [['Roads','roads'],['Water','water']]){
+      const group=bakedTerrainPreview.getObjectByName('Baked'+kind);
+      if(group)group.visible=el(control).checked;
+    }
+  }
   primaryMaterial.vertexColors = el('surfaces').checked;
   primaryMaterial.color.set(el('surfaces').checked ? 0xffffff : 0x9da9a2);
   primaryMaterial.needsUpdate = true;
   wireMaterial.visible = el('wireframe').checked;
-  roadGroup.visible = el('roads').checked;
-  waterGroup.visible = el('water').checked;
+  roadGroup.visible = !bakedTerrainPreview&&el('roads').checked;
+  waterGroup.visible = !bakedTerrainPreview&&el('water').checked;
   settlementGroup.visible = el('settlements').checked;
   if (polygonHandles) polygonHandles.visible = el('settlements').checked;
   entitiesGroup.visible = el('entities').checked;
@@ -1105,6 +1143,7 @@ function selectRoad(id) {
   if (editMode === 'select') { selectionContext = id ? 'road' : null; renderEditorChrome(); }
 }
 function setEditMode(next) {
+  bakedTerrainEpoch++;
   if(bakedTerrainPreview)clearBakedTerrainPreview();
   if (duplicateDraft) { setMessage('Place or cancel the duplicate first.', true); return; }
   if (currentDoc.readOnly && !['navigate','select','entities'].includes(next)) return;
@@ -1418,7 +1457,10 @@ function cancelDrag() {
   repaintRoads();
 }
 function editorPointerDown(ev) {
-  if(bakedTerrainPreview&&ev.button===0&&!spacePan)clearBakedTerrainPreview();
+  if(ev.button===0&&!spacePan){
+    bakedTerrainEpoch++;
+    if(bakedTerrainPreview)clearBakedTerrainPreview();
+  }
   if (editMode === 'place-lake' && ev.button === 0 && !spacePan && !duplicateDraft && !currentDoc.readOnly && !savePending) {
     const point = spatialPoint(ev);
     if (!point) return;
@@ -1787,6 +1829,7 @@ function updateTerrainUI() {
     [edits.heightDirty ? 'HEIGHTMAP' : '', edits.surfaceDirty ? 'SURFACE MAP' : '', edits.entityDirty ? 'MARKERS' : '', edits.roadDirty ? 'ROADS' : '', edits.polygonDirty ? 'WATER / BUILD AREAS' : ''].filter(Boolean).join(' · ') : 'NO UNSAVED CHANGES';
 }
 function performHistory(redo = false) {
+  bakedTerrainEpoch++;
   if(bakedTerrainPreview)clearBakedTerrainPreview();
   if (savePending || editingInProgress()) return;
   const kind = redo ? edits.redo() : edits.undo();

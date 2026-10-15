@@ -131,13 +131,16 @@ project-owned procedural image resources. They are saved via the existing
 revision-checked map-settings operation. Missing references remain visible and
 are not silently replaced. Standalone map mode preserves existing references.
 The editable viewport still uses categorical colors. An explicit, read-only
-**Preview baked terrain** control builds the saved scene with the normal project
-pipeline and loads the exact verified terrain GLB into Three.js. Its imported
-textures, UV scaling and geometry are therefore the same production artifact
-as the Godot export; the editor does not implement a separate material preview
-baker. Preview is a saved snapshot and automatically returns to editable
-terrain when editing begins. Other editor overlays remain authoring views.
-Terrain blending and final art-directed visualization remain follow-on work.
+**Preview baked geometry** control builds the saved scene with the normal
+project pipeline and loads its exact verified terrain, roads and water GLBs
+into Three.js. Optional road/water GLBs are loaded only when present in the
+portable scene contract. Their imported textures, UV scaling and geometry are
+the same production artifacts as the Godot export; the editor does not
+implement a separate geometry or material preview baker. Preview is a saved
+snapshot, restores the editable terrain/road/water representations on editing,
+and preserves independent layer visibility. Other editor overlays remain
+authoring views. Terrain blending and final art-directed visualization remain
+follow-on work.
 
 ## Portable scene contract
 

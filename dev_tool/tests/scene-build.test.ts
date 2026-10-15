@@ -189,8 +189,13 @@ test('cached portable scenes reject tampered reference semantics before export',
 });
 
 
-test('preview serves the exact verified baked terrain without invoking a GET build',async()=>{
+test('preview serves exact verified terrain, roads and water without invoking a GET build',async()=>{
   await project(async(lib,root)=>{
+    await changeMap(root,map=>{
+      map.roads=[{id:'path',definition:'road.gravel',width:4,
+        points:[[10,14],[80,14]]}];
+      map.water=[{id:'sea',definition:'water.sea',height:1}];
+    });
     const server=createDevToolServer(createProjectRouter(lib,{buildings:[]}));
     await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
     try{
@@ -200,19 +205,24 @@ test('preview serves the exact verified baked terrain without invoking a GET bui
       const revision=lib.mapWorkspace()!.getRevision();
       const headers={'X-Project-Id':'world','If-Match':'"'+revision+'"'};
       const nonexistent='a'.repeat(64);
-      const url=(key:string)=>base+'/api/projects/active/scenes/world/bundles/'+key+'/terrain.glb';
+      const url=(key:string,kind='terrain')=>
+        base+'/api/projects/active/scenes/world/bundles/'+key+'/'+kind+'.glb';
       assert.equal((await fetch(url(nonexistent),{headers})).status,404);
       const built=await fetch(base+'/api/projects/active/scenes/world/build',{
         method:'POST',headers:{...headers,Origin:base},
       });
       assert.equal(built.status,200);
       const manifest=(await built.json()).manifest;
-      const expected=await readFile(join(root,'world','build','scenes','world',
-        manifest.key,'geometry','terrain.glb'));
-      const response=await fetch(url(manifest.key),{headers});
-      assert.equal(response.status,200);
-      assert.match(response.headers.get('content-type')??'',/model\/gltf-binary/);
-      assert.deepEqual(Buffer.from(await response.arrayBuffer()),expected);
+      for(const kind of ['terrain','roads','water']){
+        assert.equal(manifest.geometry[kind],'geometry/'+kind+'.glb');
+        const expected=await readFile(join(root,'world','build','scenes','world',
+          manifest.key,'geometry',kind+'.glb'));
+        const response=await fetch(url(manifest.key,kind),{headers});
+        assert.equal(response.status,200,kind+' geometry should be available');
+        assert.match(response.headers.get('content-type')??'',/model\/gltf-binary/);
+        assert.deepEqual(Buffer.from(await response.arrayBuffer()),expected);
+      }
+      assert.equal((await fetch(url(manifest.key,'other'),{headers})).status,404);
       assert.equal((await fetch(url(manifest.key),{headers:{
         ...headers,'X-Project-Id':'wrong'}})).status,409);
       assert.equal((await fetch(url(manifest.key),{headers:{
@@ -222,9 +232,12 @@ test('preview serves the exact verified baked terrain without invoking a GET bui
       const cached=(await lib.buildScene('world'));
       assert.equal(cached.published,false,'GET preview must not publish new scenes');
       await writeFile(join(root,'world','build','scenes','world',
-        manifest.key,'geometry','terrain.glb'),Buffer.from('corrupted'));
-      const corrupt=await fetch(url(manifest.key),{headers});
-      assert.notEqual(corrupt.status,200,'Modified cached bytes must never be served');
+        manifest.key,'geometry','roads.glb'),Buffer.from('corrupted'));
+      for(const kind of ['terrain','roads','water']){
+        const corrupt=await fetch(url(manifest.key,kind),{headers});
+        assert.notEqual(corrupt.status,200,
+          'A damaged bundle must not serve any geometry: '+kind);
+      }
     }finally{
       await new Promise<void>((resolve,reject)=>
         server.close(e=>e?reject(e):resolve()));
