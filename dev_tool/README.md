@@ -1,5 +1,14 @@
 # Dev Tool
 
+## Testing with the permanent CI branch
+
+The permanently reusable `CI` branch runs typechecking and all Node.js tests
+without adding active GitHub Actions workflows to development branches.
+The authoritative workflow template and the exact reset/overlay procedure are
+in [the isolated CI documentation](docs/ci/README.md).
+Do not manually edit `.github/workflows/isolated-ci.yml` on `CI`;
+it is copied from the tracked documentation template for each run.
+
 ## Shared project textures
 
 Project textures are ordinary, seed-reproducible project assets, independently

@@ -1,0 +1,110 @@
+# Isolated CI: permanent testing branch
+
+This repository uses one **permanent** branch named `CI` as a disposable
+execution view for GitHub Actions. Normal development branches have **no
+executable GitHub Actions workflow**. The authoritative, versioned workflow is
+[`isolated-ci.yml`](isolated-ci.yml) in this directory.
+
+## Contract (do not change without a deliberate migration)
+
+- `SOURCE` is one **exact, immutable commit SHA** selected for testing
+  (usually the current head of `feat/asset-procgen`). Never infer SOURCE
+  from the current position of `CI`.
+- `CI` must be a **single extra commit directly on top of SOURCE**:
+  `CI^ == SOURCE`. Do not carry forward old CI commits or merge `CI`
+  into any feature branch.
+- That extra commit changes exactly **one** file:
+  `.github/workflows/isolated-ci.yml`. Its bytes come from the
+  documented source `dev_tool/docs/ci/isolated-ci.yml`, not from
+  memory, a rewritten YAML string, or the previous CI overlay.
+- The workflow template belongs to regular source history in this
+  documentation directory. GitHub Actions executes only the copied
+  `.github/workflows/` file on the `CI` branch.
+- **Do not first push `CI` at SOURCE and then add the workflow.**
+  Construct the final overlay commit off-branch and move the CI ref in
+  **one push** to avoid intermediate, untestable branch states.
+- Moving `CI` deliberately rewrites its disposable history. Use a
+  **force-with-lease** with the actual previously observed CI head, never
+  an unconditional force push. If another writer moved the branch,
+  re-read it and resolve the conflict rather than overwriting it.
+- The workflow has a `push` trigger for `CI`. It runs `npm ci`,
+  `npm run typecheck`, and `npm test` inside `dev_tool/`
+  using Node.js 22. Installation failure prevents running tests.
+  The full test suite still runs after a TypeScript failure.
+- Record the tested SOURCE SHA, the overlay CI SHA, the workflow run
+  URL and the conclusions. A successful CI run proves the tested SHA,
+  **not** later commits pushed to the feature branch.
+
+## Procedure using the GitHub connector / Git objects
+
+1. Read and pin SOURCE (an exact SHA); read and pin the current `CI`
+   ref as `EXPECTED_CI`. Fetch the Git tree belonging to SOURCE.
+2. Read the canonical file at
+   `SOURCE:dev_tool/docs/ci/isolated-ci.yml`. Prefer its **existing
+   Git blob SHA**: Git objects can reuse this exact blob without
+   regenerating or reconstructing the workflow text.
+3. Create a new Git tree with SOURCE's tree as the base and just one
+   added path, `.github/workflows/isolated-ci.yml`, referencing that
+   blob SHA. Ensure SOURCE itself has no active workflow at that path.
+4. Create a commit using SOURCE as its **sole parent** and the new
+   tree. Its message should identify the tested SOURCE SHA.
+5. Advance `refs/heads/CI` to that commit with
+   `force=true, expected_sha=EXPECTED_CI` (force-with-lease).
+   If the ref changed, abort and inspect the new state before retrying.
+6. Open the new `push` workflow run for `CI`; verify its head SHA
+   equals the new overlay SHA. Read **completed** job steps and logs.
+   Do not mark an in-progress or skipped run as successful.
+7. Report the results against SOURCE, **not** the overlay commit.
+   Fix errors on the development branch, make a new source commit,
+   then repeat from step 1. Never fix code directly on `CI`.
+
+The workflow itself checks that the overlay changed only its own path
+and compares the executable copy byte-for-byte with the canonical
+template whenever the source commit includes the template.
+
+### Older source commits without this documentation
+
+For historical commits that predate this file, explicitly choose a trusted,
+**immutable** commit SHA containing the documentation template. Use that
+commit's `dev_tool/docs/ci/isolated-ci.yml` blob for step 2. Record both
+SOURCE and that template commit SHA in the CI overlay commit message and
+the report. The job emits a warning because it cannot compare to a
+template absent from SOURCE; all other overlay checks still apply.
+
+## Local alternative (Bash / Git Bash)
+
+This uses an isolated, disposable worktree so it cannot reset a developer's
+active checkout. Start from the repository root with a clean remote-tracking
+view:
+
+```bash
+git fetch origin feat/asset-procgen CI
+SOURCE="$(git rev-parse origin/feat/asset-procgen)"
+EXPECTED_CI="$(git rev-parse origin/CI)"
+WORKTREE="../my-godot-collection-ci-check"
+git worktree add --detach "$WORKTREE" "$SOURCE"
+(
+  cd "$WORKTREE" || exit 1
+  test ! -e .github/workflows/isolated-ci.yml || exit 1
+  mkdir -p .github/workflows
+  cp dev_tool/docs/ci/isolated-ci.yml .github/workflows/isolated-ci.yml
+  cmp dev_tool/docs/ci/isolated-ci.yml .github/workflows/isolated-ci.yml
+  git add .github/workflows/isolated-ci.yml
+  git commit -m "ci: verify source $SOURCE"
+  git push --force-with-lease=refs/heads/CI:"$EXPECTED_CI" \
+    origin HEAD:refs/heads/CI
+)
+git worktree remove "$WORKTREE"
+```
+
+For an arbitrary source SHA, replace the SOURCE assignment with the
+specific commit. Check the workflow result in GitHub Actions. A failed
+push means the remote CI ref changed and must not be overwritten blindly.
+
+## Editing the workflow
+
+Edit **only the documented template** in a regular feature branch,
+review/commit it there, and then repeat the overlay process. That new
+source revision carries its own canonical template and documentation.
+Do **not** edit the executable copy on `CI`: the next overlay intentionally
+discards everything on that branch that is not part of SOURCE.
