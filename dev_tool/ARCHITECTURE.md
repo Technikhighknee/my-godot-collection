@@ -40,6 +40,21 @@ A registered generator is a capability, **not** a UI page. Importers are
 resource producers too; imported assets do not have to pretend to be procedural
 generator recipes. A scene refers to assets by stable resource identity.
 
+### Project source ownership
+
+Project source validation is independent of project IO. `asset-source.ts`
+owns procedural and imported source schemas, version checks, identity and
+recipe construction. `import-validation.ts` verifies PNG/GLB payload bytes,
+while `asset-graph.ts` enforces material compatibility and dependency
+cycles. `ProjectLibrary` coordinates filesystem persistence, resource
+revisions and build/export workflows without implementing those rules itself.
+All v1 procedural and v2 imported documents remain compatible, and the old
+`library.ts` type/validator exports remain available to existing consumers.
+
+These domain modules must not import the project library, editor UI or
+rendering implementations. Adding a source origin or a material assignment
+rule should be a local domain change, not a new persistence special case.
+
 ### Current executable contracts
 
 - `GENERATORS` contains the canonical generator descriptions, including
