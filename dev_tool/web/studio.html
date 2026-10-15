@@ -47,6 +47,22 @@
               <button id="createAsset" class="action-card" type="button"><span class="action-icon">◇</span><strong>Create an asset</strong><small>Procedural models & textures</small><span class="action-arrow">↗</span></button>
               <button id="openStyleStudy" class="action-card" type="button"><span class="action-icon">◈</span><strong>Texture style study</strong><small>Compare materials and art direction</small><span class="action-arrow">↗</span></button>
             </div>
+            <section class="art-direction-panel" aria-labelledby="artDirectionTitle">
+              <div class="overview-heading"><h2 id="artDirectionTitle">Project Art Direction</h2>
+                <span id="artDirectionStatus">Loading project identity…</span></div>
+              <p>Reusable production-style decisions for this project. Explicit styles
+                saved in individual assets take precedence.</p>
+              <label for="artDirectionName">Visual identity name</label>
+              <input id="artDirectionName" type="text" maxlength="100"
+                placeholder="Project identity">
+              <label for="artDirectionDefault">Default production style</label>
+              <select id="artDirectionDefault"></select>
+              <details>
+                <summary>Generator-specific style assignments</summary>
+                <div id="artDirectionGenerators" class="art-direction-generators"></div>
+              </details>
+              <button id="saveArtDirection" type="button">Save Art Direction</button>
+            </section>
             <div class="overview-bottom">
               <div class="overview-heading"><h2>Project content</h2><span id="overviewCounts"></span></div>
               <div class="overview-columns">

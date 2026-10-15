@@ -50,7 +50,8 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         assertWrite(req);
         // The project ID is part of the resource identity. A stale editor
         // must never accidentally write its recipe into another active project.
-        if((path.startsWith('/api/projects/active/assets')||
+        if((path.startsWith('/api/projects/active/art-direction')||
+          path.startsWith('/api/projects/active/assets')||
           path.startsWith('/api/projects/active/imports')||
           path.startsWith('/api/projects/active/builds')||
           path.startsWith('/api/projects/active/exports/')||
@@ -73,7 +74,96 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
           return send(res,200,{project:await library.select(x.id as string)});
         }
       }
-      const importMatch=new RegExp('^/api/projects/active/imports/([a-z0-9_-]+)$').exec(path);
+      if(path==='/api/projects/active/art-direction'){
+        if(req.method==='GET')return send(res,200,await library.artDirection());
+        if(req.method==='PUT'){
+          const x=await body(req);exact(x,['revision','source']);
+          if(x.revision!==null&&typeof x.revision!=='string')
+            throw Error('Invalid art direction revision');
+          return send(res,200,await library.updateArtDirection(
+            x.source,x.revision as string|null));
+        }
+        res.writeHead(405,{Allow:'GET, PUT'});res.end();return;
+      }
+      const importMatch=new RegExp('^/api/projects/active/imports/([a-z0-9_-]+)
+      if(importMatch){
+        if(req.method==='POST'){
+          const contentType=req.headers['content-type']?.toLowerCase();
+          const format=contentType==='model/gltf-binary'?'glb':
+            contentType==='image/png'?'png':null;
+          if(!format)throw Error('Import requires model/gltf-binary or image/png');
+          const requestUrl=new URL(req.url??'/', 'http://127.0.0.1');
+          const name=requestUrl.searchParams.get('name')??importMatch[1];
+          return send(res,201,await library.importAsset(
+            importMatch[1],name,format,await binaryBody(req)));
+        }
+        if(req.method==='GET'){
+          const {bytes,source}=await library.importedBytes(importMatch[1]);
+          res.writeHead(200,{'Content-Type':source.imported.format==='glb'?
+            'model/gltf-binary':'image/png','Content-Length':bytes.length,
+            'Cache-Control':'no-store'});
+          res.end(bytes);return;
+        }
+      }
+      if(path==='/api/projects/active/assets'){
+        if(req.method==='GET')return send(res,200,{assets:await library.assets()});
+        if(req.method==='POST'){
+          const x=await body(req);exact(x,['id','name','generator','masterSeed','components'],['options','materials','artstyle']);
+          const {id,...input}=x;
+          return send(res,201,await library.createAsset(id as string,input));
+        }
+      }
+      const match=/^\/api\/projects\/active\/assets\/([a-z0-9_-]+)$/.exec(path);
+      if(match){
+        if(req.method==='GET')return send(res,200,await library.asset(match[1]));
+        if(req.method==='PUT'){
+          const x=await body(req);exact(x,['revision','name','generator','masterSeed','components'],['options','materials','artstyle']);
+          const {revision,...input}=x;
+          if(typeof revision!=='string')throw Error('Missing revision');
+          return send(res,200,await library.updateAsset(match[1],input,revision));
+        }
+      }
+      if(path==='/api/projects/active/build-plan'&&req.method==='GET'){
+        const query=new URL(req.url??'/', 'http://127.0.0.1').searchParams;
+        const id=query.get('asset');
+        return send(res,200,await library.buildPlan(id?[id]:undefined));
+      }
+      const buildMatch=/^\/api\/projects\/active\/builds\/([a-z0-9_-]+)$/.exec(path);
+      if(buildMatch&&req.method==='POST')
+        return send(res,200,await library.buildAsset(buildMatch[1]));
+      const exportMatch=/^\/api\/projects\/active\/exports\/godot\/([a-z0-9_-]+)$/.exec(path);
+      if(exportMatch){
+        if(req.method==='POST')
+          return send(res,200,await library.exportGodot(exportMatch[1]));
+        res.writeHead(405,{Allow:'POST'});
+        res.end();return;
+      }
+      const syncMatch=/^\/api\/projects\/active\/sync\/godot\/([a-z0-9_-]+)$/.exec(path);
+      if(syncMatch){
+        if(req.method==='POST'){
+          const input=await body(req);exact(input,['target']);
+          if(typeof input.target!=='string'||input.target.length>2048)
+            throw Error('Invalid Godot target folder');
+          return send(res,200,await library.syncGodot(syncMatch[1],input.target));
+        }
+        res.writeHead(405,{Allow:'POST'});res.end();return;
+      }
+      if(path==='/api/projects/active/graph'&&req.method==='GET')
+        return send(res,200,await library.graph());
+      if(path.startsWith('/api/projects')){
+        res.writeHead(['GET','POST','PUT'].includes(req.method??'')?404:405);
+        res.end();return;
+      }
+      res.writeHead(404);res.end();
+    }catch(e){
+      const message=e instanceof Error?e.message:String(e);
+      const status=/EEXIST|already exists|modified|changed on disk|cycle|Missing asset dependency/.test(message)?409:
+        /ENOENT|no such file/.test(message)?404:400;
+      send(res,status,{error:message});
+    }
+  };
+}
+).exec(path);
       if(importMatch){
         if(req.method==='POST'){
           const contentType=req.headers['content-type']?.toLowerCase();

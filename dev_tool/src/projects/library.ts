@@ -12,6 +12,10 @@ import {produceBuild} from './build.ts';
 import {publishGodotPackage} from './godot-package.ts';
 import {syncGodotPackage,validateGodotProject} from './godot-sync.ts';
 import {assertAssetDependencies} from './asset-graph.ts';
+import {emptyProjectArtDirection,validateProjectArtDirection,
+  applyProjectArtDirection} from '../../tools/asset-procgen/web/artstyles/project-art-direction.mjs';
+import type {ProjectArtDirection}
+  from '../../tools/asset-procgen/web/artstyles/project-art-direction.mjs';
 import {validateImportBytes} from './import-validation.ts';
 import {
   RESOURCE_ID_PATTERN,ASSET_REFERENCE_PATTERN,resourceId,resourceName,
@@ -160,6 +164,41 @@ export class ProjectLibrary {
     if(!this.activeId)throw Error('No active project');
     return join(this.root,this.activeId);
   }
+  async artDirection():Promise<{source:ProjectArtDirection;revision:string|null}>{
+    const file=join(this.requireActive(),'art-direction.json');
+    try{
+      const bytes=await regular(file);
+      return {source:validateProjectArtDirection(
+        JSON.parse(bytes.toString('utf8')),this.lookup),revision:hash(bytes)};
+    }catch(error){
+      if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;
+      return {source:emptyProjectArtDirection(),revision:null};
+    }
+  }
+  async updateArtDirection(raw:unknown,revision:string|null){
+    return this.enqueue(async()=>{
+      if(revision!==null&&
+        (typeof revision!=='string'||!/^[a-f0-9]{64}$/.test(revision)))
+        throw Error('Invalid art direction revision');
+      const source=validateProjectArtDirection(raw,this.lookup);
+      const existing=await this.artDirection();
+      if(existing.revision!==revision)
+        throw Error('Art direction was modified; reload before saving');
+      const bytes=Buffer.from(JSON.stringify(source,null,2)+'\n');
+      const target=join(this.requireActive(),'art-direction.json');
+      if(revision===null)await writeFile(target,bytes,{flag:'wx'});
+      else{
+        if(hash(await regular(target))!==revision)
+          throw Error('Art direction changed on disk');
+        await atomic(target,bytes);
+      }
+      return {source,revision:hash(bytes)};
+    });
+  }
+  private async effectiveAssets():Promise<AssetEntry[]>{
+    const [entries,{source}]=await Promise.all([this.assets(),this.artDirection()]);
+    return applyProjectArtDirection(entries,source,this.lookup);
+  }
   async assets():Promise<AssetEntry[]>{
     const dir=join(this.requireActive(),'assets');
     await directory(dir);
@@ -270,12 +309,12 @@ export class ProjectLibrary {
   }
   async buildPlan(only?:readonly string[]){
     await this.queue;
-    return planAssetBuild(await this.assets(),only);
+    return planAssetBuild(await this.effectiveAssets(),only);
   }
   // Called only inside the serialized project operation queue. A single
   // build path serves both direct baking and target-specific publication.
   private async buildOneAsset(id:string){
-    const entries=await this.assets();
+    const entries=await this.effectiveAssets();
     const plan=planAssetBuild(entries,[id]);
     return produceBuild(this.requireActive(),plan,entries,
       importedId=>this.importedBytes(importedId),

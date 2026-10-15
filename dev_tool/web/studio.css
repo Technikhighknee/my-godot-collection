@@ -15,3 +15,19 @@
 @keyframes studio-spin{to{transform:rotate(360deg)}}
 
 @media(max-width:900px){.overview-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Project-owned art direction, distinct from experimental texture studies. */
+.art-direction-panel{margin-top:35px;padding:18px 22px 21px;
+  background:#1b2b2b;border:1px solid #40534e;border-radius:10px}
+.art-direction-panel .overview-heading{margin-bottom:13px}
+.art-direction-panel p{font-size:12px;line-height:1.6;color:#9db0a9}
+.art-direction-panel label{display:flex;flex-direction:column;gap:5px;
+  color:#aabbb3;font-size:11px;margin:12px 0}
+.art-direction-panel input,.art-direction-panel select{width:100%;padding:9px;
+  border:1px solid #52645c;border-radius:5px;background:#162426;color:#f3e5ca}
+.art-direction-panel details{margin-top:19px}
+.art-direction-panel summary{cursor:pointer;color:#dcc49c}
+.art-direction-generators{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px}
+#saveArtDirection{padding:9px 15px;border:1px solid #b99e6c;border-radius:5px;
+  background:#bca276;color:#14211e;font-weight:700;margin-top:15px}
+@media(max-width:690px){.art-direction-generators{grid-template-columns:1fr}}

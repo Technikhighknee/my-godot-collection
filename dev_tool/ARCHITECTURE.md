@@ -55,6 +55,29 @@ These domain modules must not import the project library, editor UI or
 rendering implementations. Adding a source origin or a material assignment
 rule should be a local domain change, not a new persistence special case.
 
+### Project-owned visual identity
+
+Each project may store an authoritative `art-direction.json` resource. It
+contains a project visual-identity name, an optional version-pinned production
+default and optional generator-specific production assignments. The source is
+independent of the project manifest, and projects predating this resource
+open unchanged; no file is created until the user explicitly saves it.
+
+The pure `artstyles/project-art-direction.mjs` module owns validation and
+precedence: explicit asset recipe pin > generator assignment > project default
+> legacy generator output. Unsupported styles or generator assignments fail
+closed. Import assets are unaffected. Preview and production baking resolve
+the same project policy; the build planner fingerprints effective settings
+without changing source recipes or revisions. This preserves legacy cache
+keys and export bytes for projects without overrides, and invalidates only
+the affected resource subgraphs when a project policy changes.
+
+Studio owns the project-level authoring controls, while the Asset ProcGen
+editor loads the policy and reacts to project-style updates without losing
+unsaved recipe state. Updates use the same project-bound write authorization
+as asset operations, revision checks and atomic persistence. The experimental
+Texture Style Study is not a production artstyle source.
+
 ### Production artstyle recipe boundary
 
 Procedural sources can optionally pin `artstyle: {id, version}` independently

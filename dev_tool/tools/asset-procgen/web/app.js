@@ -7,6 +7,8 @@ import {createSeedState,parseSeed,updateComponentSeed,updateMasterSeed}
 import {createModelViewport} from './viewport-3d.mjs';
 import {createImageViewport} from './viewport-2d.mjs';
 import {createAssetLibrary} from './asset-library.mjs';
+import {emptyProjectArtDirection,resolveProjectArtstyle}
+  from './artstyles/project-art-direction.mjs';
 
 const byId=id=>document.getElementById(id);
 const embedded=new URLSearchParams(location.search).get('embedded')==='1';
@@ -20,6 +22,7 @@ function studioSignal(message){
   if(embedded&&window.parent!==window)window.parent.postMessage(message,location.origin);
 }
 let projectId=null;
+let projectArtDirection=emptyProjectArtDirection();
 let recipeDirty=false;
 function setRecipeDirty(dirty){
   recipeDirty=dirty;
@@ -42,6 +45,8 @@ const projectAssets=new Map();
 const materialAssignments=new Map();
 const artstyleSelections=new Map();
 const selectedArtstyle=()=>artstyleSelections.get(active.id);
+const effectiveStyle=(definition,pinned)=>resolveProjectArtstyle(
+  definition.id,definition,pinned,projectArtDirection);
 const selectedMaterials=()=>materialAssignments.get(active.id)??{};
 function materialImages(){
   if(!active.materialSlots)return {};
@@ -57,7 +62,7 @@ function materialImages(){
     if(!definition||definition.kind!=='image')continue;
     images[slot.id]=generateAsset(definition,
       asset?.source.generator.components??createSeedState(definition).components,
-      undefined,1,asset?.source.artstyle);
+      undefined,1,effectiveStyle(definition,asset?.source.artstyle));
   }
   return images;
 }
@@ -290,7 +295,7 @@ function build(state=seeds()){
     const asset=generateAsset(active,state.components,
       active.defaultOptions?currentBuildingOptions():undefined,
       isBuilding()?Number(byId('buildingLevel').value):1,
-      selectedArtstyle());
+      effectiveStyle(active,selectedArtstyle()));
     let stats;
     if(asset.kind==='model'){
       if(!modelViewport)
@@ -681,8 +686,16 @@ async function changeSharedMaterial(slot,action){
 }
 window.addEventListener('message',event=>{
   if(event.origin!==location.origin||event.source!==window.parent||
-    event.data?.type!=='studio:project-assets-changed'||
-    event.data.projectId!==projectId)return;
+    event.data?.projectId!==projectId)return;
+  if(event.data.type==='studio:art-direction-changed'){
+    projectOperation(async()=>{
+      const {source}=await projectApi('/api/projects/active/art-direction');
+      projectArtDirection=source;
+      build();
+    });
+    return;
+  }
+  if(event.data.type!=='studio:project-assets-changed')return;
   projectOperation(async()=>{
     await reloadProjectAssets();
     const id=loadedProjectAsset?.source.id;
@@ -818,6 +831,10 @@ projectEl('savedProjectAssets').addEventListener('change',()=>{
     const {project}=await projectApi('/api/projects/active');
     if(!project){assetStatus('Create a project on the home page to save assets.');return;}
     projectId=project.id;
+    projectArtDirection=(await projectApi('/api/projects/active/art-direction')).source;
+    // The initial unsaved preview was rendered before the active project loaded.
+    // Refresh it against the authoritative project style policy.
+    build();
     projectEl('godotProjectPath').value=
       localStorage.getItem('godot-sync-target:'+projectId)??'';
     await reloadProjectAssets();

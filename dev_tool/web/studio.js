@@ -5,6 +5,8 @@ const tabbar=byId('tabbar'),region=byId('editorRegion'),overview=byId('overview'
 const search=byId('resourceSearch');
 const tabs=new Map();
 let project=null,assets=[],maps=[],graph={edges:[],missing:[]},activeMap=null;
+let artDirectionSource=null,artDirectionRevision=null,artDirectionDirty=false;
+let artDirectionDefinitions=null;
 let selected=null,activeTab='overview',mode='explorer',collapsed=false;
 let pendingPlacement=null,pendingNewMap=false,blocked=false,requesting=false;
 const cacheKey='devtool.studio.openTabs';
@@ -324,13 +326,104 @@ function renderOverview(){
   if(!assets.length)assetList.append(make('div','summary-empty','No saved assets'));
   details(selected);
 }
+function markArtDirectionDirty(){
+  artDirectionDirty=true;
+  byId('artDirectionStatus').textContent='Unsaved changes';
+}
+function selectProductionStyle(select,styles,active,label){
+  select.replaceChildren();
+  const inherit=make('option',null,label);
+  inherit.value='';
+  select.append(inherit);
+  for(const style of styles){
+    const option=make('option',null,style.label+' · v'+style.version);
+    option.value=style.id+'@'+style.version;
+    select.append(option);
+  }
+  select.value=active?active.id+'@'+active.version:'';
+}
+async function renderProjectArtDirection(){
+  if(!artDirectionSource)return;
+  if(!artDirectionDefinitions){
+    artDirectionDefinitions=await import('/tools/asset-procgen/generators.mjs');
+  }
+  const {GENERATORS,availableProductionArtstyles}=artDirectionDefinitions;
+  byId('artDirectionName').value=artDirectionSource.name;
+  // The default only permits production identities known to the catalogue.
+  const all=new Map();
+  for(const definition of GENERATORS)
+    for(const style of availableProductionArtstyles(definition))
+      all.set(style.id+'@'+style.version,style);
+  selectProductionStyle(byId('artDirectionDefault'),[...all.values()],
+    artDirectionSource.defaultArtstyle,'No project-wide override');
+  const container=byId('artDirectionGenerators');
+  container.replaceChildren();
+  for(const definition of GENERATORS){
+    const label=make('label',null,definition.label);
+    const field=make('select');
+    field.dataset.generator=definition.id;
+    label.append(field);
+    selectProductionStyle(field,availableProductionArtstyles(definition),
+      artDirectionSource.generatorArtstyles[definition.id],
+      'Use project default');
+    field.addEventListener('change',markArtDirectionDirty);
+    container.append(label);
+  }
+  byId('artDirectionStatus').textContent=artDirectionRevision?
+    'Saved project resource':'Using legacy defaults (not saved)';
+}
+function valueArtstyle(value,styles){
+  if(!value)return null;
+  const chosen=styles.find(style=>style.id+'@'+style.version===value);
+  if(!chosen)throw Error('Unknown production artstyle: '+value);
+  return {id:chosen.id,version:chosen.version};
+}
+async function saveProjectArtDirection(){
+  if(!project||!artDirectionSource)throw Error('No active project');
+  if(!(await verifyProject()))return;
+  const {GENERATORS,availableProductionArtstyles}=artDirectionDefinitions;
+  const supported=new Map();
+  for(const definition of GENERATORS)
+    for(const style of availableProductionArtstyles(definition))
+      supported.set(style.id+'@'+style.version,style);
+  const defaultArtstyle=valueArtstyle(
+    byId('artDirectionDefault').value,[...supported.values()]);
+  const generatorArtstyles={};
+  for(const field of byId('artDirectionGenerators').querySelectorAll('select')){
+    const def=GENERATORS.find(item=>item.id===field.dataset.generator);
+    if(!def)throw Error('Unknown generator in Art Direction editor');
+    const value=valueArtstyle(field.value,availableProductionArtstyles(def));
+    if(value)generatorArtstyles[def.id]=value;
+  }
+  const source={format:'devtool-art-direction',version:1,
+    name:byId('artDirectionName').value,defaultArtstyle,generatorArtstyles};
+  const updated=await jsonWrite('/api/projects/active/art-direction','PUT',
+    {source,revision:artDirectionRevision},{'X-Project-Id':project.id});
+  artDirectionSource=updated.source;
+  artDirectionRevision=updated.revision;
+  artDirectionDirty=false;
+  await renderProjectArtDirection();
+  // Existing asset tabs may contain unsaved recipes. Broadcast only the
+  // policy change; each editor re-resolves without discarding local edits.
+  for(const tab of tabs.values())if(tab.ready)
+    tab.frame.contentWindow?.postMessage({
+      type:'studio:art-direction-changed',projectId:project.id,
+    },location.origin);
+}
+
 async function refreshResources(check=true){
   if(blocked||!project)return;
   if(check&&!(await verifyProject()))return;
   try{
-    const [mapResult,assetResult,graphResult]=await Promise.all([
+    const [mapResult,assetResult,graphResult,directionResult]=await Promise.all([
       api('/api/maps'),api('/api/projects/active/assets'),
-      api('/api/projects/active/graph')]);
+      api('/api/projects/active/graph'),
+      api('/api/projects/active/art-direction')]);
+    if(!artDirectionDirty){
+      artDirectionSource=directionResult.source;
+      artDirectionRevision=directionResult.revision;
+      await renderProjectArtDirection();
+    }
     maps=mapResult.maps.map(map=>({...map,kind:'map'}));
     assets=assetResult.assets.map(a=>({...a,name:a.source.name}));
     graph=graphResult;
@@ -464,6 +557,11 @@ window.addEventListener('message',event=>{
   }
 });
 byId('overviewTab').addEventListener('click',()=>selectTab('overview'));
+byId('artDirectionName').addEventListener('input',markArtDirectionDirty);
+byId('artDirectionDefault').addEventListener('change',markArtDirectionDirty);
+byId('saveArtDirection').addEventListener('click',()=>{
+  saveProjectArtDirection().catch(e=>showError('Art Direction: '+e.message));
+});
 byId('openMap').addEventListener('click',()=>{
   if(activeMap)openMap(activeMap).catch(e=>showError(e.message));
   else showError('This project has no maps yet.');
