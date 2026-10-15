@@ -41,6 +41,21 @@ function metadata(glb: Buffer) {
   return JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8'));
 }
 
+function meshPositions(glb: Buffer): number[][] {
+  const document = metadata(glb);
+  const binaryOffset = 20 + glb.readUInt32LE(12) + 8;
+  return document.meshes.flatMap((mesh: any) =>
+    mesh.primitives.map((primitive: any) => {
+      const accessor = document.accessors[primitive.attributes.POSITION];
+      const view = document.bufferViews[accessor.bufferView];
+      assert.equal(accessor.componentType, 5126);
+      assert.equal(accessor.type, 'VEC3');
+      const offset = binaryOffset + view.byteOffset + (accessor.byteOffset ?? 0);
+      return Array.from({length: accessor.count * 3}, (_, index) =>
+        glb.readFloatLE(offset + index * 4));
+    }));
+}
+
 test('a building creates five reusable materials with independent style and stable seeds', () => {
   const first = plan(naturalistic);
   assert.equal(first.assets.length, 5);
@@ -130,8 +145,9 @@ test('the same building geometry exports different saved PBR styles and retains 
     assert.ok(model);
     const file = model.files.find(file => file.file === 'level-2-exterior.glb');
     assert.ok(file);
-    const artifact = metadata(await readFile(join(root, 'world', 'build',
-      'assets', 'natural-house', model.key, file.file)));
+    const firstGlb = await readFile(join(root, 'world', 'build',
+      'assets', 'natural-house', model.key, file.file));
+    const artifact = metadata(firstGlb);
     for (const slot of ['roofClay', 'facadePlaster']) {
       assert.ok(artifact.materials.some((mat: any) =>
         mat.extras?.resourceSlot === slot &&
@@ -160,17 +176,26 @@ test('the same building geometry exports different saved PBR styles and retains 
     const other = await lib.buildAsset('watercolor-house');
     const otherModel = other.artifacts.find(value => value.id === 'watercolor-house');
     assert.ok(otherModel);
-    const nextGlb = metadata(await readFile(join(root, 'world', 'build',
-      'assets', 'watercolor-house', otherModel.key, 'level-2-exterior.glb')));
-    const firstGeometry = artifact.meshes.map((mesh: any) =>
-      mesh.primitives.map((primitive: any) =>
-        primitive.attributes.POSITION !== undefined));
-    const secondGeometry = nextGlb.meshes.map((mesh: any) =>
-      mesh.primitives.map((primitive: any) =>
-        primitive.attributes.POSITION !== undefined));
-    assert.deepEqual(firstGeometry, secondGeometry);
-    assert.notDeepEqual(artifact.images, nextGlb.images,
-      'Different artstyles must produce different PBR material artifacts');
+    const secondGlb = await readFile(join(root, 'world', 'build',
+      'assets', 'watercolor-house', otherModel.key, 'level-2-exterior.glb'));
+    assert.deepEqual(meshPositions(firstGlb), meshPositions(secondGlb),
+      'The geometry must stay identical across material artstyles');
+    assert.notDeepEqual(firstGlb, secondGlb,
+      'The model exports must contain different PBR material bytes');
+
+    const firstRoof = built.artifacts.find(a => a.id === selected[0]?.id);
+    const secondRoof = other.artifacts.find(a => a.id === next[0]?.id);
+    assert.ok(firstRoof && secondRoof);
+    const firstAlbedo = firstRoof.files.find(f => f.view === 'albedo');
+    const secondAlbedo = secondRoof.files.find(f => f.view === 'albedo');
+    assert.ok(firstAlbedo && secondAlbedo);
+    const png = (id: string, key: string, name: string) =>
+      readFile(join(root, 'world', 'build', 'assets', id, key, name));
+    assert.notDeepEqual(
+      await png(firstRoof.id, firstRoof.key, firstAlbedo.file),
+      await png(secondRoof.id, secondRoof.key, secondAlbedo.file),
+      'Style must change actual saved pigment pixels, not only metadata'
+    );
     assert.equal((await lib.buildAsset('watercolor-house')).built, 0);
   });
 });

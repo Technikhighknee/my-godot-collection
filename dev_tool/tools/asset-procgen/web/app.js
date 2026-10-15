@@ -701,8 +701,10 @@ async function changeSharedMaterial(slot,action){
     throw Error('Material generator unavailable');
   if(action==='new'){
     const id=definition.id+'-'+randomSeed().toString(36);
-    const name=definition.label+' · ';
-    const state=updateMasterSeed(definition,createSeedState(definition),randomSeed());
+    const name = definition.label + ' · ';
+    const state = updateMasterSeed(
+      definition, createSeedState(definition), randomSeed()
+    );
     const created=await projectApi('/api/projects/active/assets',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({id,name:name+id, generator:definition.id,
