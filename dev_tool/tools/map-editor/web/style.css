@@ -273,3 +273,12 @@ body { font-size: 13px; }
 .studio-embedded .source-action{width:100%;margin-top:8px;background:#30463f;border:1px solid #66816c;
 color:#e2e9df;border-radius:5px;font-size:11px;padding:10px}
 .studio-embedded .source-action[hidden]{display:none}
+
+/* Project surface material bindings, kept separate from terrain drawing UI. */
+.surface-material-controls{display:grid;gap:10px;margin:8px 0 16px}
+.surface-material-row{display:grid;gap:6px;padding:10px;border:1px solid rgba(128,128,128,.35);border-radius:6px}
+.surface-material-row>strong{font-size:12px;overflow-wrap:anywhere}
+.surface-material-options{display:grid;gap:6px;grid-template-columns:minmax(0,1fr) 84px}
+.surface-material-options select{grid-column:1/-1;min-width:0;width:100%}
+.surface-material-options input{min-width:0;width:100%;box-sizing:border-box}
+.surface-material-options input[data-material-profile]{grid-column:1/-1}

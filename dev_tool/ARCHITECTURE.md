@@ -126,8 +126,12 @@ their production PBR maps, repeating in world units via
 `KHR_texture_transform`. Unbound surfaces retain category-colored materials
 in these mixed scenes. The finished GLB is the same resource referenced by
 portable bundles and Godot exports. The map JSON format remains independent
-of any target engine. Material assignment authoring UI, terrain blending and
-final terrain-specific artistic quality remain follow-on work.
+of any target engine. Surface assignments are now editable in the Map Editor's map settings using
+project-owned procedural image resources. They are saved via the existing
+revision-checked map-settings operation. Missing references remain visible and
+are not silently replaced. Standalone map mode preserves existing references.
+The viewport still uses categorical preview colors; terrain blending and final
+art-directed visualization remain follow-on work.
 
 ## Portable scene contract
 

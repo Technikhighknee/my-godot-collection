@@ -68,6 +68,9 @@ terrain.rock</textarea>
 </div>
 <label class="editor-label" for="settingsPalette">SURFACE IDS (ONE PER LINE)</label><textarea id="settingsPalette" rows="3" spellcheck="false"></textarea>
 <div class="point-info">World size and pixel resolution cannot be changed after creation. Palette order determines each cell's meaning.</div>
+<label class="editor-label">SURFACE MATERIALS</label>
+<div class="point-info">Choose saved project materials. Tile size is in world meters; specify a profile for multi-profile resources. The viewport currently shows palette colors, not the production PBR materials.</div>
+<div class="surface-material-controls" id="surfaceMaterialControls"><div class="point-info">Project resources are unavailable in standalone map mode.</div></div>
 <button id="applyMapSettings" type="button">Save map settings</button>
 </details>
 <details id="mapAssetsDetails"><summary>Active assets</summary><div class="point-info" id="mapAssetPaths"></div></details>

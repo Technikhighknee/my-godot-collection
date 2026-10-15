@@ -8,6 +8,7 @@ import { checkBuildingPlacement } from './building-placement.mjs';
 import { newPolygonId, nearestPolygonEdge, validatePolygon, validatePolygons } from './polygon-edit.mjs';
 import { snapPoint, toggleSelection, moveEntities, duplicateEntities, duplicateRoad } from './workflow.mjs';
 import { parsePalette, validateCreate } from './map-management.mjs';
+import { mountSurfaceMaterialEditor } from './surface-material-editor.mjs';
 import { intersectTerrainRay } from './terrain-ray.mjs';
 import { updateTerrainPatch } from './terrain-patch.mjs';
 import { buildWaterRegions } from './water-field.mjs';
@@ -1890,6 +1891,7 @@ function initializeRoadEditing() {
 }
 
 
+let surfaceMaterialEditor=null;
 function initializeMapManagement() {
   const section = el('mapManager');
   if (!currentDoc.workspace) { section.hidden = true; return; }
@@ -1970,6 +1972,8 @@ function initializeMapManagement() {
       name: el('settingsName').value.trim(),
       min_height: number('settingsMinHeight'), max_height: number('settingsMaxHeight'),
       surface_palette: parsePalette(el('settingsPalette').value),
+      ...(surfaceMaterialEditor?{surface_materials:surfaceMaterialEditor.read(
+        parsePalette(el('settingsPalette').value))}:{}),
     };
     if (!settings.name || settings.name.length > 100) throw new Error('Invalid map name');
     if (settings.min_height >= settings.max_height) throw new Error('Minimum elevation must be below maximum elevation');
@@ -1998,6 +2002,8 @@ try {
     const response=await fetch('/api/projects/active/assets',{cache:'no-store'});
     if(response.ok){
       const {assets}=await response.json();
+      surfaceMaterialEditor=mountSurfaceMaterialEditor(
+        el('surfaceMaterialControls'),el('settingsPalette'),currentDoc.map,assets);
       for(const entry of assets){
         const {source}=entry;
         if(entry.kind!=='model')continue;

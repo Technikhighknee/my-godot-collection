@@ -203,3 +203,13 @@ test('map settings save optional project material bindings without rewriting old
       undefined);
   }finally{await rm(dir,{recursive:true,force:true});}
 });
+
+test('map editor presents surface material selectors from project resources',async()=>{
+  const script=await readFile(new URL('../web/app.js',import.meta.url),'utf8');
+  const markup=await readFile(new URL('../web/index.html',import.meta.url),'utf8');
+  const module=await readFile(new URL('../web/surface-material-editor.mjs',import.meta.url),'utf8');
+  assert.match(script,/mountSurfaceMaterialEditor/);
+  assert.match(markup,/surfaceMaterialControls/);
+  assert.match(module,/dataset\.materialRef/);
+  assert.doesNotMatch(module,/roof-clay|stone-rubble|plaster-lime/);
+});
