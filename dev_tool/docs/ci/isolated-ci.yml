@@ -139,10 +139,45 @@ jobs:
           fi
           grep -F "OFFLINE MAP EXPORT PASSED" "$RUNNER_TEMP/godot-map-test.log"
 
-      # Full regressions remain mandatory after the focused production and
-      # real Godot checks, keeping failure diagnostics visible on busy runners.
-      - name: Full test suite
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+  # Run the complete Node suite in independent runner jobs. Native texture
+  # synthesis can consume substantial CPU and memory: it must not compete
+  # with Godot or with four simultaneous Node test processes on one runner.
+  # The patterns are exhaustive for dev_tool/tests and the Map Editor tests.
+  regression:
+    name: Node.js 22 / regressions / ${{ matrix.group }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: assets-and-builds
+            files: 'tests/[a-g]*.test.ts'
+          - group: materials-and-models
+            files: 'tests/[h-o]*.test.ts'
+          - group: projects-and-tools
+            files: 'tests/[p-z]*.test.ts'
+          - group: map-editor
+            files: 'tools/map-editor/tests/*.test.ts'
+    steps:
+      - name: Checkout candidate plus CI overlay
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: dev_tool/package-lock.json
+
+      - name: Install locked dependencies
         working-directory: dev_tool
-        run: npm test
-      
+        run: npm ci
+
+      - name: Run complete test shard
+        working-directory: dev_tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          free -h
+          node --experimental-strip-types --test --test-concurrency=2 ${{ matrix.files }}
