@@ -52,6 +52,7 @@ test('Godot scene instantiates reused GLBs with stable relative paths and map tr
     assert.equal(first.sceneFile,'world.tscn');
     assert.ok(first.directory.endsWith(join('exports','godot-scenes','world')));
     const tscn=await readFile(join(first.directory,'world.tscn'),'utf8');
+    assert.doesNotMatch(tscn,/^#/m,'Godot text scenes do not accept hash comments');
     assert.match(tscn,/\[gd_scene load_steps=2 format=3\]/);
     assert.equal(tscn.match(/\[ext_resource type="PackedScene"/g)?.length,1);
     assert.equal(tscn.match(/instance=ExtResource\("model_1"\)/g)?.length,2);

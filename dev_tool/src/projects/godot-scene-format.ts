@@ -42,8 +42,6 @@ export function serializeGodotScene(manifest:SceneBundleManifest):Buffer{
   const lines=[
     '[gd_scene load_steps='+String(paths.length+1)+' format=3]',
     '',
-    '# Produced from a portable, content-addressed map scene bundle.',
-    '# Terrain/roads/water are supplied as Map System data, NOT duplicated here.',
   ];
   for(const path of paths)
     lines.push('[ext_resource type="PackedScene" path='+quoted(path)+
