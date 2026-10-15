@@ -13,14 +13,23 @@ export interface ScenePlacement {
   rotationDegrees:number;
 }
 export interface ScenePlan {
-  mapId:string;assetRoots:string[];placements:ScenePlacement[];
+  mapId:string;assetRoots:string[];materialRoots:string[];placements:ScenePlacement[];
 }
 export function planMapScene(mapId:string,doc:MapDocument,
   entries:readonly AssetEntry[]):ScenePlan{
   resourceId(mapId);
   validateDocument(doc);
   const known=new Map(entries.map(entry=>[entry.source.id,entry]));
-  const roots=new Set<string>();
+  const roots=new Set<string>(),materialRoots=new Set<string>();
+  for(const [surface,binding] of Object.entries(doc.map.terrain.surface_materials??{})){
+    const id=binding.asset.slice('asset:'.length);
+    const target=known.get(id);
+    if(!target)throw Error('Missing map material dependency: '+binding.asset+
+      ' for '+surface+' in '+mapId);
+    if(target.kind!=='image'||'origin' in target.source)
+      throw Error('Map surface requires a procedural material image: '+binding.asset);
+    materialRoots.add(id);
+  }
   const placements:ScenePlacement[]=[];
   for(const [kind,list] of [
     ['building',doc.map.buildings],['object',doc.map.objects],
@@ -50,5 +59,5 @@ export function planMapScene(mapId:string,doc:MapDocument,
   // Map validators already enforce unique IDs across all map layers.
   // Sort instances independently from document order for stable manifests.
   placements.sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
-  return {mapId,assetRoots:[...roots].sort(),placements};
+  return {mapId,assetRoots:[...roots].sort(),materialRoots:[...materialRoots].sort(),placements};
 }

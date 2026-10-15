@@ -340,8 +340,8 @@ export class ProjectLibrary {
       const doc=await loadMap(mapFile);
       const serialized=serializeMap(doc);
       const plan=planMapScene(mapId,doc,await this.effectiveAssets());
-      const build=plan.assetRoots.length?
-        await this.buildAssets(plan.assetRoots):null;
+      const roots=[...new Set([...plan.assetRoots,...plan.materialRoots])].sort();
+      const build=roots.length?await this.buildAssets(roots):null;
       // A parallel map-editor or external write must not publish a snapshot
       // whose map and model artifacts describe different source revisions.
       if(!(await regular(mapFile)).equals(original))
@@ -398,6 +398,11 @@ export class ProjectLibrary {
       if(!RESOURCE_ID_PATTERN.test(id))continue;
       const map=validateMap(JSON.parse(
         (await regular(join(folder,file))).toString('utf8')));
+      for(const binding of Object.values(map.terrain.surface_materials??{})){
+        edges.push({from:'map:'+id,to:binding.asset});
+        if(!known.has(binding.asset.slice('asset:'.length)))
+          missing.add(binding.asset);
+      }
       for(const item of [...map.buildings,...map.objects]){
         const found=ASSET_REFERENCE_PATTERN.exec(item.definition);
         if(found){

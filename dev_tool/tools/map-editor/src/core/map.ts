@@ -7,11 +7,15 @@ export interface Road { id: string; definition: string; width: number; points: P
 export interface Settlement { id: string; name: string; build_areas: Point[][]; }
 export type Water = { id: string; definition: 'water.sea'; height: number } | { id: string; definition: 'water.lake'; height: number; source: Point }; 
 export interface MapEntity { id: string; definition: string; position: Point; rotation: number; }
+export interface SurfaceMaterialBinding {
+  asset: string; profile?: string; tile_size: number;
+}
 export interface MapJson {
   name: string;
   terrain: {
     size: Point; heightmap: string; min_height: number; max_height: number;
     surface_map: string; surface_palette: string[];
+    surface_materials?: Record<string, SurfaceMaterialBinding>;
   };
   roads: Road[]; settlements: Settlement[]; water: Water[];
   buildings: MapEntity[]; objects: MapEntity[];
@@ -63,7 +67,7 @@ function polygon(value: unknown, path: string, bounds: Point): Point[] {
 export function validateMap(value: unknown): MapJson {
   const root = fields(value,'map',['name','terrain','roads','settlements','water','buildings','objects']);
   requiredString(root.name,'map.name');
-  const terrain = fields(root.terrain,'map.terrain',['size','heightmap','min_height','max_height','surface_map','surface_palette']);
+  const terrain = fields(root.terrain,'map.terrain',['size','heightmap','min_height','max_height','surface_map','surface_palette','surface_materials']);
   const size=point(terrain.size,'map.terrain.size',null);
   if(size[0]<=0||size[1]<=0) error('map.terrain.size','must be positive');
   const min=number(terrain.min_height,'terrain.min_height'),max=number(terrain.max_height,'terrain.max_height');
@@ -76,6 +80,27 @@ export function validateMap(value: unknown): MapJson {
   if(palette.length<1||palette.length>256)error('map.terrain.surface_palette','needs 1..256 IDs');
   const found=new Set<string>();
   for(const [i,v] of palette.entries()) { const s=requiredString(v,`map.terrain.surface_palette[${i}]`);if(found.has(s))error('map.terrain.surface_palette','has duplicate ID');found.add(s); }
+  if (terrain.surface_materials !== undefined) {
+    if (!record(terrain.surface_materials))
+      error('map.terrain.surface_materials','must be an object');
+    for (const [surface, value] of Object.entries(terrain.surface_materials)) {
+      if (!found.has(surface))
+        error('map.terrain.surface_materials','references unknown palette ID: '+surface);
+      const path='map.terrain.surface_materials.'+surface;
+      if (!record(value)||Object.keys(value).some(k=>
+        k!=='asset'&&k!=='profile'&&k!=='tile_size')||
+        !Object.hasOwn(value,'asset')||!Object.hasOwn(value,'tile_size'))
+        error(path,'must describe asset, tile_size and optional profile');
+      if (typeof value.asset!=='string'||
+        !/^asset:[a-z0-9][a-z0-9_-]{0,47}$/.test(value.asset))
+        error(path+'.asset','must reference a project asset');
+      if (value.profile!==undefined&&
+        (typeof value.profile!=='string'||!/^[a-z][a-z0-9_-]*$/.test(value.profile)))
+        error(path+'.profile','must be a valid material profile');
+      if (!finite(value.tile_size)||value.tile_size<0.01||value.tile_size>10000)
+        error(path+'.tile_size','must be between 0.01 and 10000 world units');
+    }
+  }
   const ids=new Set<string>();
   function unique(v: unknown,p:string) { const id=requiredString(v,p);if(ids.has(id))error(p,'duplicates another ID');ids.add(id); }
   for(const [i,v] of array(root.roads,'map.roads').entries()) {
