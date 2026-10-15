@@ -152,13 +152,20 @@ jobs:
       matrix:
         include:
           - group: assets-and-builds
+            concurrency: 2
             files: 'tests/[a-g]*.test.ts'
           - group: materials-and-models
+            concurrency: 2
             files: 'tests/[h-o]*.test.ts'
           - group: projects-and-tools
+            concurrency: 2
             files: 'tests/[p-z]*.test.ts'
-          - group: map-editor
-            files: 'tools/map-editor/tests/*.test.ts'
+          - group: map-editor-basics
+            files: 'tools/map-editor/tests/[a-m]*.test.ts'
+            concurrency: 1
+          - group: map-editor-terrain
+            files: 'tools/map-editor/tests/[n-z]*.test.ts'
+            concurrency: 1
     steps:
       - name: Checkout candidate plus CI overlay
         uses: actions/checkout@v4
@@ -180,4 +187,4 @@ jobs:
         run: |
           set -euo pipefail
           free -h
-          node --experimental-strip-types --test --test-concurrency=2 ${{ matrix.files }}
+          node --experimental-strip-types --test --test-concurrency=${{ matrix.concurrency }} ${{ matrix.files }}
