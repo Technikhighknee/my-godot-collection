@@ -328,8 +328,14 @@ export class ProjectLibrary {
       const written: string[] = [];
       try {
         for (const item of prepared) {
-          await writeFile(item.target, item.bytes, {flag: 'wx'});
+          const handle = await open(item.target, 'wx');
           written.push(item.target);
+          try {
+            await handle.writeFile(item.bytes);
+            await handle.sync();
+          } finally {
+            await handle.close();
+          }
         }
       } catch (error) {
         for (const path of written) {

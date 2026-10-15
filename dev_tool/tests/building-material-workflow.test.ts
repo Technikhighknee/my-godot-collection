@@ -8,6 +8,8 @@ import {findGenerator} from '../tools/asset-procgen/web/generators.mjs';
 import {planBuildingMaterialSet}
   from '../tools/asset-procgen/web/building-material-set.mjs';
 import {ProjectLibrary} from '../src/projects/library.ts';
+import {createProjectRouter} from '../src/projects/router.ts';
+import {createDevToolServer} from '../src/server.ts';
 import {DEFAULT_BUILDING_OPTIONS}
   from '../tools/asset-procgen/web/building.mjs';
 
@@ -117,6 +119,50 @@ test('material set creation validates the whole request and rolls back on confli
       next[0], {...next[0]}
     ]), /Duplicate material resource ID/);
     assert.equal((await lib.assets()).length, before);
+  });
+});
+
+test('material-set API saves one consistent project-owned batch', async () => {
+  await temporary(async lib => {
+    const server = createDevToolServer(
+      createProjectRouter(lib, {buildings: []})
+    );
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const addr = server.address();
+      assert.ok(addr && typeof addr !== 'string');
+      const base = 'http://127.0.0.1:' + addr.port;
+      const url = base + '/api/projects/active/assets/batch';
+      const payload = JSON.stringify({
+        assets: plan(naturalistic).assets,
+      });
+      const request = (projectId: string) => fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Project-Id': projectId,
+          Origin: base,
+        },
+        body: payload,
+      });
+      assert.equal((await request('another-project')).status, 409);
+      assert.equal((await lib.assets()).length, 0);
+      const created = await request('world');
+      assert.equal(created.status, 201);
+      const body = await created.json();
+      assert.equal(body.assets.length, 5);
+      assert.deepEqual(
+        body.assets.map((item: any) => item.source.artstyle),
+        Array(5).fill(naturalistic)
+      );
+      assert.equal((await lib.assets()).length, 5);
+      assert.notEqual((await request('world')).status, 201,
+        'A repeated request must not silently overwrite existing sources');
+      assert.equal((await lib.assets()).length, 5);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close(error => error ? reject(error) : resolve()));
+    }
   });
 });
 
