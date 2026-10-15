@@ -1,6 +1,7 @@
 import {encodeRgbaPng} from './build-image.ts';
 import {buildWorldGeometry,type WorldMesh}
   from './map-geometry.ts';
+import {buildSurfaceTransitions,type SurfaceTransition} from './map-geometry.ts';
 import type {MapDocument} from '../../tools/map-editor/src/core/map.ts';
 import {paletteColor} from '../../tools/map-editor/web/mesh-data.mjs';
 
@@ -22,8 +23,25 @@ interface SurfaceLayer {
 }
 const four=(n:number)=>(n+3)&~3;
 const text=(s:string)=>Buffer.from(s,'utf8');
+function normalsFor(positions:Float32Array,indices:Uint32Array):Float32Array{
+  const normal=new Float32Array(positions.length);
+  for(let i=0;i<indices.length;i+=3){
+    const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3;
+    const ab=[positions[b]-positions[a],positions[b+1]-positions[a+1],positions[b+2]-positions[a+2]];
+    const ac=[positions[c]-positions[a],positions[c+1]-positions[a+1],positions[c+2]-positions[a+2]];
+    const n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
+    for(const j of [a,b,c])for(let k=0;k<3;k++)normal[j+k]+=n[k];
+  }
+  for(let i=0;i<normal.length;i+=3){
+    const len=Math.hypot(normal[i],normal[i+1],normal[i+2])||1;
+    for(let c=0;c<3;c++)normal[i+c]/=len;
+  }
+  return normal;
+}
+
 export function writeWorldGlb(mesh:WorldMesh,style:MeshStyle,
-  layers?:readonly SurfaceLayer[],styleScaleX=1,styleScaleZ=1):Buffer{
+  layers?:readonly SurfaceLayer[],styleScaleX=1,styleScaleZ=1,
+  transitions:readonly SurfaceTransition[]=[]):Buffer{
   const {positions,indices,uv}=mesh;
   if(positions.length%3||indices.length%3||!indices.length||
     positions.length/3>10000000)throw Error('Invalid map mesh');
@@ -52,22 +70,11 @@ export function writeWorldGlb(mesh:WorldMesh,style:MeshStyle,
     const min=Array(size).fill(Infinity),max=Array(size).fill(-Infinity);
     for(let i=0;i<data.length;i++) {const c=i%size;min[c]=Math.min(min[c],data[i]);max[c]=Math.max(max[c],data[i]);}
     accessors.push({bufferView:view,componentType:5126,count:data.length/size,
-      type:size===3?'VEC3':'VEC2',min,max});
+      type:size===3?'VEC3':size===4?'VEC4':'VEC2',min,max});
     return index;
   }
   const positionAccessor=floatAttribute(positions,3);
-  const normal=new Float32Array(positions.length);
-  for(let i=0;i<indices.length;i+=3){
-    const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3;
-    const ab=[positions[b]-positions[a],positions[b+1]-positions[a+1],positions[b+2]-positions[a+2]];
-    const ac=[positions[c]-positions[a],positions[c+1]-positions[a+1],positions[c+2]-positions[a+2]];
-    const n=[ab[1]*ac[2]-ab[2]*ac[1],ab[2]*ac[0]-ab[0]*ac[2],ab[0]*ac[1]-ab[1]*ac[0]];
-    for(const j of [a,b,c])for(let k=0;k<3;k++)normal[j+k]+=n[k];
-  }
-  for(let i=0;i<normal.length;i+=3){
-    const len=Math.hypot(normal[i],normal[i+1],normal[i+2])||1;
-    for(let c=0;c<3;c++)normal[i+c]/=len;
-  }
+  const normal=normalsFor(positions,indices);
   const normalAccessor=floatAttribute(normal,3);
   const uvAccessor=uv?floatAttribute(uv,2):undefined;
   const primitives:any[]=[];
@@ -171,6 +178,50 @@ export function writeWorldGlb(mesh:WorldMesh,style:MeshStyle,
       delete gltf.images;delete gltf.textures;delete gltf.samplers;
     }
   }
+  if(transitions.length){
+    if(!layers)throw Error('Surface transitions require material layers');
+    const overlay:any={name:'TerrainTransitions',primitives:[]};
+    for(const item of transitions){
+      const base=layers.findIndex(layer=>layer.definition===item.definition);
+      if(base<0)throw Error('Unknown terrain transition material: '+item.definition);
+      const mesh=item.mesh,vertexCount=mesh.positions.length/3;
+      if(!mesh.uv||!vertexCount||mesh.indices.length!==vertexCount||
+        mesh.uv.length!==vertexCount*2||item.opacity.length!==vertexCount)
+        throw Error('Invalid terrain transition mesh');
+      for(const i of mesh.indices)if(i>=vertexCount)
+        throw Error('Invalid terrain transition index');
+      const rgba=new Float32Array(vertexCount*4);
+      for(let i=0;i<vertexCount;i++){
+        const alpha=item.opacity[i];
+        if(!Number.isFinite(alpha)||alpha<0||alpha>0.5)
+          throw Error('Invalid terrain transition opacity');
+        rgba.set([1,1,1,alpha],i*4);
+      }
+      const posAccessor=floatAttribute(mesh.positions,3);
+      const norAccessor=floatAttribute(normalsFor(mesh.positions,mesh.indices),3);
+      const uvAccessor=floatAttribute(mesh.uv,2);
+      const rgbaAccessor=floatAttribute(rgba,4);
+      const indexBuf=Buffer.from(mesh.indices.buffer,mesh.indices.byteOffset,
+        mesh.indices.byteLength);
+      const idxView=bytes(indexBuf,34963),idxAccessor=accessors.length;
+      accessors.push({bufferView:idxView,componentType:5125,
+        count:mesh.indices.length,type:'SCALAR'});
+      const materialIndex=gltf.materials.length;
+      gltf.materials.push({...gltf.materials[base],
+        name:'Feather: '+item.definition,alphaMode:'BLEND',
+        extras:{...gltf.materials[base].extras,surfaceTransition:true}});
+      overlay.primitives.push({attributes:{
+        POSITION:posAccessor,NORMAL:norAccessor,TEXCOORD_0:uvAccessor,
+        COLOR_0:rgbaAccessor},indices:idxAccessor,material:materialIndex,mode:4});
+    }
+    if(overlay.primitives.length){
+      const meshIndex=gltf.meshes.length;
+      gltf.meshes.push(overlay);
+      const nodeIndex=gltf.nodes.length;
+      gltf.nodes.push({name:'TerrainTransitions',mesh:meshIndex});
+      gltf.scenes[0].nodes.push(nodeIndex);
+    }
+  }
   gltf.buffers[0].byteLength=total;
   const json=text(JSON.stringify(gltf));
   const jsonLen=four(json.length);
@@ -216,7 +267,8 @@ export function bakeMapBinaries(doc:MapDocument,
       name:'Terrain',collision:true,color:[1,1,1,1],
       ...(layers?{}:{image:{width:world.surfaceWidth,height:world.surfaceHeight,
         rgba:world.surfacePixels}}),
-    },layers,doc.map.terrain.size[0],doc.map.terrain.size[1]),
+    },layers,doc.map.terrain.size[0],doc.map.terrain.size[1],
+    layers?buildSurfaceTransitions(doc):[]),
   };
   if(world.roads)binaries.roads=writeWorldGlb(world.roads,{
     name:'Roads',color:[0.37,0.31,0.24,1],
