@@ -94,6 +94,26 @@ rejects manually modified package files rather than silently deleting
 your edits. This exports files for Godot; it does not write into an external
 Godot project or generate `.tscn` scenes automatically.
 
+## Build portable map scenes
+
+Studio has a **Build scene** action beside each saved map. It snapshots
+validated map JSON, terrain EXR/PNG, all required prebuilt models/materials
+and reproducible placement bindings. Only `asset:<id>` models present
+in the map are built. Other game-definition IDs remain semantic.
+
+CLI from `dev_tool/`:
+
+```bash
+npm run build:scene -- world
+npm run build:scene -- world --projects-dir /path/to/projects
+```
+
+Scene bundles are produced at
+`projects/<project>/build/scenes/<map-id>/<fingerprint>/` with a
+`manifest.json` containing placement transforms, selected GLB files,
+resource keys and verified file hashes. Godot scene generation and the
+Map System installation remain separate steps.
+
 ## Build all project assets
 
 Use **Build project assets** in the Studio overview, or run from `dev_tool/`:

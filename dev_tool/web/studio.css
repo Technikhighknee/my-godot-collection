@@ -36,3 +36,11 @@
 .overview-actions{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1150px){.overview-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:690px){.overview-actions{grid-template-columns:1fr}}
+
+/* Map-scene production belongs beside the corresponding saved map source. */
+.scene-summary-row{display:flex;align-items:center;gap:8px}
+.scene-summary-row .summary-link{flex:1;min-width:0}
+.scene-build-button{flex:none;border:1px solid #536659;border-radius:5px;
+  background:#253831;color:#e6d7b9;font-size:10px;padding:7px 9px}
+.scene-build-button:hover{border-color:#c5ad7c;background:#334b3c}
+.scene-build-button:disabled{opacity:.42;cursor:default}

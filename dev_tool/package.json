@@ -11,6 +11,7 @@
     "start": "node --experimental-strip-types src/serve.ts",
     "build:asset": "node --experimental-strip-types src/projects/build-cli.ts",
     "build:project": "node --experimental-strip-types src/projects/build-cli.ts --all",
+    "build:scene": "node --experimental-strip-types src/projects/scene-cli.ts",
     "export:godot": "node --experimental-strip-types src/projects/godot-cli.ts",
     "sync:godot": "node --experimental-strip-types src/projects/godot-sync-cli.ts",
     "inspect": "node --experimental-strip-types tools/map-editor/src/cli.ts",

@@ -8,6 +8,7 @@ let project=null,assets=[],maps=[],graph={edges:[],missing:[]},activeMap=null;
 let artDirectionSource=null,artDirectionRevision=null,artDirectionDirty=false;
 let artDirectionDefinitions=null;
 let buildingProject=false;
+const buildingScenes=new Set();
 let selected=null,activeTab='overview',mode='explorer',collapsed=false;
 let pendingPlacement=null,pendingNewMap=false,blocked=false,requesting=false;
 const cacheKey='devtool.studio.openTabs';
@@ -316,11 +317,48 @@ function summaryButton(label,kind,action){
   button.addEventListener('click',()=>Promise.resolve(action()).catch(e=>showError(e.message)));
   return button;
 }
+async function buildSceneFromStudio(map,button){
+  const id=map.file?.replace(/\.map\.json$/,'');
+  if(!id||!map.valid||buildingScenes.has(id))
+    throw Error('Select a valid saved map to build');
+  if(dirtyDocuments().some(t=>t.kind==='map')&&
+    !confirm('The scene build uses the saved map. Continue without unsaved map changes?'))
+    return;
+  if(!(await verifyProject()))return;
+  buildingScenes.add(id);
+  button.disabled=true;
+  setStatus('BUILDING SCENE '+id.toUpperCase());
+  try{
+    const result=await api('/api/projects/active/scenes/'+id+'/build',{
+      method:'POST',headers:{'X-Project-Id':project.id},
+    });
+    const report=result.manifest.placements.length+' placements · '+
+      result.built+' generated · '+result.reused+' reused';
+    setStatus(result.published?'SCENE BUNDLE PUBLISHED':'SCENE BUNDLE REUSED');
+    byId('statusRight').textContent=map.name.toUpperCase()+' · '+report.toUpperCase();
+  }catch(error){
+    showError('Scene build failed: '+error.message);
+  }finally{
+    buildingScenes.delete(id);
+    button.disabled=false;
+  }
+}
 function renderOverview(){
   byId('overviewTitle').textContent=project?.name||'Project';
   byId('overviewCounts').textContent=maps.length+' maps · '+assets.length+' assets';
   const worldList=byId('overviewMaps'),assetList=byId('overviewAssets');
-  worldList.replaceChildren(...maps.slice(0,5).map(m=>summaryButton(m.name,'map',()=>openMap(m))));
+  worldList.replaceChildren(...maps.slice(0,5).map(m=>{
+    const row=make('div','scene-summary-row');
+    row.append(summaryButton(m.name,'map',()=>openMap(m)));
+    const build=make('button','scene-build-button','Build scene');
+    build.type='button';
+    build.disabled=!m.valid||buildingScenes.has(m.file.replace(/\.map\.json$/,''));
+    build.title='Build portable scene bundle from the saved map';
+    build.addEventListener('click',()=>buildSceneFromStudio(m,build)
+      .catch(error=>showError(error.message)));
+    row.append(build);
+    return row;
+  }));
   assetList.replaceChildren(...assets.slice(0,6).map(a=>
     summaryButton(a.source.name,a.kind,()=>openAsset(a.source))));
   if(!maps.length)worldList.append(make('div','summary-empty','No maps'));

@@ -54,6 +54,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
           path.startsWith('/api/projects/active/assets')||
           path.startsWith('/api/projects/active/imports')||
           path.startsWith('/api/projects/active/builds')||
+          path.startsWith('/api/projects/active/scenes/')||
           path.startsWith('/api/projects/active/exports/')||
           path.startsWith('/api/projects/active/sync/'))&&
           req.headers['x-project-id']!==library.active()?.id){
@@ -136,6 +137,11 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       const buildMatch=/^\/api\/projects\/active\/builds\/([a-z0-9_-]+)$/.exec(path);
       if(buildMatch&&req.method==='POST')
         return send(res,200,await library.buildAsset(buildMatch[1]));
+      const sceneMatch=/^\/api\/projects\/active\/scenes\/([a-z0-9_-]+)\/build$/.exec(path);
+      if(sceneMatch){
+        if(req.method==='POST')return send(res,200,await library.buildScene(sceneMatch[1]));
+        res.writeHead(405,{Allow:'POST'});res.end();return;
+      }
       const exportMatch=/^\/api\/projects\/active\/exports\/godot\/([a-z0-9_-]+)$/.exec(path);
       if(exportMatch){
         if(req.method==='POST')
@@ -162,7 +168,7 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
       res.writeHead(404);res.end();
     }catch(e){
       const message=e instanceof Error?e.message:String(e);
-      const status=/EEXIST|already exists|modified|changed on disk|cycle|Missing asset dependency/.test(message)?409:
+      const status=/EEXIST|already exists|modified|changed on disk|cycle|Missing asset dependency|Missing scene asset dependency|Scene placement requires/.test(message)?409:
         /ENOENT|no such file/.test(message)?404:400;
       send(res,status,{error:message});
     }

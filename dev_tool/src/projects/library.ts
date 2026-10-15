@@ -7,6 +7,9 @@ import {encodeExr} from '../../tools/map-editor/src/formats/exr.ts';
 import {encodeSurfacePng} from '../../tools/map-editor/src/formats/png.ts';
 import {MapWorkspace} from '../../tools/map-editor/src/editing/map-workspace.ts';
 import {validateMap} from '../../tools/map-editor/src/core/map.ts';
+import {loadMap,serializeMap} from '../../tools/map-editor/src/io/map-io.ts';
+import {planMapScene} from './scene-plan.ts';
+import {publishSceneBundle} from './scene-bundle.ts';
 import {planAssetBuild} from './build-plan.ts';
 import {produceBuild} from './build.ts';
 import {publishGodotPackage} from './godot-package.ts';
@@ -326,6 +329,31 @@ export class ProjectLibrary {
   }
   async buildProject(){
     return this.enqueue(()=>this.buildAssets());
+  }
+  async buildScene(mapId:string){
+    return this.enqueue(async()=>{
+      mapId=resourceId(mapId);
+      const mapFile=join(this.requireActive(),'maps',mapId+'.map.json');
+      // Refuse redirected map documents. loadMap validates both terrain images
+      // and uses the same interpolation as the runtime Map System.
+      const original=await regular(mapFile);
+      const doc=await loadMap(mapFile);
+      const serialized=serializeMap(doc);
+      const plan=planMapScene(mapId,doc,await this.effectiveAssets());
+      const build=plan.assetRoots.length?
+        await this.buildAssets(plan.assetRoots):null;
+      // A parallel map-editor or external write must not publish a snapshot
+      // whose map and model artifacts describe different source revisions.
+      if(!(await regular(mapFile)).equals(original))
+        throw Error('Map changed during scene build: '+mapId);
+      const finalDoc=serializeMap(await loadMap(mapFile));
+      if(!finalDoc.json.equals(serialized.json)||
+        !finalDoc.exr.equals(serialized.exr)||
+        !finalDoc.png.equals(serialized.png))
+        throw Error('Map terrain changed during scene build: '+mapId);
+      return publishSceneBundle(this.requireActive(),plan,serialized,
+        doc.map.terrain.heightmap,doc.map.terrain.surface_map,build);
+    });
   }
   private async exportOneAsset(id:string){
     const result=await this.buildAssets([id]);

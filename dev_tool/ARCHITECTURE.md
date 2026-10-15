@@ -24,6 +24,38 @@ prevent symlink escape. Project APIs are dispatched separately. Root-level Map
 Editor aliases and extensionless Studio URLs are intentionally not supported;
 the editors use canonical paths.
 
+## Portable map-scene production
+
+`ProjectLibrary.buildScene(mapId)` produces a separate, content-addressed
+**portable scene bundle**, rather than a second set of mesh generators.
+The scene planner uses the validated Map System document and its
+triangle-accurate terrain height query. A map's `asset:<id>` building
+and object placements resolve **model** project assets, not filenames.
+Missing references and texture-only placements fail explicitly.
+Only referred model roots and their transitive material dependencies are built.
+
+The bundle contains canonical map JSON and terrain EXR/PNG, verified baked
+asset outputs (including material dependencies), placement IDs, kinds,
+semantic definition IDs, terrain-height-adjusted `[x,y,z]` coordinates,
+clockwise rotation degrees, default GLB paths and resource build keys.
+Non-`asset:` definitions are retained as **game-definition** references:
+they require a game catalog and never receive an invented model fallback.
+Buildings select `level-1-exterior.glb`, otherwise `model.glb` or a sole
+GLB; ambiguous alternatives fail.
+
+Outputs are under `build/scenes/<map-id>/<scene-key>/`. Every bundle
+includes a hash manifest, atomic publication and cache-hit verification.
+Scene fingerprints include only canonical map/terrain data and the
+transitive keys of actually placed assets; changes to unrelated project
+resources leave the scene unchanged. Concurrent modifications of source
+map or terrain abort the build before publication.
+
+Studio exposes **Build scene** beside saved maps. CLI:
+`npm run build:scene -- <map-id>`. The project-bound endpoint is
+`POST /api/projects/active/scenes/<map-id>/build`.
+This is an engine-neutral scene production **contract**, not yet
+automatic Godot `.tscn` instantiation or target-game scene deployment.
+
 ## Complete project builds
 
 A project build uses the **same** versioned dependency planner and production
