@@ -1,6 +1,7 @@
 // Application coordinator: catalog, seed controls, and preview UI.
 // Mesh generation and Three.js rendering live in separate modules.
-import {GENERATORS,findGenerator,generateAsset} from './generators.mjs';
+import {GENERATORS,findGenerator,generateAsset,availableProductionArtstyles}
+  from './generators.mjs';
 import {createSeedState,parseSeed,updateComponentSeed,updateMasterSeed}
   from './seed-model.mjs';
 import {createModelViewport} from './viewport-3d.mjs';
@@ -39,6 +40,8 @@ document.addEventListener('keydown',event=>{
 const states=new Map(GENERATORS.map(def=>[def.id,createSeedState(def)]));
 const projectAssets=new Map();
 const materialAssignments=new Map();
+const artstyleSelections=new Map();
+const selectedArtstyle=()=>artstyleSelections.get(active.id);
 const selectedMaterials=()=>materialAssignments.get(active.id)??{};
 function materialImages(){
   if(!active.materialSlots)return {};
@@ -53,7 +56,8 @@ function materialImages(){
       findGenerator(slot.generators[0]);
     if(!definition||definition.kind!=='image')continue;
     images[slot.id]=generateAsset(definition,
-      asset?.source.generator.components??createSeedState(definition).components);
+      asset?.source.generator.components??createSeedState(definition).components,
+      undefined,1,asset?.source.artstyle);
   }
   return images;
 }
@@ -135,6 +139,35 @@ const optionsByGenerator=new Map(GENERATORS.filter(def=>def.defaultOptions)
 let currentBuildingView='exterior';
 const isBuilding=()=>active.id==='timber-building';
 const currentBuildingOptions=()=>optionsByGenerator.get(active.id);
+function renderArtstyleControls(){
+  const row=byId('artstyleRow'),select=byId('assetArtstyle');
+  const available=availableProductionArtstyles(active);
+  // A single native appearance needs no selector. Pinning is supported by
+  // source recipes already; the control appears when alternatives ship.
+  row.hidden=available.length<2;
+  select.replaceChildren();
+  const implicit=document.createElement('option');
+  implicit.value='';implicit.textContent='Generator original (legacy recipe)';
+  select.append(implicit);
+  for(const style of available){
+    const choice=document.createElement('option');
+    choice.value=style.id+'@'+style.version;
+    choice.textContent=style.label+' · v'+style.version;
+    select.append(choice);
+  }
+  const pinned=selectedArtstyle();
+  select.value=pinned?pinned.id+'@'+pinned.version:'';
+}
+byId('assetArtstyle').addEventListener('change',event=>{
+  const value=event.target.value;
+  const selected=availableProductionArtstyles(active).find(style=>
+    style.id+'@'+style.version===value);
+  if(value&&!selected)throw Error('Unsupported production artstyle selection');
+  if(selected)artstyleSelections.set(active.id,{id:selected.id,version:selected.version});
+  else artstyleSelections.delete(active.id);
+  setRecipeDirty(true);
+  build();
+});
 function renderBuildingControls(){
   const show=isBuilding();
   byId('buildingSettings').hidden=!show;
@@ -256,7 +289,8 @@ function build(state=seeds()){
     // Generate first, then replace the preview atomically.
     const asset=generateAsset(active,state.components,
       active.defaultOptions?currentBuildingOptions():undefined,
-      isBuilding()?Number(byId('buildingLevel').value):1);
+      isBuilding()?Number(byId('buildingLevel').value):1,
+      selectedArtstyle());
     let stats;
     if(asset.kind==='model'){
       if(!modelViewport)
@@ -380,6 +414,7 @@ function selectGenerator(id){
     .setAttribute('aria-label',def.previewLabel);
   byId('modelStage').hidden=def.kind!=='model';
   renderBuildingControls();
+  renderArtstyleControls();
   byId('imageStage').hidden=def.kind!=='image';
   byId('stageKind').textContent=def.kind==='model'?'3D MODEL':'2D ASSET';
   byId('viewportHint').textContent=def.kind==='model'?
@@ -547,7 +582,8 @@ function currentRecipe(){
   return {name:projectEl('projectAssetName').value.trim(),generator:active.id,
     masterSeed:state.masterSeed,components:state.components,
     ...(active.defaultOptions?{options:currentBuildingOptions()}:{}),
-    ...(active.materialSlots?{materials:{...selectedMaterials()}}:{})};
+    ...(active.materialSlots?{materials:{...selectedMaterials()}}:{}),
+    ...(selectedArtstyle()?{artstyle:selectedArtstyle()}:{})};
 }
 async function loadSelectedProjectAsset(){
   const id=projectEl('savedProjectAssets').value;
@@ -565,6 +601,8 @@ async function loadSelectedProjectAsset(){
       entry.source.options??gen.defaultOptions));
   if(gen.materialSlots)
     materialAssignments.set(gen.id,{...entry.source.materials});
+  if(entry.source.artstyle)artstyleSelections.set(gen.id,entry.source.artstyle);
+  else artstyleSelections.delete(gen.id);
   currentBuildingView='exterior';
   byId('buildingLevel').value='1';
   loadedProjectAsset=entry;
@@ -631,7 +669,8 @@ async function changeSharedMaterial(slot,action){
       method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({revision:entry.revision,name:entry.source.name,
         generator:definition.id,masterSeed:state.masterSeed,
-        components:state.components}),
+        components:state.components,
+        ...(entry.source.artstyle?{artstyle:entry.source.artstyle}:{})}),
     });
     projectAssets.set(updated.source.id,updated);
     await reloadProjectAssets();

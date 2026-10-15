@@ -25,7 +25,8 @@ function sourceIdentity(source:ProjectAssetSource,kind:'model'|'image'):unknown{
   const {id,version,components}=source.generator;
   return {origin:'procedural',generator:{id,version,components},
     output:{kind,version:OUTPUT_FORMAT_VERSIONS[kind]},
-    options:source.options??null,materials:source.materials??null};
+    options:source.options??null,materials:source.materials??null,
+    ...(source.artstyle===undefined?{}:{artstyle:source.artstyle})};
 }
 export interface BuildNode {
   id:string;kind:'model'|'image';origin:'procedural'|'imported';

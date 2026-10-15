@@ -1,6 +1,9 @@
 // Public capability lookup for the editor and headless production.
 // The catalogue contains no generator-specific algorithms.
 import {validateSeed} from './seed-model.mjs';
+import {assertGeneratorArtstyleSupport}
+  from './artstyles/production-artstyles.mjs';
+export {availableProductionArtstyles} from './artstyles/production-artstyles.mjs';
 import {MATERIAL_GENERATORS} from './generator-definitions/materials.mjs';
 import {ARCHITECTURE_GENERATORS} from './generator-definitions/architecture.mjs';
 import {VEGETATION_GENERATORS} from './generator-definitions/vegetation.mjs';
@@ -22,9 +25,17 @@ for(const definition of GENERATORS){
 }
 
 export function findGenerator(id){return definitions.get(id)??null;}
-export function generateAsset(definition,componentSeeds,options,level=1){
+export function generateAsset(definition,componentSeeds,options,level=1,artstyle){
   if(definitions.get(definition?.id)!==definition)throw Error('Unknown generator');
   for(const component of definition.components)
     validateSeed(componentSeeds?.[component.id]);
+  if(artstyle!==undefined){
+    const selected=assertGeneratorArtstyleSupport(definition,artstyle);
+    if(selected.id!=='original'){
+      const provider=definition.productionStyleGeneration;
+      if(!provider)throw Error('Missing production artstyle provider');
+      return provider.generate(componentSeeds,selected,options,level);
+    }
+  }
   return definition.generate(componentSeeds,options,level);
 }

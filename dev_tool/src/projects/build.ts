@@ -110,7 +110,8 @@ async function produce(node:BuildNode,entry:AssetEntry,
       // Never regenerate geometry just to export the second view.
       let generated=generatedLevels.get(level);
       if(!generated){
-        generated=generateAsset(def,source.generator.components,options,level);
+        generated=generateAsset(def,source.generator.components,options,level,
+          source.artstyle);
         generatedLevels.set(level,generated);
       }
       const canonical=def.modelBake.canonicalize(generated,variant);
@@ -144,7 +145,8 @@ async function produce(node:BuildNode,entry:AssetEntry,
   if(!def.headlessBake&&!def.headlessCanvasBake)
     throw Error('No headless bake capability for '+source.generator.id);
   // Important: use exactly the same registry/generate function as the editor.
-  const image=generateAsset(def,source.generator.components);
+  const image=generateAsset(def,source.generator.components,
+    undefined,1,source.artstyle);
   const views=image.views??['albedo'];
   const profiles=image.profiles?.length?image.profiles:[null];
   const result:{meta:BuildFile;data:Buffer}[]=[];

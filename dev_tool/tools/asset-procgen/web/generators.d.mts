@@ -1,4 +1,6 @@
 import type {GeneratorComponent} from './seed-model.mjs';
+import type {ProductionArtstyleReference,ProductionArtstyle}
+  from './artstyles/production-artstyles.mjs';
 import type {TreeMesh} from './tree.mjs';
 import type {OakFoliageMesh} from './oak-foliage.mjs';
 import type {BuildingOptions,GeneratedBuilding} from './building.mjs';
@@ -25,6 +27,11 @@ interface GeneratorMeta {
   defaultOptions?:BuildingOptions;
   validateOptions?:(value:unknown)=>BuildingOptions;
   materialSlots?:readonly {id:string;label:string;generators:readonly string[]}[];
+  productionStyleGeneration?:{
+    styles:readonly ProductionArtstyleReference[];
+    generate:(seeds:Record<string,number>,style:ProductionArtstyleReference,
+      options?:BuildingOptions,level?:number)=>GeneratedAsset;
+  };
 }
 export interface ModelBakeVariant {
   name:string;level?:number;view?:'exterior'|'interior';
@@ -63,17 +70,19 @@ export interface ImageGeneratorDefinition extends GeneratorMeta {
 }
 export type GeneratorDefinition=ModelGeneratorDefinition|ImageGeneratorDefinition;
 export const GENERATORS:readonly GeneratorDefinition[];
+export function availableProductionArtstyles(definition:GeneratorDefinition):
+  readonly ProductionArtstyle[];
 export function findGenerator(id:'oak'|'fir'):TreeGeneratorDefinition|null;
 export function findGenerator(id:'timber-building'):BuildingGeneratorDefinition|null;
 export function findGenerator(id:'oak-atlas'|'oak-sprig'|'oak-bark'|'roof-thatch'|'roof-clay'|'timber-oak'|'plaster-lime'|'stone-rubble'):ImageGeneratorDefinition|null;
 export function findGenerator(id:string):GeneratorDefinition|null;
 export function generateAsset(definition:TreeGeneratorDefinition,
-  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedModel;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number,artstyle?:ProductionArtstyleReference):GeneratedModel;
 export function generateAsset(definition:BuildingGeneratorDefinition,
-  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedBuilding;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number,artstyle?:ProductionArtstyleReference):GeneratedBuilding;
 export function generateAsset(definition:ModelGeneratorDefinition,
-  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedModel|GeneratedBuilding;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number,artstyle?:ProductionArtstyleReference):GeneratedModel|GeneratedBuilding;
 export function generateAsset(definition:ImageGeneratorDefinition,
-  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedImage;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number,artstyle?:ProductionArtstyleReference):GeneratedImage;
 export function generateAsset(definition:GeneratorDefinition,
-  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number):GeneratedAsset;
+  componentSeeds:Record<string,number>,options?:BuildingOptions,level?:number,artstyle?:ProductionArtstyleReference):GeneratedAsset;

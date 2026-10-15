@@ -154,6 +154,10 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
     <p class="pg-seed-note">Master seed creates a reproducible combination. You can also change each component independently.</p>
     <div class="pg-settings-title pg-component-title"><span>COMPONENT SEEDS</span></div>
     <div id="componentSeeds" class="pg-component-seeds" aria-label="Independent generator component seeds"></div>
+    <div id="artstyleRow" hidden>
+      <label for="assetArtstyle">Production artstyle</label>
+      <select id="assetArtstyle"></select>
+    </div>
     <section id="projectSources" class="pg-project-sources" aria-label="Saved project assets">
       <div class="pg-settings-title"><span>PROJECT ASSETS</span></div>
       <p id="projectAssetStatus" class="pg-seed-note">Checking project…</p>

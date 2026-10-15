@@ -1,4 +1,8 @@
 // Pure project asset source contracts. No filesystem, UI or rendering ownership.
+import {assertGeneratorArtstyleSupport}
+  from '../../tools/asset-procgen/web/artstyles/production-artstyles.mjs';
+import type {ProductionArtstyleReference}
+  from '../../tools/asset-procgen/web/artstyles/production-artstyles.mjs';
 // Existing v1 procedural and v2 imported documents retain their exact formats.
 export interface GeneratorDescriptor {
   kind:'model'|'image';recipeVersion:number;
@@ -6,6 +10,7 @@ export interface GeneratorDescriptor {
   defaultOptions?:object;
   validateOptions?:(value:unknown)=>object;
   materialSlots?:readonly {id:string;generators:readonly string[]}[];
+  productionStyleGeneration?:{styles:readonly ProductionArtstyleReference[]};
 }
 export type GeneratorLookup=(id:string)=>GeneratorDescriptor|null;
 function validateSeed(value:unknown):void{
@@ -32,6 +37,7 @@ export interface AssetSource {
   dependencies:string[];
   options?:object;
   materials?:Record<string,string>;
+  artstyle?:ProductionArtstyleReference;
 }
 // Imported files are project resources, not pseudo-generators. Format v2
 // distinguishes their source contract without rewriting legacy v1 recipes.
@@ -100,7 +106,7 @@ export function validateSource(raw:unknown,expectedId?:string,
   const validFields=['dependencies','format','generator','id','name','version'];
   if(!validFields.every(k=>Object.hasOwn(x,k))||
     Object.keys(x).some(k=>!validFields.includes(k)&&
-      k!=='options'&&k!=='materials')||
+      k!=='options'&&k!=='materials'&&k!=='artstyle')||
     x.format!=='devtool-asset'||x.version!==1)throw Error('Unsupported asset source');
   const id=resourceId(x.id);
   if(expectedId&&id!==expectedId)throw Error('Asset ID does not match filename');
@@ -144,6 +150,8 @@ export function validateSource(raw:unknown,expectedId?:string,
       materials[slot]=value;
     }
   }
+  const artstyle=x.artstyle===undefined?undefined:
+    assertGeneratorArtstyleSupport(def,x.artstyle);
   const dependencies=x.dependencies;
   if(!Array.isArray(dependencies)||!unique(dependencies)||dependencies.some(v=>
     typeof v!=='string'||!ASSET_REFERENCE_PATTERN.test(v)||v==='asset:'+id))
@@ -156,7 +164,8 @@ export function validateSource(raw:unknown,expectedId?:string,
       components:comps as Record<string,number>},
     dependencies:dependencies as string[],
     ...(options===undefined?{}:{options}),
-    ...(materials===undefined?{}:{materials})};
+    ...(materials===undefined?{}:{materials}),
+    ...(artstyle===undefined?{}:{artstyle})};
 }
 export function createProceduralSource(input:unknown,id:string,lookup:GeneratorLookup,
   dependencies:string[]=[],oldMaterials:Record<string,string>={}):AssetSource{
@@ -164,7 +173,8 @@ export function createProceduralSource(input:unknown,id:string,lookup:GeneratorL
   const x=input as Record<string,unknown>;
   const required=['components','generator','masterSeed','name'];
   if(!required.every(k=>Object.hasOwn(x,k))||
-    Object.keys(x).some(k=>!required.includes(k)&&k!=='options'&&k!=='materials'))
+    Object.keys(x).some(k=>!required.includes(k)&&k!=='options'&&
+      k!=='materials'&&k!=='artstyle'))
     throw Error('Invalid asset fields');
   const newMaterials=x.materials;
   if(newMaterials!==undefined&&(!newMaterials||typeof newMaterials!=='object'||
@@ -181,5 +191,6 @@ export function createProceduralSource(input:unknown,id:string,lookup:GeneratorL
       masterSeed:x.masterSeed,components:x.components},
     dependencies:nextDeps,
     ...(x.options===undefined?{}:{options:x.options}),
-    ...(newMaterials===undefined?{}:{materials:newMaterials})},id,lookup);
+    ...(newMaterials===undefined?{}:{materials:newMaterials}),
+    ...(x.artstyle===undefined?{}:{artstyle:x.artstyle})},id,lookup);
 }
