@@ -200,7 +200,7 @@ test('preview serves the exact verified baked terrain without invoking a GET bui
       const revision=lib.mapWorkspace()!.getRevision();
       const headers={'X-Project-Id':'world','If-Match':'"'+revision+'"'};
       const nonexistent='a'.repeat(64);
-      const url=key=>base+'/api/projects/active/scenes/world/bundles/'+key+'/terrain.glb';
+      const url=(key:string)=>base+'/api/projects/active/scenes/world/bundles/'+key+'/terrain.glb';
       assert.equal((await fetch(url(nonexistent),{headers})).status,404);
       const built=await fetch(base+'/api/projects/active/scenes/world/build',{
         method:'POST',headers:{...headers,Origin:base},
