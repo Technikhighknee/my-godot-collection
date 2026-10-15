@@ -74,7 +74,7 @@ test('flatten uses initial brush elevation and smoothing is order-independent pe
   for (const value of doc.height.data) assert.ok(value >= 0 && value <= 1);
 });
 
-test('multi-file save publishes new immutable assets, updates manifest, retains original maps', async () => {
+test('multi-file save publishes immutable images and retains original maps', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'map-terrain-assets-'));
   try {
     const src = '../map_system/coastal_relief.map.json';
@@ -85,8 +85,6 @@ test('multi-file save publishes new immutable assets, updates manifest, retains 
     const originalMap = await readFile(mapFile);
     const oldHeight = await readFile(join(temp, doc.map.terrain.heightmap));
     const oldSurface = await readFile(join(temp, doc.map.terrain.surface_map));
-    const manifest = { files: ['coastal_relief.map.json', doc.map.terrain.heightmap, doc.map.terrain.surface_map] };
-    await writeFile(join(temp, 'manifest.json'), JSON.stringify(manifest));
     const store = await RoadStore.open(mapFile, doc);
     const oldRevision = store.getRevision();
     const heights = new Float32Array(doc.heights.data);
@@ -95,8 +93,8 @@ test('multi-file save publishes new immutable assets, updates manifest, retains 
     surfaces[100] = (surfaces[100] + 1) % doc.map.terrain.surface_palette.length;
     const next = await store.saveDocument({ roads: doc.map.roads, heights, surfaces }, oldRevision);
     assert.notEqual(next, oldRevision);
-    assert.deepEqual(await readFile(join(temp, manifest.files[1])), oldHeight);
-    assert.deepEqual(await readFile(join(temp, manifest.files[2])), oldSurface);
+    assert.deepEqual(await readFile(join(temp, doc.map.terrain.heightmap)), oldHeight);
+    assert.deepEqual(await readFile(join(temp, doc.map.terrain.surface_map)), oldSurface);
     const written = JSON.parse(await readFile(mapFile, 'utf8'));
     assert.match(written.terrain.heightmap, /\.edit-[a-f0-9]{64}\.exr$/);
     assert.match(written.terrain.surface_map, /\.edit-[a-f0-9]{64}\.png$/);
@@ -106,9 +104,8 @@ test('multi-file save publishes new immutable assets, updates manifest, retains 
     assert.equal(edited.surfaces.data[100], surfaces[100]);
     assert.deepEqual(decodeExr(await readFile(join(temp, written.terrain.heightmap))).data, heights);
     assert.deepEqual(decodeSurfacePng(await readFile(join(temp, written.terrain.surface_map))).data, surfaces);
-    const manifestNow = JSON.parse(await readFile(join(temp, 'manifest.json'), 'utf8'));
-    assert.ok(manifestNow.files.includes(written.terrain.heightmap) && manifestNow.files.includes(written.terrain.surface_map));
-    assert.ok(manifestNow.files.includes(manifest.files[1]) && manifestNow.files.includes(manifest.files[2]));
+    await assert.rejects(readFile(join(temp,'manifest.json')),/ENOENT/,
+      'A map save must not create an obsolete Godot deployment manifest');
     assert.ok((await readdir(join(temp, 'assets'))).length >= 4);
     await assert.rejects(() => store.save(doc.map.roads, oldRevision), RoadConflict);
     // Editing again must not produce filenames that grow on each save.

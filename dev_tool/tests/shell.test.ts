@@ -193,7 +193,7 @@ test('server ownership stays at the Dev Tool root, not inside the Map Editor',()
   assert.match(host,/createDevToolServer/);
   assert.ok(host.includes("path.startsWith('/tools/')"));
   assert.doesNotMatch(host,/MapWorkspace|RoadStore|validateDocument/);
-  assert.match(startup,/createDevToolServer\(api\)/);
+  assert.match(startup,/createDevToolServer\(createProjectRouter\(library,definitions\)\)/);
   assert.match(mapApi,/createMapEditorHandler/);
   assert.doesNotMatch(mapApi,/\/tools\/asset-procgen|\/vendor\/three|staticRoutes/);
 });
