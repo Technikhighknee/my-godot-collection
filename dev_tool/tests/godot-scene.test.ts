@@ -53,7 +53,7 @@ test('Godot scene instantiates reused GLBs with stable relative paths and map tr
     assert.ok(first.directory.endsWith(join('exports','godot-scenes','world')));
     const tscn=await readFile(join(first.directory,'world.tscn'),'utf8');
     assert.doesNotMatch(tscn,/^#/m,'Godot text scenes do not accept hash comments');
-    assert.match(tscn,/\[gd_scene load_steps=2 format=3\]/);
+    assert.match(tscn,/\[gd_scene load_steps=3 format=3\]/);
     assert.equal(tscn.match(/\[ext_resource type="PackedScene"/g)?.length,1);
     assert.equal(tscn.match(/instance=ExtResource\("model_1"\)/g)?.length,2);
     assert.match(tscn,/path="assets\/oak\/oak.glb"/);
@@ -124,7 +124,8 @@ test('serializer escapes arbitrary semantic names and rejects unverified model p
     assetPlanKey:null,mapFile:'maps/world.map.json',
     terrain:{heightmap:'maps/assets/world.height.exr',
       surfaceMap:'maps/assets/world.surface.png'},
-    resources:[],files:[],placements:[{
+    geometry:{terrain:'geometry/terrain.glb'},
+    resources:[],files:[{path:'geometry/terrain.glb',bytes:100,sha256:'b'.repeat(64)}],placements:[{
       id:'strange"\nnode',kind:'object',definition:'object."sample"',
       source:'game-definition',position:[1,2,3],rotationDegrees:360,
     }],

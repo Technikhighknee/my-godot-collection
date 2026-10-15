@@ -39,19 +39,37 @@ export function serializeGodotScene(manifest:SceneBundleManifest):Buffer{
   }
   const paths=[...selections].sort();
   const ids=new Map(paths.map((path,index)=>[path,'model_'+(index+1)]));
+  const geometryEntries=[
+    ['Terrain',manifest.geometry?.terrain],
+    ['Roads',manifest.geometry?.roads],
+    ['Water',manifest.geometry?.water],
+  ].filter((x):x is [string,string]=>typeof x[1]==='string');
+  if(!geometryEntries.length||geometryEntries[0][1]!=='geometry/terrain.glb')
+    throw Error('Portable scene lacks baked terrain geometry');
+  for(const [kind,path] of geometryEntries){
+    if(path!=='geometry/'+kind.toLowerCase()+'.glb'||!manifest.files.some(x=>x.path===path))
+      throw Error('Portable scene contains invalid baked '+kind+' geometry');
+  }
   const lines=[
-    '[gd_scene load_steps='+String(paths.length+1)+' format=3]',
+    '[gd_scene load_steps='+String(paths.length+geometryEntries.length+1)+' format=3]',
     '',
   ];
   for(const path of paths)
     lines.push('[ext_resource type="PackedScene" path='+quoted(path)+
       ' id='+quoted(ids.get(path)!)+']');
+  for(const [kind,path] of geometryEntries)
+    lines.push('[ext_resource type="PackedScene" path='+quoted(path)+
+      ' id='+quoted('geom_'+kind.toLowerCase())+']');
   lines.push('','[node name='+quoted(manifest.mapId)+' type="Node3D"]',
     'metadata/map_source = '+quoted(manifest.mapFile),
     'metadata/map_heightmap = '+quoted(manifest.terrain.heightmap),
     'metadata/map_surface_map = '+quoted(manifest.terrain.surfaceMap),
     'metadata/map_bundle_key = '+quoted(manifest.key),'',
-    '[node name="Buildings" type="Node3D" parent="."]','',
+    '[node name="Geometry" type="Node3D" parent="."]');
+  for(const [kind] of geometryEntries)
+    lines.push('','[node name='+quoted(kind)+' parent="Geometry" instance=ExtResource('+
+      quoted('geom_'+kind.toLowerCase())+')]');
+  lines.push('','[node name="Buildings" type="Node3D" parent="."]','',
     '[node name="Objects" type="Node3D" parent="."]');
   for(const [index,placement] of manifest.placements.entries()){
     const kind=placement.kind==='building'?'Buildings':'Objects';

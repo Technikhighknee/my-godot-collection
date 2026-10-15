@@ -31,6 +31,36 @@ This does not change the contract that executable workflows only exist on
 the permanent `CI` branch, or claim to exercise full gameplay/terrain
 rendering. The test fixture itself belongs to the versioned source commit.
 
+## Architecture decision: OFFLINE map geometry (current)
+
+The Map Editor remains the **authoritative editable source** for heights,
+categorical surfaces, roads, water definitions and object placements.
+The Dev Tool's headless production pipeline now converts these sources to
+**finished glTF binary meshes and textures** before Godot sees the map:
+`geometry/terrain.glb`, plus `geometry/roads.glb` and
+`geometry/water.glb` when present. Terrain and water use existing shared
+JavaScript geometric algorithms; roads are baked against the same terrain
+triangle grid. The terrain GLB embeds a nearest-filtered categorical albedo
+texture, initially using the editor's palette colors (a valid preview
+material, not the final authored Art Direction). The mesh is marked `-col`
+so Godot creates a static collision resource **at import time**.
+
+The portable scene-bundle producer owns the baked geometry and its hashes;
+the Godot adapter merely references these GLBs as PackedScenes. Thus
+**Godot runtime does not load map source JSON or generate procedural map
+geometry**. Archived JSON/EXR/PNG remain in the exported artifact only as
+authoring/provenance inputs. The old MapSystem/GDScript geometry path
+remains in the repository as legacy code but is not part of the active
+scene-export pipeline and is not an integration requirement.
+
+Headless engine verification imports the GLBs and loads the final `.tscn`,
+asserting mesh geometry, collision, textured terrain, roads, water and
+placed asset transforms. The next stages can replace the simple baked
+palette with production materials, add performance-focused mesh chunking
+and make Godot-side import options explicit without reverting to runtime
+authoring algorithms. Engine import-time collision conversion is permitted:
+it does not regenerate terrain from heightmaps during play.
+
 ## Public HTTP layout
 
 The HTTP server resolves public files by their owning directories, never by

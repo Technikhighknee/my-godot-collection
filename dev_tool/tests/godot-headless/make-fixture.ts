@@ -82,13 +82,8 @@ async function main(){
       join(output,'verify_scene.gd'));
     await copyFile(fileURLToPath(new URL('./verify_map.gd',import.meta.url)),
       join(output,'verify_map.gd'));
-    // Load the *real* Godot Map System scripts, not CI-only substitutes.
-    // This fixture is intentionally independent of the package's example
-    // maps, which can be changed without covering the exported project.
-    const mapSystem=fileURLToPath(new URL('../../../map_system/',import.meta.url));
-    for(const section of ['core','io','terrain','rendering'])
-      await cp(join(mapSystem,section),join(output,'map_system',section),
-        {recursive:true});
+    // Offline geometry is already part of world.tscn. CI deliberately does
+    // NOT install or invoke the former Godot Map System runtime scripts.
     console.log('Godot scene fixture generated at '+output);
     console.log('Bundle fingerprint: '+exported.manifest.sourceKey);
   }finally{await rm(temp,{recursive:true,force:true});}

@@ -94,6 +94,25 @@ rejects manually modified package files rather than silently deleting
 your edits. This exports files for Godot; it does not write into an external
 Godot project or generate `.tscn` scenes automatically.
 
+## Offline-built maps (current architecture)
+
+The Map Editor's JSON, heightmap, surface map, roads and water are **editable
+source inputs**, not something the game must convert to geometry on load.
+A scene build now bakes glTF meshes under `geometry/`:
+
+- `terrain.glb`: world-space vertices, embedded categorical surface
+  albedo, and a Godot-recognized static collision import tag
+- `roads.glb`: clipped, terrain-conforming road surfaces, if present
+- `water.glb`: already triangulated, source-connected water, if present
+
+The same geometry files are embedded in the exported Godot scene package.
+The `.tscn` instances the GLBs as ordinary PackedScenes alongside the
+already-baked model placements. **No Godot MapSystem loader or runtime map
+mesh generator is required** for these exported scenes. Source JSON and
+images are included for provenance/editing only. Terrain's current palette
+material is a basic baked baseline, not yet final art-directed terrain
+texturing. The engine is exercised in CI, including import-time collision.
+
 ## Export a Godot 4 placement scene
 
 Use **Export Godot** beside a saved map in Studio, or from `dev_tool/`:

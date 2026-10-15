@@ -23,6 +23,7 @@ function allowedPath(name:string,id:string){
   if(parts.some(part=>part===''||part==='.'||part==='..'||
     part.includes('\\')||part.includes(':')))return false;
   return name===id+'.tscn'||name==='maps/'+id+'.map.json'||
+    /^geometry\/(terrain|roads|water)\.glb$/.test(name)||
     (parts[0]==='maps'&&parts.length>2&&
       (name.endsWith('.exr')||name.endsWith('.png')))||
     /^assets\/[a-z0-9][a-z0-9_-]{0,47}\/[a-z0-9][a-z0-9_-]*(?:--[a-z][a-z0-9_-]*)?\.(?:glb|png)$/.test(name);

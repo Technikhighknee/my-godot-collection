@@ -124,7 +124,7 @@ jobs:
           fi
           grep -F "GODOT INTEGRATION PASSED" "$RUNNER_TEMP/godot-scene-test.log"
 
-      - name: Godot Map System loads and renders the exported map
+      - name: Godot imports and verifies prebaked map geometry
         if: ${{ !cancelled() && steps.godot.outcome == 'success' }}
         shell: bash
         run: |
@@ -132,7 +132,7 @@ jobs:
           "$GODOT_BINARY" --headless --path "$RUNNER_TEMP/godot-scene-fixture" \
             --script res://verify_map.gd 2>&1 | tee "$RUNNER_TEMP/godot-map-test.log"
           if grep -E '(^|[[:space:]])(ERROR:|SCRIPT ERROR:)' "$RUNNER_TEMP/godot-map-test.log"; then
-            echo "::error::Godot Map System runtime reported errors"
+            echo "::error::Godot offline map geometry reported errors"
             exit 1
           fi
-          grep -F "MAP SYSTEM INTEGRATION PASSED" "$RUNNER_TEMP/godot-map-test.log"
+          grep -F "OFFLINE MAP EXPORT PASSED" "$RUNNER_TEMP/godot-map-test.log"

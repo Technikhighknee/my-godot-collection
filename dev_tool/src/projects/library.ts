@@ -352,7 +352,7 @@ export class ProjectLibrary {
         !finalDoc.png.equals(serialized.png))
         throw Error('Map terrain changed during scene build: '+mapId);
       return publishSceneBundle(this.requireActive(),plan,serialized,
-        doc.map.terrain.heightmap,doc.map.terrain.surface_map,build);
+        doc.map.terrain.heightmap,doc.map.terrain.surface_map,build,doc);
   }
   async buildScene(mapId:string){
     return this.enqueue(()=>this.buildSceneInternal(mapId));

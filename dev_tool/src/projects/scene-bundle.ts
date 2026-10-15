@@ -6,6 +6,8 @@ import {lstat,mkdir,readFile,readdir,writeFile,rename,rm} from 'node:fs/promises
 import {dirname,join} from 'node:path';
 import type {BuildResult} from './build.ts';
 import type {ScenePlan,ScenePlacement} from './scene-plan.ts';
+import type {MapDocument} from '../../tools/map-editor/src/core/map.ts';
+import {bakeMapBinaries} from './map-glb.ts';
 
 export interface SceneBundleFile {path:string;bytes:number;sha256:string}
 export interface SceneBundleResource {
@@ -19,6 +21,7 @@ export interface SceneBundleManifest {
   mapId:string;key:string;assetPlanKey:string|null;
   mapFile:string;
   terrain:{heightmap:string;surfaceMap:string};
+  geometry:{terrain:string;roads?:string;water?:string};
   resources:SceneBundleResource[];
   placements:SceneBundlePlacement[];
   files:SceneBundleFile[];
@@ -101,7 +104,7 @@ function modelFile(id:string,files:readonly {file:string}[]):string {
 export async function publishSceneBundle(projectDir:string,plan:ScenePlan,
   map:{json:Buffer;exr:Buffer;png:Buffer},
   heightmap:string,surfaceMap:string,
-  build:BuildResult|null):Promise<SceneBundleResult>{
+  build:BuildResult|null,doc:MapDocument):Promise<SceneBundleResult>{
   if(!validId.test(plan.mapId)||!validRelative(heightmap)||
     !validRelative(surfaceMap)||heightmap===surfaceMap)
     throw Error('Invalid scene map paths');
@@ -130,6 +133,11 @@ export async function publishSceneBundle(projectDir:string,plan:ScenePlan,
   add(mapFile,map.json);
   add('maps/'+heightmap,map.exr);
   add('maps/'+surfaceMap,map.png);
+  const baked=bakeMapBinaries(doc);
+  const geometry:SceneBundleManifest['geometry']={terrain:'geometry/terrain.glb'};
+  add(geometry.terrain,baked.terrain);
+  if(baked.roads){geometry.roads='geometry/roads.glb';add(geometry.roads,baked.roads);}
+  if(baked.water){geometry.water='geometry/water.glb';add(geometry.water,baked.water);}
   const buildRoot=join(projectDir,'build','assets');
   const resources:SceneBundleResource[]=[];
   for(const artifact of artifacts){
@@ -149,14 +157,15 @@ export async function publishSceneBundle(projectDir:string,plan:ScenePlan,
   }
   // Canonical map payloads and *transitive* asset keys determine the scene.
   // Unrelated project assets must never invalidate this scene.
-  const key=digest(Buffer.from(JSON.stringify({schema:1,mapId:plan.mapId,
-    files:files.slice(0,3).map(({path,sha256})=>({path,sha256})),
+  const key=digest(Buffer.from(JSON.stringify({schema:2,mapId:plan.mapId,
+    files:files.filter(file=>file.path.startsWith('maps/')||
+      file.path.startsWith('geometry/')).map(({path,sha256})=>({path,sha256})),
     assets:resources.map(({id,key})=>({id,key}))})));
   const manifest:SceneBundleManifest={
     format:'devtool-scene-bundle',version:1,mapId:plan.mapId,key,
     assetPlanKey:build?.planKey??null,mapFile,
     terrain:{heightmap:'maps/'+heightmap,surfaceMap:'maps/'+surfaceMap},
-    resources,placements,files,
+    geometry,resources,placements,files,
   };
   const buildDir=join(projectDir,'build');
   await safeDirectory(buildDir);

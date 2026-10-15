@@ -46,14 +46,12 @@ executable GitHub Actions workflow**. The authoritative, versioned workflow is
   `ERROR:`/`SCRIPT ERROR:` lines. This is a real engine import and
   instantiate gate, not just textual assertions about `.tscn`.
   It does **not** test gameplay or a packaged exported game.
-- A second Godot `SceneTree` test runs the **real Map System GDScript
-  package** copied directly from `map_system/{core,io,terrain,rendering}/`
-  into the fixture. It reads the same exported JSON/EXR/PNG through
-  `GameMapLoader`, builds terrain with visual mesh and collider plus
-  authored road and terrain-derived water through `GameMapBuilder`,
-  and compares map-runtime placement transforms to the exported
-  `.tscn`. These are engine-runtime checks, not screenshots. Their
-  failure is an isolated CI failure.
+- A second Godot `SceneTree` check now loads the **finished
+  offline-baked map geometry GLBs** from the exported scene, verifying
+  terrain meshes, imported categorical texture, static collision generated
+  from the tagged mesh at import time, plus baked road/water meshes.
+  It intentionally does **not** copy or call the obsolete Map System
+  runtime geometry generator. A failure is an isolated CI failure.
 
 
 - Record the tested SOURCE SHA, the overlay CI SHA, the workflow run
