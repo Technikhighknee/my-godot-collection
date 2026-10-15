@@ -7,6 +7,7 @@ import {createSeedState,parseSeed,updateComponentSeed,updateMasterSeed}
 import {createModelViewport} from './viewport-3d.mjs';
 import {createImageViewport} from './viewport-2d.mjs';
 import {createAssetLibrary} from './asset-library.mjs';
+import {planBuildingMaterialSet} from './building-material-set.mjs';
 import {emptyProjectArtDirection,resolveProjectArtstyle}
   from './artstyles/project-art-direction.mjs';
 
@@ -152,7 +153,8 @@ function renderArtstyleControls(){
   row.hidden=available.length<2;
   select.replaceChildren();
   const implicit=document.createElement('option');
-  implicit.value='';implicit.textContent='Generator original (legacy recipe)';
+  implicit.value = '';
+  implicit.textContent = 'Use project / generator defaults';
   select.append(implicit);
   for(const style of available){
     const choice=document.createElement('option');
@@ -175,6 +177,30 @@ byId('assetArtstyle').addEventListener('change',event=>{
 });
 function renderBuildingControls(){
   const show=isBuilding();
+  if (show) {
+    const styles = byId('buildingMaterialStyle');
+    const previous = styles.value;
+    const material = findGenerator(active.materialSlots[0].generators[0]);
+    const available = availableProductionArtstyles(material)
+      .filter(style => style.id !== 'original');
+    styles.replaceChildren();
+    for (const style of available) {
+      const option = document.createElement('option');
+      option.value = style.id + '@' + style.version;
+      option.textContent = style.label;
+      styles.append(option);
+    }
+    const defaultStyle = projectArtDirection.defaultArtstyle;
+    const inherited = defaultStyle
+      ? defaultStyle.id + '@' + defaultStyle.version
+      : 'naturalistic@1';
+    styles.value = [...styles.options].some(item => item.value === previous)
+      ? previous
+      : inherited;
+    if (!styles.value && styles.options.length) {
+      styles.selectedIndex = 0;
+    }
+  }
   byId('buildingSettings').hidden=!show;
   byId('buildingMaterials').hidden=!(active.materialSlots?.length);
   byId('buildingViewButtons').hidden=!show;
@@ -617,6 +643,44 @@ async function loadSelectedProjectAsset(){
   setRecipeDirty(false);
   assetStatus('Loaded '+entry.source.name);
 }
+
+// A style set creates five ordinary, reusable project image recipes.
+// Cloning component seeds from the current assignments preserves the exact
+// material structure when comparing art directions on the same building.
+async function createStyledBuildingMaterialSet() {
+  if (!projectId || !active.materialSlots?.length) {
+    throw Error('Open a project building to create a material set');
+  }
+  const choice = byId('buildingMaterialStyle').value;
+  const [id, version] = choice.split('@');
+  const suffix = randomSeed().toString(36).padStart(6, '0');
+  const plan = planBuildingMaterialSet(
+    active,
+    {id, version: Number(version)},
+    selectedMaterials(),
+    projectAssets,
+    suffix
+  );
+  assetStatus('Creating ' + plan.assets.length + ' shared material recipes…');
+  const result = await projectApi('/api/projects/active/assets/batch', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({assets: plan.assets}),
+  });
+  if (result.assets.length !== plan.assets.length) {
+    throw Error('Incomplete material set response');
+  }
+  materialAssignments.set(active.id, plan.materials);
+  setRecipeDirty(true);
+  await reloadProjectAssets();
+  build();
+  studioSignal({type: 'studio:project-assets-changed'});
+  assetStatus('Created ' + result.assets.length +
+    ' reusable material resources. Save the building to retain these links.');
+}
+byId('createBuildingMaterialSet').addEventListener('click', () =>
+  projectOperation(createStyledBuildingMaterialSet)
+);
 
 // Model material slots are shared project-source references, not embedded textures.
 // A material editor can be opened from the model; reseeding updates the shared

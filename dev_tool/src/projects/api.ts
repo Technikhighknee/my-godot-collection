@@ -106,6 +106,14 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
           res.end(bytes);return;
         }
       }
+      if(path==='/api/projects/active/assets/batch'){
+        if(req.method==='POST'){
+          const input=await body(req);
+          exact(input,['assets']);
+          return send(res,201,{assets:await library.createMaterialAssets(input.assets)});
+        }
+        res.writeHead(405,{Allow:'POST'});res.end();return;
+      }
       if(path==='/api/projects/active/assets'){
         if(req.method==='GET')return send(res,200,{assets:await library.assets()});
         if(req.method==='POST'){

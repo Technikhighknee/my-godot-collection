@@ -176,8 +176,14 @@ export function createModelViewport(container,onChange=()=>{}){
   function updateSurfaceTextures(images){
     for(const [slot,image] of Object.entries(images)){
       if(!image)continue;
-      const key=image.id+':'+Object.entries(image.sourceSeeds??{})
-        .map(([name,value])=>name+'='+value).join(':');
+      // Artstyle changes the pixels even when every material seed is identical.
+      // Cache identity must include the actual generation grammar.
+      const key = JSON.stringify({
+        id: image.id,
+        seeds: image.sourceSeeds ?? {},
+        artstyle: image.sourceStyle ?? 'original',
+        profiles: image.profiles ?? [],
+      });
       if(currentMaterials.get(slot)?.key===key)continue;
       const fresh={};
       try{

@@ -143,6 +143,12 @@ if(new URLSearchParams(location.search).get('embedded')==='1')
       aria-label="Shared project surface materials">
       <div class="pg-settings-title"><span>PROJECT MATERIAL TEXTURES</span></div>
       <p class="pg-building-note">Textures are saved independently. Select one for the model, or create a new shared source.</p>
+      <label for="buildingMaterialStyle">Create materials in artstyle</label>
+      <select id="buildingMaterialStyle" aria-label="Artstyle for new project materials"></select>
+      <button id="createBuildingMaterialSet" type="button">Create reusable material set</button>
+      <p class="pg-building-note">Creates one saved PBR material per slot. Existing
+        material seeds are retained for direct style comparisons; material
+        resources can be reused by other buildings.</p>
       <div id="materialSlots" aria-label="Shared material slots"></div>
       <p class="pg-building-note">Reseeding changes the selected texture for every model that references it. Save the building to persist new assignments.</p>
     </section>

@@ -292,6 +292,46 @@ export class ProjectLibrary {
       return {source,revision:hash(bytes),kind:this.lookup(source.generator.id)!.kind};
     });
   }
+  /** Save a complete set of project material recipes under one workspace lock.
+   * Validate every entry before writing; roll back our own files on failure.
+   * The ordinary single-asset source schema remains authoritative.
+   */
+  async createMaterialAssets(inputs:unknown):Promise<AssetEntry[]>{
+    return this.enqueue(async()=>{
+      if(!Array.isArray(inputs)||inputs.length<1||inputs.length>8)
+        throw Error('A material set must contain 1 to 8 recipes');
+      const seen=new Set<string>();
+      const existing=await this.assets();
+      const prepared=inputs.map(raw=>{
+        if(!raw||typeof raw!=='object'||Array.isArray(raw))
+          throw Error('Invalid material recipe');
+        const {id,...recipe}=raw as Record<string,unknown>;
+        const name=resourceId(id);
+        if(seen.has(name))throw Error('Duplicate material resource ID: '+name);
+        seen.add(name);
+        const source=createProceduralSource(recipe,name,this.lookup);
+        const def=this.lookup(source.generator.id);
+        if(def?.kind!=='image'||source.dependencies.length)
+          throw Error('A material set can only contain independent image recipes');
+        assertAssetDependencies(source,existing,this.lookup);
+        const bytes=Buffer.from(JSON.stringify(source,null,2)+'\n');
+        return {source,bytes,target:join(this.requireActive(),'assets',name+'.asset.json')};
+      });
+      const written:string[]=[];
+      try{
+        for(const item of prepared){
+          await writeFile(item.target,item.bytes,{flag:'wx'});
+          written.push(item.target);
+        }
+      }catch(error){
+        for(const path of written)await rm(path,{force:true});
+        throw error;
+      }
+      return prepared.map(({source,bytes}):AssetEntry=>({
+        source,revision:hash(bytes),kind:'image',
+      }));
+    });
+  }
   async updateAsset(id:string,input:unknown,revision:string):Promise<AssetEntry>{
     return this.enqueue(async()=>{
       id=resourceId(id);
