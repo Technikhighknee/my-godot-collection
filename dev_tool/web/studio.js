@@ -7,6 +7,7 @@ const tabs=new Map();
 let project=null,assets=[],maps=[],graph={edges:[],missing:[]},activeMap=null;
 let artDirectionSource=null,artDirectionRevision=null,artDirectionDirty=false;
 let artDirectionDefinitions=null;
+let buildingProject=false;
 let selected=null,activeTab='overview',mode='explorer',collapsed=false;
 let pendingPlacement=null,pendingNewMap=false,blocked=false,requesting=false;
 const cacheKey='devtool.studio.openTabs';
@@ -411,6 +412,32 @@ async function saveProjectArtDirection(){
     },location.origin);
 }
 
+async function buildWholeProject(){
+  if(buildingProject||!project||!assets.length)return;
+  if(!(await verifyProject()))return;
+  buildingProject=true;
+  const button=byId('buildProject'),caption=byId('buildProjectCaption');
+  button.disabled=true;
+  caption.textContent='Building production artifacts…';
+  setStatus('BUILDING PROJECT ASSETS');
+  try{
+    const result=await api('/api/projects/active/builds',{
+      method:'POST',headers:{'X-Project-Id':project.id},
+    });
+    const report=result.built+' generated · '+result.reused+' reused · '+
+      result.artifacts.length+' artifacts';
+    caption.textContent=report;
+    byId('statusRight').textContent='PROJECT BUILD · '+report.toUpperCase();
+    setStatus('PROJECT BUILD COMPLETE');
+  }catch(error){
+    showError('Project build failed: '+error.message);
+    caption.textContent='Build failed · retry';
+  }finally{
+    buildingProject=false;
+    button.disabled=assets.length===0||blocked;
+  }
+}
+
 async function refreshResources(check=true){
   if(blocked||!project)return;
   if(check&&!(await verifyProject()))return;
@@ -426,6 +453,9 @@ async function refreshResources(check=true){
     }
     maps=mapResult.maps.map(map=>({...map,kind:'map'}));
     assets=assetResult.assets.map(a=>({...a,name:a.source.name}));
+    byId('buildProject').disabled=buildingProject||assets.length===0;
+    if(!buildingProject)byId('buildProjectCaption').textContent=assets.length?
+      assets.length+' project assets · incremental':'No saved assets to build';
     graph=graphResult;
     activeMap=maps.find(m=>m.active)||null;
     if(selected){
@@ -568,6 +598,9 @@ byId('openMap').addEventListener('click',()=>{
 });
 byId('createAsset').addEventListener('click',()=>openCatalog().catch(e=>showError(e.message)));
 byId('openStyleStudy').addEventListener('click',openStyleStudy);
+byId('buildProject').addEventListener('click',()=>{
+  buildWholeProject().catch(error=>showError(error.message));
+});
 byId('newResource').addEventListener('click',()=>{
   if(mode==='generators'){openCatalog().catch(e=>showError(e.message));return;}
   newMap().catch(e=>showError(e.message));

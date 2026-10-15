@@ -311,20 +311,24 @@ export class ProjectLibrary {
     await this.queue;
     return planAssetBuild(await this.effectiveAssets(),only);
   }
-  // Called only inside the serialized project operation queue. A single
-  // build path serves both direct baking and target-specific publication.
-  private async buildOneAsset(id:string){
+  // Both single-root and all-project builds resolve effective Art Direction
+  // and the transitive DAG once inside the same serialized project operation.
+  // Production is always delegated to the existing content-addressed baker.
+  private async buildAssets(only?:readonly string[]){
     const entries=await this.effectiveAssets();
-    const plan=planAssetBuild(entries,[id]);
+    const plan=planAssetBuild(entries,only);
     return produceBuild(this.requireActive(),plan,entries,
       importedId=>this.importedBytes(importedId),
-      async resourceId=>(await this.asset(resourceId)).revision);
+      async assetId=>(await this.asset(assetId)).revision);
   }
   async buildAsset(id:string){
-    return this.enqueue(()=>this.buildOneAsset(resourceId(id)));
+    return this.enqueue(()=>this.buildAssets([resourceId(id)]));
+  }
+  async buildProject(){
+    return this.enqueue(()=>this.buildAssets());
   }
   private async exportOneAsset(id:string){
-    const result=await this.buildOneAsset(id);
+    const result=await this.buildAssets([id]);
     return publishGodotPackage(this.requireActive(),id,result);
   }
   async exportGodot(id:string){

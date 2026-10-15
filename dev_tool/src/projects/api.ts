@@ -128,6 +128,11 @@ export function createProjectHandler(library:ProjectLibrary):ToolApiHandler{
         const id=query.get('asset');
         return send(res,200,await library.buildPlan(id?[id]:undefined));
       }
+      if(path==='/api/projects/active/builds'){
+        if(req.method==='POST')
+          return send(res,200,await library.buildProject());
+        res.writeHead(405,{Allow:'POST'});res.end();return;
+      }
       const buildMatch=/^\/api\/projects\/active\/builds\/([a-z0-9_-]+)$/.exec(path);
       if(buildMatch&&req.method==='POST')
         return send(res,200,await library.buildAsset(buildMatch[1]));

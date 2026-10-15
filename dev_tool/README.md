@@ -94,6 +94,22 @@ rejects manually modified package files rather than silently deleting
 your edits. This exports files for Godot; it does not write into an external
 Godot project or generate `.tscn` scenes automatically.
 
+## Build all project assets
+
+Use **Build project assets** in the Studio overview, or run from `dev_tool/`:
+
+```bash
+npm run build:project
+npm run build:project -- --projects-dir /path/to/project-root
+```
+
+The command builds all saved procedural and imported assets in the active
+project, resolving shared material dependencies once and reusing verified
+cached outputs. It reports the project plan key, generated versus reused
+resources and each output directory. The project-wide build does not yet
+assemble map placements into a Godot scene; single-resource Godot export and
+sync remain separate operations.
+
 ## Synchronizing directly to Godot
 
 In **Asset ProcGen → Project assets**, select a saved resource and enter the

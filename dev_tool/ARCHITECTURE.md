@@ -24,6 +24,29 @@ prevent symlink escape. Project APIs are dispatched separately. Root-level Map
 Editor aliases and extensionless Studio URLs are intentionally not supported;
 the editors use canonical paths.
 
+## Complete project builds
+
+A project build uses the **same** versioned dependency planner and production
+baker as an individual asset build. The planner selects all saved source
+resources, applies effective project Art Direction without rewriting recipes,
+resolves transitive dependencies and emits one deterministic, ordered DAG.
+Each node is generated at most once. Unchanged nodes reuse verified,
+content-addressed artifacts; imported sources are revalidated even on cache
+hits. The build result reports its plan key plus generated/reused counts.
+
+`ProjectLibrary.buildProject()` is the sole project-wide build coordinator:
+its serialized operation covers the complete graph and all source revision
+checks. `buildAsset(id)` and Godot exports call the same private production
+path with a limited set of roots. The API exposes `POST
+/api/projects/active/builds` (project-bound, same-origin write), alongside
+the existing `POST /api/projects/active/builds/:id`. Read requests never
+initiate production. Headless users run `npm run build:project`; Studio offers
+a single action on the project overview.
+
+This builds **all saved asset resources**, not yet an assembled map/scene or
+a full Godot scene export. Invalid dependencies and absent sources cause an
+explicit failure; empty projects do not claim a successful build.
+
 ## Ownership boundaries
 
 | Owner | Knows | Must not own |
