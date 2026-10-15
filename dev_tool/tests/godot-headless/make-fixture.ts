@@ -58,6 +58,10 @@ async function main(){
     const library=await ProjectLibrary.open(temp,undefined,findGenerator);
     await library.create('world','Godot CI world');
     await library.importAsset('fixture-tree','Triangle model','glb',triangleGlb());
+    await library.createAsset('fixture-material',{
+      name:'Fixture PBR surface',generator:'roof-clay',masterSeed:19,
+      components:{pattern:19,color:47},
+    });
     const mapFile=join(temp,'world','maps','world.map.json');
     const map=JSON.parse(await readFile(mapFile,'utf8'));
     map.objects=[
@@ -67,6 +71,9 @@ async function main(){
     ];
     // Real Map System coverage: collision-bearing terrain, a road overlay
     // and terrain-derived sea geometry, all from the exported map source.
+    map.terrain.surface_materials={
+      [map.terrain.surface_palette[0]]:{asset:'asset:fixture-material',tile_size:4},
+    };
     map.roads=[{id:'ci_road',definition:'road.gravel',width:3,
       points:[[8,10],[90,10]]}];
     map.water=[{id:'ci_sea',definition:'water.sea',height:1}];

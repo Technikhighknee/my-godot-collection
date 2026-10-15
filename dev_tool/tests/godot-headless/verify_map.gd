@@ -71,11 +71,11 @@ func _initialize() -> void:
 		scene.free()
 		return
 	var pbr := terrain_material as BaseMaterial3D
-	if pbr.albedo_texture == null:
-		fail("Offline terrain albedo texture is missing")
+	if pbr.albedo_texture == null or pbr.normal_texture == null or pbr.roughness_texture == null:
+		fail("Shared project PBR maps did not import into the offline terrain")
 		scene.free()
 		return
 
-	print("OFFLINE MAP EXPORT PASSED: imported terrain, albedo, static collider, roads, water; no runtime geometry builder")
+	print("OFFLINE MAP EXPORT PASSED: imported terrain, project PBR maps, static collider, roads, water; no runtime geometry builder")
 	scene.free()
 	quit(0)

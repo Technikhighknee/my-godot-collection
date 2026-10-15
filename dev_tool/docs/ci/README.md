@@ -48,7 +48,7 @@ executable GitHub Actions workflow**. The authoritative, versioned workflow is
   It does **not** test gameplay or a packaged exported game.
 - A second Godot `SceneTree` check now loads the **finished
   offline-baked map geometry GLBs** from the exported scene, verifying
-  terrain meshes, imported categorical texture, static collision generated
+  terrain meshes, imported project PBR material channels, static collision generated
   from the tagged mesh at import time, plus baked road/water meshes.
   It intentionally does **not** copy or call the obsolete Map System
   runtime geometry generator. A failure is an isolated CI failure.
