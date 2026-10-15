@@ -189,7 +189,9 @@ export function buildSurfaceTransitions(doc:MapDocument):SurfaceTransition[]{
           data.positions.push(px,heightAt(doc,px,pz)+0.025,pz);
           data.uv.push(px/sx,1-pz/sz);
           const dist=Math.abs((axis==='x'?px:pz)-seam);
-          data.opacity.push(0.5*Math.max(0,1-dist/halfWidth));
+          // Exact transparent/half-mixed endpoints despite clip float error.
+          const blend=Math.max(0,Math.min(1,1-dist/halfWidth));
+          data.opacity.push(blend<1e-6?0:blend>1-1e-6?0.5:blend*0.5);
         }
       }
     }
