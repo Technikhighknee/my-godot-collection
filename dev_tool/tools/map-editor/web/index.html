@@ -91,13 +91,16 @@ terrain.rock</textarea>
 <button class="view-button" id="resetCamera" title="Focus map (F)" type="button">Focus <kbd>F</kbd></button>
 </div><aside aria-label="Display layers" class="floating-panel utility-panel" hidden="" id="viewPanel"><div class="floating-head"><div><span class="eyebrow">DISPLAY</span><h2>Layers</h2></div><button aria-label="Close layers" class="icon-button" id="closeView" type="button">×</button></div><section class="layers">
 <h3>DISPLAY LAYERS</h3>
-<label class="switch"><input checked="" id="surfaces" type="checkbox"/><span>Surface palette</span><small>Color preview</small></label>
+<label class="switch"><input checked="" id="surfaces" type="checkbox"/><span>Terrain surface colors</span><small>Palette / baked PBR</small></label>
 <label class="switch"><input id="wireframe" type="checkbox"/><span>Terrain wireframe</span><small>Triangle grid</small></label>
 <label class="switch"><input checked="" id="roads" type="checkbox"/><span>Roads</span><small id="roadsCount">—</small></label>
 <label class="switch"><input checked="" id="water" type="checkbox"/><span>Water</span><small id="waterCount">—</small></label>
 <label class="switch"><input checked="" id="settlements" type="checkbox"/><span>Build areas</span><small id="settlementsCount">—</small></label>
 <label class="switch"><input checked="" id="entities" type="checkbox"/><span>Entity markers</span><small id="entitiesCount">—</small></label>
-</section><section class="legend"><h3>SURFACE DEFINITIONS</h3><div class="palette" id="palette"></div></section></aside><aside aria-label="Editing preferences" class="floating-panel utility-panel" hidden="" id="settingsPanel"><div class="floating-head"><div><span class="eyebrow">PREFERENCES</span><h2>Snap &amp; precision</h2></div><button aria-label="Close grid settings" class="icon-button" id="closeSettings" type="button">×</button></div><section class="workflow-editor">
+</section><section class="legend"><h3>PRODUCTION TERRAIN</h3>
+<button id="previewBakedTerrain" type="button" disabled aria-pressed="false">Preview baked terrain</button>
+<p class="point-info">Builds the saved map once and previews the exact terrain GLB used by Godot. Finish and save edits first. Selecting an editing tool restores the editable view.</p>
+<h3>SURFACE DEFINITIONS</h3><div class="palette" id="palette"></div></section></aside><aside aria-label="Editing preferences" class="floating-panel utility-panel" hidden="" id="settingsPanel"><div class="floating-head"><div><span class="eyebrow">PREFERENCES</span><h2>Snap &amp; precision</h2></div><button aria-label="Close grid settings" class="icon-button" id="closeSettings" type="button">×</button></div><section class="workflow-editor">
 <h3>EDITING WORKFLOW</h3>
 <label class="switch"><input id="gridSnap" type="checkbox"/><span>Snap to grid</span><small>Alt bypass</small></label>
 <label class="editor-label" for="gridStep">GRID SPACING (METERS)</label>
