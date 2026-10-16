@@ -1,0 +1,8 @@
+{
+  "files": [
+    "InventorySlot.gd",
+    "Inventory.gd",
+    "InventoryTransfer.gd",
+    "README.md"
+  ]
+}

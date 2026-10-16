@@ -8,6 +8,7 @@ Some Godot bits and bobs.
 - [Selection System](selection_system/) — selection, marquee, and right-click targeting for 3D world objects.
 - [Movement System](movement_system/) — ground navigation and walking for 3D characters.
 - [Action System](action_system/) — available measures, target requirements, and execution lifecycle.
+- [Inventory System](inventory_system/) — slot-based storage and atomic transfers; all capacities supplied by the game.
 
 ## Deploy tool
 
@@ -24,7 +25,8 @@ chooses the installed folder names, and `deploy.py` installs **entire packages**
     "strategy_camera": "StrategyCamera",
     "selection_system": "SelectionSystem",
     "movement_system": "MovementSystem",
-    "action_system": "ActionSystem"
+    "action_system": "ActionSystem",
+    "inventory_system": "InventorySystem"
   }
 }
 ```
@@ -36,7 +38,8 @@ python .\tools\deploy.py C:\Users\posch\Documents\1400\manifest.json -y
 ```
 
 installs `packages/StrategyCamera/`, `packages/SelectionSystem/`,
-`packages/MovementSystem/` and `packages/ActionSystem/` in that Godot project.
+`packages/MovementSystem/`, `packages/ActionSystem/`, and
+`packages/InventorySystem/` in that Godot project.
 Names and casing come from the values in the manifest; the keys identify repository packages.
 Manifest values are single folder names, not arbitrary paths. Files in the package are
 installed with their internal relative layout intact.
