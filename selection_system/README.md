@@ -55,8 +55,10 @@ Change the callback or call `clear_selection()` when game rules change.
   when a world collider is hit. Nothing is emitted without a selection.
   A right click never changes the selection.
 
-The system reads events in `_unhandled_input` (so UI can consume clicks first)
-and executes physics picking in `_physics_process`. It sends `marquee_changed(rect, active)` for an optional UI
+The system reads selection and right-button presses in `_unhandled_input`
+(so UI can consume those presses first), but observes right-button release
+in `_input` before StrategyCamera can consume it. Releases over GUI controls
+are ignored. Physics picking runs in `_physics_process`. It sends `marquee_changed(rect, active)` for an optional UI
 overlay. World-location targeting requires a world collider; it doesn't invent
 a ground plane. Marquee selection is screen-anchor based, not a 3D volume or
 occlusion test.
