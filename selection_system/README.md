@@ -50,7 +50,7 @@ Change the callback or call `clear_selection()` when game rules change.
 - Left drag: select eligible targets whose **marquee anchors** fall within the
   screen rectangle. Shift/Ctrl + drag adds to an existing eligible selection.
   Drag does not automatically draw a rectangle.
-- Short right click with a nonempty selection: `target_requested(subject)`
+- Right click (not a camera pan) with a nonempty selection: `target_requested(subject)`
   when a selectable marker is hit; otherwise `location_requested(world_position)`
   when a world collider is hit. Nothing is emitted without a selection.
   A right click never changes the selection.
@@ -65,10 +65,10 @@ occlusion test.
 
 ## Strategy Camera integration
 
-`StrategyCamera` pans after a right-button hold of 120 ms. The selection
-system accepts only a **shorter** right click (default < 120 ms) and ignores
-pointer drags, leaving RMB events unconsumed for the camera. If the camera's
-hold delay changes, update `right_click_max_duration_msec` accordingly.
+`StrategyCamera` captures the pointer on a right-button hold to pan. The
+selection system recognizes a right click only if the pointer was **not**
+captured and the mouse was not dragged; it never imposes another time limit
+or consumes RMB events. Release is observed before the camera handles it.
 
 ## API
 
