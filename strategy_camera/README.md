@@ -32,7 +32,8 @@ The script asserts during `_ready()` if any required action is missing. As with 
 - **MMB horizontal** — rotate yaw.
 - **MMB vertical** — change tilt.
 - **RMB click** — ignored by the camera and left available to gameplay.
-- **RMB hold** — after the configurable hold delay (default 400 ms), capture the pointer and pan.
+- **RMB drag** — start panning as soon as the pointer moves at least 10 px with RMB held.
+- **RMB hold** — with a stationary pointer, pan after the configurable delay (default 300 ms).
 
 RMB panning, MMB rotation, WASD and edge scrolling are mutually exclusive where necessary; pointer capture is restored cleanly when the interaction ends, the window loses focus, or the camera leaves the scene tree.
 
@@ -59,7 +60,7 @@ WASD, edge scrolling and RMB panning all use the same yaw-relative ground axes.
 
 All panning modes use one shared pan scale derived from camera height and FOV. Below `12` units of camera height, that scale stops shrinking so close zoom remains responsive instead of turning WASD, edge scrolling, and RMB dragging into slow motion.
 
-RMB is intentionally click-safe. Pressing and releasing before the configured hold delay (400 ms by default) does nothing to the camera and is not consumed. Once the hold activates, the pointer is captured and relative mouse motion drives the pan. The hold delay is exposed as `pointer_pan_hold_delay_msec` in the inspector.
+RMB distinguishes a click from panning using **both distance and duration**. A deliberate drag starts panning immediately after crossing `pointer_pan_drag_threshold_pixels` (10 px by default; Manhattan distance). A stationary press only starts panning after `pointer_pan_hold_delay_msec` (300 ms by default). The camera never consumes a short, unmoved right click. Both thresholds can be changed in the inspector. The initial drag displacement is applied when capture begins instead of being discarded.
 
 Actual RMB pan movement breaks target following. Merely pressing or holding RMB does not.
 
@@ -159,6 +160,7 @@ Return the current tilt in degrees.
 | Pan speed | `1.5` screen-heights / second |
 | Minimum pan scale | equivalent to `12` units camera height |
 | Edge scroll margin | `24 px` |
-| RMB hold delay | `400 ms` (inspector-configurable) |
+| RMB drag threshold | `10 px` Manhattan distance (inspector-configurable) |
+| RMB stationary hold delay | `300 ms` (inspector-configurable) |
 | Mouse yaw sensitivity | `0.2° / px` |
 | Mouse tilt sensitivity | `0.2° / px` |
