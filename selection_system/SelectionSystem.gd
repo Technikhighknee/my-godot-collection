@@ -52,8 +52,6 @@ func _process(_delta: float) -> void:
 	# Releases swallowed by GUI controls must not leave stale drag state.
 	if _left_down and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		_reset_left()
-	if _right_down and not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-		_right_down = false
 
 
 func _physics_process(_delta: float) -> void:
@@ -69,6 +67,16 @@ func _physics_process(_delta: float) -> void:
 		else:
 			if not _selection.is_empty():
 				_request_target(action["position"])
+
+
+# Observe the release before StrategyCamera or other nodes can consume it.
+# The press still goes through _unhandled_input, so UI controls can block it.
+func _input(event: InputEvent) -> void:
+	if not enabled or not event is InputEventMouseButton:
+		return
+	var mouse := event as InputEventMouseButton
+	if mouse.button_index == MOUSE_BUTTON_RIGHT and not mouse.pressed:
+		_finish_right_click(mouse)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -116,16 +124,22 @@ func _mouse_button(event: InputEventMouseButton) -> void:
 		_right_origin = event.position
 		_right_pressed_msec = Time.get_ticks_msec()
 		_right_moved = false
-	elif _right_down:
-		var is_click := (
-			not event.canceled
-			and not _right_moved
-			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
-			and Time.get_ticks_msec() - _right_pressed_msec < right_click_max_duration_msec
-		)
-		_right_down = false
-		if is_click and not _selection.is_empty():
-			_pending_hits.append({"type": "target", "position": event.position})
+
+
+func _finish_right_click(event: InputEventMouseButton) -> void:
+	if not _right_down:
+		return
+
+	var is_click := (
+		not event.canceled
+		and not _right_moved
+		and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
+		and get_viewport().gui_get_hovered_control() == null
+		and Time.get_ticks_msec() - _right_pressed_msec < right_click_max_duration_msec
+	)
+	_right_down = false
+	if is_click and not _selection.is_empty():
+		_pending_hits.append({"type": "target", "position": event.position})
 
 
 func _mouse_motion(event: InputEventMouseMotion) -> void:
