@@ -54,13 +54,27 @@ Both halls instantiate **the same** `hall.tscn`. Both kitchens instantiate
 **the same** `kitchen.tscn`, but every physical world and gameplay instance
 is distinct.
 
-Each tavern starts with a persistent worker in its hall. The worker runs
-real `ActionController` executions on a Timer and uses `Inventory.add()`
-to produce test goods. Its gameplay logic is not inside a viewable room.
+Each tavern starts with a persistent worker at a **Workstation** marker
+inside its own hall. The demo assigns the worker that room instance's
+place ID and workstation position. Both taverns reuse the same scene
+template, but each worker is assigned a different actual place instance.
 
-The on-screen HUD shows per-worker location, goods, completed jobs and
-travel state. Switch views between outside, the halls and kitchens and
-verify that BOTH goods counts continue rising.
+The worker runs real `ActionController` executions on a Timer and uses
+`Inventory.add()` to produce test goods. It can start a job only when
+it is at its assigned workstation and not traveling. Starting to move
+cancels an unfinished job; a final location check prevents completion
+elsewhere. Its gameplay logic remains attached to the persistent actor,
+not to the rendered room scene.
+
+Each successful demo job adds **two goods** and increments **jobs by one**.
+Those counts are intentionally different: `jobs` counts completed work
+executions, `goods` counts produced inventory units. Aborted/failed
+jobs produce no goods.
+
+The HUD shows per-worker place, goods, completed jobs, `working`,
+`at_work`, and `traveling`. With both workers in their halls, you can
+switch between outside and other rooms and watch both goods counts
+continue increasing, even when neither workplace is visible.
 
 Kitchen portals start **locked** independently for each tavern. Use
 **Unlock A kitchen** or **Unlock B kitchen** to open that building's portal
@@ -68,18 +82,25 @@ connection. The locked kitchen instance already exists in this test, but
 the route graph prevents entry until unlocked.
 
 **A → kitchen** commands cross-room travel. **A → outside** lets a
-character walk back to the exterior. With kitchen unlocked, issue
-Outside then Kitchen to demonstrate the full exterior → hall → kitchen
-portal route. B has equivalent controls.
+character walk back to the exterior. **A → work** returns the worker
+to the exact workstation in its own hall. B has equivalent controls.
+
+Try sending A outside while B remains at its workplace: A's jobs and
+goods stop increasing, while B keeps producing. Send A back to work
+and production resumes. Merely switching camera views never affects
+either worker's production. With kitchen unlocked, issue Outside then
+Kitchen to demonstrate the full exterior → hall → kitchen portal route.
 
 Click a physical worker to select it, then right-click navigable floor
 in the current view to issue a regular movement command, not an Action.
 The scene's SelectionSystem provides targets and ground clicks; the
 PlaceTraveler owns the movement order.
 
-The simple work action can overlap with a user-requested travel; this is
-intentionally just an integration workload. Exclusive work/travel rules
-are game-defined and should be added when implementing actual production.
+A work job cannot overlap with travel in this demo. Starting travel
+cancels the active work execution, rather than letting it complete
+while the character walks away. Actual tavern production recipes,
+tool requirements and staff assignment are game-specific and not
+implemented by the reusable Place System.
 
 ## Automated smoke test
 
@@ -92,10 +113,16 @@ godot --headless --path .\examples\place_system_demo --script res://scripts/smok
 The script checks:
 - Four unique interior runtime instances, with separate navigation maps.
 - Two persistent characters with distinct physical bodies.
-- Two working ActionController/Inventory processes in unseen rooms.
+- Two workers perform ActionController/Inventory jobs at workplaces in
+  unseen rooms, with exactly two goods per completed job.
 - Kitchen portal upgrades affect only the intended building.
 - Actor identity and inventory survive hall → kitchen and
   kitchen → hall → exterior journeys.
+- Work stops while a worker is in the kitchen or outside, continues
+  in the OTHER hidden tavern, and resumes when the worker returns
+  to its designated workstation.
+- Work also stops after moving away from the workstation **inside the same
+  room** (the correct place ID alone is not sufficient).
 
 Exit code `0` means the test passed. On failure it logs a clear diagnostic
 and exits with a nonzero code.

@@ -56,8 +56,8 @@ func _ready() -> void:
 			return
 
 	# These actors execute real gameplay measures regardless of visibility.
-	_spawn(&"a_worker", &"a_hall", Vector3(-2, 0.05, 1.0))
-	_spawn(&"b_worker", &"b_hall", Vector3(2, 0.05, 1.0))
+	_spawn(&"a_worker", &"a_hall")
+	_spawn(&"b_worker", &"b_hall")
 
 	places.portal_traversed.connect(_on_portal_traversed)
 	for place_id in [&"city", &"a_hall", &"a_kitchen", &"b_hall", &"b_kitchen"]:
@@ -74,13 +74,27 @@ func _ready() -> void:
 	places.view_place(&"city")
 
 
-func _spawn(id: StringName, place_id: StringName, position: Vector3) -> void:
+func _spawn(id: StringName, place_id: StringName) -> void:
+	var place := places.get_place(place_id)
+	if place == null:
+		push_error("Demo: missing workplace place " + String(place_id))
+		return
+	var marker := place.root.get_node_or_null("Workstation") as Marker3D
+	if marker == null:
+		push_error("Demo: no Workstation marker in " + String(place_id))
+		return
+
 	var actor := PlaceActorSpawner.spawn(
 		places, game_actors, ACTOR, BODY, id,
-		PlaceLocation.new(place_id, position)
+		PlaceLocation.new(place_id, marker.global_position + Vector3.UP * 0.05)
 	)
 	if actor == null:
 		push_error("Demo: failed to spawn " + String(id))
+		return
+
+	var worker := actor.get_node("Worker")
+	if not bool(worker.call("assign_workplace", place_id, marker.global_position)):
+		push_error("Demo: could not assign workplace to " + String(id))
 		return
 	_actors[id] = actor
 
@@ -114,6 +128,8 @@ func _build_ui() -> void:
 	_button(controls, "A → outside", _travel.bind(&"a_worker", &"city", Vector3(-12, 0.05, -3)))
 	_button(controls, "B → kitchen", _travel.bind(&"b_worker", &"b_kitchen", Vector3(1, 0.05, 1)))
 	_button(controls, "B → outside", _travel.bind(&"b_worker", &"city", Vector3(12, 0.05, -3)))
+	_button(controls, "A → work", _return_to_work.bind(&"a_worker", &"a_hall"))
+	_button(controls, "B → work", _return_to_work.bind(&"b_worker", &"b_hall"))
 
 	_status_label = Label.new()
 	layout.add_child(_status_label)
@@ -154,6 +170,16 @@ func _travel(actor_id: StringName, place_id: StringName, position: Vector3) -> v
 		actor_id, place_id, "traveling" if ok else "not available"
 	]
 	_refresh_status()
+
+
+func _return_to_work(actor_id: StringName, place_id: StringName) -> void:
+	var place := places.get_place(place_id)
+	if place == null:
+		return
+	var marker := place.root.get_node_or_null("Workstation") as Marker3D
+	if marker == null:
+		return
+	_travel(actor_id, place_id, marker.global_position + Vector3.UP * 0.05)
 
 
 func _on_portal_traversed(body: Node3D, from_place: StringName, to_place: StringName) -> void:
@@ -200,9 +226,11 @@ func _refresh_status() -> void:
 		var worker: Node = actor.get_node("Worker")
 		var inventory := actor.get_node("Inventory") as Inventory
 		var traveler := actor.get_node("PlaceTraveler") as PlaceTraveler
-		lines.append("%s    place=%s    goods=%d    jobs=%d    traveling=%s" % [
+		lines.append("%s    place=%s    goods=%d    jobs=%d    working=%s    at_work=%s    traveling=%s" % [
 			id, actor.get_place_id(), inventory.get_item_quantity(&"goods"),
-			int(worker.get("completed_jobs")), traveler.is_traveling()
+			int(worker.get("completed_jobs")),
+			bool(worker.call("is_working")), bool(worker.call("is_at_workplace")),
+			traveler.is_traveling()
 		])
 	lines.append("Kitchen access: A=%s / B=%s    |    Selected=%s" % [
 		_unlocked[&"a"], _unlocked[&"b"],

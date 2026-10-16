@@ -50,6 +50,11 @@ func _run() -> void:
 	var a_inventory := a.get_node("Inventory") as Inventory
 	var b_inventory := b.get_node("Inventory") as Inventory
 	var a_actions := a.get_node("ActionController") as ActionController
+	var a_worker: Node = a.get_node("Worker")
+	var b_worker: Node = b.get_node("Worker")
+	if not bool(a_worker.call("is_at_workplace")) or not bool(b_worker.call("is_at_workplace")):
+		_fail("Both workers must spawn at their respective workplaces")
+		return
 	if a_actions.get_action(&"brew") == null:
 		_fail("Worker action was not registered")
 		return
@@ -67,6 +72,12 @@ func _run() -> void:
 		return
 	if b_inventory.get_item_quantity(&"goods") < 1:
 		_fail("Hidden tavern B worker did not complete gameplay work")
+		return
+	if (
+		a_inventory.get_item_quantity(&"goods") != 2 * int(a_worker.get("completed_jobs"))
+		or b_inventory.get_item_quantity(&"goods") != 2 * int(b_worker.get("completed_jobs"))
+	):
+		_fail("Goods must equal two units per completed job")
 		return
 
 	demo.call("_unlock", &"a")
@@ -90,9 +101,17 @@ func _run() -> void:
 	if a.get_physical_body() != a_body or places.get_actor_by_id(&"a_worker") != a:
 		_fail("Portal crossing replaced the identity or physical body")
 		return
-	if a_inventory.get_item_quantity(&"goods") < a_before:
-		_fail("Inventory was lost during a room transfer")
+	if a_inventory.get_item_quantity(&"goods") != a_before:
+		_fail("The traveling worker incorrectly finished a production job")
 		return
+	if bool(a_worker.call("is_at_workplace")) or bool(a_worker.call("is_working")):
+		_fail("Worker A must not work in the kitchen")
+		return
+	await create_timer(2.2).timeout
+	if a_inventory.get_item_quantity(&"goods") != a_before:
+		_fail("Worker A produced goods away from its assigned hall workstation")
+		return
+	var b_before := b_inventory.get_item_quantity(&"goods")
 
 	# Multi-hop route: kitchen -> hall -> exterior, while B is displayed.
 	if not traveler.travel_to(&"city", Vector3(-12, 0.05, -3)):
@@ -102,8 +121,50 @@ func _run() -> void:
 	if not reached_city:
 		_fail("Worker failed multi-hop route kitchen -> hall -> city")
 		return
-	if b_inventory.get_item_quantity(&"goods") <= 1:
-		_fail("Worker B stopped while the camera looked at another place")
+	if bool(a_worker.call("is_at_workplace")) or bool(a_worker.call("is_working")):
+		_fail("Worker A must not work outside")
+		return
+	var a_outside := a_inventory.get_item_quantity(&"goods")
+	await create_timer(2.2).timeout
+	if a_inventory.get_item_quantity(&"goods") != a_outside:
+		_fail("Worker A produced goods outside the tavern")
+		return
+	if b_inventory.get_item_quantity(&"goods") <= b_before:
+		_fail("Hidden worker B stopped producing at its workplace")
+		return
+
+	# Return to the exact workstation while still watching another room.
+	var workstation := hall_a.root.get_node("Workstation") as Marker3D
+	if not traveler.travel_to(
+		&"a_hall", workstation.global_position + Vector3.UP * 0.05
+	):
+		_fail("Worker A could not return to its workplace")
+		return
+	var returned := await _await_place(a, traveler, &"a_hall", 24.0)
+	if not returned or not bool(a_worker.call("is_at_workplace")):
+		_fail("Worker A did not return to its assigned workstation")
+		return
+	await create_timer(3.5).timeout
+	if a_inventory.get_item_quantity(&"goods") <= a_outside:
+		_fail("Worker A did not resume producing after returning to work")
+		return
+	if a_inventory.get_item_quantity(&"goods") != 2 * int(a_worker.get("completed_jobs")):
+		_fail("Job count and produced goods no longer match the recipe")
+		return
+
+	# Moving away from the workstation INSIDE the correct room must also
+	# interrupt work. A place ID alone is not sufficient permission to work.
+	var at_work_goods := a_inventory.get_item_quantity(&"goods")
+	if not traveler.travel_to(&"a_hall", Vector3(2.5, 0.05, 1.5)):
+		_fail("Worker A could not walk away from the workstation")
+		return
+	var elsewhere_in_hall := await _await_place(a, traveler, &"a_hall", 10.0)
+	if not elsewhere_in_hall or bool(a_worker.call("is_at_workplace")):
+		_fail("Worker A must be outside workstation range after moving in the hall")
+		return
+	await create_timer(2.2).timeout
+	if a_inventory.get_item_quantity(&"goods") != at_work_goods:
+		_fail("Worker A produced goods elsewhere inside the same hall")
 		return
 
 	print("PLACE SYSTEM SMOKE TEST PASSED")
