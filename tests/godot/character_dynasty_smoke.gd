@@ -66,7 +66,7 @@ func _run() -> void:
 	_check(people.get_character(&"guard").get_last_name() == "Wagner", "Unrelated surname")
 	_check(people.get_character(&"guard").get_full_name() == "Karl Wagner", "Full name")
 	_check(people.set_parents(&"child", [&"mother", &"father"]), "Parents assigned")
-	_check(people.get_children(&"mother").has(&"child"), "Children derived")
+	_check(people.get_character_children(&"mother").has(&"child"), "Children derived")
 	_check(not people.set_parents(&"mother", [&"child"]), "Cycle rejected")
 	_check(not people.set_parents(&"child", [&"mother", &"mother"]), "Duplicate parent rejected")
 	_check(people.marry(&"mother", &"father"), "Marriage")

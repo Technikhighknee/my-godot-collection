@@ -143,7 +143,7 @@ func get_parents(id: StringName) -> Array[StringName]:
 	return result
 
 
-func get_children(parent_id: StringName) -> Array[StringName]:
+func get_character_children(parent_id: StringName) -> Array[StringName]:
 	var result: Array[StringName] = []
 	if not _characters.has(parent_id):
 		return result

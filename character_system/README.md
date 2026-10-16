@@ -44,7 +44,7 @@ does not decide birth/death/save/load rules.
     characters.set_parents(&"daughter", [&"parent_a", &"parent_b"])
     characters.marry(&"parent_a", &"parent_b")
     var parents := characters.get_parents(&"daughter")
-    var children := characters.get_children(&"parent_a")
+    var children := characters.get_character_children(&"parent_a")
     var spouse := characters.get_spouse(&"parent_a")
     characters.divorce(&"parent_a")
 
