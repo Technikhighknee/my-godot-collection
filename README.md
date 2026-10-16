@@ -12,6 +12,7 @@ Some Godot bits and bobs.
 - [Place System](place_system/) — independent 3D rooms, persistent actors, cross-room travel, portals and interior display.
 - [Character System](character_system/) — identities, mandatory first/last names, optional parents/spouses and live PlaceActor binding; no Family system.
 - [Dynasty System](dynasty_system/) — regular and shadow dynasties, exclusive membership and shared treasury.
+- [Ownership System](ownership_system/) — dynasty, city or unowned buildings; separate dynasty-member assignment.
 
 ## Deploy tool
 
@@ -32,7 +33,8 @@ chooses the installed folder names, and `deploy.py` installs **entire packages**
     "inventory_system": "InventorySystem",
     "place_system": "PlaceSystem",
     "character_system": "CharacterSystem",
-    "dynasty_system": "DynastySystem"
+    "dynasty_system": "DynastySystem",
+    "ownership_system": "OwnershipSystem"
   }
 }
 ```
@@ -46,7 +48,7 @@ python .\tools\deploy.py C:\Users\posch\Documents\1400\manifest.json -y
 installs `packages/StrategyCamera/`, `packages/SelectionSystem/`,
 `packages/MovementSystem/`, `packages/ActionSystem/`, `packages/InventorySystem/`,
 `packages/PlaceSystem/`, `packages/CharacterSystem/` and
-`packages/DynastySystem/` in that Godot project.
+`packages/DynastySystem/` and `packages/OwnershipSystem/` in that Godot project.
 Names and casing come from the values in the manifest; the keys identify repository packages.
 Manifest values are single folder names, not arbitrary paths. Files in the package are
 installed with their internal relative layout intact.
