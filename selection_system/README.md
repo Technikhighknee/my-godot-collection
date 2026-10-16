@@ -67,8 +67,8 @@ occlusion test.
 
 `StrategyCamera` captures the pointer after its configurable RMB hold delay
 (default 250 ms) to pan. The selection system recognizes a right click only
-if the pointer was **not** captured and the mouse was not dragged; it never
-imposes another time limit or consumes RMB events. Release is observed before
+if the pointer was **not** captured, regardless of pointer movement before
+release. It never imposes another time limit or consumes RMB events. Release is observed before
 the camera handles it.
 
 ## API

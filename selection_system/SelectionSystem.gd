@@ -30,8 +30,6 @@ var _left_down := false
 var _left_origin := Vector2.ZERO
 var _dragging := false
 var _right_down := false
-var _right_origin := Vector2.ZERO
-var _right_moved := false
 
 
 func _ready() -> void:
@@ -118,8 +116,6 @@ func _mouse_button(event: InputEventMouseButton) -> void:
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			return
 		_right_down = true
-		_right_origin = event.position
-		_right_moved = false
 
 
 func _finish_right_click(event: InputEventMouseButton) -> void:
@@ -128,7 +124,6 @@ func _finish_right_click(event: InputEventMouseButton) -> void:
 
 	var is_click := (
 		not event.canceled
-		and not _right_moved
 		and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
 		and get_viewport().gui_get_hovered_control() == null
 	)
@@ -138,9 +133,6 @@ func _finish_right_click(event: InputEventMouseButton) -> void:
 
 
 func _mouse_motion(event: InputEventMouseMotion) -> void:
-	if _right_down and event.position.distance_to(_right_origin) >= drag_threshold_pixels:
-		_right_moved = true
-
 	if not _left_down or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		return
 
@@ -324,5 +316,4 @@ func _reset_left() -> void:
 func _reset_pointer() -> void:
 	_reset_left()
 	_right_down = false
-	_right_moved = false
 	_pending_hits.clear()
