@@ -25,4 +25,4 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 1
 script = ExtResource("4_view")
-place_manager = NodePath("../../PlaceManager")
+place_manager_path = NodePath("../../PlaceManager")

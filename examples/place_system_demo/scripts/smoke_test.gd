@@ -20,6 +20,10 @@ func _run() -> void:
 		_fail("Main scene missing")
 		return
 	var places := demo.get_node("PlaceManager") as PlaceManager3D
+	var room_view := demo.get_node("UI/RoomView") as PlaceView
+	if room_view.place_manager != places:
+		_fail("RoomView did not resolve PlaceManager3D")
+		return
 	var hall_a := places.get_place(&"a_hall")
 	var hall_b := places.get_place(&"b_hall")
 	var kitchen_a := places.get_place(&"a_kitchen")
@@ -29,6 +33,9 @@ func _run() -> void:
 		return
 	if hall_a.root == hall_b.root:
 		_fail("Identical room template wrongly shares live scene nodes")
+		return
+	if not hall_a.get_navigation_map().is_valid() or not hall_b.get_navigation_map().is_valid():
+		_fail("Room navigation maps must be valid")
 		return
 	if hall_a.get_navigation_map() == hall_b.get_navigation_map():
 		_fail("Separate hall instances must have distinct navigation maps")

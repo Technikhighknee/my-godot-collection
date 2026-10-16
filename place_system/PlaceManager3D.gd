@@ -45,7 +45,9 @@ func create_room(
 
 	var room_viewport := SubViewport.new()
 	room_viewport.name = "Room_%s" % String(place_id)
-	room_viewport.own_world_3d = true
+	# Assign an explicit isolated world. With own_world_3d alone,
+	# Viewport.world_3d can still be null and cannot be dereferenced.
+	room_viewport.world_3d = World3D.new()
 	room_viewport.size = Vector2i(2, 2)
 	room_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(room_viewport)
@@ -118,10 +120,15 @@ func register_physical_body(body: Node3D, place_id: StringName) -> bool:
 	):
 		return false
 
+	var navigation_map := place.get_navigation_map()
+	if not navigation_map.is_valid():
+		push_error("Place '%s' has no valid NavigationServer3D map." % String(place_id))
+		return false
+
 	_body_places[body] = place_id
 	# In particular, a NavigationAgent3D moved between World3Ds may retain
 	# its old map RID unless explicitly updated.
-	_assign_navigation_map(body, place.get_navigation_map())
+	_assign_navigation_map(body, navigation_map)
 	# Registering does not reparent or teleport existing bodies.
 	return true
 

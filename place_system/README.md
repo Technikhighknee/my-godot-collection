@@ -307,7 +307,12 @@ places.view_place(&"city") # hides the overlay, shows normal exterior
 
 The UI surface forwards mouse/keyboard input to the currently viewed
 SubViewport (including the existing SelectionSystem and camera if placed
-there). The **outdoor** camera should be disabled for player input while an
+there). Use the exported `place_manager` Node reference in the Inspector, or
+`place_manager_path` if constructing the scene file manually; the latter is
+resolved in `PlaceView._ready()`. An exported Node reference is not the
+same type as a `NodePath` in a hand-authored scene.
+
+The **outdoor** camera should be disabled for player input while an
 interior is viewed, because global `Input.is_action_pressed()` polling
 does not respect an input-consuming overlay. Camera state management and
 cross-place selection are game integrations, not included here.

@@ -33,4 +33,11 @@ func get_portal(portal_id: StringName) -> PlacePortal3D:
 
 
 func get_navigation_map() -> RID:
-	return viewport.world_3d.navigation_map
+	if not is_instance_valid(viewport):
+		return RID()
+	# Viewport.world_3d is only an explicitly assigned world; it may be
+	# null even when a viewport has an effective inherited/owned 3D world.
+	var world := viewport.find_world_3d()
+	if world == null:
+		return RID()
+	return world.navigation_map
