@@ -13,15 +13,22 @@ Attach `ActionController.gd` to an ordinary `Node` directly beneath the
 object that offers measures:
 
 ```text
-Citizen (CharacterBody3D)
-├── MovementAgent3D (NavigationAgent3D)
-├── SelectionTarget3D (Area3D)
+Citizen (Node)
 └── ActionController (Node)
+
+CitizenBody (CharacterBody3D)
+├── MovementAgent3D (NavigationAgent3D)
+└── SelectionTarget3D (Area3D)
 ```
 
-It works exactly the same way under a building or cart. No autoload or scene
-singleton is required. Scripts `ActionDefinition.gd` and
-`ActionExecution.gd` are data/runtime helpers; they are not scene nodes.
+It works exactly the same way under a building or cart. If an actor's physical
+body can move between scenes or worlds, attach ActionController to its
+**persistent gameplay node**, not to that reparented body. Normal movement
+commands do not go through ActionController; an action may request movement
+as one step of its own execution.
+
+No autoload or scene singleton is required. Scripts `ActionDefinition.gd`
+and `ActionExecution.gd` are data/runtime helpers; they are not scene nodes.
 The package does not contain handwritten scene UIDs.
 
 ## Defining a measure
@@ -95,11 +102,6 @@ Target kinds:
 - `NONE`: immediate invocation, no target.
 - `OBJECT`: a live `Node3D` (character, cart, building, etc.).
 - `LOCATION`: a finite world `Vector3`.
-- `CUSTOM`: a game-defined target type validated by a **required**
-  `valid_target(actor, target)` Callable. This allows domain-specific
-  targets (e.g. a `PlaceLocation` with room ID and position) without
-  importing game systems into the Action System. A CUSTOM measure without
-  a target validator cannot be registered.
 
 ## Picking targets (without owning input)
 
@@ -111,8 +113,6 @@ actions.request_action(&"inspect")
 
 The controller emits `target_required(id, target_kind)`. The **game** then
 routes the appropriate `SelectionSystem` signal to the controller.
-For `CUSTOM` targets, the game supplies its own target picker or executes
-directly; the Selection System has no knowledge of arbitrary data types.
 
 ```gdscript
 func _on_target_selected(target: Node3D) -> void:
@@ -148,8 +148,11 @@ The controller emits `action_started(execution)` and
 `action_finished(execution)`; read `execution.status` and
 `execution.failure_reason` after settlement.
 
-For long-running actions, the game subscribes to signals from a system such
-as `MovementAgent3D` and settles the execution on arrival/error. Register
+For long-running actions that *need* travel as a prerequisite (for example,
+reaching a workstation before beginning work), game code can subscribe to
+`PlaceTraveler` or `MovementAgent3D` signals and settle the overarching
+action after its actual gameplay work. Walking and traveling themselves are
+independent commands, not registered measures. Register
 `execution.set_cancel_handler(callable)` to stop outstanding work if the
 player cancels. The game must disconnect any other signal callbacks when the
 execution finishes; the controller cannot know which systems the executor

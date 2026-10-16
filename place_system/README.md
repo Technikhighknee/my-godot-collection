@@ -201,10 +201,11 @@ Failure reasons include `no_portal_route`, `portal_unavailable`,
 `missing_movement_agent`, `movement_interrupted`, and native reasons
 from `MovementAgent3D` such as `unreachable` or `stuck`.
 
-The game may call `traveler.travel_to()` directly or use the optional
-`PlaceTravelAction` adapter described below. A traveler's destination
-is a **place ID plus a position**; a plain `Vector3` does not identify
-a room.
+Call `traveler.travel_to()` for ordinary movement orders; neither a UI
+right-click nor an NPC travel command needs an `ActionExecution`.
+A traveler's destination is a **place ID plus a position**; a plain
+`Vector3` does not identify a room. Gameplay actions may call the
+traveler as a subordinate step, but the traveler is not an Action.
 
 MovementAgent3D may also be used directly for movement **within the
 current place**. Its agent navigation map is initialized on registration
@@ -216,7 +217,7 @@ The physical body must be registered in the correct viewport before
 binding. Do not put another persistent Actor/ActionController under it,
 and do not reparent it between places behind PlaceManager3D's back.
 
-## Spawning actors and executing travel as an Action
+## Spawning persistent actors
 
 `PlaceLocation` represents a validated destination: unique `place_id`
 and a `position` in that place's own World3D coordinates. It is **not**
@@ -252,39 +253,20 @@ crossing every portal. The manager provides
 `get_actor_by_id(&"citizen_42")` and
 `get_actor_for_body(selected_physical_body)`.
 
-### Action System integration (optional)
+### Interaction with gameplay actions
 
-This adapter needs the `action_system` package installed in the same
-Godot project. It does **not** introduce a new action engine.
+Movement and travel are **not Actions**. PlaceTraveler has its own lifecycle
+and may be commanded directly by the player, AI, or game logic.
 
-```gdscript
-var actions := actor.get_node("ActionController") as ActionController
-var traveler := actor.get_node("PlaceTraveler") as PlaceTraveler
+A gameplay Action that requires the character to reach a workstation may
+use PlaceTraveler to reach it, wait for `travel_arrived`, and then execute
+the actual gameplay work. That ActionExecution is owned by the gameplay
+ActionController and lasts until that work completes. If the Action is
+canceled, its executor should cancel any outstanding travel and disconnect
+its listeners. The Place System itself never registers a travel measure.
 
-PlaceTravelAction.register(
-    actor, actions, traveler, &"travel", "Travel", 0.0
-)
-
-# Game code or a target picker supplies a destination containing a place ID.
-var execution := actions.execute_action(
-    &"travel", PlaceLocation.new(&"tavern_42_kitchen", Vector3(5, 0, 4))
-)
-```
-
-The Action System supports `TargetKind.CUSTOM` with a required validation
-callback, so a `PlaceLocation` can be passed without coupling
-`ActionDefinition` to the Place System. A game UI can instead call
-`request_action(&"travel")` and then `submit_target(place_location)`.
-
-One `ActionExecution` is linked to one travel attempt. On arrival it
-completes, on travel failure it fails with the reason, and on cancellation
-it stops the traveler. The standard Action System cooldown starts only
-after completion if the game defined one. A competing travel command
-cancels the old trip. No separate InteriorActionController exists.
-
-If an Action is canceled between reaching a doorway and the deferred
-portal transfer, the transfer is canceled too: the body does not teleport
-after the Action has ended.
+`PlaceLocation` is a place-aware movement destination and is also used
+when spawning actors; it is not an Action target kind.
 
 ## Portal traversal
 
@@ -352,7 +334,7 @@ remain active. Rooms are not `hide()`n or unloaded.
 
 This package supplies independent, always-active room scene instances,
 per-instance portals, multi-portal travel via MovementAgent3D, actor spawning,
-optional Action travel integration and a texture-based interior view.
+and a texture-based interior view.
 It does not yet save/load active worlds, automatically manage game-specific
 character attributes, or synchronize cameras between exterior and interior.
 Those remain game integrations or separate milestones.
@@ -394,7 +376,5 @@ Signals: `place_registered(id)`, `place_view_changed(id)`,
 ## Deployment
 
 Add `"place_system": "PlaceSystem"` to the game manifest and run
-`tools/deploy.py`. `PlaceTravelAction.gd` also requires the
-`"action_system": "ActionSystem"` package; its travel adapter is optional
-but installed as part of the Place System package. No autoload or manually
-assigned resource UID is required.
+`tools/deploy.py`. The Place System does not require the Action System.
+No autoload or manually assigned resource UID is required.
