@@ -1,0 +1,8 @@
+{
+  "files": [
+    "ActionDefinition.gd",
+    "ActionExecution.gd",
+    "ActionController.gd",
+    "README.md"
+  ]
+}
