@@ -307,10 +307,7 @@ places.view_place(&"city") # hides the overlay, shows normal exterior
 
 The UI surface forwards mouse/keyboard input to the currently viewed
 SubViewport (including the existing SelectionSystem and camera if placed
-there). Use the exported `place_manager` Node reference in the Inspector, or
-`place_manager_path` if constructing the scene file manually; the latter is
-resolved in `PlaceView._ready()`. An exported Node reference is not the
-same type as a `NodePath` in a hand-authored scene.
+there). Use the exported `place_manager` Node reference in the Inspector.
 
 The **outdoor** camera should be disabled for player input while an
 interior is viewed, because global `Input.is_action_pressed()` polling
@@ -334,6 +331,14 @@ remain active. Rooms are not `hide()`n or unloaded.
 - Only one interior texture is displayed at a time by PlaceView initially.
   Future multiple views can display multiple room viewports independently.
 
+
+## Functional validation
+
+The Godot smoke test passed on October 16, 2026, and manual testing confirmed
+independent room instances, background gameplay processing, viewport switching
+and actor travel in the tested two-building setup. The temporary test project
+was removed after validation. This establishes the tested functionality,
+not performance at scale or save/load behavior.
 
 ## Scope of the first implementation
 

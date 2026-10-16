@@ -1,9 +1,0 @@
-{
-  "packages": {
-    "place_system": "PlaceSystem",
-    "movement_system": "MovementSystem",
-    "action_system": "ActionSystem",
-    "inventory_system": "InventorySystem",
-    "selection_system": "SelectionSystem"
-  }
-}

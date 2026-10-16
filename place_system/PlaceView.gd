@@ -5,17 +5,12 @@ extends TextureRect
 # The room's actual Node3D tree stays in PlaceManager3D and keeps simulating.
 # PlaceView switches textures, never reparents, reloads, or pauses worlds.
 @export var place_manager: PlaceManager3D
-# A NodePath is useful for programmatically-authored .tscn files, where
-# assigning a NodePath to the exported Node property may resolve to null.
-@export var place_manager_path: NodePath
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	stretch_mode = TextureRect.STRETCH_SCALE
-	if place_manager == null and not place_manager_path.is_empty():
-		place_manager = get_node_or_null(place_manager_path) as PlaceManager3D
 	if place_manager == null:
 		push_warning("PlaceView needs a PlaceManager3D.")
 		hide()
