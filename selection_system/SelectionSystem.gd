@@ -15,8 +15,6 @@ signal marquee_changed(rect: Rect2, active: bool)
 @export_flags_3d_physics var world_collision_mask: int = 1
 @export var ray_length := 10000.0
 @export var drag_threshold_pixels := 8.0
-# Must not exceed the StrategyCamera RMB hold delay (120 ms).
-@export var right_click_max_duration_msec := 120
 
 # Optional game-defined predicates receiving the subject (Node3D).
 # Singles are allowed unless selectable_filter rejects them.
@@ -33,7 +31,6 @@ var _left_origin := Vector2.ZERO
 var _dragging := false
 var _right_down := false
 var _right_origin := Vector2.ZERO
-var _right_pressed_msec := 0
 var _right_moved := false
 
 
@@ -122,7 +119,6 @@ func _mouse_button(event: InputEventMouseButton) -> void:
 			return
 		_right_down = true
 		_right_origin = event.position
-		_right_pressed_msec = Time.get_ticks_msec()
 		_right_moved = false
 
 
@@ -135,7 +131,6 @@ func _finish_right_click(event: InputEventMouseButton) -> void:
 		and not _right_moved
 		and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
 		and get_viewport().gui_get_hovered_control() == null
-		and Time.get_ticks_msec() - _right_pressed_msec < right_click_max_duration_msec
 	)
 	_right_down = false
 	if is_click and not _selection.is_empty():
