@@ -1,0 +1,72 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/walkable.gd" id="1_nav"]
+[ext_resource type="Script" path="res://packages/PlaceSystem/PlacePortal3D.gd" id="2_portal"]
+[ext_resource type="Script" path="res://packages/SelectionSystem/SelectionSystem.gd" id="3_select"]
+
+[sub_resource type="BoxMesh" id="FloorMesh"]
+size = Vector3(56, 0.3, 36)
+
+[sub_resource type="BoxShape3D" id="FloorShape"]
+size = Vector3(56, 0.3, 36)
+
+[sub_resource type="StandardMaterial3D" id="GrassMat"]
+albedo_color = Color(0.27, 0.37, 0.26, 1)
+
+[sub_resource type="BoxMesh" id="BuildingMesh"]
+size = Vector3(9, 5, 5)
+
+[sub_resource type="StandardMaterial3D" id="BuildingMat"]
+albedo_color = Color(0.56, 0.39, 0.29, 1)
+
+[node name="Exterior" type="Node3D"]
+
+[node name="Terrain" type="StaticBody3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="Terrain"]
+position = Vector3(0, -0.15, 0)
+mesh = SubResource("FloorMesh")
+surface_material_override/0 = SubResource("GrassMat")
+
+[node name="Collision" type="CollisionShape3D" parent="Terrain"]
+position = Vector3(0, -0.15, 0)
+shape = SubResource("FloorShape")
+
+[node name="Navigation" type="NavigationRegion3D" parent="."]
+script = ExtResource("1_nav")
+half_width = 27.0
+half_depth = 17.0
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 35, 35)
+rotation_degrees = Vector3(-45, 0, 0)
+current = true
+fov = 56.0
+
+[node name="TavernA" type="MeshInstance3D" parent="."]
+position = Vector3(-12, 2.5, -9)
+mesh = SubResource("BuildingMesh")
+surface_material_override/0 = SubResource("BuildingMat")
+
+[node name="TavernB" type="MeshInstance3D" parent="."]
+position = Vector3(12, 2.5, -9)
+mesh = SubResource("BuildingMesh")
+surface_material_override/0 = SubResource("BuildingMat")
+
+[node name="TavernAEntrance" type="Marker3D" parent="."]
+script = ExtResource("2_portal")
+portal_id = &"tavern_a"
+position = Vector3(-12, 0, -5.0)
+
+[node name="TavernBEntrance" type="Marker3D" parent="."]
+script = ExtResource("2_portal")
+portal_id = &"tavern_b"
+position = Vector3(12, 0, -5.0)
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-50, 20, 0)
+light_energy = 1.4
+
+[node name="Selection" type="Node" parent="."]
+script = ExtResource("3_select")
+camera = NodePath("../Camera3D")

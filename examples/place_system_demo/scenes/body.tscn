@@ -1,0 +1,48 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://packages/MovementSystem/MovementAgent3D.gd" id="1_move"]
+[ext_resource type="Script" path="res://packages/SelectionSystem/SelectionTarget3D.gd" id="2_select"]
+
+[sub_resource type="CapsuleShape3D" id="BodyShape"]
+radius = 0.34
+height = 1.65
+
+[sub_resource type="CapsuleMesh" id="BodyMesh"]
+radius = 0.34
+height = 1.65
+
+[sub_resource type="StandardMaterial3D" id="BodyMat"]
+albedo_color = Color(0.2, 0.52, 0.82, 1)
+
+[sub_resource type="CapsuleShape3D" id="TargetShape"]
+radius = 0.45
+height = 1.8
+
+[node name="PhysicalBody" type="CharacterBody3D"]
+collision_layer = 4
+collision_mask = 1
+
+[node name="Collider" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.85, 0)
+shape = SubResource("BodyShape")
+
+[node name="Model" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.85, 0)
+mesh = SubResource("BodyMesh")
+surface_material_override/0 = SubResource("BodyMat")
+
+[node name="MovementAgent3D" type="NavigationAgent3D" parent="."]
+script = ExtResource("1_move")
+path_desired_distance = 0.4
+target_desired_distance = 0.45
+avoidance_enabled = false
+move_speed = 3.5
+
+[node name="SelectionTarget3D" type="Area3D" parent="."]
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("2_select")
+
+[node name="SelectionShape" type="CollisionShape3D" parent="SelectionTarget3D"]
+position = Vector3(0, 0.85, 0)
+shape = SubResource("TargetShape")

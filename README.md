@@ -11,6 +11,8 @@ Some Godot bits and bobs.
 - [Inventory System](inventory_system/) — slot-based storage and atomic transfers; all capacities supplied by the game.
 - [Place System](place_system/) — independent 3D rooms, persistent actors, cross-room travel, portals and interior display.
 
+**Test project:** [Place System Demo](examples/place_system_demo/) — two taverns, reusable interiors, independent active simulations, characters, upgrades and smoke test.
+
 ## Deploy tool
 
 >You're probably thinking, “Jason... why don't you just copy them by hand?”

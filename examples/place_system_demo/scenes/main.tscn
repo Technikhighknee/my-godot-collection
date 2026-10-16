@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/exterior.tscn" id="2_exterior"]
+[ext_resource type="Script" path="res://packages/PlaceSystem/PlaceManager3D.gd" id="3_places"]
+[ext_resource type="Script" path="res://packages/PlaceSystem/PlaceView.gd" id="4_view"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="Exterior" parent="." instance=ExtResource("2_exterior")]
+
+[node name="GameActors" type="Node" parent="."]
+
+[node name="PlaceManager" type="Node" parent="."]
+script = ExtResource("3_places")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="RoomView" type="TextureRect" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+script = ExtResource("4_view")
+place_manager = NodePath("../../PlaceManager")
