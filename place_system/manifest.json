@@ -5,6 +5,9 @@
     "PlaceManager3D.gd",
     "PlaceActor.gd",
     "PlaceTraveler.gd",
+    "PlaceLocation.gd",
+    "PlaceActorSpawner.gd",
+    "PlaceTravelAction.gd",
     "PlaceView.gd",
     "README.md"
   ]

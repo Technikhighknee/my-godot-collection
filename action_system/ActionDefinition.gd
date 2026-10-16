@@ -3,7 +3,7 @@ extends RefCounted
 
 # Immutable-by-convention description of a game-defined measure.
 # Callbacks are provided by the game, not by this package.
-enum TargetKind { NONE, OBJECT, LOCATION }
+enum TargetKind { NONE, OBJECT, LOCATION, CUSTOM }
 
 var id: StringName
 var title: String
@@ -39,7 +39,13 @@ func _init(
 
 
 func is_valid_definition() -> bool:
-	return id != &"" and _perform.is_valid() and cooldown_seconds >= 0.0 and cooldown_seconds < INF
+	return (
+		id != &""
+		and _perform.is_valid()
+		and (target_kind != TargetKind.CUSTOM or _valid_target.is_valid())
+		and cooldown_seconds >= 0.0
+		and cooldown_seconds < INF
+	)
 
 
 func is_available(actor: Node) -> bool:
@@ -61,6 +67,10 @@ func accepts_target(actor: Node, target: Variant) -> bool:
 				return false
 		TargetKind.LOCATION:
 			if not target is Vector3 or not (target as Vector3).is_finite():
+				return false
+		TargetKind.CUSTOM:
+			# Domain-specific target data belongs to the registering game/system.
+			if not _valid_target.is_valid():
 				return false
 		_:
 			return false

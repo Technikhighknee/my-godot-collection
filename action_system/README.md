@@ -95,6 +95,11 @@ Target kinds:
 - `NONE`: immediate invocation, no target.
 - `OBJECT`: a live `Node3D` (character, cart, building, etc.).
 - `LOCATION`: a finite world `Vector3`.
+- `CUSTOM`: a game-defined target type validated by a **required**
+  `valid_target(actor, target)` Callable. This allows domain-specific
+  targets (e.g. a `PlaceLocation` with room ID and position) without
+  importing game systems into the Action System. A CUSTOM measure without
+  a target validator cannot be registered.
 
 ## Picking targets (without owning input)
 
@@ -105,7 +110,9 @@ actions.request_action(&"inspect")
 ```
 
 The controller emits `target_required(id, target_kind)`. The **game** then
-routes the appropriate `SelectionSystem` signal to the controller:
+routes the appropriate `SelectionSystem` signal to the controller.
+For `CUSTOM` targets, the game supplies its own target picker or executes
+directly; the Selection System has no knowledge of arbitrary data types.
 
 ```gdscript
 func _on_target_selected(target: Node3D) -> void:

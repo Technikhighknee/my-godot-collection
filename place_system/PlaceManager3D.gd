@@ -15,6 +15,8 @@ var _places: Dictionary = {}       # StringName -> PlaceInstance
 var _links: Dictionary = {}        # StringName -> { portal_id -> link }
 var _body_places: Dictionary = {}  # Node3D -> StringName
 var _actor_by_body: Dictionary = {} # Node3D -> persistent Node (optional)
+var _actors_by_id: Dictionary = {} # StringName -> persistent Node
+var _body_actor_ids: Dictionary = {} # Node3D -> StringName
 var _transfers_pending: Dictionary = {}
 var _viewed_place: StringName = &""
 
@@ -110,7 +112,10 @@ func register_physical_body(body: Node3D, place_id: StringName) -> bool:
 	var place := get_place(place_id)
 	if not is_instance_valid(body) or place == null or _body_places.has(body):
 		return false
-	if not body.is_inside_tree() or body.get_viewport() != place.viewport:
+	if (
+		not body.is_inside_tree() or body.get_viewport() != place.viewport
+		or not place.root.is_ancestor_of(body)
+	):
 		return false
 
 	_body_places[body] = place_id
@@ -142,17 +147,36 @@ func get_actor_for_body(body: Node3D) -> Node:
 	return _actor_by_body.get(body) as Node
 
 
-func _associate_actor(body: Node3D, actor: Node) -> bool:
-	if not _body_places.has(body) or _actor_by_body.has(body):
+func get_actor_by_id(actor_id: StringName) -> Node:
+	return _actors_by_id.get(actor_id) as Node
+
+
+func _associate_actor(body: Node3D, actor: Node, actor_id: StringName) -> bool:
+	if (
+		actor_id == &"" or not _body_places.has(body)
+		or _actor_by_body.has(body) or _actors_by_id.has(actor_id)
+	):
 		return false
 	_actor_by_body[body] = actor
+	_actors_by_id[actor_id] = actor
+	_body_actor_ids[body] = actor_id
 	return true
 
 
 func unregister_physical_body(body: Node3D) -> void:
+	if _body_actor_ids.has(body):
+		var actor_id: StringName = _body_actor_ids[body]
+		_body_actor_ids.erase(body)
+		_actors_by_id.erase(actor_id)
 	_actor_by_body.erase(body)
 	_body_places.erase(body)
 	_transfers_pending.erase(body)
+
+
+# Useful when an Action is canceled while portal traversal is queued for
+# deferred execution. Its physical body must remain in the original place.
+func cancel_pending_portal_transfer(body: Node3D) -> bool:
+	return _transfers_pending.erase(body)
 
 
 # Directed access is game-configurable (e.g. cellar locked by an upgrade).
@@ -286,6 +310,9 @@ func use_portal(body: Node3D, portal_id: StringName) -> bool:
 func _commit_portal_transfer(
 	body: Node3D, from_place: StringName, portal_id: StringName
 ) -> void:
+	# Cancellation/unbinding may have invalidated this queued transfer.
+	if not _transfers_pending.has(body):
+		return
 	_transfers_pending.erase(body)
 	if not is_instance_valid(body) or get_body_place(body) != from_place:
 		return

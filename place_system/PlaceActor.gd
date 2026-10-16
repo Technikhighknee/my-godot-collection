@@ -22,9 +22,11 @@ func bind_body(
 		return false
 	if not is_instance_valid(manager) or not is_instance_valid(body):
 		return false
+	if actor_id == &"" or manager.get_actor_by_id(actor_id) != null:
+		return false
 	if not manager.register_physical_body(body, place_id):
 		return false
-	if not manager._associate_actor(body, self):
+	if not manager._associate_actor(body, self, actor_id):
 		manager.unregister_physical_body(body)
 		return false
 

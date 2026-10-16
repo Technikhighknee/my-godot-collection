@@ -141,7 +141,11 @@ assert(actor.bind_body(places, body, &"tavern_42_hall"))
 ```
 
 Attach `ActionController` and `Inventory` to the persistent actor,
-not the physical body. `PlaceActor` exposes:
+not the physical body. Each bound actor needs a **unique, nonempty**
+`actor_id`. The manager maintains both body-to-actor and ID-to-actor
+lookups, independent of the room the character occupies.
+
+`PlaceActor` exposes:
 
 - `bind_body(manager, body, place_id) -> bool` (once per binding)
 - `unbind_body()` (call before deliberately freeing the physical body)
@@ -197,12 +201,10 @@ Failure reasons include `no_portal_route`, `portal_unavailable`,
 `missing_movement_agent`, `movement_interrupted`, and native reasons
 from `MovementAgent3D` such as `unreachable` or `stuck`.
 
-The game may call `traveler.travel_to()` from any Action callback and
-settle that ActionExecution on `travel_arrived`/`travel_failed`.
-This package does not invent automatic Actions or take ownership of
-the ActionController. A traveler's destination is a **place ID plus a
-position**; the Action System's plain `Vector3` LOCATION target alone
-does not identify a room.
+The game may call `traveler.travel_to()` directly or use the optional
+`PlaceTravelAction` adapter described below. A traveler's destination
+is a **place ID plus a position**; a plain `Vector3` does not identify
+a room.
 
 MovementAgent3D may also be used directly for movement **within the
 current place**. Its agent navigation map is initialized on registration
@@ -213,6 +215,76 @@ does not wipe persistent ActionController state or inventory contents.
 The physical body must be registered in the correct viewport before
 binding. Do not put another persistent Actor/ActionController under it,
 and do not reparent it between places behind PlaceManager3D's back.
+
+## Spawning actors and executing travel as an Action
+
+`PlaceLocation` represents a validated destination: unique `place_id`
+and a `position` in that place's own World3D coordinates. It is **not**
+relative to the `Node3D` room root unless that root is at the origin.
+For the exterior, the position uses the exterior world's coordinates.
+
+`PlaceActorSpawner.spawn()` creates both the **persistent** actor from a
+game-provided PackedScene and its **physical** CharacterBody3D from another
+game-provided PackedScene. It places the body inside the requested active
+world and binds them, or returns `null` if validation fails. No character
+types, item values or buildings are hardcoded.
+
+```gdscript
+var location := PlaceLocation.new(&"tavern_42_hall", Vector3(3, 0, 2))
+var actor: PlaceActor = PlaceActorSpawner.spawn(
+    places, $GameActors,
+    preload("res://scenes/CitizenLogic.tscn"),
+    preload("res://scenes/CitizenBody.tscn"),
+    &"citizen_42", location
+)
+if actor == null:
+    push_error("Could not spawn citizen")
+```
+
+`CitizenLogic.tscn` must have a `PlaceActor` root, typically containing
+`ActionController`, `Inventory` and `PlaceTraveler`. The `CitizenBody`
+scene must have a `CharacterBody3D` root and (for walking) a direct-child
+`MovementAgent3D`. Both scene choices and all numeric values belong to
+the game.
+
+The same actor instance keeps its Actions, cooldowns and inventories after
+crossing every portal. The manager provides
+`get_actor_by_id(&"citizen_42")` and
+`get_actor_for_body(selected_physical_body)`.
+
+### Action System integration (optional)
+
+This adapter needs the `action_system` package installed in the same
+Godot project. It does **not** introduce a new action engine.
+
+```gdscript
+var actions := actor.get_node("ActionController") as ActionController
+var traveler := actor.get_node("PlaceTraveler") as PlaceTraveler
+
+PlaceTravelAction.register(
+    actor, actions, traveler, &"travel", "Travel", 0.0
+)
+
+# Game code or a target picker supplies a destination containing a place ID.
+var execution := actions.execute_action(
+    &"travel", PlaceLocation.new(&"tavern_42_kitchen", Vector3(5, 0, 4))
+)
+```
+
+The Action System supports `TargetKind.CUSTOM` with a required validation
+callback, so a `PlaceLocation` can be passed without coupling
+`ActionDefinition` to the Place System. A game UI can instead call
+`request_action(&"travel")` and then `submit_target(place_location)`.
+
+One `ActionExecution` is linked to one travel attempt. On arrival it
+completes, on travel failure it fails with the reason, and on cancellation
+it stops the traveler. The standard Action System cooldown starts only
+after completion if the game defined one. A competing travel command
+cancels the old trip. No separate InteriorActionController exists.
+
+If an Action is canceled between reaching a doorway and the deferred
+portal transfer, the transfer is canceled too: the body does not teleport
+after the Action has ended.
 
 ## Portal traversal
 
@@ -279,11 +351,11 @@ remain active. Rooms are not `hide()`n or unloaded.
 ## Scope of the first implementation
 
 This package supplies independent, always-active room scene instances,
-per-instance portals, multi-portal travel through MovementAgent3D and one
-texture-based interior view. It does not yet spawn/configure actors
-automatically, save/load active worlds, synchronize cameras between exterior
-and interior, or automatically turn travel into an ActionExecution. Those are
-game integrations or separate milestones.
+per-instance portals, multi-portal travel via MovementAgent3D, actor spawning,
+optional Action travel integration and a texture-based interior view.
+It does not yet save/load active worlds, automatically manage game-specific
+character attributes, or synchronize cameras between exterior and interior.
+Those remain game integrations or separate milestones.
 
 The exact Godot runtime performance and physics behavior must be checked in
 a Godot project before increasing the number of active rooms.
@@ -301,8 +373,10 @@ character-side nodes, not components of an instanced room layout.
 - `get_place(id) -> PlaceInstance`
 - `get_body_place(body) -> StringName`
 - `get_actor_for_body(body) -> Node` (persistent actor or null)
+- `get_actor_by_id(id) -> Node` (persistent actor or null)
 - `register_physical_body(body, place_id) -> bool`
 - `unregister_physical_body(body)`
+- `cancel_pending_portal_transfer(body) -> bool`
 - `connect_portals(place_a, portal_a, place_b, portal_b, allowed=Callable(), enabled=true) -> bool`
 - `set_portal_enabled(place_id, portal_id, enabled) -> bool`
 - `find_portal_route(from_place, to_place, body) -> Array[Dictionary]`
@@ -320,5 +394,7 @@ Signals: `place_registered(id)`, `place_view_changed(id)`,
 ## Deployment
 
 Add `"place_system": "PlaceSystem"` to the game manifest and run
-`tools/deploy.py`. No autoload, manually assigned resource UID, or
-interior-specific game rule is required.
+`tools/deploy.py`. `PlaceTravelAction.gd` also requires the
+`"action_system": "ActionSystem"` package; its travel adapter is optional
+but installed as part of the Place System package. No autoload or manually
+assigned resource UID is required.

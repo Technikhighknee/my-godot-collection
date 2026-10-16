@@ -79,6 +79,8 @@ func cancel() -> void:
 	if not _active:
 		return
 
+	if _waiting_for_portal and is_instance_valid(_manager):
+		_manager.cancel_pending_portal_transfer(_actor.get_physical_body())
 	_active = false
 	_waiting_for_portal = false
 	_route.clear()
@@ -236,6 +238,8 @@ func _finish() -> void:
 func _fail(reason: StringName) -> void:
 	if not _active:
 		return
+	if _waiting_for_portal and is_instance_valid(_manager):
+		_manager.cancel_pending_portal_transfer(_actor.get_physical_body())
 	_active = false
 	_waiting_for_portal = false
 	_route.clear()
