@@ -1,3 +1,6 @@
+This branch is only for reference and will not be continued.
+
+
 # my-godot-collection
 
 Some Godot bits and bobs.
