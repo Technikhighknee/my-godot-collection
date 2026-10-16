@@ -9,7 +9,7 @@ Some Godot bits and bobs.
 - [Movement System](movement_system/) — ground navigation and walking for 3D characters.
 - [Action System](action_system/) — available measures, target requirements, and execution lifecycle.
 - [Inventory System](inventory_system/) — slot-based storage and atomic transfers; all capacities supplied by the game.
-- [Place System](place_system/) — independently simulated 3D rooms, portals and interior display.
+- [Place System](place_system/) — independent 3D rooms, persistent actors, cross-room travel, portals and interior display.
 
 ## Deploy tool
 

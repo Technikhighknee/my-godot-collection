@@ -97,38 +97,122 @@ their portals upon an upgrade, or call
 `set_portal_enabled(place_id, portal_id, enabled)` to open an existing
 connection. Optional access callbacks are rechecked at traversal time.
 
-## Characters: persistent logic, spatial body
+## Persistent actors and cross-place travel
 
-The physical body lives in its place's World3D, but **gameplay identity,
-ActionController, Inventory, cooldowns and long-running actions must remain
-outside that physical body's subtree.** A Godot `reparent()` necessarily
-causes `_exit_tree()` on the body subtree; our existing ActionController
-cancels ongoing actions in `_exit_tree()`. Put it under a persistent game
-actor instead. Example:
+`PlaceActor` is a stable gameplay node that remains in the ordinary game
+scene tree. It owns the game's `ActionController`, `Inventory`, AI and
+any other persistent gameplay components.
+
+Its physical `CharacterBody3D` lives in exactly one place at a time and
+is **not** the parent of any persistent gameplay components. Only the body
+is reparented during transitions. A character is not cloned, recreated,
+or assigned a new identity on entering a room.
 
 ```text
-GameActors (Node)                      # remains in exterior game tree
-└── Citizen42 (Node)                   # persistent identity
+GameActors (Node)
+└── Citizen42 (PlaceActor)
     ├── ActionController (Node)
-    └── Inventory (Node)
+    ├── Inventory (Node)
+    └── PlaceTraveler (Node)
 
-PlaceManager3D
-└── Room_tavern_42_hall (SubViewport, own_world_3d)
+PlaceManager3D (Node)
+└── Room_tavern_42_hall (SubViewport; own_world_3d)
     └── Hall (Node3D)
         └── PlaceActors (Node3D)
             └── Citizen42Body (CharacterBody3D)
-                └── MovementAgent3D
+                └── MovementAgent3D (NavigationAgent3D)
 ```
 
-Register the spatial body **after** it has entered the correct world:
+Create/spawn the physical body in the target place **first**, then bind:
 
 ```gdscript
-places.register_physical_body(citizen_body, &"city")
+var place := places.get_place(&"tavern_42_hall")
+var body := BODY_SCENE.instantiate() as CharacterBody3D
+place.actors_root.add_child(body)
+body.global_position = Vector3(3, 0, 2)
+
+var actor := PlaceActor.new()
+actor.actor_id = &"citizen_42"
+$GameActors.add_child(actor)
+
+var traveler := PlaceTraveler.new()
+actor.add_child(traveler)
+assert(actor.bind_body(places, body, &"tavern_42_hall"))
 ```
 
-The game owns the association between the persistent actor and the body;
-this package does not implement character identity or duplicate gameplay
-components. Physical bodies must never contain persistent ActionControllers.
+Attach `ActionController` and `Inventory` to the persistent actor,
+not the physical body. `PlaceActor` exposes:
+
+- `bind_body(manager, body, place_id) -> bool` (once per binding)
+- `unbind_body()` (call before deliberately freeing the physical body)
+- `is_bound() -> bool`
+- `get_physical_body() -> CharacterBody3D`
+- `get_place_manager() -> PlaceManager3D`
+- `get_place_id() -> StringName`
+- `get_place_position() -> Vector3` (position *within* that place)
+
+Signals: `body_bound(body, place_id)`, `body_unbound()`,
+`place_changed(from_place, to_place)`.
+
+The actor's identity and the physical body remain the same across portal
+transitions. The place ID changes; the gameplay nodes never leave the tree,
+so ongoing actions, cooldowns and inventories continue normally.
+
+SelectionSystem sees physical `Node3D` subjects. Resolve the persistent
+gameplay actor when handling selection and targeting:
+
+```gdscript
+var selected_actor := places.get_actor_for_body(selected_body) as PlaceActor
+if selected_actor != null:
+    var actions: ActionController = selected_actor.get_node("ActionController")
+```
+
+That association survives portal transfers without maintaining a separate
+mapping per room. Unbinding removes the association.
+
+### Travel over multiple rooms
+
+`PlaceTraveler` is an **optional** persistent child of `PlaceActor`.
+It connects our existing `MovementAgent3D` to the portal graph:
+
+```gdscript
+var traveler: PlaceTraveler = actor.get_node("PlaceTraveler")
+traveler.travel_to(&"tavern_42_kitchen", Vector3(5, 0, 4))
+```
+
+It follows the portal route one room at a time, walking to each doorway
+using the existing MovementAgent3D, transferring the same body into the
+next World3D, and finally walking to the requested destination position.
+
+`travel_to(place_id, position) -> bool` returns whether the journey
+started. `cancel()` interrupts it. `is_traveling()` indicates a live
+journey. Signals:
+
+- `travel_started(place_id, position)`
+- `travel_arrived(place_id, position)`
+- `travel_failed(reason)`
+- `travel_canceled()`
+
+Failure reasons include `no_portal_route`, `portal_unavailable`,
+`missing_movement_agent`, `movement_interrupted`, and native reasons
+from `MovementAgent3D` such as `unreachable` or `stuck`.
+
+The game may call `traveler.travel_to()` from any Action callback and
+settle that ActionExecution on `travel_arrived`/`travel_failed`.
+This package does not invent automatic Actions or take ownership of
+the ActionController. A traveler's destination is a **place ID plus a
+position**; the Action System's plain `Vector3` LOCATION target alone
+does not identify a room.
+
+MovementAgent3D may also be used directly for movement **within the
+current place**. Its agent navigation map is initialized on registration
+and explicitly reassigned after each portal transfer, using Godot's
+`NavigationAgent3D.set_navigation_map()`. The portal transition itself
+does not wipe persistent ActionController state or inventory contents.
+
+The physical body must be registered in the correct viewport before
+binding. Do not put another persistent Actor/ActionController under it,
+and do not reparent it between places behind PlaceManager3D's back.
 
 ## Portal traversal
 
@@ -146,11 +230,11 @@ only** to the destination's PlaceActors container and places it at the
 destination portal. It emits `portal_traversed(body, from_id, to_id)`.
 Invalid/locked/distant attempts emit `portal_rejected`.
 
-The game must finish/stop the current movement goal before transferring;
-a movement goal from the old World3D is not meaningful in the new one.
-The persistent actor and all its running gameplay remain intact, but
-a particular action may intentionally replace its movement segment after
-the portal transition. Physics interpolation is reset on teleport.
+The manager stops any previous local movement goal, reparents the **body
+only**, assigns the destination NavigationServer map to NavigationAgent3D
+children, and resets velocity and physics interpolation on teleport.
+The persistent actor and its running gameplay stay intact. PlaceTraveler
+automatically starts the next movement leg after the portal transition.
 
 `find_portal_route(from_place, to_place, body)` finds a route of **door
 transitions** through currently accessible places. It deliberately does not
@@ -195,15 +279,20 @@ remain active. Rooms are not `hide()`n or unloaded.
 ## Scope of the first implementation
 
 This package supplies independent, always-active room scene instances,
-per-instance portals, room-graph routing and one texture-based interior view.
-It does not yet automate multi-portal movement orders, spawn/configure actors,
-save/load active worlds, synchronize cameras between exterior and interior,
-or connect the ActionController to travel tasks. Those are game integrations or
-separate milestones. The exact Godot runtime performance and physics behavior
-must be checked in an actual Godot project before increasing the number of
-active rooms.
+per-instance portals, multi-portal travel through MovementAgent3D and one
+texture-based interior view. It does not yet spawn/configure actors
+automatically, save/load active worlds, synchronize cameras between exterior
+and interior, or automatically turn travel into an ActionExecution. Those are
+game integrations or separate milestones.
+
+The exact Godot runtime performance and physics behavior must be checked in
+a Godot project before increasing the number of active rooms.
 
 ## API
+
+`PlaceActor` and `PlaceTraveler` are described above; they are persistent
+character-side nodes, not components of an instanced room layout.
+
 
 `PlaceManager3D`
 
@@ -211,6 +300,7 @@ active rooms.
 - `create_room(place_id, building_id, PackedScene) -> bool`
 - `get_place(id) -> PlaceInstance`
 - `get_body_place(body) -> StringName`
+- `get_actor_for_body(body) -> Node` (persistent actor or null)
 - `register_physical_body(body, place_id) -> bool`
 - `unregister_physical_body(body)`
 - `connect_portals(place_a, portal_a, place_b, portal_b, allowed=Callable(), enabled=true) -> bool`

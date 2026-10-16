@@ -14,6 +14,7 @@ signal portal_rejected(body: Node3D, place_id: StringName, portal_id: StringName
 var _places: Dictionary = {}       # StringName -> PlaceInstance
 var _links: Dictionary = {}        # StringName -> { portal_id -> link }
 var _body_places: Dictionary = {}  # Node3D -> StringName
+var _actor_by_body: Dictionary = {} # Node3D -> persistent Node (optional)
 var _transfers_pending: Dictionary = {}
 var _viewed_place: StringName = &""
 
@@ -113,11 +114,43 @@ func register_physical_body(body: Node3D, place_id: StringName) -> bool:
 		return false
 
 	_body_places[body] = place_id
+	# In particular, a NavigationAgent3D moved between World3Ds may retain
+	# its old map RID unless explicitly updated.
+	_assign_navigation_map(body, place.get_navigation_map())
 	# Registering does not reparent or teleport existing bodies.
 	return true
 
 
+func _assign_navigation_map(body: Node3D, navigation_map: RID) -> void:
+	for child in body.get_children():
+		if child is NavigationAgent3D:
+			var agent := child as NavigationAgent3D
+			agent.set_navigation_map(navigation_map)
+			if agent.avoidance_enabled:
+				agent.set_velocity_forced(Vector3.ZERO)
+
+
+func _stop_body_movement(body: Node3D) -> void:
+	for child in body.get_children():
+		if child is NavigationAgent3D and child.has_method("stop"):
+			child.call("stop")
+
+
+# Selection targets physical bodies; game logic resolves persistent actors.
+# Register once via PlaceActor.bind_body(), not separately for every room.
+func get_actor_for_body(body: Node3D) -> Node:
+	return _actor_by_body.get(body) as Node
+
+
+func _associate_actor(body: Node3D, actor: Node) -> bool:
+	if not _body_places.has(body) or _actor_by_body.has(body):
+		return false
+	_actor_by_body[body] = actor
+	return true
+
+
 func unregister_physical_body(body: Node3D) -> void:
+	_actor_by_body.erase(body)
 	_body_places.erase(body)
 	_transfers_pending.erase(body)
 
@@ -282,6 +315,8 @@ func _commit_portal_transfer(
 
 	# Only the spatial body is moved. Game-owned ActionController, Inventory,
 	# AI, and cooldowns remain attached to the persistent actor elsewhere.
+	# Stop any old-world navigation goal, then bind agents to the new map.
+	_stop_body_movement(body)
 	body.reparent(destination.actors_root, false)
 	body.global_transform = marker.global_transform
 	body.reset_physics_interpolation()
@@ -289,6 +324,7 @@ func _commit_portal_transfer(
 	var physical := body as CharacterBody3D
 	if physical != null:
 		physical.velocity = Vector3.ZERO
+	_assign_navigation_map(body, destination.get_navigation_map())
 
 	_body_places[body] = target_id
 	portal_traversed.emit(body, from_place, target_id)
