@@ -8,6 +8,8 @@ enum TargetKind { NONE, OBJECT, LOCATION }
 var id: StringName
 var title: String
 var target_kind: TargetKind
+# 0.0 disables the cooldown. Measured in scaled, pausable game seconds.
+var cooldown_seconds := 0.0
 
 var _perform: Callable
 var _available: Callable
@@ -17,13 +19,15 @@ var _valid_target: Callable
 # perform(actor: Node, target: Variant, execution: ActionExecution) -> void
 # available(actor: Node) -> bool                        [optional]
 # valid_target(actor: Node, target: Variant) -> bool     [optional]
+# cooldown: float >= 0.0 (0.0 means no cooldown)       [optional]
 func _init(
 	action_id: StringName,
 	action_title: String,
 	kind: TargetKind,
 	perform: Callable,
 	available: Callable = Callable(),
-	valid_target: Callable = Callable()
+	valid_target: Callable = Callable(),
+	cooldown: float = 0.0
 ) -> void:
 	id = action_id
 	title = action_title
@@ -31,10 +35,11 @@ func _init(
 	_perform = perform
 	_available = available
 	_valid_target = valid_target
+	cooldown_seconds = cooldown
 
 
 func is_valid_definition() -> bool:
-	return id != &"" and _perform.is_valid()
+	return id != &"" and _perform.is_valid() and cooldown_seconds >= 0.0 and cooldown_seconds < INF
 
 
 func is_available(actor: Node) -> bool:

@@ -10,10 +10,14 @@ signal targeting_canceled(action_id: StringName)
 signal action_rejected(action_id: StringName, reason: StringName)
 signal action_started(execution: ActionExecution)
 signal action_finished(execution: ActionExecution)
+signal cooldown_started(action_id: StringName, seconds: float)
+signal cooldown_finished(action_id: StringName)
 
 var _definitions: Dictionary = {}
 var _pending_action: StringName = &""
 var _running: Array[ActionExecution] = []
+var _execution_definitions: Dictionary = {} # ActionExecution -> ActionDefinition
+var _cooldowns: Dictionary = {} # StringName -> Timer
 
 
 func register_action(definition: ActionDefinition) -> bool:
@@ -33,6 +37,9 @@ func unregister_action(action_id: StringName) -> void:
 
 	if _pending_action == action_id:
 		cancel_targeting()
+
+	# Unregistering removes the measure's cooldown as well.
+	_clear_cooldown(action_id)
 
 	# Existing executions remain alive. Unregistering removes the measure
 	# from the menu, not a task that was already accepted.
@@ -58,7 +65,18 @@ func get_action(action_id: StringName) -> ActionDefinition:
 
 func is_available(action_id: StringName) -> bool:
 	var definition := get_action(action_id)
-	return definition != null and definition.is_available(get_parent())
+	return definition != null and not is_on_cooldown(action_id) and definition.is_available(get_parent())
+
+
+func is_on_cooldown(action_id: StringName) -> bool:
+	return get_cooldown_remaining(action_id) > 0.0
+
+
+func get_cooldown_remaining(action_id: StringName) -> float:
+	var timer := _cooldowns.get(action_id) as Timer
+	if timer == null or not is_instance_valid(timer):
+		return 0.0
+	return timer.time_left
 
 
 # Usually called when the user clicks a measure in the action bar.
@@ -67,6 +85,9 @@ func request_action(action_id: StringName) -> bool:
 	var definition := get_action(action_id)
 	if definition == null:
 		action_rejected.emit(action_id, &"unknown_action")
+		return false
+	if is_on_cooldown(action_id):
+		action_rejected.emit(action_id, &"cooldown")
 		return false
 	if not definition.is_available(get_parent()):
 		action_rejected.emit(action_id, &"unavailable")
@@ -124,6 +145,9 @@ func execute_action(action_id: StringName, target: Variant = null) -> ActionExec
 		return null
 
 	var actor := get_parent()
+	if is_on_cooldown(action_id):
+		action_rejected.emit(action_id, &"cooldown")
+		return null
 	if not definition.is_available(actor):
 		action_rejected.emit(action_id, &"unavailable")
 		return null
@@ -134,6 +158,7 @@ func execute_action(action_id: StringName, target: Variant = null) -> ActionExec
 
 	var execution := ActionExecution.new(action_id, actor, target)
 	_running.append(execution)
+	_execution_definitions[execution] = definition
 	execution.finished.connect(_on_execution_finished)
 	action_started.emit(execution)
 
@@ -160,7 +185,54 @@ func cancel_all() -> void:
 
 func _on_execution_finished(execution: ActionExecution) -> void:
 	_running.erase(execution)
+	var definition := _execution_definitions.get(execution) as ActionDefinition
+	_execution_definitions.erase(execution)
+	# Only the exact registered definition can start a cooldown: removing and
+	# re-registering an action ID must not resurrect an old cooldown.
+	if (
+		execution.status == ActionExecution.Status.COMPLETED
+		and definition != null
+		and get_action(execution.id) == definition
+		and definition.cooldown_seconds > 0.0
+	):
+		_start_cooldown(execution.id, definition.cooldown_seconds)
+		if _pending_action == execution.id:
+			cancel_targeting()
 	action_finished.emit(execution)
+
+
+func _start_cooldown(action_id: StringName, seconds: float) -> void:
+	_clear_cooldown(action_id)
+
+	var timer := Timer.new()
+	timer.one_shot = true
+	timer.ignore_time_scale = false
+	add_child(timer)
+	_cooldowns[action_id] = timer
+	timer.timeout.connect(_on_cooldown_timeout.bind(action_id, timer))
+	timer.start(seconds)
+
+	cooldown_started.emit(action_id, seconds)
+	actions_changed.emit()
+
+
+func _on_cooldown_timeout(action_id: StringName, timer: Timer) -> void:
+	if _cooldowns.get(action_id) != timer:
+		return
+
+	_cooldowns.erase(action_id)
+	timer.queue_free()
+	cooldown_finished.emit(action_id)
+	actions_changed.emit()
+
+
+func _clear_cooldown(action_id: StringName) -> void:
+	var timer := _cooldowns.get(action_id) as Timer
+	if timer == null:
+		return
+	_cooldowns.erase(action_id)
+	timer.stop()
+	timer.queue_free()
 
 
 func _exit_tree() -> void:

@@ -53,6 +53,44 @@ rules are **rechecked when starting** an invocation. Call
 `notify_actions_changed()` when a game-state change affects availability, so
 the UI can update without polling.
 
+## Optional cooldowns
+
+Each `ActionDefinition` can declare a cooldown in seconds. Zero (the default)
+means **no cooldown**. The cooldown is tracked independently by the
+`ActionController` belonging to each character, building or cart.
+
+```gdscript
+var bribe := ActionDefinition.new(
+    &"bribe", "Bribe", ActionDefinition.TargetKind.OBJECT, _perform_bribe
+)
+bribe.cooldown_seconds = 30.0
+actions.register_action(bribe)
+```
+
+The last optional constructor argument can also specify the cooldown:
+`ActionDefinition.new(id, title, kind, perform, available, valid_target, 30.0)`.
+Cooldowns must be finite and non-negative when the measure is registered.
+
+- **Starts:** after `execution.complete()` only. A running action is not
+  cooling down yet. A failed or canceled action never starts a cooldown.
+- **Blocks:** `request_action()` and `execute_action()` reject cooling-down
+  measures with `action_rejected(id, &"cooldown")`. `is_available(id)`
+  returns false while cooling down; other measures remain available.
+- **Inspect:** `get_cooldown_remaining(id) -> float` reports seconds left;
+  `is_on_cooldown(id) -> bool` is a convenience check.
+- **Signals:** `cooldown_started(id, seconds)` and `cooldown_finished(id)`
+  fire at the transitions. `actions_changed()` fires at both transitions,
+  so the UI can refresh without a per-frame signal.
+- **Time:** Godot's built-in, one-shot `Timer` respects
+  `Engine.time_scale` and normal scene-tree pausing. A controller needs no
+  extra nodes or timers in its scene.
+- **Removal:** unregistering the measure clears its cooldown. Removing and
+  re-registering an action ID does not cause old running invocations to
+  start cooldowns on the replacement.
+- **Concurrent actions:** if an action is running more than once, each
+  successful completion restarts its cooldown from the full duration.
+  Cooldowns do not retroactively cancel other running invocations.
+
 Target kinds:
 - `NONE`: immediate invocation, no target.
 - `OBJECT`: a live `Node3D` (character, cart, building, etc.).
@@ -129,7 +167,9 @@ canceling an already-running invocation.
 - `get_actions() -> Array[ActionDefinition]`
 - `notify_actions_changed()` (signal a game-driven availability change)
 - `get_action(id) -> ActionDefinition`
-- `is_available(id) -> bool`
+- `is_available(id) -> bool` (includes cooldown status)
+- `is_on_cooldown(id) -> bool`
+- `get_cooldown_remaining(id) -> float`
 - `request_action(id) -> bool`
 - `is_awaiting_target() -> bool`
 - `get_pending_action() -> StringName`
@@ -142,9 +182,11 @@ canceling an already-running invocation.
 
 Signals: `actions_changed()`, `target_required(id, target_kind)`,
 `targeting_canceled(id)`, `action_rejected(id, reason)`,
-`action_started(execution)`, `action_finished(execution)`.
+`action_started(execution)`, `action_finished(execution)`,
+`cooldown_started(id, seconds)`, `cooldown_finished(id)`.
 
-Rejection reasons: `unknown_action`, `unavailable`, `invalid_target`.
+Rejection reasons: `unknown_action`, `unavailable`, `invalid_target`,
+`cooldown`.
 
 ## Deploy
 
