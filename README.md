@@ -5,6 +5,7 @@ Some Godot bits and bobs.
 ## Collection
 
 - [Strategy Camera](strategy_camera/) — 3D strategy / city-builder camera.
+- [Selection System](selection_system/) — selection, marquee, and right-click targeting for 3D world objects.
 
 ## Deploy tool
 
@@ -18,7 +19,8 @@ chooses the installed folder names, and `deploy.py` installs **entire packages**
 ```json
 {
   "packages": {
-    "strategy_camera": "StrategyCamera"
+    "strategy_camera": "StrategyCamera",
+    "selection_system": "SelectionSystem"
   }
 }
 ```
@@ -29,7 +31,7 @@ Running:
 python .\tools\deploy.py C:\Users\posch\Documents\1400\manifest.json -y
 ```
 
-installs `packages/StrategyCamera/` in that Godot project.
+installs `packages/StrategyCamera/` and `packages/SelectionSystem/` in that Godot project.
 Names and casing come from the values in the manifest; the keys identify repository packages.
 Manifest values are single folder names, not arbitrary paths. Files in the package are
 installed with their internal relative layout intact.
