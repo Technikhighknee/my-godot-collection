@@ -34,8 +34,7 @@ const PAN_FORWARD_ACTION: StringName = &"camera_forward";
 const PAN_BACK_ACTION: StringName = &"camera_back";
 
 
-@export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 300;
-@export_range(2.0, 40.0, 1.0, "suffix:px") var pointer_pan_drag_threshold_pixels := 10.0;
+@export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 250;
 
 @onready var camera: Camera3D = $Camera3D;
 
@@ -59,7 +58,6 @@ var _edge_scroll_block_position := Vector2.ZERO;
 var _panning := false;
 var _pan_hold_pending := false;
 var _pan_hold_started_msec := 0;
-var _pointer_pan_press_position := Vector2.ZERO;
 var _pointer_pan_anchor := Vector2.ZERO;
 var _rotating := false;
 var _pointer_rotation_anchor := Vector2.ZERO;
@@ -170,9 +168,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion;
 
-		if _pan_hold_pending:
-			_try_start_pointer_pan_from_drag(motion);
-		elif _panning:
+		if _panning:
 			_handle_pointer_pan(motion);
 		elif _rotating:
 			_handle_rotation(motion);
@@ -200,29 +196,6 @@ func _update_pointer_pan_hold() -> void:
 	if not _pointer_pan_hold_ready():
 		return;
 
-	_begin_pointer_pan();
-
-
-func _try_start_pointer_pan_from_drag(event: InputEventMouseMotion) -> void:
-	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
-		return;
-
-	# Match the conventional desktop drag threshold (Manhattan distance).
-	var displacement := event.position - _pointer_pan_press_position;
-	var distance := absf(displacement.x) + absf(displacement.y);
-	if distance < pointer_pan_drag_threshold_pixels:
-		return;
-
-	_begin_pointer_pan();
-	# Apply the displacement that crossed the threshold so the camera does not
-	# appear to drop the beginning of the drag.
-	_pan_by(displacement);
-
-
-func _begin_pointer_pan() -> void:
-	if not _pan_hold_pending:
-		return;
-
 	_pan_hold_pending = false;
 	_pan_hold_started_msec = 0;
 
@@ -230,7 +203,7 @@ func _begin_pointer_pan() -> void:
 		_pointer_pan_anchor = _pointer_rotation_anchor;
 		_end_pointer_rotation();
 	else:
-		_pointer_pan_anchor = _pointer_pan_press_position;
+		_pointer_pan_anchor = get_viewport().get_mouse_position();
 
 	_panning = true;
 	_target_focus = _focus;
@@ -274,7 +247,6 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		if event.pressed and not event.canceled:
 			_pan_hold_pending = true;
 			_pan_hold_started_msec = Time.get_ticks_msec();
-			_pointer_pan_press_position = event.position;
 			return;
 
 		if _panning:
@@ -337,11 +309,8 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 
 
 func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
-	# 'relative' matches the viewport coordinates used by pan scale.
-	_pan_by(event.relative);
+	var motion := event.screen_relative;
 
-
-func _pan_by(motion: Vector2) -> void:
 	if motion == Vector2.ZERO:
 		return;
 
