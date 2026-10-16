@@ -1,0 +1,9 @@
+{
+  "files": [
+    "PlacePortal3D.gd",
+    "PlaceInstance.gd",
+    "PlaceManager3D.gd",
+    "PlaceView.gd",
+    "README.md"
+  ]
+}
