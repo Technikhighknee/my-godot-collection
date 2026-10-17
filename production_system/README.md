@@ -46,3 +46,5 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 
 ## Deployment
 Add `"production_system": "ProductionSystem"` and `"inventory_system": "InventorySystem"` to the project's package manifest; deploy with `tools/deploy.py`.
+
+Production defers inventory `contents_changed` signals until the matching production cycle or settlement transition is fully committed, preventing observers from seeing a half-completed cross-system transition. Direct `InventoryBatch.apply` retains its ordinary notification behavior.

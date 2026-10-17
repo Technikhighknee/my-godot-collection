@@ -95,16 +95,16 @@ func _notify_phase(station: ProductionStation, old_phase: StringName) -> void:
 		station_phase_changed.emit(station.id, old_phase, current_phase)
 
 
-func _set_block(station: ProductionStation, reason: StringName) -> void:
+func _set_block(station: ProductionStation, reason: StringName) -> bool:
 	var previous := station.block_reason
 	if previous == reason:
-		return
+		return false
 	station.block_reason = reason
 	if previous != &"":
 		station_unblocked.emit(station.id, previous)
 	if reason != &"":
 		station_blocked.emit(station.id, reason)
-	station_changed.emit(station.id)
+	return true
 
 
 func _valid_inventory_ids(ids: Array[StringName]) -> bool:
@@ -296,7 +296,8 @@ func _advance_internal(station_id: StringName) -> bool:
 		var order: Dictionary = station.queue.front()
 		var resolved := _resolve_cycle(station, order)
 		if resolved.is_empty():
-			_set_block(station, BLOCK_RECIPE)
+			if _set_block(station, BLOCK_RECIPE):
+				station_changed.emit(station_id)
 			return false
 		station.cycle = resolved
 		_set_block(station, &"")
@@ -307,16 +308,19 @@ func _advance_internal(station_id: StringName) -> bool:
 	if cycle["phase"] == INPUT:
 		var planned := _plan_materials(station.input_inventory_ids, cycle["inputs"], false)
 		if not planned.get("ok", false):
-			_set_block(station, BLOCK_INPUTS)
+			if _set_block(station, BLOCK_INPUTS):
+				station_changed.emit(station_id)
 			return false
 		var changes: Array[Dictionary] = planned["changes"]
-		if not changes.is_empty() and not InventoryBatch.apply(changes):
-			_set_block(station, BLOCK_INPUTS)
+		if not changes.is_empty() and not InventoryBatch.apply(changes, false):
+			if _set_block(station, BLOCK_INPUTS):
+				station_changed.emit(station_id)
 			return false
 		cycle["reserved"] = cycle["inputs"].duplicate(true)
 		cycle["phase"] = WORK
 		_set_block(station, &"")
 		_notify_phase(station, INPUT)
+		InventoryBatch.notify_contents_changed(changes)
 		station_changed.emit(station_id)
 		return true
 	if cycle["phase"] == OUTPUT:
@@ -434,11 +438,12 @@ func _settle_pending_internal(station_id: StringName) -> bool:
 	if not planned.get("ok", false):
 		return false
 	var changes: Array[Dictionary] = planned["changes"]
-	if not changes.is_empty() and not InventoryBatch.apply(changes):
+	if not changes.is_empty() and not InventoryBatch.apply(changes, false):
 		return false
 	var order_id: StringName = entry["order_id"]
 	station.settlements.pop_front()
 	_order_ids.erase(order_id)
+	InventoryBatch.notify_contents_changed(changes)
 	settlement_resolved.emit(station_id, order_id, &"stored")
 	station_changed.emit(station_id)
 	return true
@@ -469,22 +474,25 @@ func _finish_output(station: ProductionStation, cancel_repetitions: bool) -> boo
 		return false
 	var planned := _plan_materials(station.output_inventory_ids, cycle["pending"], true)
 	if not planned.get("ok", false):
-		_set_block(station, BLOCK_OUTPUTS)
+		if _set_block(station, BLOCK_OUTPUTS):
+			station_changed.emit(station.id)
 		return false
 	var changes: Array[Dictionary] = planned["changes"]
-	if not changes.is_empty() and not InventoryBatch.apply(changes):
-		_set_block(station, BLOCK_OUTPUTS)
+	if not changes.is_empty() and not InventoryBatch.apply(changes, false):
+		if _set_block(station, BLOCK_OUTPUTS):
+			station_changed.emit(station.id)
 		return false
 	var order_id: StringName = cycle["order_id"]
 	station.cycle = {}
 	var order: Dictionary = station.queue.front()
-	_set_block(station, &"")
-	_notify_phase(station, OUTPUT)
 	if order["remaining"] > 0:
 		order["remaining"] -= 1
 	if order["remaining"] == 0 or cancel_repetitions:
 		station.queue.pop_front()
 		_order_ids.erase(order_id)
+	_set_block(station, &"")
+	_notify_phase(station, OUTPUT)
+	InventoryBatch.notify_contents_changed(changes)
 	cycle_completed.emit(station.id, order_id)
 	station_changed.emit(station.id)
 	return true
