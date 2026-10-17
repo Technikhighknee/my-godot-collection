@@ -7,6 +7,7 @@ extends Node
 # register_physical_body() accepts their spatial CharacterBody3D counterpart.
 
 signal place_registered(place_id: StringName)
+signal place_removed(place_id: StringName)
 signal place_view_changed(place_id: StringName)
 signal portal_traversed(body: Node3D, from_place: StringName, to_place: StringName)
 signal portal_rejected(body: Node3D, place_id: StringName, portal_id: StringName)
@@ -56,6 +57,31 @@ func create_room(
 	if not _register_place(place_id, building_id, content, room_viewport, true):
 		room_viewport.queue_free()
 		return false
+	return true
+
+
+# Remove a game-owned interior safely, including both ends of every portal link.
+# Refuses occupied rooms, the currently viewed room, or pending transfers.
+# The game must relocate actors and change the active view first.
+func remove_room(place_id: StringName) -> bool:
+	var room := get_place(place_id)
+	if room == null or not room.owned_viewport or _viewed_place == place_id:
+		return false
+	if not _transfers_pending.is_empty() or room.actors_root.get_child_count() != 0:
+		return false
+	for occupied_place_id in _body_places.values():
+		if occupied_place_id == place_id:
+			return false
+	var links: Dictionary = _links.get(place_id, {})
+	for portal_id in links:
+		var link: Dictionary = links[portal_id]
+		var other_links: Dictionary = _links.get(link["to_place"], {})
+		other_links.erase(link["to_portal"])
+	_links.erase(place_id)
+	_places.erase(place_id)
+	var owned_viewport := room.viewport as SubViewport
+	owned_viewport.queue_free()
+	place_removed.emit(place_id)
 	return true
 
 

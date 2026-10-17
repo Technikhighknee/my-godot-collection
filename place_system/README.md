@@ -318,6 +318,10 @@ On every view switch, only the target viewport's render update changes.
 `_physics_process`, Actions, timers, AI and collisions in every room
 remain active. Rooms are not `hide()`n or unloaded.
 
+## Safe interior removal
+
+`remove_room(place_id) -> bool` removes a previously created interior room and disconnects both sides of its portal links. It **refuses** exterior worlds, the currently viewed room, rooms with registered or child actors, and all removals while a portal transfer is pending. The caller must first evacuate occupants, redirect the active view and settle active transfers. Successful removals emit `place_removed(place_id)`. It does not delete gameplay actors, buildings, inventories, or ownership.
+
 ## Important boundaries
 
 - There is **no simulation LOD**, reduced background AI, fake movement,
