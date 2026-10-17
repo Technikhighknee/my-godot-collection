@@ -1,9 +1,7 @@
 class_name PlaceActor
 extends Node
 
-# Persistent identity/logic for a character, cart, or other world actor.
-# ActionController, Inventory, AI etc. are children of THIS node, never
-# of the physical body, which is reparented when crossing world boundaries.
+# Gameplay state persists while the physical body moves between places.
 
 signal body_bound(body: CharacterBody3D, place_id: StringName)
 signal body_unbound()

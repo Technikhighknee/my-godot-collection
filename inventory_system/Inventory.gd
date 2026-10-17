@@ -1,9 +1,7 @@
 class_name Inventory
 extends Node
 
-# Reusable slot-based storage. All capacity values come from the game.
-# Each slot holds a single item ID and a quantity up to stack_capacity.
-# Capacity can only grow after the one-time configure() call.
+# Slots contain one item ID and its quantity.
 
 signal contents_changed()
 signal capacity_changed(slot_count: int, stack_capacity: int)
@@ -37,7 +35,7 @@ func get_slot_count() -> int:
 
 
 func get_physical_slot_count() -> int:
-	# Includes legacy occupied overflow slots; every one remains visible and removable.
+	# Includes occupied overflow slots retained after capacity reductions.
 	return _slots.size()
 
 
@@ -53,9 +51,7 @@ func is_over_capacity() -> bool:
 	return false
 
 
-# Non-destructive downgrade: occupied overflow stays accessible for removal.
-# Additions may only use the first slot_count slots and must respect the new
-# per-stack limit. Inactive empty trailing slots are safely discarded.
+# Capacity reductions preserve occupied overflow until the items are removed.
 func set_capacity(slot_count: int, stack_capacity: int) -> bool:
 	if not _configured or slot_count < 0 or stack_capacity <= 0:
 		return false
@@ -75,7 +71,6 @@ func get_stack_capacity() -> int:
 	return _stack_capacity
 
 
-# No shrinking, redistribution, or destructive capacity changes.
 func add_slots(count: int) -> bool:
 	if not _configured or count <= 0:
 		return false
@@ -125,8 +120,7 @@ func can_remove(item_id: StringName, quantity: int) -> bool:
 	return _valid_request(item_id, quantity) and get_item_quantity(item_id) >= quantity
 
 
-# Automatically fills matching stacks before consuming empty slots.
-# All-or-nothing, including requests spanning several slots.
+# Fill matching stacks first; reject any addition that cannot be completed.
 func add(item_id: StringName, quantity: int) -> bool:
 	if not _valid_request(item_id, quantity):
 		return false
@@ -139,7 +133,7 @@ func add(item_id: StringName, quantity: int) -> bool:
 	return true
 
 
-# Removes across multiple stacks, starting at the lowest slot index.
+# Remove from the lowest matching slot indices first.
 func remove(item_id: StringName, quantity: int) -> bool:
 	if not _valid_request(item_id, quantity):
 		return false
@@ -152,7 +146,6 @@ func remove(item_id: StringName, quantity: int) -> bool:
 	return true
 
 
-# Precise operations for click/drag interactions in a slot-based UI.
 func add_to_slot(index: int, item_id: StringName, quantity: int) -> bool:
 	if not _valid_request(item_id, quantity):
 		return false
@@ -177,8 +170,7 @@ func remove_from_slot(index: int, quantity: int) -> bool:
 	return true
 
 
-# Internal planning API used by InventoryTransfer. No signals or mutations
-# of the live inventory occur until every validation has passed.
+# Transaction planning uses detached slot snapshots, without live mutations.
 func _snapshot() -> Array[InventorySlot]:
 	var result: Array[InventorySlot] = []
 	for slot in _slots:
@@ -268,7 +260,7 @@ func _plan_remove_from_slot(
 	return true
 
 
-# Data-only snapshot; no Inventory/Node/Callable references.
+# Snapshots contain data values without live object references.
 func export_state() -> Dictionary:
 	var entries: Array[Dictionary] = []
 	for slot in _slots:
@@ -280,8 +272,8 @@ func export_state() -> Dictionary:
 	}
 
 
-# Rejects the entire snapshot before changing live state.
-# Non-empty inactive/overstack slots are allowed (capacity was reduced).
+# Invalid snapshots leave current contents unchanged.
+# Occupied overflow slots are valid after capacity reductions.
 func restore_state(snapshot: Dictionary) -> bool:
 	if snapshot.get("version") != SNAPSHOT_VERSION:
 		return false

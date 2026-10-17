@@ -1,7 +1,6 @@
 class_name PlaceLocation
 extends RefCounted
 
-# A destination is meaningful only together with its unique place ID.
 var place_id: StringName
 var position: Vector3
 

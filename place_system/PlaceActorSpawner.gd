@@ -1,9 +1,8 @@
 class_name PlaceActorSpawner
 extends RefCounted
 
-# Creates the persistent gameplay identity separately from the spatial body.
-# Actor and body templates are supplied by the game (not hardcoded here).
-# Returns null without leaving half-initialized objects on failure.
+# Instantiates persistent actors and physical bodies as separate scenes.
+# Failed binding frees both newly created instances.
 
 static func spawn(
 	manager: PlaceManager3D, persistent_parent: Node,
@@ -40,7 +39,7 @@ static func spawn(
 	var body := body_node as CharacterBody3D
 	actor.actor_id = actor_id
 
-	# Spawn the body into the destination physics world BEFORE binding.
+	# Insert the body into its destination physics world before binding.
 	place.actors_root.add_child(body)
 	body.global_position = location.position
 	body.reset_physics_interpolation()

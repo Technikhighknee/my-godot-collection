@@ -1,8 +1,7 @@
 class_name MovementAgent3D
 extends NavigationAgent3D
 
-# Walking navigation for a CharacterBody3D parent. This component is the
-# body's sole movement driver; the game decides why and where it moves.
+# Sole movement driver for the parent CharacterBody3D.
 
 signal movement_started(destination: Vector3)
 signal movement_arrived(destination: Vector3)
@@ -41,7 +40,7 @@ func move_to(destination: Vector3) -> bool:
 		return false
 
 	if _moving:
-		# Replacing a goal cancels its previous movement, not the body's momentum.
+	# Replacing a destination preserves the body's current momentum.
 		_moving = false
 		_avoidance_pending = false
 		movement_stopped.emit()
@@ -83,8 +82,7 @@ func _physics_process(delta: float) -> void:
 		_move_body(Vector3.ZERO, delta)
 		return
 
-	# A newly created navigation map needs at least one server sync.
-	# Querying paths before that can produce misleading empty paths.
+	# Wait for the navigation map's first server sync before querying paths.
 	var navigation_map := get_navigation_map()
 	if not navigation_map.is_valid() or NavigationServer3D.map_get_iteration_id(navigation_map) == 0:
 		_map_wait += delta
@@ -94,7 +92,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_map_wait = 0.0
-	# This call advances the built-in path state. Make it once each physics tick.
+	# Updates the built-in navigation path state once per physics frame.
 	var waypoint := get_next_path_position()
 
 	if is_navigation_finished():
@@ -105,8 +103,7 @@ func _physics_process(delta: float) -> void:
 		_move_body(Vector3.ZERO, delta)
 		return
 
-	# Ground walking uses XZ steering. CharacterBody3D handles vertical
-	# movement, floors, slopes and wall collision through move_and_slide().
+	# Steering stays on XZ; CharacterBody3D handles vertical movement.
 	var direction := waypoint - _body.global_position
 	direction.y = 0.0
 	var desired := Vector3.ZERO
@@ -120,8 +117,7 @@ func _physics_process(delta: float) -> void:
 	var requested := current.move_toward(desired, acceleration * delta)
 
 	if avoidance_enabled:
-		# Godot computes and dispatches the safe velocity later in this
-		# same physics frame. Never move twice.
+		# Avoidance returns safe velocity later in this physics frame.
 		max_speed = move_speed
 		_avoidance_delta = delta
 		_avoidance_pending = true

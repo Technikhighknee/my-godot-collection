@@ -1,8 +1,7 @@
 class_name PlaceInstance
 extends RefCounted
 
-# One physical place. A PackedScene can back many independent instances.
-# Its World3D lives in a Viewport and remains active while rendering is off.
+# Represents a live place with an independent World3D.
 var id: StringName
 var building_id: StringName
 var root: Node3D
@@ -35,8 +34,7 @@ func get_portal(portal_id: StringName) -> PlacePortal3D:
 func get_navigation_map() -> RID:
 	if not is_instance_valid(viewport):
 		return RID()
-	# Viewport.world_3d is only an explicitly assigned world; it may be
-	# null even when a viewport has an effective inherited/owned 3D world.
+	# Viewport.world_3d may be null despite an effective inherited world.
 	var world := viewport.find_world_3d()
 	if world == null:
 		return RID()

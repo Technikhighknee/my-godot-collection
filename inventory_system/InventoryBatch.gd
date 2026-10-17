@@ -1,11 +1,8 @@
 class_name InventoryBatch
 extends RefCounted
 
-# Atomic multi-item, multi-inventory transaction.
-# Each entry is { "inventory": Inventory, "item_id": StringName, "delta": int }.
-# Positive deltas add goods, negative deltas remove them.
-# Changes are prepared on snapshots; no mutation occurs if any step fails.
-# All signals are emitted after every touched inventory has been committed.
+# Transactions commit atomically and notify observers afterwards.
+# Change entries contain inventory, item_id and signed delta.
 
 static func apply(changes: Array[Dictionary], emit_signals: bool = true) -> bool:
 	if changes.is_empty():
@@ -49,7 +46,7 @@ static func apply(changes: Array[Dictionary], emit_signals: bool = true) -> bool
 	return true
 
 
-# Allow a composite owner to notify only after its own state is committed.
+# Composite operations may defer notifications until their own state commits.
 static func notify_contents_changed(changes: Array[Dictionary]) -> void:
 	var touched: Dictionary = {}
 	for change in changes:
@@ -92,9 +89,8 @@ static func can_apply(changes: Array[Dictionary]) -> bool:
 	return true
 
 
-# Determine a whole-item distribution across inventories, without modifying any.
-# Input order is used as inventory priority; sorted item IDs ensure repeatability.
-# Multiple item types share the same tentative slot snapshots.
+# Plan distribution on snapshots without changing inventory contents.
+# Inventory order determines priority; item IDs are processed consistently.
 # Returns {"ok": true, "changes": Array[Dictionary]} or {"ok": false}.
 static func plan_distribution(
 	inventories: Array[Inventory], items: Dictionary, adding: bool

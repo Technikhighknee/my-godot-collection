@@ -1,12 +1,9 @@
 class_name InventoryTransfer
 extends RefCounted
 
-# Synchronous, all-or-nothing transfers. This class does not decide whether
-# a character is close enough, has permission, or can afford a purchase.
-# Both inventories are committed before either emits contents_changed().
+# Both inventories commit before contents_changed is emitted.
 
 
-# Move a specified quantity of one item, using automatic slot placement.
 static func transfer(
 	source: Inventory, destination: Inventory, item_id: StringName, quantity: int
 ) -> bool:
@@ -24,7 +21,6 @@ static func transfer(
 	return true
 
 
-# Move goods from exactly one source slot, placing them automatically.
 static func transfer_from_slot(
 	source: Inventory, source_index: int,
 	destination: Inventory, quantity: int
@@ -47,8 +43,7 @@ static func transfer_from_slot(
 	return true
 
 
-# Transfer from one exact source slot to one exact destination slot.
-# Also supports moving/splitting/consolidating stacks within one inventory.
+# Also supports moves and merges between slots of the same inventory.
 static func transfer_slot(
 	source: Inventory, source_index: int,
 	destination: Inventory, destination_index: int, quantity: int

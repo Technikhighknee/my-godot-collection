@@ -1,10 +1,7 @@
 class_name OwnershipRegistry
 extends Node
 
-# Ownership of game-defined buildings. The owning entity is a dynasty,
-# a city, or nobody. A dynasty-owned building can be assigned to a member
-# shown as its owner in the game's UI; this never transfers legal ownership.
-# No City System or Building System is created here.
+# Stores building owners and optional assignees for dynasty property.
 
 enum OwnerType { NONE, DYNASTY, CITY }
 
@@ -28,10 +25,7 @@ func configure(dynasties: DynastyRegistry) -> bool:
 	return true
 
 
-# Atomically assigns or transfers economic ownership.
-# For a DYNASTY, specify a registered member as the displayed owner.
-# CITY uses an opaque game-supplied city ID; no City System dependency.
-# NONE removes ownership. No partial changes on invalid inputs.
+# Owner transfers validate assignments before updating the record.
 func set_building_owner(
 	building_id: StringName, owner_type: OwnerType,
 	owner_id: StringName = &"", character_id: StringName = &""
@@ -83,8 +77,8 @@ func set_building_owner(
 	return true
 
 
-# Changes only the person displayed as owner, never the owning dynasty.
-# Empty ID explicitly leaves the building temporarily unassigned (e.g. death).
+# Changing the assigned character preserves economic ownership.
+# Passing an empty ID clears the assignment.
 func assign_character(building_id: StringName, character_id: StringName) -> bool:
 	if get_owner_type(building_id) != OwnerType.DYNASTY:
 		return false
@@ -125,8 +119,6 @@ func get_assigned_character_id(building_id: StringName) -> StringName:
 	return character_id
 
 
-# Returns a snapshot of building IDs owned by a single dynasty or city.
-# NONE has no roster: the game owns the list of existing buildings.
 func get_owned_buildings(owner_type: OwnerType, owner_id: StringName) -> Array[StringName]:
 	var result: Array[StringName] = []
 	if (
@@ -144,8 +136,7 @@ func get_owned_buildings(owner_type: OwnerType, owner_id: StringName) -> Array[S
 func _on_membership_changed(
 	character_id: StringName, _old_dynasty_id: StringName, new_dynasty_id: StringName
 ) -> void:
-	# Leaving/changing dynasties never transfers the building itself.
-	# Only the obsolete displayed-owner assignment is cleared.
+	# A character leaving the dynasty clears their assignment, not ownership.
 	for building_id in _owners.keys():
 		var record: Dictionary = _owners[building_id]
 		if (

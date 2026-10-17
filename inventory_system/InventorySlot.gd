@@ -1,8 +1,7 @@
 class_name InventorySlot
 extends RefCounted
 
-# A snapshot of one slot, not a scene node or an item definition.
-# Inventory.get_slot() returns a copy; modifying it cannot change inventory.
+# Inventory getters return detached copies of slots.
 var item_id: StringName
 var quantity: int
 
