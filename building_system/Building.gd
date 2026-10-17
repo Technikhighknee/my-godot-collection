@@ -74,3 +74,7 @@ func to_snapshot() -> Dictionary:
 		"transform": _transform, "properties": get_properties(),
 		"upgrades": get_upgrades()
 	}
+
+# Safe detached value copy for registry-facing APIs.
+func copy() -> Building:
+	return Building.new(_id, _type_id, _place_id, _transform, _properties, _upgrades)

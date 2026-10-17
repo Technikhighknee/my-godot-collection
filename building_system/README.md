@@ -6,7 +6,7 @@ No building kinds, game stats, recipes, effect engine, ownership, physics, rooms
 ## Design
 
 - `Building` (RefCounted) exposes read-only accessors for its stable identity, type ID, place ID, Transform3D, properties and upgrade levels.
-- `BuildingRegistry` (Node) is the sole supported mutation surface. IDs are unique; IDs, type IDs and place IDs must be nonempty.
+- `BuildingRegistry` (Node) is the sole supported mutation surface. Registry stores a detached copy of each registered building and getters return detached copies; modifying one never changes the registry. IDs are unique; IDs, type IDs and place IDs must be nonempty.
 - `type_id`, property IDs and upgrade IDs originate in the game. The registry never defines them.
 - Properties are persistent **base state**, not computed stats. Keys must be StringNames. Values must be data-only Godot Variants (scalars, basic vectors/colors, arrays or dictionaries), with no Object/Resource/Callable references. An existing property's type cannot silently change.
 - Optional `property_validator(building, property_id, value)`, `upgrade_validator(building, upgrade_id, level)` and `type_validator(building, type_id)` callbacks allow the game to enforce its schema/rules. Treat these as **pure validators**, not side-effecting commands.

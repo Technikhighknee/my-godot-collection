@@ -28,7 +28,7 @@ var _buildings: Dictionary = {} # StringName -> Building
 func register_building(building: Building) -> bool:
 	if not _valid_building(building) or _buildings.has(building.get_id()):
 		return false
-	_buildings[building.get_id()] = building
+	_buildings[building.get_id()] = building.copy()
 	building_registered.emit(building.get_id())
 	return true
 
@@ -40,7 +40,13 @@ func unregister_building(building_id: StringName) -> bool:
 	return true
 
 
+# Detached read-only-by-convention value snapshot; the caller cannot mutate registry state.
 func get_building(building_id: StringName) -> Building:
+	var building := _get_building(building_id)
+	return building.copy() if building != null else null
+
+
+func _get_building(building_id: StringName) -> Building:
 	return _buildings.get(building_id) as Building
 
 
@@ -51,15 +57,15 @@ func has_building(building_id: StringName) -> bool:
 func get_buildings() -> Array[Building]:
 	var result: Array[Building] = []
 	for building in _buildings.values():
-		result.append(building)
+		result.append(building.copy())
 	return result
 
 
 func set_type(building_id: StringName, type_id: StringName) -> bool:
-	var building := get_building(building_id)
+	var building := _get_building(building_id)
 	if building == null or not _valid_id(type_id):
 		return false
-	if type_validator.is_valid() and not bool(type_validator.call(building, type_id)):
+	if type_validator.is_valid() and not bool(type_validator.call(building.copy(), type_id)):
 		return false
 	if building._type_id == type_id:
 		return true
@@ -70,7 +76,7 @@ func set_type(building_id: StringName, type_id: StringName) -> bool:
 
 
 func set_placement(building_id: StringName, place_id: StringName, transform: Transform3D) -> bool:
-	var building := get_building(building_id)
+	var building := _get_building(building_id)
 	if building == null or not _valid_id(place_id) or not _valid_transform(transform):
 		return false
 	if building._place_id == place_id and building._transform == transform:
@@ -82,14 +88,14 @@ func set_placement(building_id: StringName, place_id: StringName, transform: Tra
 
 
 func set_property_value(building_id: StringName, property_id: StringName, value: Variant) -> bool:
-	var building := get_building(building_id)
+	var building := _get_building(building_id)
 	if building == null or not _valid_id(property_id) or not _persistent_value(value):
 		return false
 	if building._properties.has(property_id):
 		var old: Variant = building._properties[property_id]
 		if typeof(old) != typeof(value):
 			return false
-	if property_validator.is_valid() and not bool(property_validator.call(building, property_id, value)):
+	if property_validator.is_valid() and not bool(property_validator.call(building.copy(), property_id, value)):
 		return false
 	var previous: Variant = building.get_property_value(property_id)
 	if building._properties.has(property_id) and previous == value:
@@ -100,7 +106,7 @@ func set_property_value(building_id: StringName, property_id: StringName, value:
 
 
 func erase_property(building_id: StringName, property_id: StringName) -> bool:
-	var building := get_building(building_id)
+	var building := _get_building(building_id)
 	if building == null or not building.has_property(property_id):
 		return false
 	var previous: Variant = building.get_property_value(property_id)
@@ -110,10 +116,10 @@ func erase_property(building_id: StringName, property_id: StringName) -> bool:
 
 
 func set_upgrade_level(building_id: StringName, upgrade_id: StringName, level: int) -> bool:
-	var building := get_building(building_id)
+	var building := _get_building(building_id)
 	if building == null or not _valid_id(upgrade_id) or level < 0:
 		return false
-	if upgrade_validator.is_valid() and not bool(upgrade_validator.call(building, upgrade_id, level)):
+	if upgrade_validator.is_valid() and not bool(upgrade_validator.call(building.copy(), upgrade_id, level)):
 		return false
 	var previous := building.get_upgrade_level(upgrade_id)
 	if previous == level:
@@ -181,19 +187,19 @@ func _valid_building(building: Building) -> bool:
 		or not _valid_transform(building.get_transform())
 	):
 		return false
-	if type_validator.is_valid() and not bool(type_validator.call(building, building.get_type_id())):
+	if type_validator.is_valid() and not bool(type_validator.call(building.copy(), building.get_type_id())):
 		return false
 	for key in building._properties:
 		var value: Variant = building._properties[key]
 		if not key is StringName or not _valid_id(key) or not _persistent_value(value):
 			return false
-		if property_validator.is_valid() and not bool(property_validator.call(building, key, _copy_value(value))):
+		if property_validator.is_valid() and not bool(property_validator.call(building.copy(), key, _copy_value(value))):
 			return false
 	for key in building._upgrades:
 		var level: Variant = building._upgrades[key]
 		if not key is StringName or not _valid_id(key) or typeof(level) != TYPE_INT or level <= 0:
 			return false
-		if upgrade_validator.is_valid() and not bool(upgrade_validator.call(building, key, level)):
+		if upgrade_validator.is_valid() and not bool(upgrade_validator.call(building.copy(), key, level)):
 			return false
 	return true
 
@@ -225,7 +231,9 @@ static func _persistent_value(value: Variant, depth: int = 0) -> bool:
 			return true
 		TYPE_FLOAT:
 			return is_finite(value)
-		TYPE_VECTOR2, TYPE_VECTOR3, TYPE_VECTOR4, TYPE_COLOR, TYPE_VECTOR2I, TYPE_VECTOR3I, TYPE_VECTOR4I:
+		TYPE_VECTOR2, TYPE_VECTOR3, TYPE_VECTOR4, TYPE_COLOR:
+			return value.is_finite()
+		TYPE_VECTOR2I, TYPE_VECTOR3I, TYPE_VECTOR4I:
 			return true
 		TYPE_ARRAY:
 			for part in value:
