@@ -115,6 +115,8 @@ deliberately has no distance, economy, movement, or permission logic.
 `Inventory`:
 
 - `configure(slot_count, stack_capacity) -> bool` (one-time)
+- `set_capacity(slot_count, stack_capacity) -> bool`, `get_physical_slot_count() -> int`, `is_over_capacity() -> bool`
+- `export_state() -> Dictionary`, `restore_state(snapshot) -> bool`
 - `is_configured() -> bool`
 - `add_slots(count) -> bool`
 - `increase_stack_capacity(amount) -> bool`
@@ -131,6 +133,10 @@ deliberately has no distance, economy, movement, or permission logic.
 - `transfer(source, destination, item_id, quantity) -> bool`
 - `transfer_from_slot(source, source_index, destination, quantity) -> bool`
 - `transfer_slot(source, source_index, destination, destination_index, quantity) -> bool`
+
+## Atomic distribution across multiple inventories
+
+`InventoryBatch.plan_distribution(inventories, items, adding)` simulates material removal (`adding=false`) or placement (`adding=true`) across an ordered set of inventories, returning `{"ok": true, "changes": [...]}` or `{"ok": false}`. It never changes inventory content. Use `InventoryBatch.apply(changes)` to commit the resulting all-or-nothing batch. This is useful for multi-item recipes consuming inputs from several storages or placing outputs across multiple stockrooms.
 
 ## Deployment
 

@@ -34,7 +34,7 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 ## Persistence
 `export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, progress and stable inventory binding IDs. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
 
-`restore_state` verifies all IDs, queues and phase invariants before replacing the registry. Missing inventory IDs or inconsistent material ownership reject the snapshot. Definition migrations are a game responsibility.
+`restore_state` verifies all IDs, queues and phase invariants before replacing the registry. Missing inventory IDs, malformed queues, impossible work progress, and invalid phase/resource combinations reject the snapshot. The game must restore inventory and production from the **same** checkpoint; the production package cannot independently prove cross-system conservation from an isolated snapshot. Definition migrations are a game responsibility.
 
 ## Boundaries
 - InventoryBatch currently changes available goods atomically; input reservation/output buffers are owned and saved by Production, not mirrored in Inventory.

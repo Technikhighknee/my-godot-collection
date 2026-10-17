@@ -330,6 +330,9 @@ func _finish_output(station: ProductionStation, cancel_repetitions: bool) -> boo
 
 
 func export_state() -> Dictionary:
+	if not _busy_stations.is_empty():
+		push_error("Production cannot export a consistent snapshot during an active transaction.")
+		return {}
 	var ids: Array[String] = []
 	for station_id in _stations:
 		ids.append(String(station_id))
