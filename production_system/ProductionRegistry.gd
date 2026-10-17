@@ -24,7 +24,7 @@ signal cycle_started(station_id: StringName, order_id: StringName)
 signal cycle_completed(station_id: StringName, order_id: StringName)
 signal state_restored()
 
-const SNAPSHOT_VERSION := 4
+const SNAPSHOT_VERSION := 5
 const IDLE := &"idle"
 const BLOCK_INPUTS := &"inputs_unavailable"
 const BLOCK_OUTPUTS := &"outputs_full"
@@ -294,61 +294,94 @@ func _resolve_cycle(station: ProductionStation, order: Dictionary) -> Dictionary
 		"order_id": order["id"], "recipe_id": order["recipe_id"],
 		"inputs": spec["inputs"].duplicate(true), "outputs": spec["outputs"].duplicate(true),
 		"work_required": spec["work"], "work_done": 0,
-		"phase": INPUT, "reserved": {}, "pending": {}
+		"phase": WORK, "reserved": {}, "pending": {}
 	}
 
 
-# Starts the next job, or tries the next blocked resource transition.
-# This method never silently advances simulated work.
-func advance(station_id: StringName) -> bool:
+# Request a new production cycle at a meaningful gameplay event (order
+# queued, materials delivered, worker begins working), never on every frame.
+# Success atomically reserves all inputs and enters the WORK phase.
+# Failure does not create a cycle or consume goods; it may report a block reason.
+func try_begin_cycle(station_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false
 	_busy_stations[station_id] = true
-	var accepted := _advance_internal(station_id)
+	var accepted := _try_begin_cycle_internal(station_id)
 	_busy_stations.erase(station_id)
 	return accepted
 
 
-func _advance_internal(station_id: StringName) -> bool:
+func _try_begin_cycle_internal(station_id: StringName) -> bool:
 	var station := _get_station(station_id)
-	if station == null or station.paused:
+	if station == null or station.paused or not station.cycle.is_empty() or station.queue.is_empty():
 		return false
-	if station.cycle.is_empty():
-		if station.queue.is_empty():
-			return false
-		var order: Dictionary = station.queue.front()
-		var resolved := _resolve_cycle(station, order)
-		if resolved.is_empty():
-			if _set_block(station, BLOCK_RECIPE):
-				station_changed.emit(station_id)
-			return false
-		station.cycle = resolved
-		_set_block(station, &"")
-		cycle_started.emit(station_id, order["id"])
-		_notify_phase(station, IDLE)
-		station_changed.emit(station_id)
-	var cycle := station.cycle
-	if cycle["phase"] == INPUT:
-		var planned := _plan_materials(station.input_inventory_ids, cycle["inputs"], false)
-		if not planned.get("ok", false):
-			if _set_block(station, BLOCK_INPUTS):
-				station_changed.emit(station_id)
-			return false
-		var changes: Array[Dictionary] = planned["changes"]
-		if not changes.is_empty() and not InventoryBatch.apply(changes, false):
-			if _set_block(station, BLOCK_INPUTS):
-				station_changed.emit(station_id)
-			return false
-		cycle["reserved"] = cycle["inputs"].duplicate(true)
-		cycle["phase"] = WORK
-		_set_block(station, &"")
-		_notify_phase(station, INPUT)
-		InventoryBatch.notify_contents_changed(changes)
-		station_changed.emit(station_id)
-		return true
-	if cycle["phase"] == OUTPUT:
-		return _finish_output(station, false)
-	return false
+
+	var order: Dictionary = station.queue.front()
+	var cycle := _resolve_cycle(station, order)
+	if cycle.is_empty():
+		if _set_block(station, BLOCK_RECIPE):
+			station_changed.emit(station_id)
+		return false
+
+	var planned := _plan_materials(station.input_inventory_ids, cycle["inputs"], false)
+	if not planned.get("ok", false):
+		if _set_block(station, BLOCK_INPUTS):
+			station_changed.emit(station_id)
+		return false
+	var changes: Array[Dictionary] = planned["changes"]
+	if not changes.is_empty() and not InventoryBatch.apply(changes, false):
+		if _set_block(station, BLOCK_INPUTS):
+			station_changed.emit(station_id)
+		return false
+
+	# Every new cycle begins ready for *externally supplied work*. No internal
+	# timer, worker schedule, ETA, frame loop, or per-tick work accumulation.
+	cycle["reserved"] = cycle["inputs"].duplicate(true)
+	cycle["phase"] = WORK
+	station.cycle = cycle
+	_set_block(station, &"")
+	cycle_started.emit(station_id, order["id"])
+	_notify_phase(station, IDLE)
+	InventoryBatch.notify_contents_changed(changes)
+	station_changed.emit(station_id)
+	return true
+
+
+# Called after the *game* observes work completion or output-space changes.
+# Never starts another cycle implicitly; orchestration remains in the game.
+func try_deliver_outputs(station_id: StringName) -> bool:
+	if _busy_stations.has(station_id):
+		return false
+	_busy_stations[station_id] = true
+	var station := _get_station(station_id)
+	var delivered := false
+	if station != null and not station.paused:
+		delivered = _finish_output(station, false)
+	_busy_stations.erase(station_id)
+	return delivered
+
+
+# A read-only, time-free work ledger for the game's event scheduler and UI.
+# There is intentionally no finish_at, duration, rate, employee, or timestamp.
+# A station not in WORK has no outstanding *work contribution* to schedule.
+func get_work_state(station_id: StringName) -> Dictionary:
+	var station := _get_station(station_id)
+	if station == null:
+		return {}
+	var phase := _phase(station)
+	var completed := 0
+	var required := 0
+	if not station.cycle.is_empty():
+		completed = station.cycle["work_done"]
+		required = station.cycle["work_required"]
+	return {
+		"phase": phase,
+		"paused": station.paused,
+		"block_reason": station.block_reason,
+		"work_completed": completed,
+		"work_required": required,
+		"work_remaining": required - completed
+	}
 
 
 # Accepts up to the remaining work, returns the accepted number of work units.
@@ -609,7 +642,7 @@ func restore_state(snapshot: Dictionary) -> bool:
 			return false
 		if station.block_reason == BLOCK_RECIPE and (not station.cycle.is_empty() or station.queue.is_empty()):
 			return false
-		if station.block_reason == BLOCK_INPUTS and (station.cycle.is_empty() or station.cycle["phase"] != INPUT):
+		if station.block_reason == BLOCK_INPUTS and (not station.cycle.is_empty() or station.queue.is_empty()):
 			return false
 		if station.block_reason == BLOCK_OUTPUTS and (station.cycle.is_empty() or station.cycle["phase"] != OUTPUT):
 			return false
@@ -659,12 +692,10 @@ func _valid_cycle(station: ProductionStation) -> bool:
 		or typeof(cycle["work_done"]) != TYPE_INT or cycle["work_done"] < 0
 		or cycle["work_done"] > cycle["work_required"]
 		or not cycle["phase"] is StringName
-		or not cycle["phase"] in [INPUT, WORK, OUTPUT]
+		or not cycle["phase"] in [WORK, OUTPUT]
 	):
 		return false
-	if cycle["phase"] == INPUT:
-		return cycle["work_done"] == 0 and cycle["reserved"].is_empty() and cycle["pending"].is_empty()
-	if cycle["phase"] == WORK:
+		if cycle["phase"] == WORK:
 		return cycle["work_done"] < cycle["work_required"] and cycle["reserved"] == cycle["inputs"] and cycle["pending"].is_empty()
 	return cycle["work_done"] == cycle["work_required"] and cycle["reserved"].is_empty() and cycle["pending"] == cycle["outputs"]
 
