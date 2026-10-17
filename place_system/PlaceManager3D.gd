@@ -1,10 +1,7 @@
 class_name PlaceManager3D
 extends Node
 
-# Each interior runs continuously in its own SubViewport/World3D.
-# Only render-target updates are disabled while a room is not observed.
-# The game owns persistent actors/actions/inventories outside these worlds;
-# register_physical_body() accepts their spatial CharacterBody3D counterpart.
+# Each interior has its own World3D; hiding its view stops only rendering.
 
 signal place_registered(place_id: StringName)
 signal place_removed(place_id: StringName)
@@ -30,8 +27,6 @@ func register_exterior(place_id: StringName, root: Node3D) -> bool:
 	return _register_place(place_id, &"", root, root.get_viewport(), false)
 
 
-# Each call creates a separate live physics/navigation space, even when many
-# rooms share the exact same PackedScene and assets.
 func create_room(
 	place_id: StringName, building_id: StringName, layout: PackedScene
 ) -> bool:
@@ -46,8 +41,7 @@ func create_room(
 
 	var room_viewport := SubViewport.new()
 	room_viewport.name = "Room_%s" % String(place_id)
-	# Assign an explicit isolated world. With own_world_3d alone,
-	# Viewport.world_3d can still be null and cannot be dereferenced.
+	# Assign a World3D explicitly; own_world_3d alone may leave world_3d null.
 	room_viewport.world_3d = World3D.new()
 	room_viewport.size = Vector2i(2, 2)
 	room_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -60,9 +54,7 @@ func create_room(
 	return true
 
 
-# Remove a game-owned interior safely, including both ends of every portal link.
-# Refuses occupied rooms, the currently viewed room, or pending transfers.
-# The game must relocate actors and change the active view first.
+# Rooms must be unoccupied, unviewed and free of pending transfers before removal.
 func remove_room(place_id: StringName) -> bool:
 	var room := get_place(place_id)
 	if room == null or not room.owned_viewport or _viewed_place == place_id:
@@ -134,8 +126,7 @@ func get_body_place(body: Node3D) -> StringName:
 	return place_id
 
 
-# A body is the physical counterpart of a persistent game actor.
-# The actor's ActionController/Inventory MUST live outside this body subtree.
+# Register physical bodies here; their persistent actors stay outside the place.
 func register_physical_body(body: Node3D, place_id: StringName) -> bool:
 	var place := get_place(place_id)
 	if not is_instance_valid(body) or place == null or _body_places.has(body):
@@ -152,10 +143,8 @@ func register_physical_body(body: Node3D, place_id: StringName) -> bool:
 		return false
 
 	_body_places[body] = place_id
-	# In particular, a NavigationAgent3D moved between World3Ds may retain
-	# its old map RID unless explicitly updated.
+	# Agents crossing World3Ds must have their navigation map reassigned.
 	_assign_navigation_map(body, navigation_map)
-	# Registering does not reparent or teleport existing bodies.
 	return true
 
 
@@ -174,8 +163,6 @@ func _stop_body_movement(body: Node3D) -> void:
 			child.call("stop")
 
 
-# Selection targets physical bodies; game logic resolves persistent actors.
-# Register once via PlaceActor.bind_body(), not separately for every room.
 func get_actor_for_body(body: Node3D) -> Node:
 	return _actor_by_body.get(body) as Node
 
@@ -206,15 +193,12 @@ func unregister_physical_body(body: Node3D) -> void:
 	_transfers_pending.erase(body)
 
 
-# Useful when an Action is canceled while portal traversal is queued for
-# deferred execution. Its physical body must remain in the original place.
+# Deferred portal transfers can be canceled before execution.
 func cancel_pending_portal_transfer(body: Node3D) -> bool:
 	return _transfers_pending.erase(body)
 
 
-# Directed access is game-configurable (e.g. cellar locked by an upgrade).
-# The callable receives body: Node3D and returns bool. An empty callable
-# grants access. A bidirectional pair shares the same access predicate.
+# Access predicates receive a body and return bool; an empty predicate permits access.
 func connect_portals(
 	a_place: StringName, a_portal: StringName,
 	b_place: StringName, b_portal: StringName,
@@ -245,7 +229,6 @@ func connect_portals(
 	return true
 
 
-# Switch both directions of a paired doorway together.
 func set_portal_enabled(place_id: StringName, portal_id: StringName, enabled: bool) -> bool:
 	var links: Dictionary = _links.get(place_id, {})
 	if not links.has(portal_id):
@@ -266,8 +249,7 @@ func _can_traverse(body: Node3D, link: Dictionary) -> bool:
 	return not allowed.is_valid() or bool(allowed.call(body))
 
 
-# Returns a short portal sequence, not a movement path. Individual movement
-# segments are delegated to MovementAgent3D in each World3D.
+# Returns a sequence of portal hops across the connected places.
 func find_portal_route(
 	from_place: StringName, to_place: StringName, body: Node3D
 ) -> Array[Dictionary]:
@@ -310,9 +292,7 @@ func find_portal_route(
 	return empty
 
 
-# Call when the body has actually arrived at the doorway.
-# It checks distance and access, then defers the actual world swap until
-# outside the physics callback. Returns whether the request was accepted.
+# Check access and distance now; defer world transfer beyond the physics callback.
 func use_portal(body: Node3D, portal_id: StringName) -> bool:
 	if not is_instance_valid(body) or _transfers_pending.has(body):
 		return false
@@ -343,7 +323,7 @@ func use_portal(body: Node3D, portal_id: StringName) -> bool:
 func _commit_portal_transfer(
 	body: Node3D, from_place: StringName, portal_id: StringName
 ) -> void:
-	# Cancellation/unbinding may have invalidated this queued transfer.
+	# The pending transfer may have been canceled or unbound.
 	if not _transfers_pending.has(body):
 		return
 	_transfers_pending.erase(body)
@@ -373,9 +353,7 @@ func _commit_portal_transfer(
 		portal_rejected.emit(body, from_place, portal_id)
 		return
 
-	# Only the spatial body is moved. Game-owned ActionController, Inventory,
-	# AI, and cooldowns remain attached to the persistent actor elsewhere.
-	# Stop any old-world navigation goal, then bind agents to the new map.
+	# Reparent only the physical body and update its navigation agents.
 	_stop_body_movement(body)
 	body.reparent(destination.actors_root, false)
 	body.global_transform = marker.global_transform
@@ -390,8 +368,7 @@ func _commit_portal_transfer(
 	portal_traversed.emit(body, from_place, target_id)
 
 
-# Changing the view changes ONLY rendering. No simulation Node is paused,
-# removed, made invisible, or prevented from processing.
+# View switches update rendering without pausing room processing.
 func view_place(place_id: StringName) -> bool:
 	if not _places.has(place_id):
 		return false
@@ -412,8 +389,7 @@ func view_place(place_id: StringName) -> bool:
 	return true
 
 
-# Called by a presentation control to match its resolution. This never
-# recreates a room or interrupts its physics/navigation state.
+# Updating display resolution does not recreate a room.
 func set_view_resolution(size: Vector2i) -> void:
 	var place := get_place(_viewed_place)
 	if place != null and place.owned_viewport:

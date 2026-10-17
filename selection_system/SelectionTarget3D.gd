@@ -1,8 +1,7 @@
 class_name SelectionTarget3D
 extends Area3D
 
-# Put a CollisionShape3D below this Area3D and place it on the selection layer.
-# The subject can be a character, a building, or any other Node3D.
+# Requires a CollisionShape3D on the configured selection collision layer.
 
 const GROUP: StringName = &"selection_targets"
 

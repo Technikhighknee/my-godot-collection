@@ -1,9 +1,7 @@
 class_name PlaceView
 extends TextureRect
 
-# Optional UI surface for the ONE place the player is currently viewing.
-# The room's actual Node3D tree stays in PlaceManager3D and keeps simulating.
-# PlaceView switches textures, never reparents, reloads, or pauses worlds.
+# Displays one place while other places continue processing.
 @export var place_manager: PlaceManager3D
 
 
@@ -49,8 +47,7 @@ func _gui_input(event: InputEvent) -> void:
 	if place == null or not place.owned_viewport:
 		return
 
-	# TextureRect and room viewport may be different sizes. Forward input in
-	# viewport-local pixels so SelectionSystem raycasts have correct positions.
+	# Convert input coordinates to the room viewport's pixel space.
 	var forwarded := event.duplicate() as InputEvent
 	if forwarded is InputEventMouse:
 		if size.x <= 0.0 or size.y <= 0.0:

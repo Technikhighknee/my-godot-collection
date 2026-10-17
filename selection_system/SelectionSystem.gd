@@ -1,8 +1,6 @@
 class_name SelectionSystem
 extends Node
 
-# This system identifies selections and right-click destinations. It never
-# moves units, issues orders, or interprets what a target means to a game.
 
 signal selection_changed(selection: Array[Node3D])
 signal target_requested(target: Node3D)
@@ -16,15 +14,13 @@ signal marquee_changed(rect: Rect2, active: bool)
 @export var ray_length := 10000.0
 @export var drag_threshold_pixels := 8.0
 
-# Optional game-defined predicates receiving the subject (Node3D).
-# Singles are allowed unless selectable_filter rejects them.
-# Multi-selection is disabled until the game supplies a predicate; use this
-# to allow owned units while rejecting foreign units and buildings.
+# Selection predicates receive the selected Node3D.
+# Multi-selection requires a multi_select_filter.
 var selectable_filter: Callable
 var multi_select_filter: Callable
 
 var _selection: Array[Node3D] = []
-# Physics queries are executed in _physics_process, never from input callbacks.
+# Run physics queries in _physics_process, outside input callbacks.
 var _pending_hits: Array[Dictionary] = []
 var _left_down := false
 var _left_origin := Vector2.ZERO
@@ -44,7 +40,7 @@ func _exit_tree() -> void:
 
 
 func _process(_delta: float) -> void:
-	# Releases swallowed by GUI controls must not leave stale drag state.
+	# A GUI-consumed release must still clear pending drag state.
 	if _left_down and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		_reset_left()
 
@@ -64,8 +60,8 @@ func _physics_process(_delta: float) -> void:
 				_request_target(action["position"])
 
 
-# Observe the release before StrategyCamera or other nodes can consume it.
-# The press still goes through _unhandled_input, so UI controls can block it.
+# Observe RMB releases before StrategyCamera can consume them.
+# RMB presses remain subject to UI handling in _unhandled_input.
 func _input(event: InputEvent) -> void:
 	if not enabled or not event is InputEventMouseButton:
 		return
@@ -111,7 +107,7 @@ func _mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index != MOUSE_BUTTON_RIGHT:
 		return
 
-	# Do not mark RMB handled. StrategyCamera must still receive it for hold-to-pan.
+	# Leave RMB available to the camera for hold-to-pan.
 	if event.pressed and not event.canceled:
 		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			return

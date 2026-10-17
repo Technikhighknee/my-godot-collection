@@ -1,9 +1,7 @@
 class_name ProductionRegistry
 extends Node
 
-# Stateful, deterministic production jobs. The game resolves recipes and work rates.
-# All pending goods are kept inside persistent production cycles.
-# No building/character dependencies and no hidden per-frame simulation.
+# Cycles progress through explicit work contributions and output delivery.
 
 signal station_registered(station_id: StringName)
 signal station_removed(station_id: StringName)
@@ -39,9 +37,8 @@ var _inventories: Dictionary = {} # Stable game-owned ID -> Inventory
 var _order_ids: Dictionary = {} # Order ID -> Station ID
 var _busy_stations: Dictionary = {} # Reject synchronous reentrant writes during inventory signals.
 
-# Game-provided resolver(recipe_id, station_id) -> Dictionary:
-# {"inputs": {StringName: positive int}, "outputs": {...}, "work": positive int}
-# Called only when starting a new cycle. No script objects in saves.
+# recipe_resolver(recipe_id, station_id) -> Dictionary:
+# {inputs: {StringName: int}, outputs: {StringName: int}, work: positive int}
 var recipe_resolver: Callable
 
 
@@ -55,7 +52,7 @@ func bind_inventory(inventory_id: StringName, inventory: Inventory) -> bool:
 
 
 func unbind_inventory(inventory_id: StringName) -> bool:
-	# References remain stable during jobs. Only allow detaching unused inventories.
+	# In-use inventory bindings cannot be detached.
 	for station in _stations.values():
 		if inventory_id in station.input_inventory_ids or inventory_id in station.output_inventory_ids:
 			return false
@@ -77,7 +74,6 @@ func register_station(
 	return true
 
 
-# Return detached copies. No direct external mutations of the live queue/cycle.
 func get_station(station_id: StringName) -> ProductionStation:
 	var station := _get_station(station_id)
 	return station.copy() if station != null else null
@@ -139,8 +135,7 @@ func _plan_materials(ids: Array[StringName], items: Dictionary, adding: bool) ->
 	return InventoryBatch.plan_distribution(inventories, items, adding)
 
 
-# Reconfigure storage while active work or pending deliveries exist.
-# The game owns permissions and relocation policy; no items are moved here.
+# Rebinding inventories preserves already-reserved materials.
 func set_station_inventories(
 	station_id: StringName, input_ids: Array[StringName], output_ids: Array[StringName]
 ) -> bool:
@@ -178,8 +173,7 @@ func unregister_station(station_id: StringName) -> bool:
 	return true
 
 
-# One order can produce once, a fixed count, or indefinitely (-1).
-# Order IDs are unique across the registry.
+# A cycle count of -1 repeats indefinitely; order IDs are unique.
 func enqueue_order(
 	station_id: StringName, order_id: StringName,
 	recipe_id: StringName, cycles: int = 1
@@ -217,8 +211,7 @@ func set_paused(station_id: StringName, paused: bool) -> bool:
 	return true
 
 
-# Indices refer to the full queue. An active order is pinned at index 0.
-# Reordering a queued job into that slot would invalidate the live cycle.
+# An active order remains pinned at queue index 0.
 func move_queued_order(station_id: StringName, order_id: StringName, index: int) -> bool:
 	if _busy_stations.has(station_id):
 		return false
@@ -246,7 +239,6 @@ func move_queued_order(station_id: StringName, order_id: StringName, index: int)
 		return true
 	return false
 
-# Only queued, not currently active, orders can be removed this way.
 func remove_queued_order(station_id: StringName, order_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false
@@ -297,10 +289,8 @@ func _resolve_cycle(station: ProductionStation, order: Dictionary) -> Dictionary
 	}
 
 
-# Request a new production cycle at a meaningful gameplay event (order
-# queued, materials delivered, worker begins working), never on every frame.
-# Success atomically reserves all inputs and enters the WORK phase.
-# Failure does not create a cycle or consume goods; it may report a block reason.
+# Cycle start atomically reserves the required inputs.
+# Failure leaves inventory unchanged and may report a block reason.
 func try_begin_cycle(station_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false
@@ -333,8 +323,7 @@ func _try_begin_cycle_internal(station_id: StringName) -> bool:
 			station_changed.emit(station_id)
 		return false
 
-	# Every new cycle begins ready for *externally supplied work*. No internal
-	# timer, worker schedule, ETA, frame loop, or per-tick work accumulation.
+	# A new cycle begins with zero completed work.
 	cycle["reserved"] = cycle["inputs"].duplicate(true)
 	cycle["phase"] = WORK
 	station.cycle = cycle
@@ -346,8 +335,7 @@ func _try_begin_cycle_internal(station_id: StringName) -> bool:
 	return true
 
 
-# Called after the *game* observes work completion or output-space changes.
-# Never starts another cycle implicitly; orchestration remains in the game.
+# Finished products stay buffered until delivery succeeds.
 func try_deliver_outputs(station_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false
@@ -360,9 +348,7 @@ func try_deliver_outputs(station_id: StringName) -> bool:
 	return delivered
 
 
-# A read-only, time-free work ledger for the game's event scheduler and UI.
-# There is intentionally no finish_at, duration, rate, employee, or timestamp.
-# A station not in WORK has no outstanding *work contribution* to schedule.
+# Returns detached phase, work and block state for the station.
 func get_work_state(station_id: StringName) -> Dictionary:
 	var station := _get_station(station_id)
 	if station == null:
@@ -383,8 +369,7 @@ func get_work_state(station_id: StringName) -> Dictionary:
 	}
 
 
-# Accepts up to the remaining work, returns the accepted number of work units.
-# Only externally measured work is accepted; no simulation clock inside this package.
+# Accepted work is capped at the remaining requirement.
 func contribute_work(station_id: StringName, units: int) -> int:
 	if _busy_stations.has(station_id):
 		return 0
@@ -414,9 +399,7 @@ func _contribute_work_internal(station_id: StringName, units: int) -> int:
 	return applied
 
 
-# A cancellation ends the active job immediately, including on paused stations.
-# Reserved inputs or finished outputs become independently persistent settlements.
-# Nothing can be deleted by lack of destination capacity.
+# Canceling preserves pending input or output goods as settlements.
 func cancel_active_order(station_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false
@@ -470,8 +453,7 @@ func _cancel_internal(station_id: StringName) -> bool:
 	return true
 
 
-# Resolve one cancellation settlement into currently bound inventories.
-# Without an order ID, the oldest is selected. Failed placement changes nothing.
+# Deposits a settlement if its target inventories have sufficient capacity.
 func settle_pending(station_id: StringName, order_id: StringName = &"") -> bool:
 	if _busy_stations.has(station_id):
 		return false
@@ -513,8 +495,7 @@ func _settle_pending_internal(station_id: StringName, order_id: StringName) -> b
 	return true
 
 
-# Explicit destructive policy, initiated by the game (e.g. building razing).
-# Does not silently convert a failed deposit into item loss.
+# Discards settlement goods explicitly.
 func discard_settlement(station_id: StringName, order_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false

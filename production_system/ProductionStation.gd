@@ -1,8 +1,7 @@
 class_name ProductionStation
 extends RefCounted
 
-# Detached query value. ProductionRegistry keeps its own authoritative copy.
-# This structure is gameplay-agnostic and does not own Inventory/Nodes.
+# Detached station state returned by registry queries.
 var id: StringName
 var paused := false
 var block_reason: StringName = &""

@@ -1,9 +1,7 @@
 class_name PlaceTraveler
 extends Node
 
-# Optional cross-place movement component for a persistent PlaceActor.
-# Uses the existing MovementAgent3D interface on the actor's physical body.
-# Never owns Actions, Inventories or the physical body itself.
+# Moves through linked places using the physical body's MovementAgent3D.
 
 signal travel_started(place_id: StringName, position: Vector3)
 signal travel_arrived(place_id: StringName, position: Vector3)
@@ -95,7 +93,6 @@ func _on_body_bound(body: CharacterBody3D, _place_id: StringName) -> void:
 	if _manager != null:
 		_manager.portal_rejected.connect(_on_portal_rejected)
 
-	# The movement system is optional for actors that never travel.
 	for child in body.get_children():
 		if (
 			child is NavigationAgent3D
@@ -159,8 +156,7 @@ func _start_next_leg() -> void:
 		return
 
 	_expected_goal = goal
-	# MovementAgent3D emits movement_stopped when replacing an existing
-	# destination. That internal transition is not a canceled journey.
+	# Replacing a local movement goal emits movement_stopped without canceling travel.
 	_starting_leg = true
 	var started := bool(_movement.call("move_to", goal))
 	_starting_leg = false
@@ -169,7 +165,7 @@ func _start_next_leg() -> void:
 
 
 func _on_movement_started(destination: Vector3) -> void:
-	# A competing movement command must not accidentally complete this trip.
+	# Other movement commands must not complete the current journey.
 	if _active and not _waiting_for_portal:
 		if destination.distance_squared_to(_expected_goal) > 0.0001:
 			_fail(&"movement_interrupted")
