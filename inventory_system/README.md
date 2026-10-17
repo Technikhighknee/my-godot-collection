@@ -24,6 +24,12 @@ A single object can own several independent inventories (for example, storage
 and sales area). A cart and citizen use the same implementation with their own
 game-supplied values.
 
+## Capacity adjustment and non-destructive downgrades
+
+`set_capacity(slot_count, stack_capacity) -> bool` can increase **or decrease** capacity. A downgrade does not destroy goods: occupied slots outside the new usable range remain visible in `get_slots()` and removable through `remove` or `remove_from_slot`, but cannot receive more goods. Likewise an overfilled stack remains intact until its quantity is reduced. `is_over_capacity()` reports either situation. `get_slot_count()` returns usable slots; `get_physical_slot_count()` includes retained overflow slots.
+
+`export_state()` and `restore_state(snapshot)` round-trip a versioned, data-only inventory including overcapacity state. Loading validates the full snapshot before replacing state.
+
 ## Capacity increases
 
 ```gdscript
