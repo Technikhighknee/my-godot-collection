@@ -7,7 +7,7 @@ extends RefCounted
 # Changes are prepared on snapshots; no mutation occurs if any step fails.
 # All signals are emitted after every touched inventory has been committed.
 
-static func apply(changes: Array[Dictionary]) -> bool:
+static func apply(changes: Array[Dictionary], emit_signals: bool = true) -> bool:
 	if changes.is_empty():
 		return false
 	var plans: Dictionary = {}
@@ -43,9 +43,21 @@ static func apply(changes: Array[Dictionary]) -> bool:
 	for inventory in order:
 		var plan: Array[InventorySlot] = plans[inventory]
 		inventory._apply_plan(plan)
-	for inventory in order:
-		inventory.contents_changed.emit()
+	if emit_signals:
+		for inventory in order:
+			inventory.contents_changed.emit()
 	return true
+
+
+# Allow a composite owner to notify only after its own state is committed.
+static func notify_contents_changed(changes: Array[Dictionary]) -> void:
+	var touched: Dictionary = {}
+	for change in changes:
+		var inventory: Variant = change.get("inventory")
+		if inventory is Inventory and is_instance_valid(inventory):
+			touched[inventory] = true
+	for inventory in touched:
+		inventory.contents_changed.emit()
 
 
 static func can_apply(changes: Array[Dictionary]) -> bool:
