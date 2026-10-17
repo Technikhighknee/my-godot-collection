@@ -8,7 +8,9 @@ Some Godot bits and bobs.
 - [Selection System](selection_system/) — selection, marquee, and right-click targeting for 3D world objects.
 - [Movement System](movement_system/) — ground navigation and walking for 3D characters.
 - [Action System](action_system/) — available measures, target requirements, and execution lifecycle.
-- [Inventory System](inventory_system/) — slot-based storage and atomic transfers; all capacities supplied by the game.
+- [Inventory System](inventory_system/) — slot-based storage, atomic transfers and multi-item batch transactions; capacities supplied by the game.
+- [Building System](building_system/) — persistent building identities, placements, generic properties and installed upgrade levels.
+- [Production System](production_system/) — persistent production stations, queued jobs, work progress and inventory-backed material handling.
 - [Place System](place_system/) — independent 3D rooms, persistent actors, cross-room travel, portals and interior display.
 - [Character System](character_system/) — identities, mandatory first/last names, optional parents/spouses and live PlaceActor binding; no Family system.
 - [Dynasty System](dynasty_system/) — regular and shadow dynasties, exclusive membership and shared treasury.
@@ -34,7 +36,9 @@ chooses the installed folder names, and `deploy.py` installs **entire packages**
     "place_system": "PlaceSystem",
     "character_system": "CharacterSystem",
     "dynasty_system": "DynastySystem",
-    "ownership_system": "OwnershipSystem"
+    "ownership_system": "OwnershipSystem",
+    "building_system": "BuildingSystem",
+    "production_system": "ProductionSystem"
   }
 }
 ```
