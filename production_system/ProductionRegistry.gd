@@ -20,6 +20,7 @@ const OUTPUT := &"output"
 var _stations: Dictionary = {}
 var _inventories: Dictionary = {} # Stable game-owned ID -> Inventory
 var _order_ids: Dictionary = {} # Order ID -> Station ID
+var _busy_stations: Dictionary = {} # Reject synchronous reentrant writes during inventory signals.
 
 # Game-provided resolver(recipe_id, station_id) -> Dictionary:
 # {"inputs": {StringName: positive int}, "outputs": {...}, "work": positive int}
@@ -101,6 +102,8 @@ func get_stations() -> Array[ProductionStation]:
 
 
 func unregister_station(station_id: StringName) -> bool:
+	if _busy_stations.has(station_id):
+		return false
 	var station := _get_station(station_id)
 	if station == null or not station.cycle.is_empty() or not station.queue.is_empty():
 		return false
@@ -115,6 +118,8 @@ func enqueue_order(
 	station_id: StringName, order_id: StringName,
 	recipe_id: StringName, cycles: int = 1
 ) -> bool:
+	if _busy_stations.has(station_id):
+		return false
 	var station := _get_station(station_id)
 	if (
 		station == null or not _valid_id(order_id) or not _valid_id(recipe_id)
@@ -128,6 +133,8 @@ func enqueue_order(
 
 
 func set_paused(station_id: StringName, paused: bool) -> bool:
+	if _busy_stations.has(station_id):
+		return false
 	var station := _get_station(station_id)
 	if station == null:
 		return false
@@ -139,6 +146,8 @@ func set_paused(station_id: StringName, paused: bool) -> bool:
 
 
 func move_queued_order(station_id: StringName, order_id: StringName, index: int) -> bool:
+	if _busy_stations.has(station_id):
+		return false
 	var station := _get_station(station_id)
 	if station == null or index < 0 or index >= station.queue.size():
 		return false
@@ -156,6 +165,8 @@ func move_queued_order(station_id: StringName, order_id: StringName, index: int)
 
 # Only queued, not currently active, orders can be removed this way.
 func remove_queued_order(station_id: StringName, order_id: StringName) -> bool:
+	if _busy_stations.has(station_id):
+		return false
 	var station := _get_station(station_id)
 	if station == null or (
 		not station.cycle.is_empty() and station.cycle["order_id"] == order_id
@@ -201,6 +212,15 @@ func _resolve_cycle(station: ProductionStation, order: Dictionary) -> Dictionary
 # Starts the next job, or tries the next blocked resource transition.
 # This method never silently advances simulated work.
 func advance(station_id: StringName) -> bool:
+	if _busy_stations.has(station_id):
+		return false
+	_busy_stations[station_id] = true
+	var accepted := _advance_internal(station_id)
+	_busy_stations.erase(station_id)
+	return accepted
+
+
+func _advance_internal(station_id: StringName) -> bool:
 	var station := _get_station(station_id)
 	if station == null or station.paused:
 		return false
@@ -232,6 +252,8 @@ func advance(station_id: StringName) -> bool:
 
 # Accepts up to the remaining work, returns the accepted number of work units.
 func contribute_work(station_id: StringName, units: int) -> int:
+	if _busy_stations.has(station_id):
+		return 0
 	var station := _get_station(station_id)
 	if station == null or station.paused or units <= 0 or station.cycle.is_empty():
 		return 0
@@ -254,6 +276,15 @@ func contribute_work(station_id: StringName, units: int) -> int:
 # Cancellation is safe even for paused stations. If an input refund or output
 # delivery cannot fit, return false and retain all materials and progress.
 func cancel_active_order(station_id: StringName) -> bool:
+	if _busy_stations.has(station_id):
+		return false
+	_busy_stations[station_id] = true
+	var accepted := _cancel_internal(station_id)
+	_busy_stations.erase(station_id)
+	return accepted
+
+
+func _cancel_internal(station_id: StringName) -> bool:
 	var station := _get_station(station_id)
 	if station == null or station.cycle.is_empty():
 		return false

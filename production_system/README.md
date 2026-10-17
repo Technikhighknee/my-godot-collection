@@ -32,7 +32,7 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 - `station_registered`, `station_removed`, `station_changed`, `cycle_started`, `cycle_completed`, `state_restored` signals
 
 ## Persistence
-`export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, progress and stable inventory binding IDs. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`.
+`export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, progress and stable inventory binding IDs. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
 
 `restore_state` verifies all IDs, queues and phase invariants before replacing the registry. Missing inventory IDs or inconsistent material ownership reject the snapshot. Definition migrations are a game responsibility.
 
