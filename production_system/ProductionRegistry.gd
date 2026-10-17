@@ -9,11 +9,16 @@ signal station_registered(station_id: StringName)
 signal station_removed(station_id: StringName)
 signal station_changed(station_id: StringName)
 signal station_inventories_changed(station_id: StringName)
+signal order_canceled(station_id: StringName, order_id: StringName)
+signal settlement_created(station_id: StringName, order_id: StringName, kind: StringName)
+signal settlement_resolved(station_id: StringName, order_id: StringName, disposition: StringName)
 signal cycle_started(station_id: StringName, order_id: StringName)
 signal cycle_completed(station_id: StringName, order_id: StringName)
 signal state_restored()
 
-const SNAPSHOT_VERSION := 2
+const SNAPSHOT_VERSION := 3
+const REFUND := &"refund"
+const DELIVERY := &"delivery"
 const INPUT := &"input"
 const WORK := &"work"
 const OUTPUT := &"output"
@@ -125,7 +130,7 @@ func unregister_station(station_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false
 	var station := _get_station(station_id)
-	if station == null or not station.cycle.is_empty() or not station.queue.is_empty():
+	if station == null or not station.cycle.is_empty() or not station.queue.is_empty() or not station.settlements.is_empty():
 		return false
 	_stations.erase(station_id)
 	station_removed.emit(station_id)
@@ -297,11 +302,9 @@ func contribute_work(station_id: StringName, units: int) -> int:
 	return applied
 
 
-# Cancellation keeps any in-flight materials in a persistent settlement cycle.
-# Input reservation can be refunded, finished outputs can be delivered.
-# No implicit destruction of goods.
-# Cancellation is safe even for paused stations. If an input refund or output
-# delivery cannot fit, return false and retain all materials and progress.
+# A cancellation ends the active job immediately, including on paused stations.
+# Reserved inputs or finished outputs become independently persistent settlements.
+# Nothing can be deleted by lack of destination capacity.
 func cancel_active_order(station_id: StringName) -> bool:
 	if _busy_stations.has(station_id):
 		return false
@@ -311,26 +314,98 @@ func cancel_active_order(station_id: StringName) -> bool:
 	return accepted
 
 
+func cancel_order(station_id: StringName, order_id: StringName) -> bool:
+	var station := _get_station(station_id)
+	if station == null or _busy_stations.has(station_id):
+		return false
+	if not station.cycle.is_empty() and station.cycle["order_id"] == order_id:
+		return cancel_active_order(station_id)
+	if remove_queued_order(station_id, order_id):
+		order_canceled.emit(station_id, order_id)
+		return true
+	return false
+
+
 func _cancel_internal(station_id: StringName) -> bool:
 	var station := _get_station(station_id)
 	if station == null or station.cycle.is_empty():
 		return false
-	var cycle := station.cycle
-	if cycle["phase"] == WORK:
-		var planned := _plan_materials(station.input_inventory_ids, cycle["reserved"], true)
-		if not planned.get("ok", false):
-			return false
-		var changes: Array[Dictionary] = planned["changes"]
-		if not changes.is_empty() and not InventoryBatch.apply(changes):
-			return false
-	elif cycle["phase"] == OUTPUT:
-		return _finish_output(station, true)
+	var cycle: Dictionary = station.cycle
 	var order_id: StringName = cycle["order_id"]
+	var phase: StringName = cycle["phase"]
+	var kind: StringName = &""
+	var held_items: Dictionary = {}
+	if phase == WORK:
+		kind = REFUND
+		held_items = cycle["reserved"].duplicate(true)
+	elif phase == OUTPUT:
+		kind = DELIVERY
+		held_items = cycle["pending"].duplicate(true)
+	if not held_items.is_empty():
+		station.settlements.append({
+			"order_id": order_id, "kind": kind, "items": held_items
+		})
+	else:
+		_order_ids.erase(order_id)
 	station.cycle = {}
 	station.queue.pop_front()
-	_order_ids.erase(order_id)
+	if not held_items.is_empty():
+		settlement_created.emit(station_id, order_id, kind)
+	order_canceled.emit(station_id, order_id)
 	station_changed.emit(station_id)
 	return true
+
+
+# Resolve the oldest cancellation settlement into currently bound inventories.
+# A failed placement leaves the settlement entirely intact, without partial goods.
+func settle_pending(station_id: StringName) -> bool:
+	if _busy_stations.has(station_id):
+		return false
+	_busy_stations[station_id] = true
+	var accepted := _settle_pending_internal(station_id)
+	_busy_stations.erase(station_id)
+	return accepted
+
+
+func _settle_pending_internal(station_id: StringName) -> bool:
+	var station := _get_station(station_id)
+	if station == null or station.settlements.is_empty():
+		return false
+	var entry: Dictionary = station.settlements.front()
+	var ids: Array[StringName] = (
+		station.input_inventory_ids if entry["kind"] == REFUND else station.output_inventory_ids
+	)
+	var planned := _plan_materials(ids, entry["items"], true)
+	if not planned.get("ok", false):
+		return false
+	var changes: Array[Dictionary] = planned["changes"]
+	if not changes.is_empty() and not InventoryBatch.apply(changes):
+		return false
+	var order_id: StringName = entry["order_id"]
+	station.settlements.pop_front()
+	_order_ids.erase(order_id)
+	settlement_resolved.emit(station_id, order_id, &"stored")
+	station_changed.emit(station_id)
+	return true
+
+
+# Explicit destructive policy, initiated by the game (e.g. building razing).
+# Does not silently convert a failed deposit into item loss.
+func discard_settlement(station_id: StringName, order_id: StringName) -> bool:
+	if _busy_stations.has(station_id):
+		return false
+	var station := _get_station(station_id)
+	if station == null:
+		return false
+	for index in station.settlements.size():
+		if station.settlements[index]["order_id"] != order_id:
+			continue
+		station.settlements.remove_at(index)
+		_order_ids.erase(order_id)
+		settlement_resolved.emit(station_id, order_id, &"discarded")
+		station_changed.emit(station_id)
+		return true
+	return false
 
 
 func _finish_output(station: ProductionStation, cancel_repetitions: bool) -> bool:
@@ -378,15 +453,16 @@ func restore_state(snapshot: Dictionary) -> bool:
 	var restored: Dictionary = {}
 	var order_ids: Dictionary = {}
 	for value in snapshot["stations"]:
-		if not value is Dictionary or value.size() != 6:
+		if not value is Dictionary or value.size() != 7:
 			return false
-		for key in ["id", "paused", "queue", "cycle", "input_inventory_ids", "output_inventory_ids"]:
+		for key in ["id", "paused", "queue", "cycle", "settlements", "input_inventory_ids", "output_inventory_ids"]:
 			if not value.has(key):
 				return false
 		if (
 			not value["id"] is StringName or not _valid_id(value["id"])
 			or not value["paused"] is bool or not value["queue"] is Array
 			or not value["cycle"] is Dictionary
+			or not value["settlements"] is Array
 			or not value["input_inventory_ids"] is Array
 			or not value["output_inventory_ids"] is Array
 			or restored.has(value["id"])
@@ -408,6 +484,7 @@ func restore_state(snapshot: Dictionary) -> bool:
 		station.paused = value["paused"]
 		station.queue = value["queue"].duplicate(true)
 		station.cycle = value["cycle"].duplicate(true)
+		station.settlements = value["settlements"].duplicate(true)
 		for order in station.queue:
 			if not order is Dictionary or order.size() != 3 or not order.has("id") or not order.has("recipe_id") or not order.has("remaining"):
 				return false
@@ -422,11 +499,29 @@ func restore_state(snapshot: Dictionary) -> bool:
 			order_ids[order["id"]] = station.id
 		if not station.cycle.is_empty() and not _valid_cycle(station):
 			return false
+		for entry in station.settlements:
+			if not _valid_settlement(entry) or order_ids.has(entry["order_id"]):
+				return false
+			order_ids[entry["order_id"]] = station.id
 		restored[station.id] = station
 	_stations = restored
 	_order_ids = order_ids
 	state_restored.emit()
 	return true
+
+
+func _valid_settlement(entry: Variant) -> bool:
+	if not entry is Dictionary or entry.size() != 3:
+		return false
+	for key in ["order_id", "kind", "items"]:
+		if not entry.has(key):
+			return false
+	return (
+		entry["order_id"] is StringName and _valid_id(entry["order_id"])
+		and entry["kind"] is StringName
+		and entry["kind"] in [REFUND, DELIVERY]
+		and _valid_items(entry["items"]) and not entry["items"].is_empty()
+	)
 
 
 func _valid_cycle(station: ProductionStation) -> bool:

@@ -18,7 +18,7 @@ A headless, game-independent production state machine, with persistent stations,
 5. After completion call `advance(station_id)` to deposit pending output; if storage is full, retry later.
 6. Call `advance` again to start the next cycle, when the next one is desired.
 
-Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed, but an active order is pinned to queue index 0; no queued order may be moved ahead of it. Canceling an active order refunds input material atomically, even if paused; if unable to refund it remains active until space is available. A completed but undelivered batch cannot be canceled by losing its outputs: it must be delivered first. Removing a station with work or queued orders is rejected.
+Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed, but an active order is pinned to queue index 0; no queued order may be moved ahead of it. Canceling an active order (even while paused) **always terminates the order**. Reserved inputs and completed but undelivered outputs become separately persisted settlements (refund/delivery). The station may continue other orders, but removal is rejected while settlements remain. `settle_pending(station_id)` atomically places the oldest settlement into the currently bound inputs/outputs; if there is no room, it remains untouched and can be retried. The game can explicitly call `discard_settlement(station_id, order_id)` when its policy intentionally destroys goods (e.g. demolishing the last warehouse). Failed deposits never discard goods. `cancel_order(station_id, order_id)` works for both active and waiting orders.
 
 ## API
 - `bind_inventory(id, inventory)`, `unbind_inventory(id)`
@@ -28,12 +28,13 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 - `remove_queued_order(station_id, order_id)`, `move_queued_order(station_id, order_id, index)`
 - `set_paused(station_id, bool)`, `advance(station_id) -> bool`
 - `contribute_work(station_id, units) -> int`
-- `cancel_active_order(station_id) -> bool`
+- `cancel_order(station_id, order_id)`, `cancel_active_order(station_id)`
+- `settle_pending(station_id)`, `discard_settlement(station_id, order_id)`
 - `export_state() -> Dictionary`, `restore_state(snapshot) -> bool`
-- `station_registered`, `station_removed`, `station_changed`, `station_inventories_changed`, `cycle_started`, `cycle_completed`, `state_restored` signals
+- `station_registered`, `station_removed`, `station_changed`, `station_inventories_changed`, `order_canceled`, `settlement_created`, `settlement_resolved`, `cycle_started`, `cycle_completed`, `state_restored` signals
 
 ## Persistence
-`export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, progress and stable inventory binding IDs. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
+`export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, cancellation settlements, progress and stable inventory binding IDs. Unresolved settlement order IDs remain reserved until settled or explicitly discarded. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
 
 `restore_state` verifies all IDs, queues and phase invariants before replacing the registry. Missing inventory IDs, malformed queues, impossible work progress, and invalid phase/resource combinations reject the snapshot. The game must restore inventory and production from the **same** checkpoint; the production package cannot independently prove cross-system conservation from an isolated snapshot. Definition migrations are a game responsibility.
 
