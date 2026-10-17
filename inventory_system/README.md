@@ -130,3 +130,7 @@ deliberately has no distance, economy, movement, or permission logic.
 
 Add `"inventory_system": "InventorySystem"` to your project's
 `manifest.json` and deploy with `tools/deploy.py`. No autoload is needed.
+
+## Atomic multi-item batches
+
+`InventoryBatch.apply(changes)` handles multiple item deltas across one or several inventories atomically. Each change is `{"inventory": inventory_node, "item_id": &"wood", "delta": -3}` (negative removes, positive adds). Transactions stage every change in temporary slot snapshots and commit all changes only when every step succeeds. `InventoryBatch.can_apply(changes)` checks without mutation. Changes are processed in the supplied order; construct removal-before-addition lists when reusing capacity. All `contents_changed` signals are emitted only after every affected inventory has committed. No partial resource consumption occurs.

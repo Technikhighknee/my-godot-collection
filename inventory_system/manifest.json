@@ -3,6 +3,7 @@
     "InventorySlot.gd",
     "Inventory.gd",
     "InventoryTransfer.gd",
-    "README.md"
+    "README.md",
+    "InventoryBatch.gd"
   ]
 }
