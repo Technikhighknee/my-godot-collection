@@ -67,6 +67,7 @@ func register_station(
 ) -> bool:
 	if (
 		not _valid_id(station_id) or _stations.has(station_id)
+		or _busy_stations.has(station_id)
 		or not _valid_inventory_ids(input_ids) or not _valid_inventory_ids(output_ids)
 	):
 		return false
@@ -144,10 +145,12 @@ func set_station_inventories(
 		return false
 	if station.input_inventory_ids == input_ids and station.output_inventory_ids == output_ids:
 		return true
+	_busy_stations[station_id] = true
 	station.input_inventory_ids = input_ids.duplicate()
 	station.output_inventory_ids = output_ids.duplicate()
 	station_inventories_changed.emit(station_id)
 	station_changed.emit(station_id)
+	_busy_stations.erase(station_id)
 	return true
 
 
@@ -183,10 +186,12 @@ func enqueue_order(
 		or _order_ids.has(order_id) or (cycles <= 0 and cycles != -1)
 	):
 		return false
+	_busy_stations[station_id] = true
 	station.queue.append({"id": order_id, "recipe_id": recipe_id, "remaining": cycles})
 	_order_ids[order_id] = station_id
 	order_queued.emit(station_id, order_id)
 	station_changed.emit(station_id)
+	_busy_stations.erase(station_id)
 	return true
 
 
@@ -198,9 +203,11 @@ func set_paused(station_id: StringName, paused: bool) -> bool:
 		return false
 	if station.paused == paused:
 		return true
+	_busy_stations[station_id] = true
 	station.paused = paused
 	station_paused_changed.emit(station_id, paused)
 	station_changed.emit(station_id)
+	_busy_stations.erase(station_id)
 	return true
 
 
@@ -223,9 +230,13 @@ func move_queued_order(station_id: StringName, order_id: StringName, index: int)
 			return false
 		if i == index:
 			return true
+		_busy_stations[station_id] = true
 		station.queue.remove_at(i)
 		station.queue.insert(index, order)
+		if station.cycle.is_empty() and index == 0:
+			_set_block(station, &"")
 		station_changed.emit(station_id)
+		_busy_stations.erase(station_id)
 		return true
 	return false
 
@@ -240,9 +251,13 @@ func remove_queued_order(station_id: StringName, order_id: StringName) -> bool:
 		return false
 	for i in station.queue.size():
 		if station.queue[i]["id"] == order_id:
+			_busy_stations[station_id] = true
 			station.queue.remove_at(i)
 			_order_ids.erase(order_id)
+			if station.cycle.is_empty() and i == 0:
+				_set_block(station, &"")
 			station_changed.emit(station_id)
+			_busy_stations.erase(station_id)
 			return true
 	return false
 
@@ -460,10 +475,12 @@ func discard_settlement(station_id: StringName, order_id: StringName) -> bool:
 	for index in station.settlements.size():
 		if station.settlements[index]["order_id"] != order_id:
 			continue
+		_busy_stations[station_id] = true
 		station.settlements.remove_at(index)
 		_order_ids.erase(order_id)
 		settlement_resolved.emit(station_id, order_id, &"discarded")
 		station_changed.emit(station_id)
+		_busy_stations.erase(station_id)
 		return true
 	return false
 
