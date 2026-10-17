@@ -504,11 +504,11 @@ func _settle_pending_internal(station_id: StringName, order_id: StringName) -> b
 	var changes: Array[Dictionary] = planned["changes"]
 	if not changes.is_empty() and not InventoryBatch.apply(changes, false):
 		return false
-	var order_id: StringName = entry["order_id"]
+	var settlement_order_id: StringName = entry["order_id"]
 	station.settlements.remove_at(index)
-	_order_ids.erase(order_id)
+	_order_ids.erase(settlement_order_id)
 	InventoryBatch.notify_contents_changed(changes)
-	settlement_resolved.emit(station_id, order_id, &"stored")
+	settlement_resolved.emit(station_id, settlement_order_id, &"stored")
 	station_changed.emit(station_id)
 	return true
 
