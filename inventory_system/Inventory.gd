@@ -195,6 +195,8 @@ func _valid_request(item_id: StringName, quantity: int) -> bool:
 
 
 func _plan_add(plan: Array[InventorySlot], item_id: StringName, quantity: int) -> bool:
+	if _plan_over_capacity(plan):
+		return false
 	var remaining := quantity
 
 	for index in _slot_count:
@@ -240,7 +242,7 @@ func _plan_remove(plan: Array[InventorySlot], item_id: StringName, quantity: int
 func _plan_add_to_slot(
 	plan: Array[InventorySlot], index: int, item_id: StringName, quantity: int
 ) -> bool:
-	if index < 0 or index >= _slot_count:
+	if _plan_over_capacity(plan) or index < 0 or index >= _slot_count:
 		return false
 	var slot := plan[index]
 	if not slot.is_empty() and slot.item_id != item_id:
@@ -319,3 +321,11 @@ func restore_state(snapshot: Dictionary) -> bool:
 	capacity_changed.emit(_slot_count, _stack_capacity)
 	contents_changed.emit()
 	return true
+
+
+func _plan_over_capacity(plan: Array[InventorySlot]) -> bool:
+	for i in plan.size():
+		var slot: InventorySlot = plan[i]
+		if not slot.is_empty() and (i >= _slot_count or slot.quantity > _stack_capacity):
+			return true
+	return false

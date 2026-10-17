@@ -108,6 +108,8 @@ static func plan_distribution(
 		for inventory in inventories:
 			var plan: Array[InventorySlot] = snapshots[inventory]
 			var available := 0
+			if adding and inventory._plan_over_capacity(plan):
+				continue
 			if adding:
 				for index in inventory.get_slot_count():
 					var slot: InventorySlot = plan[index]
