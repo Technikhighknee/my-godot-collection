@@ -366,6 +366,7 @@ character-side nodes, not components of an instanced room layout.
 
 - `register_exterior(id, root) -> bool`
 - `create_room(place_id, building_id, PackedScene) -> bool`
+- `remove_room(place_id) -> bool` (safe room removal; refuses occupied/viewed rooms)
 - `get_place(id) -> PlaceInstance`
 - `get_body_place(body) -> StringName`
 - `get_actor_for_body(body) -> Node` (persistent actor or null)
@@ -383,7 +384,7 @@ character-side nodes, not components of an instanced room layout.
 `PlaceInstance`: `id`, `building_id`, `root`, `actors_root`,
 `viewport`, `get_portal(id)`, `get_navigation_map()`.
 
-Signals: `place_registered(id)`, `place_view_changed(id)`,
+Signals: `place_registered(id)`, `place_removed(id)`, `place_view_changed(id)`,
 `portal_traversed(body, from_id, to_id)`,
 `portal_rejected(body, place_id, portal_id)`.
 
