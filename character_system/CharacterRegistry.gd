@@ -1,12 +1,7 @@
 class_name CharacterRegistry
 extends Node
 
-# A registered Character is a persistent identity/relationship record.
-# Every ACTIVE/living character must have a bound PlaceActor and physical body.
-# Losing that actor detaches the physical link, not the historical identity.
-# The game defines death, spawning and saving; this registry does not simulate
-# people or create background-only NPCs.
-# No surname-based family grouping and no automatically generated relatives.
+# Character identities remain registered when their physical actors are detached.
 
 signal character_registered(character: Character)
 signal character_removed(character_id: StringName)
@@ -33,8 +28,6 @@ func register_character(character: Character, actor: PlaceActor) -> bool:
 	return true
 
 
-# Reattach the same identity to a newly spawned, fully bound physical actor.
-# No character is synthesized merely because a body was spawned.
 func attach_actor(id: StringName, actor: PlaceActor) -> bool:
 	if not _characters.has(id) or _actors.has(id) or not _can_attach(id, actor):
 		return false
@@ -82,7 +75,7 @@ func unregister_character(id: StringName) -> bool:
 	_detach_actor(id)
 	_characters.erase(id)
 
-	# Maintain valid parent and spouse links after unregistering a person.
+	# Remove references to unregistered characters from family links.
 	_parents.erase(id)
 	if _spouses.has(id):
 		var spouse_id: StringName = _spouses[id]
@@ -117,8 +110,7 @@ func get_characters() -> Array[Character]:
 	return result
 
 
-# Optional parent links (zero, one or two). Prevent duplicate parents,
-# unknown persons, self-parenting and ancestral cycles.
+# Parent links are limited to two and checked for ancestry cycles.
 func set_parents(id: StringName, parent_ids: Array[StringName]) -> bool:
 	if not _characters.has(id) or parent_ids.size() > 2:
 		return false
@@ -154,7 +146,7 @@ func get_character_children(parent_id: StringName) -> Array[StringName]:
 	return result
 
 
-# Spouses are symmetrical. No automatic name/dynasty transfer or children.
+# Spouse links are reciprocal.
 func marry(a: StringName, b: StringName) -> bool:
 	if (
 		a == b or not _characters.has(a) or not _characters.has(b)

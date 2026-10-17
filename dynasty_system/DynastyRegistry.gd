@@ -1,9 +1,6 @@
 class_name DynastyRegistry
 extends Node
 
-# Dynasties own treasuries and membership, not Character/PlaceActor nodes.
-# Characters can belong to one dynasty or to none. Regular and shadow
-# dynasties use the identical data model.
 
 signal dynasty_registered(dynasty: Dynasty)
 signal membership_changed(
@@ -48,8 +45,6 @@ func get_dynasties() -> Array[Dynasty]:
 	return result
 
 
-# Supports joining, marriage-based transfers and leaving. A name or
-# biological relationship never silently assigns a dynasty.
 func assign_member(character_id: StringName, dynasty_id: StringName) -> bool:
 	if (
 		not is_instance_valid(_characters)

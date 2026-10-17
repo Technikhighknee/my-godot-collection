@@ -1,8 +1,6 @@
 class_name Dynasty
 extends RefCounted
 
-# Shared treasury and identity of a regular or shadow dynasty.
-# Player-vs-AI control belongs to the game, not to this data type.
 enum Kind { REGULAR, SHADOW }
 
 signal treasury_changed(new_balance: int)

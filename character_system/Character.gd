@@ -1,9 +1,6 @@
 class_name Character
 extends RefCounted
 
-# A person's identity. No Family object is created or required.
-# A living character is represented physically by a bound PlaceActor,
-# registered separately with CharacterRegistry.
 signal name_changed()
 
 var _id: StringName
@@ -42,7 +39,6 @@ func get_full_name() -> String:
 	return "%s %s" % [_first_name, _last_name]
 
 
-# Names can change (e.g. marriage); a name is never a family identifier.
 func rename(first_name: String, last_name: String) -> bool:
 	var given := first_name.strip_edges()
 	var surname := last_name.strip_edges()

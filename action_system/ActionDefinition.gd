@@ -1,14 +1,12 @@
 class_name ActionDefinition
 extends RefCounted
 
-# Immutable-by-convention description of a game-defined measure.
-# Callbacks are provided by the game, not by this package.
 enum TargetKind { NONE, OBJECT, LOCATION }
 
 var id: StringName
 var title: String
 var target_kind: TargetKind
-# 0.0 disables the cooldown. Measured in scaled, pausable game seconds.
+# Cooldowns use scaled, pausable game time.
 var cooldown_seconds := 0.0
 
 var _perform: Callable

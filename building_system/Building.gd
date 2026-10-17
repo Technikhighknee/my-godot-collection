@@ -1,8 +1,6 @@
 class_name Building
 extends RefCounted
 
-# A persistent building identity. All mutations go through BuildingRegistry.
-# No ownership, inventory, room, model or upgrade-effect behavior lives here.
 
 var _id: StringName
 var _type_id: StringName
@@ -75,6 +73,5 @@ func to_snapshot() -> Dictionary:
 		"upgrades": get_upgrades()
 	}
 
-# Safe detached value copy for registry-facing APIs.
 func copy() -> Building:
 	return Building.new(_id, _type_id, _place_id, _transform, _properties, _upgrades)

@@ -1,7 +1,6 @@
 class_name ActionExecution
 extends RefCounted
 
-# One invocation of a measure. Its gameplay callback owns the actual work.
 enum Status { RUNNING, COMPLETED, FAILED, CANCELED }
 
 signal finished(execution: ActionExecution)
@@ -25,8 +24,7 @@ func is_running() -> bool:
 	return status == Status.RUNNING
 
 
-# For ongoing measures, the game should stop outstanding work and disconnect
-# any callbacks here. This is invoked only when the execution is canceled.
+# Cancellation handlers release outstanding work and listeners.
 func set_cancel_handler(handler: Callable) -> void:
 	if is_running():
 		_cancel_handler = handler

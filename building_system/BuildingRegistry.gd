@@ -1,8 +1,6 @@
 class_name BuildingRegistry
 extends Node
 
-# Registry for building identities and their game-defined persistent state.
-# The game is responsible for all gameplay permissions and derived effects.
 
 signal building_registered(building_id: StringName)
 signal building_removed(building_id: StringName)
@@ -14,7 +12,7 @@ signal state_restored()
 
 const SNAPSHOT_VERSION := 1
 
-# Optional game policies; no callbacks are written into snapshots.
+# Optional validator signatures:
 # property_validator(building, property_id, proposed_value) -> bool
 # upgrade_validator(building, upgrade_id, proposed_level) -> bool
 # type_validator(building, proposed_type_id) -> bool
@@ -40,7 +38,7 @@ func unregister_building(building_id: StringName) -> bool:
 	return true
 
 
-# Detached read-only-by-convention value snapshot; the caller cannot mutate registry state.
+# Returns a detached building copy.
 func get_building(building_id: StringName) -> Building:
 	var building := _get_building(building_id)
 	return building.copy() if building != null else null
@@ -102,7 +100,6 @@ func set_property_value(building_id: StringName, property_id: StringName, value:
 		property_validator.call(building.copy(), property_id, _copy_value(proposed))
 	):
 		return false
-	# The callback receives a detached copy and cannot mutate what we commit.
 	var previous: Variant = building.get_property_value(property_id)
 	building._properties[property_id] = proposed
 	building_property_changed.emit(building_id, property_id, previous, _copy_value(proposed))
@@ -113,7 +110,7 @@ func erase_property(building_id: StringName, property_id: StringName) -> bool:
 	var building := _get_building(building_id)
 	if building == null or not building.has_property(property_id):
 		return false
-	# null represents erasure to game validators; no silent bypass of schemas.
+	# Validators receive null when a property is erased.
 	if property_validator.is_valid() and not bool(
 		property_validator.call(building.copy(), property_id, null)
 	):
@@ -140,8 +137,7 @@ func set_upgrade_level(building_id: StringName, upgrade_id: StringName, level: i
 	return true
 
 
-# Snapshot is pure data; restore is an all-or-nothing replacement.
-# No ordinary mutation signals fire while restoring a save.
+# Restore validates the entire snapshot before replacing registry state.
 func export_state() -> Dictionary:
 	var ids: Array[String] = []
 	for building_id in _buildings:
@@ -229,8 +225,7 @@ static func _copy_value(value: Variant) -> Variant:
 	return value
 
 
-# Strictly limit persisted properties to Godot's data-only value types.
-# No Object, Resource, Callable, RID or live Node references.
+# Persisted properties must contain Godot data values, without object references.
 static func _persistent_value(value: Variant, depth: int = 0) -> bool:
 	if depth > 16:
 		return false

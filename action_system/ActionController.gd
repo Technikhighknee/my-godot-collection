@@ -1,8 +1,6 @@
 class_name ActionController
 extends Node
 
-# Attach to a citizen, cart, building, etc. The game registers definitions
-# and decides what each measure actually does. No input or UI lives here.
 
 signal actions_changed()
 signal target_required(action_id: StringName, target_kind: ActionDefinition.TargetKind)
@@ -38,16 +36,12 @@ func unregister_action(action_id: StringName) -> void:
 	if _pending_action == action_id:
 		cancel_targeting()
 
-	# Unregistering removes the measure's cooldown as well.
 	_clear_cooldown(action_id)
 
-	# Existing executions remain alive. Unregistering removes the measure
-	# from the menu, not a task that was already accepted.
+# Unregistering an action leaves its running executions intact.
 	actions_changed.emit()
 
 
-# Availability depends on game state. Call this when those rules change so
-# an action bar can rebuild without polling.
 func notify_actions_changed() -> void:
 	actions_changed.emit()
 
@@ -79,8 +73,6 @@ func get_cooldown_remaining(action_id: StringName) -> float:
 	return timer.time_left
 
 
-# Usually called when the user clicks a measure in the action bar.
-# Actions with no target execute immediately; others request targeting.
 func request_action(action_id: StringName) -> bool:
 	var definition := get_action(action_id)
 	if definition == null:
@@ -110,19 +102,16 @@ func get_pending_action() -> StringName:
 	return _pending_action
 
 
-# Called by the game when the selection system emits a target/location.
-# Invalid targets leave targeting active so the player can retry.
+# Invalid targets leave targeting active for another attempt.
 func submit_target(target: Variant) -> ActionExecution:
 	if _pending_action == &"":
 		return null
 
 	var id := _pending_action
-	# Clear before execution; a gameplay callback can immediately request a
-	# different measure without having its pending target overwritten.
+	# Clear the pending target before invoking a callback that may start another action.
 	_pending_action = &""
 	var execution := execute_action(id, target)
 	if execution == null and _pending_action == &"":
-		# Invalid targets leave the original measure pending for another try.
 		_pending_action = id
 	return execution
 
@@ -135,9 +124,6 @@ func cancel_targeting() -> void:
 	targeting_canceled.emit(previous)
 
 
-# Also usable directly by NPC/game code without involving player input.
-# Immediate actions finish by calling execution.complete() in their callback.
-# Long-running actions settle later (e.g. on movement_arrived).
 func execute_action(action_id: StringName, target: Variant = null) -> ActionExecution:
 	var definition := get_action(action_id)
 	if definition == null:
@@ -162,7 +148,7 @@ func execute_action(action_id: StringName, target: Variant = null) -> ActionExec
 	execution.finished.connect(_on_execution_finished)
 	action_started.emit(execution)
 
-	# A listener may cancel the task in response to action_started.
+	# An action_started listener may immediately cancel this execution.
 	if execution.is_running():
 		definition.perform(actor, target, execution)
 	return execution
@@ -187,8 +173,7 @@ func _on_execution_finished(execution: ActionExecution) -> void:
 	_running.erase(execution)
 	var definition := _execution_definitions.get(execution) as ActionDefinition
 	_execution_definitions.erase(execution)
-	# Only the exact registered definition can start a cooldown: removing and
-	# re-registering an action ID must not resurrect an old cooldown.
+	# Only the original definition may start a cooldown after completion.
 	if (
 		execution.status == ActionExecution.Status.COMPLETED
 		and definition != null
