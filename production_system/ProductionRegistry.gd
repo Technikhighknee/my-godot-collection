@@ -31,7 +31,6 @@ const BLOCK_OUTPUTS := &"outputs_full"
 const BLOCK_RECIPE := &"recipe_unavailable"
 const REFUND := &"refund"
 const DELIVERY := &"delivery"
-const INPUT := &"input"
 const WORK := &"work"
 const OUTPUT := &"output"
 
@@ -695,7 +694,7 @@ func _valid_cycle(station: ProductionStation) -> bool:
 		or not cycle["phase"] in [WORK, OUTPUT]
 	):
 		return false
-		if cycle["phase"] == WORK:
+	if cycle["phase"] == WORK:
 		return cycle["work_done"] < cycle["work_required"] and cycle["reserved"] == cycle["inputs"] and cycle["pending"].is_empty()
 	return cycle["work_done"] == cycle["work_required"] and cycle["reserved"].is_empty() and cycle["pending"] == cycle["outputs"]
 
