@@ -553,7 +553,7 @@ func _finish_output(station: ProductionStation, cancel_repetitions: bool) -> boo
 	var order: Dictionary = station.queue.front()
 	if order["remaining"] > 0:
 		order["remaining"] -= 1
-	var finished := order["remaining"] == 0 or cancel_repetitions
+	var finished: bool = int(order["remaining"]) == 0 or cancel_repetitions
 	if finished:
 		station.queue.pop_front()
 		_order_ids.erase(order_id)
