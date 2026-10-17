@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ("building_system", "inventory_system", "production_system")
+PACKAGES = ("building_system", "inventory_system", "production_system", "movement_system", "place_system")
 
 
 def main() -> int:

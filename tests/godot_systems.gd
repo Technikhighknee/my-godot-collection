@@ -22,6 +22,7 @@ func _run() -> void:
 	_buildings()
 	_inventory()
 	_production()
+	_places()
 	if failures == 0:
 		print("GAMEPLAY SYSTEM TESTS PASSED (%d assertions)" % assertions)
 	else:
@@ -182,3 +183,25 @@ func _production() -> void:
 	grain_a.free()
 	grain_b.free()
 	output.free()
+
+
+func _places() -> void:
+	var manager := PlaceManager3D.new()
+	root.add_child(manager)
+	var exterior := Node3D.new()
+	root.add_child(exterior)
+	_check(manager.register_exterior(&"city", exterior), "register exterior for place lifecycle")
+	var template_root := Node3D.new()
+	var layout := PackedScene.new()
+	_check(layout.pack(template_root) == OK, "pack empty interior layout")
+	template_root.free()
+	_check(manager.create_room(&"room_1", &"workshop_1", layout),
+		"create independent interior")
+	_check(manager.view_place(&"room_1"), "view new room")
+	_check(not manager.remove_room(&"room_1"), "cannot remove currently viewed interior")
+	_check(manager.view_place(&"city"), "switch view away before removal")
+	_check(manager.remove_room(&"room_1"), "remove empty interior")
+	_check(manager.get_place(&"room_1") == null, "room no longer registered")
+	_check(not manager.remove_room(&"city"), "exterior is not removable")
+	manager.queue_free()
+	exterior.queue_free()
