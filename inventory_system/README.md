@@ -38,8 +38,7 @@ storage.increase_stack_capacity(extra_units_per_slot)
 ```
 
 Both methods increase capacity by the positive amount supplied by the game.
-There are no downgrade or shrink operations, no upgrade-level tables, no
-redistribution, and no deletion of existing goods.
+Use `set_capacity` to shrink without deleting existing goods. There are no upgrade-level tables and no automatic redistribution.
 
 Each slot holds **one item ID** (`StringName`) and an integer quantity up to
 the inventory's current per-slot capacity. One item type may occupy multiple

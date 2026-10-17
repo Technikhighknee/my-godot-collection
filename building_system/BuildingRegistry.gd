@@ -65,10 +65,10 @@ func set_type(building_id: StringName, type_id: StringName) -> bool:
 	var building := _get_building(building_id)
 	if building == null or not _valid_id(type_id):
 		return false
-	if type_validator.is_valid() and not bool(type_validator.call(building.copy(), type_id)):
-		return false
 	if building._type_id == type_id:
 		return true
+	if type_validator.is_valid() and not bool(type_validator.call(building.copy(), type_id)):
+		return false
 	var previous := building._type_id
 	building._type_id = type_id
 	building_type_changed.emit(building_id, previous, type_id)
@@ -91,17 +91,21 @@ func set_property_value(building_id: StringName, property_id: StringName, value:
 	var building := _get_building(building_id)
 	if building == null or not _valid_id(property_id) or not _persistent_value(value):
 		return false
+	var proposed: Variant = _copy_value(value)
 	if building._properties.has(property_id):
 		var old: Variant = building._properties[property_id]
-		if typeof(old) != typeof(value):
+		if typeof(old) != typeof(proposed):
 			return false
-	if property_validator.is_valid() and not bool(property_validator.call(building.copy(), property_id, value)):
+		if old == proposed:
+			return true
+	if property_validator.is_valid() and not bool(
+		property_validator.call(building.copy(), property_id, _copy_value(proposed))
+	):
 		return false
+	# The callback receives a detached copy and cannot mutate what we commit.
 	var previous: Variant = building.get_property_value(property_id)
-	if building._properties.has(property_id) and previous == value:
-		return true
-	building._properties[property_id] = _copy_value(value)
-	building_property_changed.emit(building_id, property_id, previous, _copy_value(value))
+	building._properties[property_id] = proposed
+	building_property_changed.emit(building_id, property_id, previous, _copy_value(proposed))
 	return true
 
 
@@ -109,21 +113,25 @@ func erase_property(building_id: StringName, property_id: StringName) -> bool:
 	var building := _get_building(building_id)
 	if building == null or not building.has_property(property_id):
 		return false
+	# null represents erasure to game validators; no silent bypass of schemas.
+	if property_validator.is_valid() and not bool(
+		property_validator.call(building.copy(), property_id, null)
+	):
+		return false
 	var previous: Variant = building.get_property_value(property_id)
 	building._properties.erase(property_id)
 	building_property_changed.emit(building_id, property_id, previous, null)
 	return true
 
-
 func set_upgrade_level(building_id: StringName, upgrade_id: StringName, level: int) -> bool:
 	var building := _get_building(building_id)
 	if building == null or not _valid_id(upgrade_id) or level < 0:
 		return false
-	if upgrade_validator.is_valid() and not bool(upgrade_validator.call(building.copy(), upgrade_id, level)):
-		return false
 	var previous := building.get_upgrade_level(upgrade_id)
 	if previous == level:
 		return true
+	if upgrade_validator.is_valid() and not bool(upgrade_validator.call(building.copy(), upgrade_id, level)):
+		return false
 	if level == 0:
 		building._upgrades.erase(upgrade_id)
 	else:
