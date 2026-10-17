@@ -114,6 +114,7 @@ func _valid_inventory_ids(ids: Array[StringName]) -> bool:
 	if ids.is_empty():
 		return false
 	var seen: Dictionary = {}
+	var seen_instances: Dictionary = {}
 	for inventory_id in ids:
 		if (
 			not _valid_id(inventory_id) or seen.has(inventory_id)
@@ -122,7 +123,11 @@ func _valid_inventory_ids(ids: Array[StringName]) -> bool:
 			or not _inventories[inventory_id].is_configured()
 		):
 			return false
+		var inventory: Inventory = _inventories[inventory_id]
+		if seen_instances.has(inventory):
+			return false
 		seen[inventory_id] = true
+		seen_instances[inventory] = true
 	return true
 
 
