@@ -341,12 +341,14 @@ func export_state() -> Dictionary:
 
 
 func restore_state(snapshot: Dictionary) -> bool:
+	if not _busy_stations.is_empty():
+		return false
 	if snapshot.get("version") != SNAPSHOT_VERSION or not snapshot.get("stations") is Array:
 		return false
 	var restored: Dictionary = {}
 	var order_ids: Dictionary = {}
 	for value in snapshot["stations"]:
-		if not value is Dictionary:
+		if not value is Dictionary or value.size() != 6:
 			return false
 		for key in ["id", "paused", "queue", "cycle", "input_inventory_ids", "output_inventory_ids"]:
 			if not value.has(key):
@@ -377,7 +379,7 @@ func restore_state(snapshot: Dictionary) -> bool:
 		station.queue = value["queue"].duplicate(true)
 		station.cycle = value["cycle"].duplicate(true)
 		for order in station.queue:
-			if not order is Dictionary or not order.has("id") or not order.has("recipe_id") or not order.has("remaining"):
+			if not order is Dictionary or order.size() != 3 or not order.has("id") or not order.has("recipe_id") or not order.has("remaining"):
 				return false
 			if (
 				not order["id"] is StringName or not _valid_id(order["id"])
@@ -399,11 +401,16 @@ func restore_state(snapshot: Dictionary) -> bool:
 
 func _valid_cycle(station: ProductionStation) -> bool:
 	var cycle := station.cycle
+	if cycle.size() != 9:
+		return false
 	for key in ["order_id", "recipe_id", "inputs", "outputs", "work_required", "work_done", "phase", "reserved", "pending"]:
 		if not cycle.has(key):
 			return false
 	if (
-		station.queue.is_empty() or station.queue.front()["id"] != cycle["order_id"]
+		station.queue.is_empty()
+		or not cycle["order_id"] is StringName
+		or not _valid_id(cycle["order_id"])
+		or station.queue.front()["id"] != cycle["order_id"]
 		or not cycle["recipe_id"] is StringName
 		or not _valid_id(cycle["recipe_id"])
 		or station.queue.front()["recipe_id"] != cycle["recipe_id"]
