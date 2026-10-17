@@ -8,6 +8,12 @@ extends Node
 signal station_registered(station_id: StringName)
 signal station_removed(station_id: StringName)
 signal station_changed(station_id: StringName)
+signal station_paused_changed(station_id: StringName, paused: bool)
+signal station_phase_changed(station_id: StringName, old_phase: StringName, new_phase: StringName)
+signal station_blocked(station_id: StringName, reason: StringName)
+signal station_unblocked(station_id: StringName, previous_reason: StringName)
+signal order_queued(station_id: StringName, order_id: StringName)
+signal work_contributed(station_id: StringName, units: int)
 signal station_inventories_changed(station_id: StringName)
 signal order_canceled(station_id: StringName, order_id: StringName)
 signal settlement_created(station_id: StringName, order_id: StringName, kind: StringName)
@@ -16,7 +22,11 @@ signal cycle_started(station_id: StringName, order_id: StringName)
 signal cycle_completed(station_id: StringName, order_id: StringName)
 signal state_restored()
 
-const SNAPSHOT_VERSION := 3
+const SNAPSHOT_VERSION := 4
+const IDLE := &"idle"
+const BLOCK_INPUTS := &"inputs_unavailable"
+const BLOCK_OUTPUTS := &"outputs_full"
+const BLOCK_RECIPE := &"recipe_unavailable"
 const REFUND := &"refund"
 const DELIVERY := &"delivery"
 const INPUT := &"input"
@@ -73,6 +83,28 @@ func get_station(station_id: StringName) -> ProductionStation:
 
 func _get_station(station_id: StringName) -> ProductionStation:
 	return _stations.get(station_id) as ProductionStation
+
+
+func _phase(station: ProductionStation) -> StringName:
+	return IDLE if station.cycle.is_empty() else station.cycle["phase"]
+
+
+func _notify_phase(station: ProductionStation, old_phase: StringName) -> void:
+	var current_phase := _phase(station)
+	if old_phase != current_phase:
+		station_phase_changed.emit(station.id, old_phase, current_phase)
+
+
+func _set_block(station: ProductionStation, reason: StringName) -> void:
+	var previous := station.block_reason
+	if previous == reason:
+		return
+	station.block_reason = reason
+	if previous != &"":
+		station_unblocked.emit(station.id, previous)
+	if reason != &"":
+		station_blocked.emit(station.id, reason)
+	station_changed.emit(station.id)
 
 
 func _valid_inventory_ids(ids: Array[StringName]) -> bool:
@@ -153,6 +185,7 @@ func enqueue_order(
 		return false
 	station.queue.append({"id": order_id, "recipe_id": recipe_id, "remaining": cycles})
 	_order_ids[order_id] = station_id
+	order_queued.emit(station_id, order_id)
 	station_changed.emit(station_id)
 	return true
 
@@ -166,6 +199,7 @@ func set_paused(station_id: StringName, paused: bool) -> bool:
 	if station.paused == paused:
 		return true
 	station.paused = paused
+	station_paused_changed.emit(station_id, paused)
 	station_changed.emit(station_id)
 	return true
 
@@ -262,19 +296,27 @@ func _advance_internal(station_id: StringName) -> bool:
 		var order: Dictionary = station.queue.front()
 		var resolved := _resolve_cycle(station, order)
 		if resolved.is_empty():
+			_set_block(station, BLOCK_RECIPE)
 			return false
 		station.cycle = resolved
+		_set_block(station, &"")
 		cycle_started.emit(station_id, order["id"])
+		_notify_phase(station, IDLE)
+		station_changed.emit(station_id)
 	var cycle := station.cycle
 	if cycle["phase"] == INPUT:
 		var planned := _plan_materials(station.input_inventory_ids, cycle["inputs"], false)
 		if not planned.get("ok", false):
+			_set_block(station, BLOCK_INPUTS)
 			return false
 		var changes: Array[Dictionary] = planned["changes"]
 		if not changes.is_empty() and not InventoryBatch.apply(changes):
+			_set_block(station, BLOCK_INPUTS)
 			return false
 		cycle["reserved"] = cycle["inputs"].duplicate(true)
 		cycle["phase"] = WORK
+		_set_block(station, &"")
+		_notify_phase(station, INPUT)
 		station_changed.emit(station_id)
 		return true
 	if cycle["phase"] == OUTPUT:
@@ -283,9 +325,17 @@ func _advance_internal(station_id: StringName) -> bool:
 
 
 # Accepts up to the remaining work, returns the accepted number of work units.
+# Only externally measured work is accepted; no simulation clock inside this package.
 func contribute_work(station_id: StringName, units: int) -> int:
 	if _busy_stations.has(station_id):
 		return 0
+	_busy_stations[station_id] = true
+	var applied := _contribute_work_internal(station_id, units)
+	_busy_stations.erase(station_id)
+	return applied
+
+
+func _contribute_work_internal(station_id: StringName, units: int) -> int:
 	var station := _get_station(station_id)
 	if station == null or station.paused or units <= 0 or station.cycle.is_empty():
 		return 0
@@ -298,6 +348,9 @@ func contribute_work(station_id: StringName, units: int) -> int:
 		cycle["reserved"] = {}
 		cycle["pending"] = cycle["outputs"].duplicate(true)
 		cycle["phase"] = OUTPUT
+	work_contributed.emit(station_id, applied)
+	if cycle["phase"] == OUTPUT:
+		_notify_phase(station, WORK)
 	station_changed.emit(station_id)
 	return applied
 
@@ -349,6 +402,8 @@ func _cancel_internal(station_id: StringName) -> bool:
 		_order_ids.erase(order_id)
 	station.cycle = {}
 	station.queue.pop_front()
+	_set_block(station, &"")
+	_notify_phase(station, phase)
 	if not held_items.is_empty():
 		settlement_created.emit(station_id, order_id, kind)
 	order_canceled.emit(station_id, order_id)
@@ -414,13 +469,17 @@ func _finish_output(station: ProductionStation, cancel_repetitions: bool) -> boo
 		return false
 	var planned := _plan_materials(station.output_inventory_ids, cycle["pending"], true)
 	if not planned.get("ok", false):
+		_set_block(station, BLOCK_OUTPUTS)
 		return false
 	var changes: Array[Dictionary] = planned["changes"]
 	if not changes.is_empty() and not InventoryBatch.apply(changes):
+		_set_block(station, BLOCK_OUTPUTS)
 		return false
 	var order_id: StringName = cycle["order_id"]
 	station.cycle = {}
 	var order: Dictionary = station.queue.front()
+	_set_block(station, &"")
+	_notify_phase(station, OUTPUT)
 	if order["remaining"] > 0:
 		order["remaining"] -= 1
 	if order["remaining"] == 0 or cancel_repetitions:
@@ -453,14 +512,17 @@ func restore_state(snapshot: Dictionary) -> bool:
 	var restored: Dictionary = {}
 	var order_ids: Dictionary = {}
 	for value in snapshot["stations"]:
-		if not value is Dictionary or value.size() != 7:
+		if not value is Dictionary or value.size() != 8:
 			return false
-		for key in ["id", "paused", "queue", "cycle", "settlements", "input_inventory_ids", "output_inventory_ids"]:
+		for key in ["id", "paused", "block_reason", "queue", "cycle", "settlements", "input_inventory_ids", "output_inventory_ids"]:
 			if not value.has(key):
 				return false
 		if (
 			not value["id"] is StringName or not _valid_id(value["id"])
-			or not value["paused"] is bool or not value["queue"] is Array
+			or not value["paused"] is bool
+			or not value["block_reason"] is StringName
+			or not value["block_reason"] in [&"", BLOCK_INPUTS, BLOCK_OUTPUTS, BLOCK_RECIPE]
+			or not value["queue"] is Array
 			or not value["cycle"] is Dictionary
 			or not value["settlements"] is Array
 			or not value["input_inventory_ids"] is Array
@@ -482,6 +544,7 @@ func restore_state(snapshot: Dictionary) -> bool:
 			return false
 		var station := ProductionStation.new(value["id"], input_ids, output_ids)
 		station.paused = value["paused"]
+		station.block_reason = value["block_reason"]
 		station.queue = value["queue"].duplicate(true)
 		station.cycle = value["cycle"].duplicate(true)
 		station.settlements = value["settlements"].duplicate(true)
@@ -498,6 +561,12 @@ func restore_state(snapshot: Dictionary) -> bool:
 				return false
 			order_ids[order["id"]] = station.id
 		if not station.cycle.is_empty() and not _valid_cycle(station):
+			return false
+		if station.block_reason == BLOCK_RECIPE and (not station.cycle.is_empty() or station.queue.is_empty()):
+			return false
+		if station.block_reason == BLOCK_INPUTS and (station.cycle.is_empty() or station.cycle["phase"] != INPUT):
+			return false
+		if station.block_reason == BLOCK_OUTPUTS and (station.cycle.is_empty() or station.cycle["phase"] != OUTPUT):
 			return false
 		for entry in station.settlements:
 			if not _valid_settlement(entry) or order_ids.has(entry["order_id"]):

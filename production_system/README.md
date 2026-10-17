@@ -13,7 +13,7 @@ A headless, game-independent production state machine, with persistent stations,
 ## Lifecycle
 1. Bind stable inventory IDs to configured Inventory instances with `bind_inventory`. Stations take an ordered nonempty `Array[StringName]` for input IDs and another for output IDs, e.g. `register_station(&"work_1", [&"store_a", &"store_b"], [&"finished_a"])`. Items are distributed deterministically, preferring earlier inventories, with all-or-nothing batches.
 2. Register stations referencing those inventory IDs and enqueue orders.
-3. Call `advance(station_id)` to begin a cycle and reserve inputs; if inputs are unavailable, retry later. No update loop is run implicitly.
+3. Call `advance(station_id)` to begin a cycle and reserve inputs; if inputs are unavailable, retry later. No update loop is run implicitly. `block_reason` reports `recipe_unavailable`, `inputs_unavailable` or `outputs_full` and resets when the failed transition succeeds. The current cycle phase (`input`, `work`, `output`, or `idle`) is reported independently of manual pausing.
 4. After reservation call `contribute_work(station_id, positive_work_units)`. The game gates this by actual worker presence/permissions and calculates rate. Contributions beyond the remaining requirement are capped and the accepted amount is returned.
 5. After completion call `advance(station_id)` to deposit pending output; if storage is full, retry later.
 6. Call `advance` again to start the next cycle, when the next one is desired.
@@ -31,10 +31,10 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 - `cancel_order(station_id, order_id)`, `cancel_active_order(station_id)`
 - `settle_pending(station_id)`, `discard_settlement(station_id, order_id)`
 - `export_state() -> Dictionary`, `restore_state(snapshot) -> bool`
-- `station_registered`, `station_removed`, `station_changed`, `station_inventories_changed`, `order_canceled`, `settlement_created`, `settlement_resolved`, `cycle_started`, `cycle_completed`, `state_restored` signals
+- `station_registered`, `station_removed`, `station_changed`, `station_paused_changed`, `station_phase_changed`, `station_blocked`, `station_unblocked`, `order_queued`, `work_contributed`, `station_inventories_changed`, `order_canceled`, `settlement_created`, `settlement_resolved`, `cycle_started`, `cycle_completed`, `state_restored` signals
 
 ## Persistence
-`export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, cancellation settlements, progress and stable inventory binding IDs. Unresolved settlement order IDs remain reserved until settled or explicitly discarded. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
+`export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, cancellation settlements, progress, block reason and stable inventory binding IDs. Unresolved settlement order IDs remain reserved until settled or explicitly discarded. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
 
 `restore_state` verifies all IDs, queues and phase invariants before replacing the registry. Missing inventory IDs, malformed queues, impossible work progress, and invalid phase/resource combinations reject the snapshot. The game must restore inventory and production from the **same** checkpoint; the production package cannot independently prove cross-system conservation from an isolated snapshot. Definition migrations are a game responsibility.
 

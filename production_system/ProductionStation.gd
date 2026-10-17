@@ -5,6 +5,7 @@ extends RefCounted
 # This structure is gameplay-agnostic and does not own Inventory/Nodes.
 var id: StringName
 var paused := false
+var block_reason: StringName = &""
 var queue: Array[Dictionary] = []
 var cycle: Dictionary = {}
 var settlements: Array[Dictionary] = [] # Resolvable goods from canceled cycles
@@ -36,6 +37,7 @@ func get_settlements() -> Array[Dictionary]:
 func copy() -> ProductionStation:
 	var value := ProductionStation.new(id, input_inventory_ids, output_inventory_ids)
 	value.paused = paused
+	value.block_reason = block_reason
 	value.queue = get_queue()
 	value.cycle = get_cycle()
 	value.settlements = get_settlements()
@@ -44,7 +46,8 @@ func copy() -> ProductionStation:
 
 func to_snapshot() -> Dictionary:
 	return {
-		"id": id, "paused": paused, "queue": get_queue(), "cycle": get_cycle(),
+		"id": id, "paused": paused, "block_reason": block_reason,
+		"queue": get_queue(), "cycle": get_cycle(),
 		"settlements": get_settlements(),
 		"input_inventory_ids": input_inventory_ids.duplicate(),
 		"output_inventory_ids": output_inventory_ids.duplicate()
