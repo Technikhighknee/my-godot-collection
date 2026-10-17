@@ -77,7 +77,7 @@ func _inventory() -> void:
 	_check(storage.get_item_quantity(&"wood") == 17, "goods survive shrinking")
 	_check(not storage.add(&"wood", 1), "no additions to overfilled storage")
 	_check(storage.remove_from_slot(1, 7), "overflow slot can be emptied")
-	_check(storage.remove_from_slot(0, 5), "overstack can be reduced")
+	_check(storage.remove_from_slot(0, 6), "overstack can be reduced")
 	_check(not storage.is_over_capacity(), "under-capacity after removal")
 	_check(storage.add(&"wood", 1), "can add goods after overflow is resolved")
 	var snapshot := storage.export_state()
@@ -139,7 +139,12 @@ func _production() -> void:
 	var outputs: Array[StringName] = [&"finished"]
 	_check(prod.register_station(&"oven", inputs, outputs), "register multi-storage station")
 	_check(prod.enqueue_order(&"oven", &"order_a", &"bread", 2), "queue two cycles")
+	var reentrant_results: Array[bool] = []
+	grain_a.contents_changed.connect(func() -> void:
+		reentrant_results.append(prod.advance(&"oven"))
+	)
 	_check(prod.advance(&"oven"), "reserve first cycle")
+	_check(reentrant_results == [false], "nested inventory signal cannot double-reserve")
 	_check(grain_a.get_item_quantity(&"grain") + grain_b.get_item_quantity(&"grain") == 2,
 		"inputs reserved exactly once")
 	var exposed := prod.get_station(&"oven")

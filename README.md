@@ -136,3 +136,11 @@ The source code in this repository is publicly available for inspection.
 Except for rights arising from GitHub's Terms of Service and GitHub's platform functionality, no license or permission is granted to use, copy, modify, distribute, sublicense, sell, incorporate into another work, or create derivative works from this software without prior written permission from Jason Posch.
 
 This repository is not open-source software. Its public availability does not grant permission to use the software.
+
+## Independent runtime checks
+
+The optional `python tests/run_godot.py` runner uses an installed Godot 4 executable
+(or `GODOT_BIN`) to create a **temporary stand-alone project** and run assertions for
+Building, Inventory and Production. It never reads or changes the private `1400`
+game repository. When no Godot executable is available it exits with code 2;
+this is **not** a passing test run.
