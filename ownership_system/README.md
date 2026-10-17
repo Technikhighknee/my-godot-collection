@@ -1,90 +1,30 @@
-# Ownership System (Godot 4)
+# Ownership System
 
-Small ownership registry for buildings. It records **economic ownership** and,
-for dynasty-owned buildings, a separate **character assignment**. It neither
-implements buildings nor ownership rules for inventory items.
+Ownership records for buildings, including the person assigned to represent a dynasty-owned building.
 
-## Owner types
+## Ownership types
 
-- `OwnershipRegistry.OwnerType.DYNASTY` — a registered dynasty owns the
-  building. A character from that dynasty is assigned as the in-game
-  displayed owner.
-- `OwnershipRegistry.OwnerType.CITY` — a city owns the building. The
-  city ID is supplied by the game; no City System is required yet.
-- `OwnershipRegistry.OwnerType.NONE` — the building is unowned.
+- `OwnershipRegistry.OwnerType.NONE`: unowned.
+- `OwnershipRegistry.OwnerType.DYNASTY`: a registered dynasty, with an optional assigned member.
+- `OwnershipRegistry.OwnerType.CITY`: a city identified by its ID.
 
-`NONE` is **absence of an owner**, not a separate city, person or entity.
-The game owns the building list; looking up an unknown building returns NONE.
-
-## Setup
-
-Add an `OwnershipRegistry` node and configure it using the existing
-`DynastyRegistry` before using it. That registry must already be configured
-and contain the referenced dynasty and character members.
+Configure `OwnershipRegistry` with an existing `DynastyRegistry`:
 
 ```gdscript
-var ownership: OwnershipRegistry = $OwnershipRegistry
-ownership.configure($DynastyRegistry)
-
+ownership.configure(dynasties)
 ownership.set_building_owner(
-    &"tavern_42", OwnershipRegistry.OwnerType.DYNASTY,
-    &"dynasty_muller", &"heinrich"
+    &"bakery_1", OwnershipRegistry.OwnerType.DYNASTY,
+    &"hansen", &"citizen_1"
 )
-ownership.set_building_owner(
-    &"town_hall", OwnershipRegistry.OwnerType.CITY, &"luebeck"
-)
-
-# Get the legal/economic owner and the person shown as owner.
-var kind := ownership.get_owner_type(&"tavern_42")
-var dynasty_id := ownership.get_owner_id(&"tavern_42")
-var displayed_owner_id := ownership.get_assigned_character_id(&"tavern_42")
-
-# Transfer the building, atomically, to a different dynasty/member.
-ownership.set_building_owner(
-    &"tavern_42", OwnershipRegistry.OwnerType.DYNASTY,
-    &"dynasty_schmidt", &"anna"
-)
-
-# Just change the displayed person; economic ownership is untouched.
-ownership.assign_character(&"tavern_42", &"friedrich")
-
-# Look up the properties economically owned by a dynasty or city.
-var buildings := ownership.get_owned_buildings(
-    OwnershipRegistry.OwnerType.DYNASTY, &"dynasty_schmidt"
-)
-
-# Make it unowned.
-ownership.set_building_owner(&"tavern_42", OwnershipRegistry.OwnerType.NONE)
+ownership.assign_character(&"bakery_1", &"citizen_2")
 ```
 
-## Guarantees and lifecycle
+A dynasty assignee must be a member of the owning dynasty. If that character leaves, the assignment is cleared while the ownership record remains. A city owner has a city ID and no assignee. Setting `NONE` clears ownership.
 
-- The building ID must be nonempty. `CITY` requires a nonempty city ID
-  and never accepts a character assignment.
-- `DYNASTY` requires an existing dynasty and a character who **currently
-  belongs to that dynasty**. Assigning a character from another dynasty
-  (or a dynasty-free worker) is rejected with no changes.
-- Only dynasty-owned buildings can use `assign_character`. A character
-  assignment can be explicitly cleared with `&""` to represent a temporary
-  vacancy; the next assignee must belong to the owning dynasty.
-- If the assignee changes/leaves their dynasty or their character is
-  unregistered, the assignment is automatically cleared via the Dynasty
-  System's membership signal. **The building is not transferred.**
-- Unbinding a character's physical `PlaceActor` does not remove
-  membership or ownership: identity and physical presence are separate.
-- `get_owned_buildings` returns a copy of matching IDs, not mutable state.
+`get_owned_buildings(type, owner_id)` returns matching building IDs. The building IDs and city IDs are supplied by the caller.
 
-Signals:
+## API
 
-- `ownership_changed(building_id, old_type, old_owner_id, new_type, new_owner_id)`
-- `assigned_character_changed(building_id, old_character_id, new_character_id)`
+`configure`, `set_building_owner`, `assign_character`, `get_owner_type`, `get_owner_id`, `get_assigned_character_id`, `get_owned_buildings`.
 
-This package has **no building registry, city registry, individual
-property wallets, inheritance logic, taxes, AI, UI or jobs**. Cities are
-addressed by stable game-supplied IDs until the game defines them.
-
-## Deploy
-
-Requires DynastySystem, CharacterSystem and PlaceSystem. Add
-`"ownership_system": "OwnershipSystem"` to the project's `manifest.json`
-packages mapping, then deploy using `tools/deploy.py`.
+Signals: `ownership_changed(building_id, old_type, old_owner_id, new_type, new_owner_id)`, `assigned_character_changed(building_id, old_character_id, new_character_id)`.

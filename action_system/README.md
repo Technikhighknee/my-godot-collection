@@ -1,204 +1,35 @@
-# Action System (Godot 4)
+# Action System
 
-A small gameplay-**measure interface** for characters, carts, buildings and
-other Godot nodes. It knows which measures an object offers, whether they are
-available, what kind of target they expect, and when an invocation finishes.
+Actions attached to a Godot node, with availability rules, targeting, execution state and cooldowns.
 
-It does **not** implement walking, production, purchases, inventory, combat,
-animations, buttons or input. Those belong to the game and other packages.
+## Usage
 
-## Scene setup
-
-Attach `ActionController.gd` to an ordinary `Node` directly beneath the
-object that offers measures:
-
-```text
-Citizen (Node)
-└── ActionController (Node)
-
-CitizenBody (CharacterBody3D)
-├── MovementAgent3D (NavigationAgent3D)
-└── SelectionTarget3D (Area3D)
-```
-
-It works exactly the same way under a building or cart. If an actor's physical
-body can move between scenes or worlds, attach ActionController to its
-**persistent gameplay node**, not to that reparented body. Normal movement
-commands do not go through ActionController; an action may request movement
-as one step of its own execution.
-
-No autoload or scene singleton is required. Scripts `ActionDefinition.gd`
-and `ActionExecution.gd` are data/runtime helpers; they are not scene nodes.
-The package does not contain handwritten scene UIDs.
-
-## Defining a measure
-
-Game code registers definitions (ID, display title, target type, executor and
-optional game-defined availability/target predicates).
+Add `ActionController` as a child of the node offering actions. Register an `ActionDefinition` with an ID, title, target kind and callback:
 
 ```gdscript
-@onready var actions: ActionController = $Citizen/ActionController
-
-func _ready() -> void:
-    actions.register_action(ActionDefinition.new(
-        &"inspect", "Inspect", ActionDefinition.TargetKind.OBJECT,
-        _inspect_target
-    ))
-
-func _inspect_target(_actor: Node, target: Variant, execution: ActionExecution) -> void:
-    print("Inspecting: ", (target as Node3D).name)
-    execution.complete()
+actions.register_action(ActionDefinition.new(
+    &"inspect", "Inspect", ActionDefinition.TargetKind.OBJECT,
+    func(_actor: Node, target: Variant, execution: ActionExecution) -> void:
+        print((target as Node3D).name)
+        execution.complete()
+))
 ```
 
-For dynamic availability and target rules, pass two additional Callables:
-`available(actor: Node) -> bool` and
-`valid_target(actor: Node, target: Variant) -> bool`.
-Examples: the game checks the character's profession, ownership, a building's
-upgrade, or whether a target is in range. The package does not invent those
-rules. `is_available(id)` can be called when building the action bar, and the
-rules are **rechecked when starting** an invocation. Call
-`notify_actions_changed()` when a game-state change affects availability, so
-the UI can update without polling.
+Target kinds are `NONE`, `OBJECT` (live `Node3D`) and `LOCATION` (finite `Vector3`).
 
-## Optional cooldowns
+- `request_action(id)` executes a targetless action or emits `target_required(id, kind)`.
+- `submit_target(target)` validates and executes the pending action. Invalid targets leave targeting active; `cancel_targeting()` clears it.
+- `execute_action(id, target)` starts an action directly.
+- Optional `available(actor)` and `valid_target(actor, target)` Callables restrict invocation. Call `notify_actions_changed()` when availability changes.
+- `ActionExecution` remains running until its callback calls `complete()`, `fail(reason)` or `cancel()`. A cancel handler can release external work.
+- `cooldown_seconds` starts a cooldown after successful completion. Cooldowns use Godot's scaled, pausable time.
 
-Each `ActionDefinition` can declare a cooldown in seconds. Zero (the default)
-means **no cooldown**. The cooldown is tracked independently by the
-`ActionController` belonging to each character, building or cart.
-
-```gdscript
-var bribe := ActionDefinition.new(
-    &"bribe", "Bribe", ActionDefinition.TargetKind.OBJECT, _perform_bribe
-)
-bribe.cooldown_seconds = 30.0
-actions.register_action(bribe)
-```
-
-The last optional constructor argument can also specify the cooldown:
-`ActionDefinition.new(id, title, kind, perform, available, valid_target, 30.0)`.
-Cooldowns must be finite and non-negative when the measure is registered.
-
-- **Starts:** after `execution.complete()` only. A running action is not
-  cooling down yet. A failed or canceled action never starts a cooldown.
-- **Blocks:** `request_action()` and `execute_action()` reject cooling-down
-  measures with `action_rejected(id, &"cooldown")`. `is_available(id)`
-  returns false while cooling down; other measures remain available.
-- **Inspect:** `get_cooldown_remaining(id) -> float` reports seconds left;
-  `is_on_cooldown(id) -> bool` is a convenience check.
-- **Signals:** `cooldown_started(id, seconds)` and `cooldown_finished(id)`
-  fire at the transitions. `actions_changed()` fires at both transitions,
-  so the UI can refresh without a per-frame signal.
-- **Time:** Godot's built-in, one-shot `Timer` respects
-  `Engine.time_scale` and normal scene-tree pausing. A controller needs no
-  extra nodes or timers in its scene.
-- **Removal:** unregistering the measure clears its cooldown. Removing and
-  re-registering an action ID does not cause old running invocations to
-  start cooldowns on the replacement.
-- **Concurrent actions:** if an action is running more than once, each
-  successful completion restarts its cooldown from the full duration.
-  Cooldowns do not retroactively cancel other running invocations.
-
-Target kinds:
-- `NONE`: immediate invocation, no target.
-- `OBJECT`: a live `Node3D` (character, cart, building, etc.).
-- `LOCATION`: a finite world `Vector3`.
-
-## Picking targets (without owning input)
-
-For a measure requiring a target, call:
-
-```gdscript
-actions.request_action(&"inspect")
-```
-
-The controller emits `target_required(id, target_kind)`. The **game** then
-routes the appropriate `SelectionSystem` signal to the controller.
-
-```gdscript
-func _on_target_selected(target: Node3D) -> void:
-    if actions.is_awaiting_target():
-        actions.submit_target(target)
-
-func _on_location_selected(position: Vector3) -> void:
-    if actions.is_awaiting_target():
-        actions.submit_target(position)
-    else:
-        # Normal right-click movement belongs to game logic.
-        pass
-```
-
-A wrong target is rejected with `action_rejected(id, reason)`; targeting
-remains active so the player can try again. Use `cancel_targeting()` (e.g.
-Escape) to return to ordinary input. A `NONE` action executes immediately.
-NPC logic can bypass manual targeting via `execute_action(id, target)`.
-
-The SelectionSystem's right-click signals only fire when it has a selection.
-The game chooses which selected object's controller receives the event.
-
-## Execution lifecycle
-
-Each accepted activation creates an independent `ActionExecution`, initially
-`RUNNING`. The game's executor must call one of:
-
-- `execution.complete()` — done.
-- `execution.fail(&"reason")` — failed.
-- `execution.cancel()` — canceled.
-
-The controller emits `action_started(execution)` and
-`action_finished(execution)`; read `execution.status` and
-`execution.failure_reason` after settlement.
-
-For long-running actions that *need* travel as a prerequisite (for example,
-reaching a workstation before beginning work), game code can subscribe to
-`PlaceTraveler` or `MovementAgent3D` signals and settle the overarching
-action after its actual gameplay work. Walking and traveling themselves are
-independent commands, not registered measures. Register
-`execution.set_cancel_handler(callable)` to stop outstanding work if the
-player cancels. The game must disconnect any other signal callbacks when the
-execution finishes; the controller cannot know which systems the executor
-uses.
-
-A finished execution cannot finish again. `get_running_actions()` gives
-the current invocations, and `cancel_execution(run)` or `cancel_all()`
-cancels them. Removing the owner node cancels its unfinished executions.
-
-**Concurrency is a game rule:** the controller does not silently cancel an
-existing measure when another is activated. A character can enforce exclusive
-actions by canceling/rejecting conflicting invocations; a building may support
-independent ongoing measures. This is not an action queue or scheduler.
-
-Unregistering a definition removes it from the menu without retroactively
-canceling an already-running invocation.
+An actor can have multiple running actions. Their concurrency and interaction with other components are controlled by the invoking code.
 
 ## API
 
-- `register_action(definition) -> bool` (rejects invalid and duplicate IDs)
-- `unregister_action(id)`
-- `get_actions() -> Array[ActionDefinition]`
-- `notify_actions_changed()` (signal a game-driven availability change)
-- `get_action(id) -> ActionDefinition`
-- `is_available(id) -> bool` (includes cooldown status)
-- `is_on_cooldown(id) -> bool`
-- `get_cooldown_remaining(id) -> float`
-- `request_action(id) -> bool`
-- `is_awaiting_target() -> bool`
-- `get_pending_action() -> StringName`
-- `submit_target(target) -> ActionExecution`
-- `cancel_targeting()`
-- `execute_action(id, target = null) -> ActionExecution`
-- `get_running_actions() -> Array[ActionExecution]`
-- `cancel_execution(execution)`
-- `cancel_all()`
+`ActionController`: `register_action`, `unregister_action`, `get_actions`, `get_action`, `notify_actions_changed`, `is_available`, `request_action`, `submit_target`, `cancel_targeting`, `execute_action`, `is_awaiting_target`, `get_pending_action`, `get_running_actions`, `cancel_execution`, `cancel_all`, `is_on_cooldown`, `get_cooldown_remaining`.
 
-Signals: `actions_changed()`, `target_required(id, target_kind)`,
-`targeting_canceled(id)`, `action_rejected(id, reason)`,
-`action_started(execution)`, `action_finished(execution)`,
-`cooldown_started(id, seconds)`, `cooldown_finished(id)`.
+Signals: `actions_changed`, `target_required`, `targeting_canceled`, `action_rejected`, `action_started`, `action_finished`, `cooldown_started`, `cooldown_finished`.
 
-Rejection reasons: `unknown_action`, `unavailable`, `invalid_target`,
-`cooldown`.
-
-## Deploy
-
-Add `"action_system": "ActionSystem"` to the collection project manifest,
-then deploy with `tools/deploy.py`.
+Rejection reasons: `unknown_action`, `unavailable`, `invalid_target`, `cooldown`.
