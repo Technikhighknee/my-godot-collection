@@ -239,8 +239,13 @@ static func _persistent_value(value: Variant, depth: int = 0) -> bool:
 			return true
 		TYPE_FLOAT:
 			return is_finite(value)
-		TYPE_VECTOR2, TYPE_VECTOR3, TYPE_VECTOR4, TYPE_COLOR:
+		TYPE_VECTOR2, TYPE_VECTOR3, TYPE_VECTOR4:
 			return value.is_finite()
+		TYPE_COLOR:
+			return (
+				is_finite(value.r) and is_finite(value.g)
+				and is_finite(value.b) and is_finite(value.a)
+			)
 		TYPE_VECTOR2I, TYPE_VECTOR3I, TYPE_VECTOR4I:
 			return true
 		TYPE_ARRAY:
