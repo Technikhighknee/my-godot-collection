@@ -12,7 +12,7 @@ signal cycle_started(station_id: StringName, order_id: StringName)
 signal cycle_completed(station_id: StringName, order_id: StringName)
 signal state_restored()
 
-const SNAPSHOT_VERSION := 1
+const SNAPSHOT_VERSION := 2
 const INPUT := &"input"
 const WORK := &"work"
 const OUTPUT := &"output"
@@ -39,35 +39,69 @@ func bind_inventory(inventory_id: StringName, inventory: Inventory) -> bool:
 func unbind_inventory(inventory_id: StringName) -> bool:
 	# References remain stable during jobs. Only allow detaching unused inventories.
 	for station in _stations.values():
-		if station.input_inventory_id == inventory_id or station.output_inventory_id == inventory_id:
+		if inventory_id in station.input_inventory_ids or inventory_id in station.output_inventory_ids:
 			return false
 	return _inventories.erase(inventory_id)
 
 
-func register_station(station_id: StringName, input_id: StringName, output_id: StringName) -> bool:
+func register_station(
+	station_id: StringName, input_ids: Array[StringName],
+	output_ids: Array[StringName]
+) -> bool:
 	if (
 		not _valid_id(station_id) or _stations.has(station_id)
-		or not _inventories.has(input_id) or not _inventories.has(output_id)
+		or not _valid_inventory_ids(input_ids) or not _valid_inventory_ids(output_ids)
 	):
 		return false
-	_stations[station_id] = ProductionStation.new(station_id, input_id, output_id)
+	_stations[station_id] = ProductionStation.new(station_id, input_ids, output_ids)
 	station_registered.emit(station_id)
 	return true
 
 
+# Return detached copies. No direct external mutations of the live queue/cycle.
 func get_station(station_id: StringName) -> ProductionStation:
+	var station := _get_station(station_id)
+	return station.copy() if station != null else null
+
+
+func _get_station(station_id: StringName) -> ProductionStation:
 	return _stations.get(station_id) as ProductionStation
+
+
+func _valid_inventory_ids(ids: Array[StringName]) -> bool:
+	if ids.is_empty():
+		return false
+	var seen: Dictionary = {}
+	for inventory_id in ids:
+		if (
+			not _valid_id(inventory_id) or seen.has(inventory_id)
+			or not _inventories.has(inventory_id)
+			or not is_instance_valid(_inventories[inventory_id])
+			or not _inventories[inventory_id].is_configured()
+		):
+			return false
+		seen[inventory_id] = true
+	return true
+
+
+func _plan_materials(ids: Array[StringName], items: Dictionary, adding: bool) -> Dictionary:
+	if not _valid_inventory_ids(ids):
+		return {"ok": false}
+	var inventories: Array[Inventory] = []
+	for inventory_id in ids:
+		inventories.append(_inventories[inventory_id])
+	return InventoryBatch.plan_distribution(inventories, items, adding)
 
 
 func get_stations() -> Array[ProductionStation]:
 	var result: Array[ProductionStation] = []
 	for station in _stations.values():
-		result.append(station)
+		result.append(station.copy())
 	return result
 
 
 func unregister_station(station_id: StringName) -> bool:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if station == null or not station.cycle.is_empty() or not station.queue.is_empty():
 		return false
 	_stations.erase(station_id)
@@ -81,7 +115,7 @@ func enqueue_order(
 	station_id: StringName, order_id: StringName,
 	recipe_id: StringName, cycles: int = 1
 ) -> bool:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if (
 		station == null or not _valid_id(order_id) or not _valid_id(recipe_id)
 		or _order_ids.has(order_id) or (cycles <= 0 and cycles != -1)
@@ -94,7 +128,7 @@ func enqueue_order(
 
 
 func set_paused(station_id: StringName, paused: bool) -> bool:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if station == null:
 		return false
 	if station.paused == paused:
@@ -105,7 +139,7 @@ func set_paused(station_id: StringName, paused: bool) -> bool:
 
 
 func move_queued_order(station_id: StringName, order_id: StringName, index: int) -> bool:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if station == null or index < 0 or index >= station.queue.size():
 		return false
 	for i in station.queue.size():
@@ -122,7 +156,7 @@ func move_queued_order(station_id: StringName, order_id: StringName, index: int)
 
 # Only queued, not currently active, orders can be removed this way.
 func remove_queued_order(station_id: StringName, order_id: StringName) -> bool:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if station == null or (
 		not station.cycle.is_empty() and station.cycle["order_id"] == order_id
 	):
@@ -167,7 +201,7 @@ func _resolve_cycle(station: ProductionStation, order: Dictionary) -> Dictionary
 # Starts the next job, or tries the next blocked resource transition.
 # This method never silently advances simulated work.
 func advance(station_id: StringName) -> bool:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if station == null or station.paused:
 		return false
 	if station.cycle.is_empty():
@@ -181,12 +215,10 @@ func advance(station_id: StringName) -> bool:
 		cycle_started.emit(station_id, order["id"])
 	var cycle := station.cycle
 	if cycle["phase"] == INPUT:
-		var changes: Array[Dictionary] = []
-		for item in cycle["inputs"]:
-			changes.append({
-				"inventory": _inventories[station.input_inventory_id],
-				"item_id": item, "delta": -cycle["inputs"][item]
-			})
+		var planned := _plan_materials(station.input_inventory_ids, cycle["inputs"], false)
+		if not planned.get("ok", false):
+			return false
+		var changes: Array[Dictionary] = planned["changes"]
 		if not changes.is_empty() and not InventoryBatch.apply(changes):
 			return false
 		cycle["reserved"] = cycle["inputs"].duplicate(true)
@@ -194,32 +226,13 @@ func advance(station_id: StringName) -> bool:
 		station_changed.emit(station_id)
 		return true
 	if cycle["phase"] == OUTPUT:
-		var changes: Array[Dictionary] = []
-		for item in cycle["pending"]:
-			changes.append({
-				"inventory": _inventories[station.output_inventory_id],
-				"item_id": item, "delta": cycle["pending"][item]
-			})
-		if not changes.is_empty() and not InventoryBatch.apply(changes):
-			return false
-		cycle["pending"] = {}
-		var order_id: StringName = cycle["order_id"]
-		station.cycle = {}
-		var order: Dictionary = station.queue.front()
-		if order["remaining"] > 0:
-			order["remaining"] -= 1
-		if order["remaining"] == 0:
-			station.queue.pop_front()
-			_order_ids.erase(order_id)
-		cycle_completed.emit(station_id, order_id)
-		station_changed.emit(station_id)
-		return true
+		return _finish_output(station, false)
 	return false
 
 
 # Accepts up to the remaining work, returns the accepted number of work units.
 func contribute_work(station_id: StringName, units: int) -> int:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if station == null or station.paused or units <= 0 or station.cycle.is_empty():
 		return 0
 	var cycle := station.cycle
@@ -238,40 +251,50 @@ func contribute_work(station_id: StringName, units: int) -> int:
 # Cancellation keeps any in-flight materials in a persistent settlement cycle.
 # Input reservation can be refunded, finished outputs can be delivered.
 # No implicit destruction of goods.
+# Cancellation is safe even for paused stations. If an input refund or output
+# delivery cannot fit, return false and retain all materials and progress.
 func cancel_active_order(station_id: StringName) -> bool:
-	var station := get_station(station_id)
+	var station := _get_station(station_id)
 	if station == null or station.cycle.is_empty():
 		return false
 	var cycle := station.cycle
 	if cycle["phase"] == WORK:
-		# Refund previously consumed inputs; if capacity is insufficient, wait.
-		var changes: Array[Dictionary] = []
-		for item in cycle["reserved"]:
-			changes.append({"inventory": _inventories[station.input_inventory_id],
-				"item_id": item, "delta": cycle["reserved"][item]})
+		var planned := _plan_materials(station.input_inventory_ids, cycle["reserved"], true)
+		if not planned.get("ok", false):
+			return false
+		var changes: Array[Dictionary] = planned["changes"]
 		if not changes.is_empty() and not InventoryBatch.apply(changes):
 			return false
 	elif cycle["phase"] == OUTPUT:
-		# Cannot destroy completed output. Deliver first.
-		if not advance(station_id):
-			return false
-		# Delivery completed the order's current cycle; remove remaining repetitions.
-		var target: StringName = cycle["order_id"]
-		for i in station.queue.size():
-			if station.queue[i]["id"] == target:
-				station.queue.remove_at(i)
-				_order_ids.erase(target)
-				break
-		station_changed.emit(station_id)
-		return true
+		return _finish_output(station, true)
 	var order_id: StringName = cycle["order_id"]
 	station.cycle = {}
-	for i in station.queue.size():
-		if station.queue[i]["id"] == order_id:
-			station.queue.remove_at(i)
-			break
+	station.queue.pop_front()
 	_order_ids.erase(order_id)
 	station_changed.emit(station_id)
+	return true
+
+
+func _finish_output(station: ProductionStation, cancel_repetitions: bool) -> bool:
+	var cycle := station.cycle
+	if cycle.is_empty() or cycle["phase"] != OUTPUT:
+		return false
+	var planned := _plan_materials(station.output_inventory_ids, cycle["pending"], true)
+	if not planned.get("ok", false):
+		return false
+	var changes: Array[Dictionary] = planned["changes"]
+	if not changes.is_empty() and not InventoryBatch.apply(changes):
+		return false
+	var order_id: StringName = cycle["order_id"]
+	station.cycle = {}
+	var order: Dictionary = station.queue.front()
+	if order["remaining"] > 0:
+		order["remaining"] -= 1
+	if order["remaining"] == 0 or cancel_repetitions:
+		station.queue.pop_front()
+		_order_ids.erase(order_id)
+	cycle_completed.emit(station.id, order_id)
+	station_changed.emit(station.id)
 	return true
 
 
@@ -282,7 +305,7 @@ func export_state() -> Dictionary:
 	ids.sort()
 	var entries: Array[Dictionary] = []
 	for id in ids:
-		entries.append(get_station(StringName(id)).to_snapshot())
+		entries.append(_get_station(StringName(id)).to_snapshot())
 	return {"version": SNAPSHOT_VERSION, "stations": entries}
 
 
@@ -294,23 +317,31 @@ func restore_state(snapshot: Dictionary) -> bool:
 	for value in snapshot["stations"]:
 		if not value is Dictionary:
 			return false
-		for key in ["id", "paused", "queue", "cycle", "input_inventory_id", "output_inventory_id"]:
+		for key in ["id", "paused", "queue", "cycle", "input_inventory_ids", "output_inventory_ids"]:
 			if not value.has(key):
 				return false
 		if (
 			not value["id"] is StringName or not _valid_id(value["id"])
 			or not value["paused"] is bool or not value["queue"] is Array
 			or not value["cycle"] is Dictionary
-			or not value["input_inventory_id"] is StringName
-			or not value["output_inventory_id"] is StringName
-			or not _inventories.has(value["input_inventory_id"])
-			or not _inventories.has(value["output_inventory_id"])
+			or not value["input_inventory_ids"] is Array
+			or not value["output_inventory_ids"] is Array
 			or restored.has(value["id"])
 		):
 			return false
-		var station := ProductionStation.new(
-			value["id"], value["input_inventory_id"], value["output_inventory_id"]
-		)
+		var input_ids: Array[StringName] = []
+		var output_ids: Array[StringName] = []
+		for inventory_id in value["input_inventory_ids"]:
+			if not inventory_id is StringName:
+				return false
+			input_ids.append(inventory_id)
+		for inventory_id in value["output_inventory_ids"]:
+			if not inventory_id is StringName:
+				return false
+			output_ids.append(inventory_id)
+		if not _valid_inventory_ids(input_ids) or not _valid_inventory_ids(output_ids):
+			return false
+		var station := ProductionStation.new(value["id"], input_ids, output_ids)
 		station.paused = value["paused"]
 		station.queue = value["queue"].duplicate(true)
 		station.cycle = value["cycle"].duplicate(true)
@@ -343,12 +374,14 @@ func _valid_cycle(station: ProductionStation) -> bool:
 	if (
 		station.queue.is_empty() or station.queue.front()["id"] != cycle["order_id"]
 		or not cycle["recipe_id"] is StringName
+		or not _valid_id(cycle["recipe_id"])
 		or station.queue.front()["recipe_id"] != cycle["recipe_id"]
 		or not _valid_items(cycle["inputs"]) or not _valid_items(cycle["outputs"])
 		or not _valid_items(cycle["reserved"]) or not _valid_items(cycle["pending"])
 		or typeof(cycle["work_required"]) != TYPE_INT or cycle["work_required"] <= 0
 		or typeof(cycle["work_done"]) != TYPE_INT or cycle["work_done"] < 0
 		or cycle["work_done"] > cycle["work_required"]
+		or not cycle["phase"] is StringName
 		or not cycle["phase"] in [INPUT, WORK, OUTPUT]
 	):
 		return false

@@ -3,7 +3,7 @@
 A headless, game-independent production state machine, with persistent stations, repeatable orders, input reservations, work progress, and buffered output. No hard-coded recipes, goods, workers, buildings, AI, movement, actions, UI, time source or game permissions.
 
 ## Model
-- A `ProductionStation` has a stable ID, game-bound input/output inventory IDs, queued orders, and at most one active production cycle.
+- A `ProductionStation` has a stable ID, ordered lists of game-bound input/output inventory IDs, queued orders, and at most one active production cycle.
 - Orders name a game-defined recipe ID and a cycle count: positive for finite, `-1` for continuous.
 - The game supplies `recipe_resolver(recipe_id, station_id) -> Dictionary` returning `{"inputs": {StringName: int}, "outputs": {StringName: int}, "work": positive_int}`.
 - One cycle freezes the resolved quantities and work requirement. New cycles use the latest definition. The game determines permissions and work speed and calls `contribute_work(station_id, units)` using its own simulation clock.
@@ -11,14 +11,14 @@ A headless, game-independent production state machine, with persistent stations,
 - Inputs are removed atomically from Inventory via `InventoryBatch` at the start of a cycle. A fully worked cycle retains finished outputs in the saved cycle until they are atomically deposited. Production does not proceed if the target inventory lacks space.
 
 ## Lifecycle
-1. Bind stable inventory IDs to configured Inventory instances with `bind_inventory`.
+1. Bind stable inventory IDs to configured Inventory instances with `bind_inventory`. Stations take an ordered nonempty `Array[StringName]` for input IDs and another for output IDs, e.g. `register_station(&"work_1", [&"store_a", &"store_b"], [&"finished_a"])`. Items are distributed deterministically, preferring earlier inventories, with all-or-nothing batches.
 2. Register stations referencing those inventory IDs and enqueue orders.
 3. Call `advance(station_id)` to begin a cycle and reserve inputs; if inputs are unavailable, retry later. No update loop is run implicitly.
 4. After reservation call `contribute_work(station_id, positive_work_units)`. The game gates this by actual worker presence/permissions and calculates rate. Contributions beyond the remaining requirement are capped and the accepted amount is returned.
 5. After completion call `advance(station_id)` to deposit pending output; if storage is full, retry later.
 6. Call `advance` again to start the next cycle, when the next one is desired.
 
-Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed. Canceling an active order refunds input material atomically; if unable to refund it remains active until space is available. A completed but undelivered batch cannot be canceled by losing its outputs: it must be delivered first. Removing a station with work or queued orders is rejected.
+Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed. Canceling an active order refunds input material atomically, even if paused; if unable to refund it remains active until space is available. A completed but undelivered batch cannot be canceled by losing its outputs: it must be delivered first. Removing a station with work or queued orders is rejected.
 
 ## API
 - `bind_inventory(id, inventory)`, `unbind_inventory(id)`
@@ -38,8 +38,8 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 
 ## Boundaries
 - InventoryBatch currently changes available goods atomically; input reservation/output buffers are owned and saved by Production, not mirrored in Inventory.
-- Only one input and one output Inventory per station are bound. The game can aggregate more complex sources through its own inventory arrangements.
-- Stable IDs and pure callbacks required. Never modify the station fields returned by `get_station` externally.
+- Each station may consume inputs from and deposit outputs into multiple inventories. Atomic planning prevents partial multi-inventory consumption or deposit.
+- Stable IDs and pure callbacks required. `get_station` and `get_stations` return detached copies; changing them does not mutate the registry.
 - The game handles cancellation of actor actions and any building removal before unregistering stations.
 
 ## Deployment
