@@ -32,7 +32,7 @@ The script asserts during `_ready()` if any required action is missing. As with 
 - **MMB horizontal** — rotate yaw.
 - **MMB vertical** — change tilt.
 - **RMB click** — ignored by the camera and left available to gameplay.
-- **RMB hold** — after 120 ms, capture the pointer and pan.
+- **RMB hold** — after the configurable hold delay (default 250 ms), capture the pointer and pan.
 
 RMB panning, MMB rotation, WASD and edge scrolling are mutually exclusive where necessary; pointer capture is restored cleanly when the interaction ends, the window loses focus, or the camera leaves the scene tree.
 
@@ -59,7 +59,7 @@ WASD, edge scrolling and RMB panning all use the same yaw-relative ground axes.
 
 All panning modes use one shared pan scale derived from camera height and FOV. Below `12` units of camera height, that scale stops shrinking so close zoom remains responsive instead of turning WASD, edge scrolling, and RMB dragging into slow motion.
 
-RMB is intentionally click-safe. Pressing and releasing before the 120 ms hold delay does nothing to the camera and is not consumed. Once the hold activates, the pointer is captured and relative mouse motion drives the pan.
+RMB is intentionally click-safe. Pressing and releasing before the configured hold delay (250 ms by default) does nothing to the camera and is not consumed. Once the hold activates, the pointer is captured and relative mouse motion drives the pan. The hold delay is exposed as `pointer_pan_hold_delay_msec` in the inspector.
 
 Actual RMB pan movement breaks target following. Merely pressing or holding RMB does not.
 
@@ -159,6 +159,6 @@ Return the current tilt in degrees.
 | Pan speed | `1.5` screen-heights / second |
 | Minimum pan scale | equivalent to `12` units camera height |
 | Edge scroll margin | `24 px` |
-| RMB hold delay | `120 ms` |
+| RMB hold delay | `250 ms` (inspector-configurable) |
 | Mouse yaw sensitivity | `0.2° / px` |
 | Mouse tilt sensitivity | `0.2° / px` |

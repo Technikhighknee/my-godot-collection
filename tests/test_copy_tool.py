@@ -30,7 +30,7 @@ class DeployTests(unittest.TestCase):
         self.project.mkdir()
         for name, files in {
             "strategy_camera": {"StrategyCamera.gd": b"camera"},
-            "map_system": {"core/GameMap.gd": b"map", "assets/example.surface.png": b"\x89PNG"},
+            "sample_package": {"core/Example.gd": b"map", "assets/example.surface.png": b"\x89PNG"},
         }.items():
             folder = self.repo / name
             folder.mkdir(parents=True)
@@ -40,11 +40,11 @@ class DeployTests(unittest.TestCase):
                 f.write_bytes(data)
             (folder / "manifest.json").write_text(json.dumps({"files": list(files)}))
         # Editor tooling must never be copied into the Godot project.
-        editor = self.repo / "dev_tool"
+        editor = self.repo / "non_package"
         editor.mkdir()
         (editor / "package.json").write_text('{"private":true,"license":"UNLICENSED"}')
         self.manifest = self.project / "manifest.json"
-        self.write_manifest({"strategy_camera": "StrategyCamera", "map_system": "MapSystem"})
+        self.write_manifest({"strategy_camera": "StrategyCamera", "sample_package": "SamplePackage"})
         self.backup_patch = patch.object(deploy, "BACKUP_ROOT", self.root / "backups")
         self.file_patch = patch.object(deploy, "__file__", str(self.repo / "tools" / "deploy.py"))
         self.backup_patch.start()
@@ -62,35 +62,35 @@ class DeployTests(unittest.TestCase):
     def test_exact_manifest_names_and_nested_files(self) -> None:
         self.execute("-y", str(self.manifest))
         self.assertEqual((self.project / "packages" / "StrategyCamera" / "StrategyCamera.gd").read_bytes(), b"camera")
-        self.assertEqual((self.project / "packages" / "MapSystem" / "core" / "GameMap.gd").read_bytes(), b"map")
-        self.assertEqual((self.project / "packages" / "MapSystem" / "assets" / "example.surface.png").read_bytes(), b"\x89PNG")
-        self.assertFalse((self.project / "packages" / "map_system").exists())
-        self.assertFalse((self.project / "packages" / "MapSystem" / "editor").exists())
-        self.assertFalse((self.project / "packages" / "MapSystem" / "package.json").exists())
+        self.assertEqual((self.project / "packages" / "SamplePackage" / "core" / "Example.gd").read_bytes(), b"map")
+        self.assertEqual((self.project / "packages" / "SamplePackage" / "assets" / "example.surface.png").read_bytes(), b"\x89PNG")
+        self.assertFalse((self.project / "packages" / "sample_package").exists())
+        self.assertFalse((self.project / "packages" / "SamplePackage" / "editor").exists())
+        self.assertFalse((self.project / "packages" / "SamplePackage" / "package.json").exists())
 
     def test_modified_local_files_and_legacy_folder_are_backed_up(self) -> None:
-        old = self.project / "MapSystem"
+        old = self.project / "SamplePackage"
         old.mkdir()
         (old / "custom.gd").write_text("private changes")
         self.execute("-y", str(self.manifest))
         self.assertFalse(old.exists())
-        backup = next((self.root / "backups").glob("MapSystem-*.zip"))
+        backup = next((self.root / "backups").glob("SamplePackage-*.zip"))
         with zipfile.ZipFile(backup) as z:
-            self.assertEqual(z.read("MapSystem/custom.gd"), b"private changes")
-        installed = self.project / "packages" / "MapSystem"
+            self.assertEqual(z.read("SamplePackage/custom.gd"), b"private changes")
+        installed = self.project / "packages" / "SamplePackage"
         (installed / "my_file.gd").write_text("my own file")
         self.execute("-y", str(self.manifest))
         self.assertFalse((installed / "my_file.gd").exists())
-        self.assertEqual((installed / "core" / "GameMap.gd").read_bytes(), b"map")
+        self.assertEqual((installed / "core" / "Example.gd").read_bytes(), b"map")
         archived_file_found = False
-        for path in (self.root / "backups").glob("MapSystem-*.zip"):
+        for path in (self.root / "backups").glob("SamplePackage-*.zip"):
             with zipfile.ZipFile(path) as archive:
-                if "MapSystem/my_file.gd" in archive.namelist():
-                    archived_file_found = archive.read("MapSystem/my_file.gd") == b"my own file"
+                if "SamplePackage/my_file.gd" in archive.namelist():
+                    archived_file_found = archive.read("SamplePackage/my_file.gd") == b"my own file"
         self.assertTrue(archived_file_found)
 
     def test_cancel_preserves_all_files_and_does_not_make_backups(self) -> None:
-        old = self.project / "MapSystem"
+        old = self.project / "SamplePackage"
         old.mkdir()
         (old / "mine.txt").write_text("mine")
         with patch("builtins.input", return_value=""):
@@ -102,39 +102,39 @@ class DeployTests(unittest.TestCase):
     def test_path_traversal_and_case_insensitive_target_collision_rejected(self) -> None:
         for folder in ("../bad", "foo/bar", "C:\\Windows", "..", "NUL", "packages", ""):
             with self.subTest(folder=folder):
-                self.write_manifest({"map_system": folder})
+                self.write_manifest({"sample_package": folder})
                 with self.assertRaises(deploy.CopyError):
                     self.execute("-y", str(self.manifest))
-        self.write_manifest({"strategy_camera": "MapSystem", "map_system": "mapsystem"})
+        self.write_manifest({"strategy_camera": "SamplePackage", "sample_package": "mapsystem"})
         with self.assertRaisesRegex(deploy.CopyError, "overlaps"):
             self.execute("-y", str(self.manifest))
         self.assertFalse((self.project / "packages").exists())
 
     def test_package_manifest_cannot_escape_or_request_remove(self) -> None:
-        path = self.repo / "map_system" / "manifest.json"
+        path = self.repo / "sample_package" / "manifest.json"
         path.write_text(json.dumps({"files": ["../tools/deploy.py"]}))
         with self.assertRaises(deploy.CopyError):
             self.execute("-y", str(self.manifest))
-        path.write_text(json.dumps({"files": ["core/GameMap.gd"], "remove": ["mine.txt"]}))
+        path.write_text(json.dumps({"files": ["core/Example.gd"], "remove": ["mine.txt"]}))
         with self.assertRaises(deploy.CopyError):
             self.execute("-y", str(self.manifest))
         self.assertFalse((self.project / "packages").exists())
 
     def test_backup_failure_makes_no_deployment_changes(self) -> None:
-        old = self.project / "MapSystem"
+        old = self.project / "SamplePackage"
         old.mkdir()
         (old / "mine.txt").write_text("mine")
         with patch.object(deploy, "_backup", side_effect=OSError("disk full")):
             with self.assertRaises(OSError):
                 self.execute("-y", str(self.manifest))
         self.assertEqual((old / "mine.txt").read_text(), "mine")
-        self.assertFalse((self.project / "packages" / "MapSystem").exists())
+        self.assertFalse((self.project / "packages" / "SamplePackage").exists())
         self.assertFalse(list((self.project / "packages").glob(".deploy-stage-*")))
 
     def test_failed_second_swap_rolls_back_both_packages(self) -> None:
         self.execute("-y", str(self.manifest))
         cam = self.project / "packages" / "StrategyCamera"
-        mapdir = self.project / "packages" / "MapSystem"
+        mapdir = self.project / "packages" / "SamplePackage"
         (cam / "custom.txt").write_text("camera-change")
         (mapdir / "custom.txt").write_text("map-change")
         original = deploy.os.replace
@@ -155,7 +155,7 @@ class DeployTests(unittest.TestCase):
         self.assertEqual((target / "StrategyCamera.gd").read_bytes(), b"camera")
         (self.project / "project.godot").write_text("project")
         with self.assertRaisesRegex(deploy.CopyError, "Refusing to replace"):
-            self.execute("-y", "map_system", str(self.project))
+            self.execute("-y", "sample_package", str(self.project))
 
 
 if __name__ == "__main__":

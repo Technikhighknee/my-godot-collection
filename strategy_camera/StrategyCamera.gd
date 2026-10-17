@@ -20,7 +20,6 @@ const MAX_TILT := 90.0;
 const PAN_SCREEN_SPEED := 1.5;
 const MIN_PAN_HEIGHT := 12.0;
 const EDGE_SCROLL_MARGIN := 24.0;
-const POINTER_PAN_HOLD_DELAY_MSEC := 120;
 const MOVE_SMOOTHING := 16.0;
 const HEIGHT_SMOOTHING := 18.0;
 
@@ -34,6 +33,8 @@ const PAN_RIGHT_ACTION: StringName = &"camera_right";
 const PAN_FORWARD_ACTION: StringName = &"camera_forward";
 const PAN_BACK_ACTION: StringName = &"camera_back";
 
+
+@export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 250;
 
 @onready var camera: Camera3D = $Camera3D;
 
@@ -214,7 +215,7 @@ func _pointer_pan_hold_ready() -> bool:
 	return (
 		_pan_hold_pending
 		and Time.get_ticks_msec() - _pan_hold_started_msec
-		>= POINTER_PAN_HOLD_DELAY_MSEC
+		>= pointer_pan_hold_delay_msec
 	);
 
 

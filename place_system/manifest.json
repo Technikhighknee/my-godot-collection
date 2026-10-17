@@ -1,0 +1,13 @@
+{
+  "files": [
+    "PlacePortal3D.gd",
+    "PlaceInstance.gd",
+    "PlaceManager3D.gd",
+    "PlaceActor.gd",
+    "PlaceTraveler.gd",
+    "PlaceLocation.gd",
+    "PlaceActorSpawner.gd",
+    "PlaceView.gd",
+    "README.md"
+  ]
+}

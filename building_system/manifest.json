@@ -1,0 +1,7 @@
+{
+  "files": [
+    "Building.gd",
+    "BuildingRegistry.gd",
+    "README.md"
+  ]
+}

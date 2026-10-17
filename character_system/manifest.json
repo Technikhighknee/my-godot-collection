@@ -1,0 +1,7 @@
+{
+  "files": [
+    "Character.gd",
+    "CharacterRegistry.gd",
+    "README.md"
+  ]
+}
