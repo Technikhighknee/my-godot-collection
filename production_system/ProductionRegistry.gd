@@ -8,6 +8,7 @@ extends Node
 signal station_registered(station_id: StringName)
 signal station_removed(station_id: StringName)
 signal station_changed(station_id: StringName)
+signal station_inventories_changed(station_id: StringName)
 signal cycle_started(station_id: StringName, order_id: StringName)
 signal cycle_completed(station_id: StringName, order_id: StringName)
 signal state_restored()
@@ -94,6 +95,25 @@ func _plan_materials(ids: Array[StringName], items: Dictionary, adding: bool) ->
 	return InventoryBatch.plan_distribution(inventories, items, adding)
 
 
+# Reconfigure storage while active work or pending deliveries exist.
+# The game owns permissions and relocation policy; no items are moved here.
+func set_station_inventories(
+	station_id: StringName, input_ids: Array[StringName], output_ids: Array[StringName]
+) -> bool:
+	if _busy_stations.has(station_id):
+		return false
+	var station := _get_station(station_id)
+	if station == null or not _valid_inventory_ids(input_ids) or not _valid_inventory_ids(output_ids):
+		return false
+	if station.input_inventory_ids == input_ids and station.output_inventory_ids == output_ids:
+		return true
+	station.input_inventory_ids = input_ids.duplicate()
+	station.output_inventory_ids = output_ids.duplicate()
+	station_inventories_changed.emit(station_id)
+	station_changed.emit(station_id)
+	return true
+
+
 func get_stations() -> Array[ProductionStation]:
 	var result: Array[ProductionStation] = []
 	for station in _stations.values():
@@ -145,23 +165,30 @@ func set_paused(station_id: StringName, paused: bool) -> bool:
 	return true
 
 
+# Indices refer to the full queue. An active order is pinned at index 0.
+# Reordering a queued job into that slot would invalidate the live cycle.
 func move_queued_order(station_id: StringName, order_id: StringName, index: int) -> bool:
 	if _busy_stations.has(station_id):
 		return false
 	var station := _get_station(station_id)
 	if station == null or index < 0 or index >= station.queue.size():
 		return false
+	var active := not station.cycle.is_empty()
+	if active and index == 0:
+		return false
 	for i in station.queue.size():
 		var order: Dictionary = station.queue[i]
-		if order["id"] == order_id:
-			if not station.cycle.is_empty() and station.cycle["order_id"] == order_id:
-				return false
-			station.queue.remove_at(i)
-			station.queue.insert(index, order)
-			station_changed.emit(station_id)
+		if order["id"] != order_id:
+			continue
+		if active and i == 0:
+			return false
+		if i == index:
 			return true
+		station.queue.remove_at(i)
+		station.queue.insert(index, order)
+		station_changed.emit(station_id)
+		return true
 	return false
-
 
 # Only queued, not currently active, orders can be removed this way.
 func remove_queued_order(station_id: StringName, order_id: StringName) -> bool:

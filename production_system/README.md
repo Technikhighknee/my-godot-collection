@@ -18,18 +18,19 @@ A headless, game-independent production state machine, with persistent stations,
 5. After completion call `advance(station_id)` to deposit pending output; if storage is full, retry later.
 6. Call `advance` again to start the next cycle, when the next one is desired.
 
-Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed. Canceling an active order refunds input material atomically, even if paused; if unable to refund it remains active until space is available. A completed but undelivered batch cannot be canceled by losing its outputs: it must be delivered first. Removing a station with work or queued orders is rejected.
+Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed, but an active order is pinned to queue index 0; no queued order may be moved ahead of it. Canceling an active order refunds input material atomically, even if paused; if unable to refund it remains active until space is available. A completed but undelivered batch cannot be canceled by losing its outputs: it must be delivered first. Removing a station with work or queued orders is rejected.
 
 ## API
 - `bind_inventory(id, inventory)`, `unbind_inventory(id)`
-- `register_station(id, input_inventory_id, output_inventory_id)`, `unregister_station(id)`, `get_station(id)`, `get_stations()`
+- `set_station_inventories(station_id, input_ids, output_ids)` reconfigures storage at runtime, including while a production cycle is active. Existing reserved and pending goods remain attached to the cycle.
+- `register_station(id, input_inventory_ids, output_inventory_ids)`, `unregister_station(id)`, `get_station(id)`, `get_stations()`
 - `enqueue_order(station_id, order_id, recipe_id, cycles=1)`
 - `remove_queued_order(station_id, order_id)`, `move_queued_order(station_id, order_id, index)`
 - `set_paused(station_id, bool)`, `advance(station_id) -> bool`
 - `contribute_work(station_id, units) -> int`
 - `cancel_active_order(station_id) -> bool`
 - `export_state() -> Dictionary`, `restore_state(snapshot) -> bool`
-- `station_registered`, `station_removed`, `station_changed`, `cycle_started`, `cycle_completed`, `state_restored` signals
+- `station_registered`, `station_removed`, `station_changed`, `station_inventories_changed`, `cycle_started`, `cycle_completed`, `state_restored` signals
 
 ## Persistence
 `export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, progress and stable inventory binding IDs. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
