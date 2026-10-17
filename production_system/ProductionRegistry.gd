@@ -13,6 +13,8 @@ signal station_phase_changed(station_id: StringName, old_phase: StringName, new_
 signal station_blocked(station_id: StringName, reason: StringName)
 signal station_unblocked(station_id: StringName, previous_reason: StringName)
 signal order_queued(station_id: StringName, order_id: StringName)
+signal queued_order_removed(station_id: StringName, order_id: StringName)
+signal order_completed(station_id: StringName, order_id: StringName)
 signal work_contributed(station_id: StringName, units: int)
 signal station_inventories_changed(station_id: StringName)
 signal order_canceled(station_id: StringName, order_id: StringName)
@@ -256,6 +258,7 @@ func remove_queued_order(station_id: StringName, order_id: StringName) -> bool:
 			_order_ids.erase(order_id)
 			if station.cycle.is_empty() and i == 0:
 				_set_block(station, &"")
+			queued_order_removed.emit(station_id, order_id)
 			station_changed.emit(station_id)
 			_busy_stations.erase(station_id)
 			return true
@@ -504,13 +507,16 @@ func _finish_output(station: ProductionStation, cancel_repetitions: bool) -> boo
 	var order: Dictionary = station.queue.front()
 	if order["remaining"] > 0:
 		order["remaining"] -= 1
-	if order["remaining"] == 0 or cancel_repetitions:
+	var finished := order["remaining"] == 0 or cancel_repetitions
+	if finished:
 		station.queue.pop_front()
 		_order_ids.erase(order_id)
 	_set_block(station, &"")
 	_notify_phase(station, OUTPUT)
 	InventoryBatch.notify_contents_changed(changes)
 	cycle_completed.emit(station.id, order_id)
+	if finished:
+		order_completed.emit(station.id, order_id)
 	station_changed.emit(station.id)
 	return true
 

@@ -31,7 +31,7 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 - `cancel_order(station_id, order_id)`, `cancel_active_order(station_id)`
 - `settle_pending(station_id)`, `discard_settlement(station_id, order_id)`
 - `export_state() -> Dictionary`, `restore_state(snapshot) -> bool`
-- `station_registered`, `station_removed`, `station_changed`, `station_paused_changed`, `station_phase_changed`, `station_blocked`, `station_unblocked`, `order_queued`, `work_contributed`, `station_inventories_changed`, `order_canceled`, `settlement_created`, `settlement_resolved`, `cycle_started`, `cycle_completed`, `state_restored` signals
+- `station_registered`, `station_removed`, `station_changed`, `station_paused_changed`, `station_phase_changed`, `station_blocked`, `station_unblocked`, `order_queued`, `queued_order_removed`, `order_completed`, `work_contributed`, `station_inventories_changed`, `order_canceled`, `settlement_created`, `settlement_resolved`, `cycle_started`, `cycle_completed`, `state_restored` signals
 
 ## Persistence
 `export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, cancellation settlements, progress, block reason and stable inventory binding IDs. Unresolved settlement order IDs remain reserved until settled or explicitly discarded. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
@@ -48,3 +48,5 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 Add `"production_system": "ProductionSystem"` and `"inventory_system": "InventorySystem"` to the project's package manifest; deploy with `tools/deploy.py`.
 
 Production defers inventory `contents_changed` signals until the matching production cycle or settlement transition is fully committed, preventing observers from seeing a half-completed cross-system transition. Direct `InventoryBatch.apply` retains its ordinary notification behavior.
+
+`cycle_completed` is emitted after every successfully delivered cycle; `order_completed` only when its final repetition is complete. `queued_order_removed` reports removal of a waiting order. `order_canceled` reports the explicit cancellation request and is distinct from normal completion.
