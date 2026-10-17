@@ -1,52 +1,167 @@
 # Production System (Godot 4)
 
-A headless, game-independent production state machine, with persistent stations, repeatable orders, input reservations, work progress, and buffered output. No hard-coded recipes, goods, workers, buildings, AI, movement, actions, UI, time source or game permissions.
+A reusable, **time-agnostic work ledger** for station-based recipes: queued orders,
+atomic input reservation, work units, buffered output, cancellations, and persistent
+state. All time, worker availability, shift schedules, productivity rates, travel,
+ETAs, and event scheduling belong to the game (or another capability). This package
+has **no _process / _physics_process**, timer, clock, duration, or end timestamp.
 
-## Model
-- A `ProductionStation` has a stable ID, ordered lists of game-bound input/output inventory IDs, queued orders, and at most one active production cycle.
-- Orders name a game-defined recipe ID and a cycle count: positive for finite, `-1` for continuous.
-- The game supplies `recipe_resolver(recipe_id, station_id) -> Dictionary` returning `{"inputs": {StringName: int}, "outputs": {StringName: int}, "work": positive_int}`.
-- One cycle freezes the resolved quantities and work requirement. New cycles use the latest definition. The game determines permissions and work speed and calls `contribute_work(station_id, units)` using its own simulation clock.
-- Input/outputs can contain zero items (empty Dictionary): e.g. raw extraction without material inputs.
-- Inputs are removed atomically from Inventory via `InventoryBatch` at the start of a cycle. A fully worked cycle retains finished outputs in the saved cycle until they are atomically deposited. Production does not proceed if the target inventory lacks space.
+## Responsibility
 
-## Lifecycle
-1. Bind stable inventory IDs to configured Inventory instances with `bind_inventory`. Stations take an ordered nonempty `Array[StringName]` for input IDs and another for output IDs, e.g. `register_station(&"work_1", [&"store_a", &"store_b"], [&"finished_a"])`. Items are distributed deterministically, preferring earlier inventories, with all-or-nothing batches.
-2. Register stations referencing those inventory IDs and enqueue orders.
-3. Call `advance(station_id)` to begin a cycle and reserve inputs; if inputs are unavailable, retry later. No update loop is run implicitly. `block_reason` reports `recipe_unavailable`, `inputs_unavailable` or `outputs_full` and resets when the failed transition succeeds. The current cycle phase (`input`, `work`, `output`, or `idle`) is reported independently of manual pausing.
-4. After reservation call `contribute_work(station_id, positive_work_units)`. The game gates this by actual worker presence/permissions and calculates rate. Contributions beyond the remaining requirement are capped and the accepted amount is returned.
-5. After completion call `advance(station_id)` to deposit pending output; if storage is full, retry later.
-6. Call `advance` again to start the next cycle, when the next one is desired.
+Each station has a unique ID and ordered input/output inventory bindings. Multiple
+stations may operate simultaneously. Queued orders specify a game-defined recipe
+ID and a positive repeat count (or `-1` for continuous). A station processes at
+most one active recipe cycle at a time.
 
-Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed, but an active order is pinned to queue index 0; no queued order may be moved ahead of it. Canceling an active order (even while paused) **always terminates the order**. Reserved inputs and completed but undelivered outputs become separately persisted settlements (refund/delivery). The station may continue other orders, but removal is rejected while settlements remain. `settle_pending(station_id, order_id = &"")` atomically places the selected settlement (oldest by default) into the currently bound inputs/outputs; if there is no room, it remains untouched and can be retried. The game can explicitly call `discard_settlement(station_id, order_id)` when its policy intentionally destroys goods (e.g. demolishing the last warehouse). Failed deposits never discard goods. `cancel_order(station_id, order_id)` works for both active and waiting orders.
+The game supplies a pure `recipe_resolver(recipe_id, station_id)` callback returning:
 
-## API
-- `bind_inventory(id, inventory)`, `unbind_inventory(id)`
-- `set_station_inventories(station_id, input_ids, output_ids)` reconfigures storage at runtime, including while a production cycle is active. Existing reserved and pending goods remain attached to the cycle.
-- `register_station(id, input_inventory_ids, output_inventory_ids)`, `unregister_station(id)`, `get_station(id)`, `get_stations()`
-- `enqueue_order(station_id, order_id, recipe_id, cycles=1)`
-- `remove_queued_order(station_id, order_id)`, `move_queued_order(station_id, order_id, index)`
-- `set_paused(station_id, bool)`, `advance(station_id) -> bool`
-- `contribute_work(station_id, units) -> int`
-- `cancel_order(station_id, order_id)`, `cancel_active_order(station_id)`
-- `settle_pending(station_id, order_id = &"")`, `discard_settlement(station_id, order_id)`
-- `export_state() -> Dictionary`, `restore_state(snapshot) -> bool`
-- `station_registered`, `station_removed`, `station_changed`, `station_paused_changed`, `station_phase_changed`, `station_blocked`, `station_unblocked`, `order_queued`, `queued_order_removed`, `order_completed`, `work_contributed`, `station_inventories_changed`, `order_canceled`, `settlement_created`, `settlement_resolved`, `cycle_started`, `cycle_completed`, `state_restored` signals
+```gdscript
+{
+    "inputs": {&"wood": 3, &"iron": 2},
+    "outputs": {&"tools": 1},
+    "work": 1000
+}
+```
 
-## Persistence
-`export_state` returns a versioned snapshot with all queued orders, frozen active-cycle specs, reserved inputs, pending outputs, cancellation settlements, progress, block reason and stable inventory binding IDs. Unresolved settlement order IDs remain reserved until settled or explicitly discarded. Rebind inventory nodes first and restore both Inventory and Production from the same game-level save checkpoint. No events are replayed and no goods are moved by `restore_state`. While inventory transactions emit signals, synchronous nested mutations of the same station are rejected to prevent double reservation/delivery.
+Inputs and outputs can be empty dictionaries; work is a positive integer. Recipe
+quantities and total required work are resolved once at successful cycle start,
+then kept unchanged until that cycle finishes or is canceled. Balancing changes
+affect new cycles, not the middle of an ongoing one.
 
-`restore_state` verifies all IDs, queues and phase invariants before replacing the registry. Missing inventory IDs, malformed queues, impossible work progress, and invalid phase/resource combinations reject the snapshot. The game must restore inventory and production from the **same** checkpoint; the production package cannot independently prove cross-system conservation from an isolated snapshot. Definition migrations are a game responsibility.
+**The unit of work is game-defined, not a minute, tick, or second.** Never put
+an expected completion time in the recipe, cycle, station, or snapshot.
 
-## Boundaries
-- InventoryBatch currently changes available goods atomically; input reservation/output buffers are owned and saved by Production, not mirrored in Inventory.
-- Each station may consume inputs from and deposit outputs into multiple inventories. Atomic planning prevents partial multi-inventory consumption or deposit.
-- Stable IDs and pure callbacks required. `get_station` and `get_stations` return detached copies; changing them does not mutate the registry.
-- The game handles cancellation of actor actions and any building removal before unregistering stations.
+## Event-driven lifecycle
+
+There is **no per-frame `advance()`** method. The game initiates transitions
+only at meaningful events:
+
+1. Bind inventories and register a station, then enqueue an order.
+2. `try_begin_cycle(station_id)` attempts to resolve the next recipe and
+   **atomically reserve all inputs**. On success, its new cycle is immediately
+   in `work` phase with `work_completed = 0`. If recipe or materials are
+   unavailable, it returns `false`, without opening a cycle or consuming
+   goods, and reports `recipe_unavailable` or `inputs_unavailable`.
+3. When the game's planned workers have actually supplied work, it calls
+   `contribute_work(station_id, work_units)`. This can be called at a **time
+   boundary or event**, not every tick. The method returns the number of units
+   accepted, capped to the remaining work. No employee or clock knowledge
+   exists within this package.
+4. At zero remaining work, the cycle enters `output` phase and buffers its
+   finished products exactly once. The game calls
+   `try_deliver_outputs(station_id)` at completion or after output capacity
+   becomes available. Failed storage leaves all goods in the saved buffer.
+5. The game calls `try_begin_cycle` again for the next queued/repeating cycle
+   at the appropriate scheduling event. **No subsequent cycle starts
+   automatically.**
+
+`get_work_state(station_id)` returns a detached dictionary with
+`phase`, `paused`, `block_reason`, `work_completed`, `work_required`,
+and `work_remaining`. When no cycle is running, all work counts are zero.
+Work completion and goods delivery are deliberately separate operations.
+
+### Where does “in 1:40 h” come from?
+
+**1400** (not Production) takes `work_remaining` and integrates the future
+labor supplied by currently assigned workers, their shifts, breaks, absences,
+productivity, and any other game rules. It shows the resulting **remaining
+in-game duration**, not a wall-clock timestamp or a production-owned ETA.
+If workers or rates change, the game first settles the work they provided
+up to the in-game change boundary, changes their assignments or schedule,
+and recalculates its prediction and next event.
+
+For example, when two workers independently contribute 300 and 200 units
+over an externally chosen interval, the game may call:
+
+```gdscript
+production.contribute_work(&"smithy", 300 + 200)
+var remaining := production.get_work_state(&"smithy")["work_remaining"]
+# The game computes remaining *in-game duration* using future work schedules.
+```
+
+Neither work rate nor assigned workers need to be stored in the Production
+cycle. A pause or a night without workers simply means that no more work
+is contributed for that interval. The game's event scheduler handles the
+next relevant boundary; Production never estimates it.
+
+**World gathering** (walking to a resource, mining, carrying cargo) is a
+different action sequence. It need not use a production cycle or a
+precomputed end time.
+
+## Production phases and events
+
+- `idle`: no cycle, possibly a queued order or unresolved input/recipe block
+- `work`: inputs reserved; accepts externally supplied work units
+- `output`: required work completed, products buffered, waiting for delivery
+
+`paused` is independent from phase and disables new cycles, work contributions,
+and delivery. `block_reason` is `recipe_unavailable`, `inputs_unavailable`,
+`outputs_full`, or empty. Signals distinguish phase transitions, block/unblock,
+pauses, work contribution, cycle completion, and final order completion.
+The game should schedule follow-up operations **after** the triggering
+synchronous call returns, not reenter a busy station inside a signal handler.
+
+## Orders, inventories, and cancellations
+
+The game can reorder or remove queued orders; the active order is pinned at
+queue index 0. Each station binds ordered nonempty arrays of input and output
+inventory IDs. Material placement across multiple inventories is deterministic
+and atomic. Bindings can change while a cycle is active, without disturbing
+its already-reserved goods.
+
+Canceling an active order immediately removes it from the queue. Reserved
+inputs and any completed but undelivered outputs become separate **persistent
+settlements** so they never disappear merely because storage is full.
+`settle_pending(station_id, order_id = &"")` atomically deposits a settlement
+into the currently bound storage (oldest by default). The game may
+`discard_settlement` explicitly when its rules intentionally destroy goods.
+A station with queued, active, or unsettled work cannot be removed.
+
+## Public API
+
+- Inventory binding: `bind_inventory`, `unbind_inventory`,
+  `set_station_inventories`
+- Station lifecycle: `register_station`, `unregister_station`,
+  `get_station`, `get_stations`
+- Orders: `enqueue_order`, `move_queued_order`,
+  `remove_queued_order`, `cancel_order`, `cancel_active_order`
+- Work lifecycle: `try_begin_cycle`, `get_work_state`,
+  `contribute_work`, `try_deliver_outputs`, `set_paused`
+- Settlements: `settle_pending`, `discard_settlement`
+- Persistence: `export_state`, `restore_state`
+
+Signals:
+`station_registered`, `station_removed`, `station_changed`,
+`station_inventories_changed`, `station_paused_changed`,
+`station_phase_changed`, `station_blocked`, `station_unblocked`,
+`order_queued`, `queued_order_removed`, `order_canceled`,
+`work_contributed`, `cycle_started`, `cycle_completed`,
+`order_completed`, `settlement_created`, `settlement_resolved`,
+`state_restored`.
+
+## Persistence, integrity, and boundaries
+
+Snapshots hold versioned **work requirements, completed units, phases, goods,
+orders, settlements, and stable inventory bindings**, but never wall-clock or
+game-clock values, labor rates, workers, timers or projected end times.
+Input reservations and buffered output belong to Production, not Inventory.
+Restore Inventories and Production from the same game-level checkpoint; the
+Production snapshot alone cannot prove cross-system resource conservation.
+Missing references, malformed queues or invalid work/phase combinations cause
+restore rejection without modifying live production state.
+
+Notifications are sent only after internal and inventory state commits.
+Direct external mutations of `get_station` snapshots have no effect.
+Callbacks that resolve recipes should be pure and side-effect-free.
+
+The game's Scheduling/Action logic assigns workers, computes durations in
+**in-game time**, handles shift boundaries and events, and issues explicit
+Production calls at those boundaries. A future scheduling capability should
+depend on these work-state APIs; **Production must not depend on a calendar,
+timekeeping, AI, character, or movement system**.
 
 ## Deployment
-Add `"production_system": "ProductionSystem"` and `"inventory_system": "InventorySystem"` to the project's package manifest; deploy with `tools/deploy.py`.
 
-Production defers inventory `contents_changed` signals until the matching production cycle or settlement transition is fully committed, preventing observers from seeing a half-completed cross-system transition. Direct `InventoryBatch.apply` retains its ordinary notification behavior.
-
-`cycle_completed` is emitted after every successfully delivered cycle; `order_completed` only when its final repetition is complete. `queued_order_removed` reports removal of a waiting order. `order_canceled` reports the explicit cancellation request and is distinct from normal completion.
+Add `"production_system": "ProductionSystem"` and
+`"inventory_system": "InventorySystem"` to the project's package manifest;
+use `tools/deploy.py`. Integration in `1400` is separate.

@@ -142,22 +142,29 @@ func _production() -> void:
 	_check(prod.enqueue_order(&"oven", &"order_a", &"bread", 2), "queue two cycles")
 	var reentrant_results: Array[bool] = []
 	grain_a.contents_changed.connect(func() -> void:
-		reentrant_results.append(prod.advance(&"oven"))
+		reentrant_results.append(prod.try_begin_cycle(&"oven"))
 	)
-	_check(prod.advance(&"oven"), "reserve first cycle")
+	_check(prod.try_begin_cycle(&"oven"), "reserve first cycle")
 	_check(reentrant_results == [false], "nested inventory signal cannot double-reserve")
 	_check(grain_a.get_item_quantity(&"grain") + grain_b.get_item_quantity(&"grain") == 2,
 		"inputs reserved exactly once")
 	var exposed := prod.get_station(&"oven")
 	exposed.queue.clear()
 	_check(prod.get_station(&"oven").queue.size() == 1, "station query returns a snapshot")
-	_check(prod.contribute_work(&"oven", 5) == 5, "accept half the work")
+	_check(prod.contribute_work(&"oven", 3) == 3, "accept first external work segment")
+	_check(prod.contribute_work(&"oven", 2) == 2, "accept second worker contribution")
+	_check(prod.get_work_state(&"oven")["work_remaining"] == 5,
+		"work ledger depends on contributions, not elapsed time")
+	_check(not prod.get_work_state(&"oven").has("finish_at"),
+		"no predicted end timestamp in Production")
 	_check(prod.set_paused(&"oven", true), "pause station")
 	_check(prod.contribute_work(&"oven", 5) == 0, "pause blocks work")
 	_check(prod.set_paused(&"oven", false), "resume station")
 	_check(prod.contribute_work(&"oven", 8) == 5, "cap excess work")
 	_check(prod.get_station(&"oven").cycle["phase"] == &"output",
 		"completed batch waits for delivery")
+	_check(prod.get_work_state(&"oven")["work_remaining"] == 0,
+		"zero remaining work before output delivery")
 	var before_save := prod.export_state()
 	var reloaded := ProductionRegistry.new()
 	reloaded.recipe_resolver = _recipe
@@ -172,11 +179,12 @@ func _production() -> void:
 	_check(not reloaded.restore_state(bad), "reject impossible work progress")
 	_check(reloaded.get_station(&"oven").cycle["work_done"] == 10,
 		"rejected production restore retains prior state")
-	_check(reloaded.advance(&"oven"), "deliver completed batch")
+	_check(reloaded.try_deliver_outputs(&"oven"), "deliver completed batch")
 	_check(output.get_item_quantity(&"bread") == 2, "goods delivered once")
-	_check(reloaded.advance(&"oven") == false, "insufficient remaining input blocks next cycle")
-	_check(reloaded.get_station(&"oven").cycle["phase"] == &"input", "blocked cycle persisted")
-	_check(reloaded.cancel_active_order(&"oven"), "cancel unreserved cycle")
+	_check(reloaded.try_begin_cycle(&"oven") == false, "insufficient remaining input blocks next cycle")
+	_check(reloaded.get_station(&"oven").cycle.is_empty(), "blocked input creates no cycle")
+	_check(reloaded.get_station(&"oven").block_reason == &"inputs_unavailable", "unavailable inputs reported")
+	_check(reloaded.cancel_order(&"oven", &"order_a"), "cancel blocked queued order")
 	_check(reloaded.unregister_station(&"oven"), "unregister settled station")
 	prod.free()
 	reloaded.free()
