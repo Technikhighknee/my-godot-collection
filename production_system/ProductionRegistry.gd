@@ -438,22 +438,31 @@ func _cancel_internal(station_id: StringName) -> bool:
 	return true
 
 
-# Resolve the oldest cancellation settlement into currently bound inventories.
-# A failed placement leaves the settlement entirely intact, without partial goods.
-func settle_pending(station_id: StringName) -> bool:
+# Resolve one cancellation settlement into currently bound inventories.
+# Without an order ID, the oldest is selected. Failed placement changes nothing.
+func settle_pending(station_id: StringName, order_id: StringName = &"") -> bool:
 	if _busy_stations.has(station_id):
 		return false
 	_busy_stations[station_id] = true
-	var accepted := _settle_pending_internal(station_id)
+	var accepted := _settle_pending_internal(station_id, order_id)
 	_busy_stations.erase(station_id)
 	return accepted
 
 
-func _settle_pending_internal(station_id: StringName) -> bool:
+func _settle_pending_internal(station_id: StringName, order_id: StringName) -> bool:
 	var station := _get_station(station_id)
 	if station == null or station.settlements.is_empty():
 		return false
-	var entry: Dictionary = station.settlements.front()
+	var index := 0
+	if order_id != &"":
+		index = -1
+		for candidate in station.settlements.size():
+			if station.settlements[candidate]["order_id"] == order_id:
+				index = candidate
+				break
+		if index == -1:
+			return false
+	var entry: Dictionary = station.settlements[index]
 	var ids: Array[StringName] = (
 		station.input_inventory_ids if entry["kind"] == REFUND else station.output_inventory_ids
 	)
@@ -464,7 +473,7 @@ func _settle_pending_internal(station_id: StringName) -> bool:
 	if not changes.is_empty() and not InventoryBatch.apply(changes, false):
 		return false
 	var order_id: StringName = entry["order_id"]
-	station.settlements.pop_front()
+	station.settlements.remove_at(index)
 	_order_ids.erase(order_id)
 	InventoryBatch.notify_contents_changed(changes)
 	settlement_resolved.emit(station_id, order_id, &"stored")

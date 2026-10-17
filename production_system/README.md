@@ -18,7 +18,7 @@ A headless, game-independent production state machine, with persistent stations,
 5. After completion call `advance(station_id)` to deposit pending output; if storage is full, retry later.
 6. Call `advance` again to start the next cycle, when the next one is desired.
 
-Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed, but an active order is pinned to queue index 0; no queued order may be moved ahead of it. Canceling an active order (even while paused) **always terminates the order**. Reserved inputs and completed but undelivered outputs become separately persisted settlements (refund/delivery). The station may continue other orders, but removal is rejected while settlements remain. `settle_pending(station_id)` atomically places the oldest settlement into the currently bound inputs/outputs; if there is no room, it remains untouched and can be retried. The game can explicitly call `discard_settlement(station_id, order_id)` when its policy intentionally destroys goods (e.g. demolishing the last warehouse). Failed deposits never discard goods. `cancel_order(station_id, order_id)` works for both active and waiting orders.
+Pausing prevents `advance` and `contribute_work`; it does not destroy state. Queued orders may be re-ordered/removed, but an active order is pinned to queue index 0; no queued order may be moved ahead of it. Canceling an active order (even while paused) **always terminates the order**. Reserved inputs and completed but undelivered outputs become separately persisted settlements (refund/delivery). The station may continue other orders, but removal is rejected while settlements remain. `settle_pending(station_id, order_id = &"")` atomically places the selected settlement (oldest by default) into the currently bound inputs/outputs; if there is no room, it remains untouched and can be retried. The game can explicitly call `discard_settlement(station_id, order_id)` when its policy intentionally destroys goods (e.g. demolishing the last warehouse). Failed deposits never discard goods. `cancel_order(station_id, order_id)` works for both active and waiting orders.
 
 ## API
 - `bind_inventory(id, inventory)`, `unbind_inventory(id)`
@@ -29,7 +29,7 @@ Pausing prevents `advance` and `contribute_work`; it does not destroy state. Que
 - `set_paused(station_id, bool)`, `advance(station_id) -> bool`
 - `contribute_work(station_id, units) -> int`
 - `cancel_order(station_id, order_id)`, `cancel_active_order(station_id)`
-- `settle_pending(station_id)`, `discard_settlement(station_id, order_id)`
+- `settle_pending(station_id, order_id = &"")`, `discard_settlement(station_id, order_id)`
 - `export_state() -> Dictionary`, `restore_state(snapshot) -> bool`
 - `station_registered`, `station_removed`, `station_changed`, `station_paused_changed`, `station_phase_changed`, `station_blocked`, `station_unblocked`, `order_queued`, `queued_order_removed`, `order_completed`, `work_contributed`, `station_inventories_changed`, `order_canceled`, `settlement_created`, `settlement_resolved`, `cycle_started`, `cycle_completed`, `state_restored` signals
 
