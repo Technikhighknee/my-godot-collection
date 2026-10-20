@@ -2,6 +2,7 @@
   "files": [
     "StrategyCamera.gd",
     "StrategyCamera.tscn",
+    "CameraBounds3D.gd",
     "README.md"
   ]
 }
