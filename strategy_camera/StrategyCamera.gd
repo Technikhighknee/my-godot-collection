@@ -27,11 +27,28 @@ const INITIAL_HEIGHT := 28.7135
 
 
 func _ready() -> void:
+	_ensure_components()
 	_movement.configure(max_height, near_min_tilt_degrees, far_min_tilt_degrees)
 	_movement.initialize(self, camera)
 	_input.initialize(self, _movement)
 	camera.make_current()
 	get_window().focus_exited.connect(_input.reset_pointer_state)
+
+
+# The scene provides these nodes, but direct script attachment remains supported.
+func _ensure_components() -> void:
+	if _movement == null:
+		_movement = StrategyCameraMovement.new()
+		_movement.name = "CameraMovement"
+		add_child(_movement)
+	if _input == null:
+		_input = StrategyCameraInput.new()
+		_input.name = "CameraInput"
+		add_child(_input)
+	if _ground_tracker == null:
+		_ground_tracker = StrategyCameraGroundTracker.new()
+		_ground_tracker.name = "CameraGroundTracker"
+		add_child(_ground_tracker)
 
 
 func _exit_tree() -> void:
