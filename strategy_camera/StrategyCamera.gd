@@ -35,6 +35,8 @@ const PAN_BACK_ACTION: StringName = &"camera_back";
 
 
 @export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 250;
+@export_range(0.0, 89.0, 1.0, "suffix:°") var near_min_tilt_degrees := NEAR_MIN_TILT;
+@export_range(0.0, 89.0, 1.0, "suffix:°") var far_min_tilt_degrees := FAR_MIN_TILT;
 @export var ground_tracking_enabled := true;
 @export_flags_3d_physics var ground_collision_mask := 2;
 @export_range(1.0, 4096.0, 1.0, "suffix:m") var ground_probe_up := 512.0;
@@ -502,8 +504,8 @@ func _set_view_tilt(tilt: float) -> void:
 func _min_tilt_for_height(height: float) -> float:
 	return deg_to_rad(
 		lerpf(
-			NEAR_MIN_TILT,
-			FAR_MIN_TILT,
+			near_min_tilt_degrees,
+			far_min_tilt_degrees,
 			_normalized_height(height)
 		)
 	);
