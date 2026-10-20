@@ -3,6 +3,7 @@ extends Node
 
 
 signal selection_changed(selection: Array[Node3D])
+signal subject_activated(subject: Node3D)
 signal target_requested(target: Node3D)
 signal location_requested(position: Vector3)
 signal marquee_changed(rect: Rect2, active: bool)
@@ -23,6 +24,7 @@ var _selection: Array[Node3D] = []
 # Run physics queries in _physics_process, outside input callbacks.
 var _pending_hits: Array[Dictionary] = []
 var _left_down := false
+var _left_double_click := false
 var _left_origin := Vector2.ZERO
 var _dragging := false
 var _right_down := false
@@ -54,7 +56,7 @@ func _physics_process(_delta: float) -> void:
 	_pending_hits = []
 	for action in actions:
 		if action["type"] == "select":
-			_select_click(action["position"], action["additive"])
+			_select_click(action["position"], action["additive"], action["activate"])
 		else:
 			if not _selection.is_empty():
 				_request_target(action["position"])
@@ -87,6 +89,7 @@ func _mouse_button(event: InputEventMouseButton) -> void:
 			if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 				return
 			_left_down = true
+			_left_double_click = event.double_click
 			_left_origin = event.position
 			_dragging = false
 			get_viewport().set_input_as_handled()
@@ -98,7 +101,8 @@ func _mouse_button(event: InputEventMouseButton) -> void:
 					_pending_hits.append({
 						"type": "select",
 						"position": event.position,
-						"additive": event.shift_pressed or event.ctrl_pressed
+						"additive": event.shift_pressed or event.ctrl_pressed,
+						"activate": _left_double_click
 					})
 			_reset_left()
 			get_viewport().set_input_as_handled()
@@ -140,7 +144,7 @@ func _mouse_motion(event: InputEventMouseMotion) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _select_click(screen_position: Vector2, additive: bool) -> void:
+func _select_click(screen_position: Vector2, additive: bool, activate: bool) -> void:
 	var marker := _pick_target(screen_position)
 	if marker == null:
 		if not additive:
@@ -148,7 +152,10 @@ func _select_click(screen_position: Vector2, additive: bool) -> void:
 		return
 
 	var subject := marker.get_subject()
+	var was_selected := _selection.has(subject)
 	select(subject, additive)
+	if activate and not additive and was_selected and _selection.has(subject):
+		subject_activated.emit(subject)
 
 
 func _select_marquee(rect: Rect2, additive: bool) -> void:
@@ -306,6 +313,7 @@ func _reset_left() -> void:
 	if _dragging:
 		marquee_changed.emit(Rect2(), false)
 	_left_down = false
+	_left_double_click = false
 	_dragging = false
 
 
