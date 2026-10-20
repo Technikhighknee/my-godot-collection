@@ -68,9 +68,9 @@ func _assert_input_actions() -> void:
 	)
 
 
-func handle_input(event: InputEvent) -> void:
+func handle_input(event: InputEvent, zoom_enabled: bool) -> void:
 	if event is InputEventMouseButton:
-		_handle_mouse_button(event as InputEventMouseButton)
+		_handle_mouse_button(event as InputEventMouseButton, zoom_enabled)
 	elif event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		if _panning:
@@ -131,7 +131,7 @@ func _cancel_pointer_pan_hold() -> void:
 	_pan_hold_started_msec = 0
 
 
-func _handle_mouse_button(event: InputEventMouseButton) -> void:
+func _handle_mouse_button(event: InputEventMouseButton, zoom_enabled: bool) -> void:
 	if event.button_index == MOUSE_BUTTON_MIDDLE:
 		if event.pressed and not event.canceled:
 			_cancel_pointer_pan_hold()
@@ -169,6 +169,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		return
 
 	if not event.pressed or event.canceled or _panning or _rotating:
+		return
+
+	if not zoom_enabled:
 		return
 
 	if event.button_index == MOUSE_BUTTON_WHEEL_UP:
