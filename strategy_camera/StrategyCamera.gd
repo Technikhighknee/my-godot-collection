@@ -52,10 +52,13 @@ func _ensure_components() -> void:
 
 
 func _exit_tree() -> void:
-	_camera_input.reset_pointer_state()
 	var window := get_window()
-	if window.focus_exited.is_connected(_camera_input.reset_pointer_state):
-		window.focus_exited.disconnect(_camera_input.reset_pointer_state)
+	if is_instance_valid(_camera_input):
+		if is_instance_valid(window) and window.focus_exited.is_connected(_camera_input.reset_pointer_state):
+			window.focus_exited.disconnect(_camera_input.reset_pointer_state)
+		# The viewport may already be gone during shutdown. Release capture
+		# without querying or warping the pointer.
+		_camera_input.reset_pointer_state(false)
 
 
 func _physics_process(_delta: float) -> void:
