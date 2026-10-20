@@ -18,35 +18,32 @@ Pan speed scales with camera height; close-range pan speed has a minimum. Height
 
 ## Camera bounds
 
-`set_bounds(Rect2)` constrains the **focus point** to a world-space X/Z rectangle.
-The rectangle's X maps to world X and its Y maps to world Z. This applies to
-keyboard, edge and right-mouse panning, `focus_on()`, and following a target.
-Use `clear_bounds()` to allow unbounded movement again.
+`set_bounds(Rect2)` restricts the camera's **focus point** to a world-space
+X/Z rectangle (Rect2 X → world X; Rect2 Y → world Z). It applies to keyboard,
+edge and right-mouse panning, `focus_on()`, and following. Use
+`clear_bounds()` to remove the X/Z limit. The frustum can still extend beyond
+these focus limits, especially at shallow angles.
 
-With `auto_zoom_to_bounds = true` (the default), the camera derives its
-maximum zoom height from the bounds, FOV, viewport aspect ratio, yaw and tilt.
-The projected ground footprint is kept slightly smaller than the bounds.
-As zoom increases, the focus is also clamped inward where necessary to keep
-the view inside the area. Changes in viewpoint and viewport dimensions are
-handled automatically.
+The optional **camera ceiling** limits the camera's actual world-space Y,
+independently of its viewing angle. Use `set_ceiling_y(world_y)` to set an
+absolute ceiling or `clear_ceiling()` to remove it. `max_height` remains the
+ordinary maximum zoom height above the current ground reference (120 m by
+default). The effective zoom limit is whichever is lower: `max_height` or
+the distance from the current focus height to the ceiling.
+`get_effective_max_height()` returns that distance, capped to the supported
+zoom range. Rotation does not change the ceiling or force a new zoom level.
 
-The exported `max_height` is an optional absolute ceiling (120 m by default)
-for views that need an additional limit; it does not have to be calculated for
-each room. `get_effective_max_height()` returns the currently allowed zoom
-height. The limit applies to mouse-wheel zoom and `set_height()`.
-When the camera is tilted so high that part of its frustum never intersects
-the ground plane, a top-down FOV-based height estimate is used instead.
-At these extreme angles, full screen-space containment cannot be guaranteed.
+In a scene, add a `Marker3D` with `CameraBounds3D.gd`. Its `size` gives the
+X/Z rectangle. For an interior, set `ceiling_path` to a ceiling `Node3D`
+(for example, `../Structure/Ceiling`). The bounds marker reads the ceiling's
+global Y and subtracts `ceiling_clearance` (default: 0.5 m). No numerical
+height has to be configured for each room. Omitting the path means there is
+no vertical ceiling, as in an exterior map.
 
-The camera is tilted and can still see beyond a map boundary near its edge;
-bounds restrict the focus, not the entire visible frustum.
-
-To define bounds directly in a scene, add a `Marker3D` with
-`CameraBounds3D.gd` attached and configure its `size` in X/Z.
-The marker provides `get_world_bounds() -> Rect2` in world coordinates;
-the host scene passes that rectangle to `StrategyCamera.set_bounds()`.
-This keeps individual map/interior dimensions in the host project,
-while the reusable bounds component stays in the camera package.
+The host scene passes `get_world_bounds()` and `get_camera_ceiling_y()` to
+the camera's corresponding setters. A missing ceiling resolves to `INF`,
+which clears the vertical restriction. This leaves the reusable camera unaware
+of the game's buildings and room layout.
 
 ## Ground tracking
 
@@ -72,7 +69,8 @@ For an external cursor overlay, the camera emits `pointer_pan_started(anchor)` /
 
 - `follow(target)`, `stop_following()`, `is_following()`
 - `focus_on(position, immediate = false)`
-- `set_bounds(bounds: Rect2)`, `clear_bounds()`, `get_effective_max_height()`
+- `set_bounds(bounds: Rect2)`, `clear_bounds()`
+- `set_ceiling_y(world_y: float)`, `clear_ceiling()`, `get_effective_max_height()`
 - `set_height(height, immediate = false)`
 - `get_focus_position()`, `get_height()`, `get_yaw()`, `get_tilt()`
 
@@ -81,7 +79,7 @@ For an external cursor overlay, the camera emits `pointer_pan_started(anchor)` /
 | Setting | Value |
 | --- | ---: |
 | FOV | 45° |
-| Height range | 0.35–120 m (automatically limited by bounds when present) |
+| Height range | 0.35–120 m (optional world-space ceiling) |
 | Initial height | 28.7135 |
 | Ground probe layer | Physics layer 2 |
 | Ground probe reach | 512 m up / 1024 m down |
