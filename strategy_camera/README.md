@@ -17,10 +17,12 @@ Required Input Map actions: `camera_left`, `camera_right`, `camera_forward`, `ca
 ## Controls
 
 - WASD and screen edges: pan on the ground plane.
-- Mouse wheel: change height.
+- Mouse wheel: change height when `zoom_enabled = true` (default). Disable it on fixed-height cameras, such as interiors.
 - MMB horizontal/vertical movement: adjust yaw and tilt.
 - RMB hold: capture pointer and pan after a configurable delay (default 250 ms).
 - A short RMB click remains available for scene interactions.
+
+For a fixed-height camera, set `zoom_enabled = false` and initialize the desired ground-relative height once with `set_height(height, true)`. Keyboard/mouse panning, rotation, ground tracking and the ceiling limit still work. The height remains configurable by game code, but cannot be changed with the mouse wheel.
 
 Pan speed scales with camera height; close-range pan speed has a minimum. Height uses logarithmic steps. Tilt limits vary with height. The exported `near_min_tilt_degrees` and `far_min_tilt_degrees` can be tuned per camera instance (for example, a more top-down camera inside a compact room).
 
