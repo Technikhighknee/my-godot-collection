@@ -15,6 +15,7 @@ const INITIAL_HEIGHT := 28.7135
 @export_range(1.0, 512.0, 0.5, "suffix:m") var max_height := MAX_HEIGHT
 @export_range(0.0, 89.0, 1.0, "suffix:°") var near_min_tilt_degrees := 65.0
 @export_range(0.0, 89.0, 1.0, "suffix:°") var far_min_tilt_degrees := 25.0
+@export var zoom_enabled := true
 @export var ground_tracking_enabled := true
 @export_flags_3d_physics var ground_collision_mask := 2
 @export_range(1.0, 4096.0, 1.0, "suffix:m") var ground_probe_up := 512.0
@@ -79,7 +80,7 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	_camera_input.handle_input(event)
+	_camera_input.handle_input(event, zoom_enabled)
 
 
 func follow(target: Node3D) -> void:
