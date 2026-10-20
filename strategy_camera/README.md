@@ -81,7 +81,7 @@ For an external cursor overlay, the camera emits `pointer_pan_started(anchor)` /
 - `focus_on(position, immediate = false)`
 - `set_bounds(bounds: Rect2)`, `clear_bounds()`
 - `set_ceiling_y(world_y: float)`, `clear_ceiling()`, `get_effective_max_height()`
-- `set_height(height, immediate = false)`
+- `set_height(height, immediate = false)`, `set_tilt(degrees)`
 - `get_focus_position()`, `get_height()`, `get_yaw()`, `get_tilt()`
 
 ## Defaults
