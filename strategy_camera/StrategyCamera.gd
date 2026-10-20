@@ -36,7 +36,6 @@ const PAN_BACK_ACTION: StringName = &"camera_back";
 
 @export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 250;
 @export_range(1.0, 512.0, 0.5, "suffix:m") var max_height := MAX_HEIGHT;
-@export var auto_zoom_to_bounds := true;
 @export_range(0.0, 89.0, 1.0, "suffix:°") var near_min_tilt_degrees := NEAR_MIN_TILT;
 @export_range(0.0, 89.0, 1.0, "suffix:°") var far_min_tilt_degrees := FAR_MIN_TILT;
 @export var ground_tracking_enabled := true;
@@ -50,6 +49,7 @@ const PAN_BACK_ACTION: StringName = &"camera_back";
 var _ground_height := 0.0;
 var _bounds := Rect2();
 var _has_bounds := false;
+var _ceiling_y := INF;
 
 var _focus: Vector3;
 var _target_focus: Vector3;
@@ -155,21 +155,22 @@ func _process(delta: float) -> void:
 
 	var move_t := _smooth_factor(MOVE_SMOOTHING, delta);
 	var height_t := _smooth_factor(HEIGHT_SMOOTHING, delta);
-	var allowed_height := get_effective_max_height();
-	_target_height = minf(_target_height, allowed_height);
-	_height = minf(_height, allowed_height);
-
-	_height = lerpf(_height, _target_height, height_t);
-	if absf(_height - _target_height) < 0.001:
-		_height = _target_height;
 
 	if _follow_target == null:
-		_target_focus = _clamp_focus(_target_focus);
 		var moved := _focus.lerp(_target_focus, move_t);
 		_focus.x = moved.x;
 		_focus.z = moved.z;
 		_focus.y = lerpf(_focus.y, _ground_height, height_t);
 		_focus = _clamp_focus(_focus);
+
+	# Camera altitude is independent from tilt and screen projection.
+	# Only the ground reference and an optional ceiling limit the zoom.
+	var allowed_height := get_effective_max_height();
+	_target_height = minf(_target_height, allowed_height);
+	_height = minf(_height, allowed_height);
+	_height = lerpf(_height, _target_height, height_t);
+	if absf(_height - _target_height) < 0.001:
+		_height = _target_height;
 
 	_apply_camera_transform();
 
@@ -341,7 +342,6 @@ func _handle_rotation(event: InputEventMouseMotion) -> void:
 		event.screen_relative.y * MOUSE_TILT_SENSITIVITY
 	);
 	_set_view_tilt(tilt);
-	_limit_height_and_focus();
 
 	_apply_camera_transform();
 	get_viewport().set_input_as_handled();
@@ -674,27 +674,8 @@ func _clamp_focus(position: Vector3) -> Vector3:
 	if not _has_bounds:
 		return position;
 
-	var min_x := _bounds.position.x;
-	var max_x := _bounds.end.x;
-	var min_z := _bounds.position.y;
-	var max_z := _bounds.end.y;
-
-	if auto_zoom_to_bounds:
-		var footprint := _ground_footprint_per_meter();
-		if not footprint.is_empty():
-			var extents := _footprint_extents(footprint);
-			var height := minf(_height, get_effective_max_height());
-			min_x -= extents.position.x * height;
-			max_x -= extents.end.x * height;
-			min_z -= extents.position.y * height;
-			max_z -= extents.end.y * height;
-
-	if min_x <= max_x and min_z <= max_z:
-		position.x = clampf(position.x, min_x, max_x);
-		position.z = clampf(position.z, min_z, max_z);
-	else:
-		position.x = _bounds.get_center().x;
-		position.z = _bounds.get_center().y;
+	position.x = clampf(position.x, _bounds.position.x, _bounds.end.x);
+	position.z = clampf(position.z, _bounds.position.y, _bounds.end.y);
 	return position;
 
 
@@ -706,87 +687,24 @@ func _limit_height_and_focus() -> void:
 	_target_focus = _clamp_focus(_target_focus);
 
 
-# The ground footprint is computed for one meter of camera height.
-# Intersections with the ground plane scale linearly with zoom height.
-func _ground_footprint_per_meter() -> Array[Vector2]:
-	var viewport_size := get_viewport().get_visible_rect().size;
-	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
-		return [];
-
-	var aspect := viewport_size.x / viewport_size.y;
-	var fov_tangent := tan(deg_to_rad(camera.fov) * 0.5);
-	var half_x := fov_tangent * aspect;
-	var half_y := fov_tangent;
-	if camera.keep_aspect == Camera3D.KEEP_WIDTH:
-		half_x = fov_tangent;
-		half_y = fov_tangent / aspect;
-
-	var forward := _view_direction();
-	var right := Vector3(cos(_yaw), 0.0, -sin(_yaw));
-	var up := right.cross(forward);
-	var footprint: Array[Vector2] = [];
-	for vertical in [-1.0, 1.0]:
-		for horizontal in [-1.0, 1.0]:
-			var direction: Vector3 = forward + right * float(horizontal) * half_x + up * float(vertical) * half_y;
-			if direction.y >= -0.0001:
-				# A horizon-facing camera has no finite ground footprint.
-				return [];
-			footprint.append(Vector2(
-				direction.x / -direction.y,
-				direction.z / -direction.y
-			));
-	return footprint;
+# Ceiling coordinates are absolute world Y, not zoom distances.
+# INF clears the ceiling and leaves only the normal zoom limit.
+func set_ceiling_y(world_y: float) -> void:
+	_ceiling_y = world_y;
+	_limit_height_and_focus();
+	if is_node_ready():
+		_apply_camera_transform();
 
 
-func _footprint_extents(points: Array[Vector2]) -> Rect2:
-	var left := INF;
-	var right := -INF;
-	var top := INF;
-	var bottom := -INF;
-	for point in points:
-		left = minf(left, point.x);
-		right = maxf(right, point.x);
-		top = minf(top, point.y);
-		bottom = maxf(bottom, point.y);
-	return Rect2(left, top, right - left, bottom - top);
+func clear_ceiling() -> void:
+	set_ceiling_y(INF);
 
 
 func get_effective_max_height() -> float:
-	if not _has_bounds or not auto_zoom_to_bounds:
-		return max_height;
-
-	var footprint := _ground_footprint_per_meter();
-	if footprint.is_empty():
-		# At near-horizontal angles the ground footprint is unbounded.
-		# Keep a room-sized zoom ceiling instead of reverting to 120 m.
-		var viewport_size := get_viewport().get_visible_rect().size;
-		if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
-			return max_height;
-		var aspect := viewport_size.x / viewport_size.y;
-		var tangent := tan(deg_to_rad(camera.fov) * 0.5);
-		var half_x := tangent * aspect;
-		var half_y := tangent;
-		if camera.keep_aspect == Camera3D.KEEP_WIDTH:
-			half_x = tangent;
-			half_y = tangent / aspect;
-		return clampf(
-			minf(_bounds.size.x / (2.0 * half_x),
-				_bounds.size.y / (2.0 * half_y)) * 0.95,
-			MIN_HEIGHT, max_height
-		);
-
-	var extents := _footprint_extents(footprint);
-	if extents.size.x <= 0.0001 or extents.size.y <= 0.0001:
-		return max_height;
-
-	const FIT_MARGIN := 0.95;
-	return clampf(
-		minf(
-			_bounds.size.x / extents.size.x,
-			_bounds.size.y / extents.size.y
-		) * FIT_MARGIN,
-		MIN_HEIGHT, max_height
-	);
+	var limit := max_height;
+	if _ceiling_y < INF:
+		limit = minf(limit, _ceiling_y - _focus.y);
+	return clampf(limit, MIN_HEIGHT, max_height);
 
 
 func focus_on(position: Vector3, immediate := false) -> void:
@@ -798,6 +716,7 @@ func focus_on(position: Vector3, immediate := false) -> void:
 
 	if immediate:
 		_focus = _target_focus;
+		_limit_height_and_focus();
 		_apply_camera_transform();
 
 
