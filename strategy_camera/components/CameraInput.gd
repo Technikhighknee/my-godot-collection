@@ -280,7 +280,7 @@ func _end_pointer_capture() -> void:
 	Input.mouse_mode = _pointer_restore_mouse_mode
 
 	if _pointer_restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		get_viewport().warp_mouse(_pointer_restore_mouse_position)
+		get_window().warp_mouse(_pointer_restore_mouse_position)
 		_suppress_edge_scroll_until_motion(_pointer_restore_mouse_position)
 
 
