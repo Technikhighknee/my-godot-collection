@@ -124,6 +124,10 @@ func set_height(height: float, immediate := false) -> void:
 	_movement.set_height(height, immediate)
 
 
+func set_tilt(degrees: float) -> void:
+	_movement.set_tilt(degrees)
+
+
 func get_focus_position() -> Vector3:
 	return _movement.get_focus_position()
 
