@@ -22,6 +22,8 @@ var _pointer_rotation_anchor := Vector2.ZERO
 var _pointer_capture_active := false
 var _pointer_restore_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
 var _pointer_restore_mouse_position := Vector2.ZERO
+var _pointer_restore_window_position := Vector2.ZERO
+var _capture_window: Window
 
 func initialize(host: Node3D, movement: StrategyCameraMovement) -> void:
 	_host = host
@@ -187,12 +189,12 @@ func _begin_pointer_rotation(anchor: Vector2) -> void:
 	_begin_pointer_capture(anchor)
 
 
-func _end_pointer_rotation() -> void:
+func _end_pointer_rotation(restore_mouse := true) -> void:
 	if not _rotating:
 		return
 
 	_rotating = false
-	_end_pointer_capture()
+	_end_pointer_capture(restore_mouse)
 	_host.emit_signal(&"pointer_rotation_ended", _pointer_rotation_anchor)
 
 
@@ -253,12 +255,12 @@ func _keyboard_pan_blocked_by_gui() -> bool:
 	return focus_owner is LineEdit or focus_owner is TextEdit
 
 
-func _end_pointer_pan() -> void:
+func _end_pointer_pan(restore_mouse := true) -> void:
 	if not _panning:
 		return
 
 	_panning = false
-	_end_pointer_capture()
+	_end_pointer_capture(restore_mouse)
 	_host.emit_signal(&"pointer_pan_ended", _pointer_pan_anchor)
 
 
@@ -269,31 +271,34 @@ func _begin_pointer_capture(position: Vector2) -> void:
 	_pointer_capture_active = true
 	_pointer_restore_mouse_mode = Input.mouse_mode
 	_pointer_restore_mouse_position = position
+	_capture_window = get_window()
+	if is_instance_valid(_capture_window):
+		_pointer_restore_window_position = _capture_window.get_mouse_position()
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
-func _end_pointer_capture() -> void:
+func _end_pointer_capture(restore_mouse := true) -> void:
 	if not _pointer_capture_active:
 		return
-
 	_pointer_capture_active = false
 	Input.mouse_mode = _pointer_restore_mouse_mode
-
-	if _pointer_restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		get_window().warp_mouse(_pointer_restore_mouse_position)
+	if restore_mouse and _pointer_restore_mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		if is_instance_valid(_capture_window) and _capture_window.is_inside_tree():
+			_capture_window.warp_mouse(_pointer_restore_window_position)
 		_suppress_edge_scroll_until_motion(_pointer_restore_mouse_position)
+	_capture_window = null
 
 
-func reset_pointer_state() -> void:
+func reset_pointer_state(restore_mouse := true) -> void:
 	_cancel_pointer_pan_hold()
-
 	if _panning:
-		_end_pointer_pan()
+		_end_pointer_pan(restore_mouse)
 	elif _rotating:
-		_end_pointer_rotation()
+		_end_pointer_rotation(restore_mouse)
 	else:
-		_end_pointer_capture()
-
-	_suppress_edge_scroll_until_motion(
-		get_viewport().get_mouse_position()
-	)
+		_end_pointer_capture(restore_mouse)
+	if not restore_mouse:
+		return
+	var viewport := get_viewport()
+	if viewport != null:
+		_suppress_edge_scroll_until_motion(viewport.get_mouse_position())
