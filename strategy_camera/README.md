@@ -23,10 +23,20 @@ The rectangle's X maps to world X and its Y maps to world Z. This applies to
 keyboard, edge and right-mouse panning, `focus_on()`, and following a target.
 Use `clear_bounds()` to allow unbounded movement again.
 
-The exported `max_height` limits how far the camera can zoom out above
-its current ground reference. It is configurable per camera instance; for
-example, an interior can use 24 m while the exterior keeps the 120 m default.
-The limit applies to mouse-wheel zoom and `set_height()`.
+With `auto_zoom_to_bounds = true` (the default), the camera derives its
+maximum zoom height from the bounds, FOV, viewport aspect ratio, yaw and tilt.
+The projected ground footprint is kept slightly smaller than the bounds.
+As zoom increases, the focus is also clamped inward where necessary to keep
+the view inside the area. Changes in viewpoint and viewport dimensions are
+handled automatically.
+
+The exported `max_height` is an optional absolute ceiling (120 m by default)
+for views that need an additional limit; it does not have to be calculated for
+each room. `get_effective_max_height()` returns the currently allowed zoom
+height. The limit applies to mouse-wheel zoom and `set_height()`.
+When the camera is tilted so high that part of its frustum never intersects
+the ground plane, the camera falls back to its configured absolute maximum
+and X/Z focus bounds.
 
 The camera is tilted and can still see beyond a map boundary near its edge;
 bounds restrict the focus, not the entire visible frustum.
@@ -62,7 +72,7 @@ For an external cursor overlay, the camera emits `pointer_pan_started(anchor)` /
 
 - `follow(target)`, `stop_following()`, `is_following()`
 - `focus_on(position, immediate = false)`
-- `set_bounds(bounds: Rect2)`, `clear_bounds()`
+- `set_bounds(bounds: Rect2)`, `clear_bounds()`, `get_effective_max_height()`
 - `set_height(height, immediate = false)`
 - `get_focus_position()`, `get_height()`, `get_yaw()`, `get_tilt()`
 
@@ -71,7 +81,7 @@ For an external cursor overlay, the camera emits `pointer_pan_started(anchor)` /
 | Setting | Value |
 | --- | ---: |
 | FOV | 45° |
-| Height range | 0.35–120 m (maximum configurable per instance) |
+| Height range | 0.35–120 m (automatically limited by bounds when present) |
 | Initial height | 28.7135 |
 | Ground probe layer | Physics layer 2 |
 | Ground probe reach | 512 m up / 1024 m down |
