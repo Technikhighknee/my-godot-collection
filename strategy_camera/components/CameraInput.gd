@@ -36,7 +36,9 @@ func tick(hold_delay_msec: int) -> void:
 	_update_pointer_pan_hold()
 
 func get_pan_direction() -> Vector2:
-	if _panning or _rotating or _keyboard_pan_blocked_by_gui():
+	# Keyboard movement stays available during middle-mouse rotation.
+	# Edge scrolling is suppressed separately while rotating.
+	if _panning or _keyboard_pan_blocked_by_gui():
 		return Vector2.ZERO
 	var keyboard := Input.get_vector(
 		PAN_LEFT_ACTION, PAN_RIGHT_ACTION, PAN_FORWARD_ACTION, PAN_BACK_ACTION
