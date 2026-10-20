@@ -757,7 +757,23 @@ func get_effective_max_height() -> float:
 
 	var footprint := _ground_footprint_per_meter();
 	if footprint.is_empty():
-		return max_height;
+		# At near-horizontal angles the ground footprint is unbounded.
+		# Keep a room-sized zoom ceiling instead of reverting to 120 m.
+		var viewport_size := get_viewport().get_visible_rect().size;
+		if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+			return max_height;
+		var aspect := viewport_size.x / viewport_size.y;
+		var tangent := tan(deg_to_rad(camera.fov) * 0.5);
+		var half_x := tangent * aspect;
+		var half_y := tangent;
+		if camera.keep_aspect == Camera3D.KEEP_WIDTH:
+			half_x = tangent;
+			half_y = tangent / aspect;
+		return clampf(
+			minf(_bounds.size.x / (2.0 * half_x),
+				_bounds.size.y / (2.0 * half_y)) * 0.95,
+			MIN_HEIGHT, max_height
+		);
 
 	var extents := _footprint_extents(footprint);
 	if extents.size.x <= 0.0001 or extents.size.y <= 0.0001:
