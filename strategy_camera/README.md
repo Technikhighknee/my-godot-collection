@@ -23,6 +23,11 @@ The rectangle's X maps to world X and its Y maps to world Z. This applies to
 keyboard, edge and right-mouse panning, `focus_on()`, and following a target.
 Use `clear_bounds()` to allow unbounded movement again.
 
+The exported `max_height` limits how far the camera can zoom out above
+its current ground reference. It is configurable per camera instance; for
+example, an interior can use 24 m while the exterior keeps the 120 m default.
+The limit applies to mouse-wheel zoom and `set_height()`.
+
 The camera is tilted and can still see beyond a map boundary near its edge;
 bounds restrict the focus, not the entire visible frustum.
 
@@ -66,7 +71,7 @@ For an external cursor overlay, the camera emits `pointer_pan_started(anchor)` /
 | Setting | Value |
 | --- | ---: |
 | FOV | 45° |
-| Height range | 0.35–120 |
+| Height range | 0.35–120 m (maximum configurable per instance) |
 | Initial height | 28.7135 |
 | Ground probe layer | Physics layer 2 |
 | Ground probe reach | 512 m up / 1024 m down |
