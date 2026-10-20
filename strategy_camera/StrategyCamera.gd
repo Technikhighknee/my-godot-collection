@@ -21,9 +21,9 @@ const INITIAL_HEIGHT := 28.7135
 @export_range(1.0, 4096.0, 1.0, "suffix:m") var ground_probe_down := 1024.0
 
 @onready var camera: Camera3D = $Camera3D
-@onready var _input: StrategyCameraInput = $CameraInput
-@onready var _movement: StrategyCameraMovement = $CameraMovement
-@onready var _ground_tracker: StrategyCameraGroundTracker = $CameraGroundTracker
+@onready var _input: StrategyCameraInput = get_node_or_null("CameraInput") as StrategyCameraInput
+@onready var _movement: StrategyCameraMovement = get_node_or_null("CameraMovement") as StrategyCameraMovement
+@onready var _ground_tracker: StrategyCameraGroundTracker = get_node_or_null("CameraGroundTracker") as StrategyCameraGroundTracker
 
 
 func _ready() -> void:
