@@ -35,11 +35,17 @@ const PAN_BACK_ACTION: StringName = &"camera_back";
 
 
 @export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 250;
+@export var ground_tracking_enabled := true;
+@export_flags_3d_physics var ground_collision_mask := 2;
+@export_range(1.0, 4096.0, 1.0, "suffix:m") var ground_probe_up := 512.0;
+@export_range(1.0, 4096.0, 1.0, "suffix:m") var ground_probe_down := 1024.0;
 
 @onready var camera: Camera3D = $Camera3D;
 
 
 var _ground_height := 0.0;
+var _bounds := Rect2();
+var _has_bounds := false;
 
 var _focus: Vector3;
 var _target_focus: Vector3;
@@ -74,6 +80,8 @@ func _ready() -> void:
 	_ground_height = _focus.y;
 	_focus.y = _ground_height;
 	_target_focus = _focus;
+	_focus = _clamp_focus(_focus);
+	_target_focus = _clamp_focus(_target_focus);
 
 	_yaw = global_rotation.y;
 	global_rotation = Vector3.ZERO;
@@ -115,6 +123,23 @@ func _assert_input_actions() -> void:
 	);
 
 
+func _physics_process(_delta: float) -> void:
+	if not ground_tracking_enabled or _follow_target != null:
+		return;
+
+	# Sample only the ground collision layer. Buildings and furniture must not
+	# change the camera's reference height.
+	var from := _focus + Vector3.UP * ground_probe_up;
+	var to := _focus - Vector3.UP * ground_probe_down;
+	var query := PhysicsRayQueryParameters3D.create(
+		from, to, ground_collision_mask
+	);
+	var hit := get_world_3d().direct_space_state.intersect_ray(query);
+
+	if not hit.is_empty():
+		_ground_height = (hit["position"] as Vector3).y;
+
+
 func _process(delta: float) -> void:
 	_reconcile_pointer_buttons();
 	_update_pointer_pan_hold();
@@ -125,8 +150,11 @@ func _process(delta: float) -> void:
 	var height_t := _smooth_factor(HEIGHT_SMOOTHING, delta);
 
 	if _follow_target == null:
-		_focus = _focus.lerp(_target_focus, move_t);
-		_focus.y = _ground_height;
+		var moved := _focus.lerp(_target_focus, move_t);
+		_focus.x = moved.x;
+		_focus.z = moved.z;
+		_focus.y = lerpf(_focus.y, _ground_height, height_t);
+		_focus = _clamp_focus(_focus);
 
 	_height = lerpf(_height, _target_height, height_t);
 
@@ -148,8 +176,8 @@ func _sync_follow_target() -> void:
 		return;
 
 	var position := _follow_target.global_position;
-	_focus = position;
-	_target_focus = position;
+	_focus = _clamp_focus(position);
+	_target_focus = _focus;
 	_ground_height = position.y;
 
 
@@ -321,7 +349,7 @@ func _handle_pointer_pan(event: InputEventMouseMotion) -> void:
 		_pan_world_units_per_pixel()
 	);
 
-	_focus += world_delta;
+	_focus = _clamp_focus(_focus + world_delta);
 	_target_focus = _focus;
 
 	_apply_camera_transform();
@@ -351,9 +379,11 @@ func _handle_pan_input(delta: float) -> void:
 		_target_focus = _focus;
 		_pan_input_active = true;
 
-	_target_focus += _pan_world_delta(
-		input_vector,
-		_pan_speed() * delta
+	_target_focus = _clamp_focus(
+		_target_focus + _pan_world_delta(
+			input_vector,
+			_pan_speed() * delta
+		)
 	);
 
 
@@ -603,9 +633,34 @@ func is_following() -> bool:
 	);
 
 
+func set_bounds(bounds: Rect2) -> void:
+	# World-space X/Z rectangle for the camera focus, not its full frustum.
+	_bounds = bounds.abs();
+	_has_bounds = true;
+	_focus = _clamp_focus(_focus);
+	_target_focus = _clamp_focus(_target_focus);
+
+	if is_node_ready():
+		_apply_camera_transform();
+
+
+func clear_bounds() -> void:
+	_has_bounds = false;
+
+
+func _clamp_focus(position: Vector3) -> Vector3:
+	if not _has_bounds:
+		return position;
+
+	position.x = clampf(position.x, _bounds.position.x, _bounds.end.x);
+	position.z = clampf(position.z, _bounds.position.y, _bounds.end.y);
+	return position;
+
+
 func focus_on(position: Vector3, immediate := false) -> void:
 	_stop_following_internal();
-	position.y = _ground_height;
+	position = _clamp_focus(position);
+	_ground_height = position.y;
 	_target_focus = position;
 	_pan_input_active = false;
 
