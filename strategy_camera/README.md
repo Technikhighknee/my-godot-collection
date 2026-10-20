@@ -4,6 +4,14 @@ Camera controls for 3D strategy and city-building scenes.
 
 Use `StrategyCamera.tscn`, or attach `StrategyCamera.gd` to a `Node3D` with a `Camera3D` child named `Camera3D`.
 
+The scene contains three internal components:
+
+- `components/CameraInput.gd` handles mouse capture, input events, hold-to-pan and edge scrolling.
+- `components/CameraMovement.gd` owns focus, height, rotation, interpolation, following and bounds.
+- `components/CameraGroundTracker.gd` samples ground height on the configured collision mask.
+
+`StrategyCamera.gd` preserves the public API and exported settings; other systems should only talk to this facade. The components are supplied automatically when the camera script is attached directly rather than instantiated from the scene.
+
 Required Input Map actions: `camera_left`, `camera_right`, `camera_forward`, `camera_back`.
 
 ## Controls
