@@ -14,7 +14,7 @@ Required Input Map actions: `camera_left`, `camera_right`, `camera_forward`, `ca
 - RMB hold: capture pointer and pan after a configurable delay (default 250 ms).
 - A short RMB click remains available for scene interactions.
 
-Pan speed scales with camera height; close-range pan speed has a minimum. Height uses logarithmic steps. Tilt limits vary with height.
+Pan speed scales with camera height; close-range pan speed has a minimum. Height uses logarithmic steps. Tilt limits vary with height. The exported `near_min_tilt_degrees` and `far_min_tilt_degrees` can be tuned per camera instance (for example, a more top-down camera inside a compact room).
 
 ## Camera bounds
 
