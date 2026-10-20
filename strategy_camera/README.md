@@ -26,6 +26,13 @@ Use `clear_bounds()` to allow unbounded movement again.
 The camera is tilted and can still see beyond a map boundary near its edge;
 bounds restrict the focus, not the entire visible frustum.
 
+To define bounds directly in a scene, add a `Marker3D` with
+`CameraBounds3D.gd` attached and configure its `size` in X/Z.
+The marker provides `get_world_bounds() -> Rect2` in world coordinates;
+the host scene passes that rectangle to `StrategyCamera.set_bounds()`.
+This keeps individual map/interior dimensions in the host project,
+while the reusable bounds component stays in the camera package.
+
 ## Ground tracking
 
 With `ground_tracking_enabled = true` (default), a vertical physics ray at the
