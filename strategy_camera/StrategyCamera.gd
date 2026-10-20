@@ -21,7 +21,7 @@ const INITIAL_HEIGHT := 28.7135
 @export_range(1.0, 4096.0, 1.0, "suffix:m") var ground_probe_down := 1024.0
 
 @onready var camera: Camera3D = $Camera3D
-@onready var _input: StrategyCameraInput = get_node_or_null("CameraInput") as StrategyCameraInput
+@onready var _camera_input: StrategyCameraInput = get_node_or_null("CameraInput") as StrategyCameraInput
 @onready var _movement: StrategyCameraMovement = get_node_or_null("CameraMovement") as StrategyCameraMovement
 @onready var _ground_tracker: StrategyCameraGroundTracker = get_node_or_null("CameraGroundTracker") as StrategyCameraGroundTracker
 
@@ -30,9 +30,9 @@ func _ready() -> void:
 	_ensure_components()
 	_movement.configure(max_height, near_min_tilt_degrees, far_min_tilt_degrees)
 	_movement.initialize(self, camera)
-	_input.initialize(self, _movement)
+	_camera_input.initialize(self, _movement)
 	camera.make_current()
-	get_window().focus_exited.connect(_input.reset_pointer_state)
+	get_window().focus_exited.connect(_camera_input.reset_pointer_state)
 
 
 # The scene provides these nodes, but direct script attachment remains supported.
@@ -41,10 +41,10 @@ func _ensure_components() -> void:
 		_movement = StrategyCameraMovement.new()
 		_movement.name = "CameraMovement"
 		add_child(_movement)
-	if _input == null:
-		_input = StrategyCameraInput.new()
-		_input.name = "CameraInput"
-		add_child(_input)
+	if _camera_input == null:
+		_camera_input = StrategyCameraInput.new()
+		_camera_input.name = "CameraInput"
+		add_child(_camera_input)
 	if _ground_tracker == null:
 		_ground_tracker = StrategyCameraGroundTracker.new()
 		_ground_tracker.name = "CameraGroundTracker"
@@ -52,10 +52,10 @@ func _ensure_components() -> void:
 
 
 func _exit_tree() -> void:
-	_input.reset_pointer_state()
+	_camera_input.reset_pointer_state()
 	var window := get_window()
-	if window.focus_exited.is_connected(_input.reset_pointer_state):
-		window.focus_exited.disconnect(_input.reset_pointer_state)
+	if window.focus_exited.is_connected(_camera_input.reset_pointer_state):
+		window.focus_exited.disconnect(_camera_input.reset_pointer_state)
 
 
 func _physics_process(_delta: float) -> void:
@@ -70,18 +70,18 @@ func _physics_process(_delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	_input.tick(pointer_pan_hold_delay_msec)
+	_camera_input.tick(pointer_pan_hold_delay_msec)
 	_movement.configure(max_height, near_min_tilt_degrees, far_min_tilt_degrees)
-	_movement.step(delta, _input.get_pan_direction())
+	_movement.step(delta, _camera_input.get_pan_direction())
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	_input.handle_input(event)
+	_camera_input.handle_input(event)
 
 
 func follow(target: Node3D) -> void:
 	_movement.follow(target)
-	_input.suppress_edge_scroll_until_motion(get_viewport().get_mouse_position())
+	_camera_input.suppress_edge_scroll_until_motion(get_viewport().get_mouse_position())
 
 
 func stop_following() -> void:
