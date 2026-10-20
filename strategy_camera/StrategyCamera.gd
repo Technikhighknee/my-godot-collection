@@ -35,6 +35,7 @@ const PAN_BACK_ACTION: StringName = &"camera_back";
 
 
 @export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 250;
+@export_range(1.0, 512.0, 0.5, "suffix:m") var max_height := MAX_HEIGHT;
 @export_range(0.0, 89.0, 1.0, "suffix:°") var near_min_tilt_degrees := NEAR_MIN_TILT;
 @export_range(0.0, 89.0, 1.0, "suffix:°") var far_min_tilt_degrees := FAR_MIN_TILT;
 @export var ground_tracking_enabled := true;
@@ -84,6 +85,9 @@ func _ready() -> void:
 	_target_focus = _focus;
 	_focus = _clamp_focus(_focus);
 	_target_focus = _clamp_focus(_target_focus);
+
+	_height = minf(_height, max_height);
+	_target_height = minf(_target_height, max_height);
 
 	_yaw = global_rotation.y;
 	global_rotation = Vector3.ZERO;
@@ -512,10 +516,10 @@ func _min_tilt_for_height(height: float) -> float:
 
 
 func _normalized_height(height: float) -> float:
-	var safe_height := clampf(height, MIN_HEIGHT, MAX_HEIGHT);
+	var safe_height := clampf(height, MIN_HEIGHT, max_height);
 
 	return clampf(
-		log(safe_height / MIN_HEIGHT) / log(MAX_HEIGHT / MIN_HEIGHT),
+		log(safe_height / MIN_HEIGHT) / log(max_height / MIN_HEIGHT),
 		0.0,
 		1.0
 	);
@@ -523,7 +527,7 @@ func _normalized_height(height: float) -> float:
 
 func _height_for_ratio(ratio: float) -> float:
 	var safe_ratio := clampf(ratio, 0.0, 1.0);
-	return MIN_HEIGHT * pow(MAX_HEIGHT / MIN_HEIGHT, safe_ratio);
+	return MIN_HEIGHT * pow(max_height / MIN_HEIGHT, safe_ratio);
 
 
 func _view_direction() -> Vector3:
@@ -672,7 +676,7 @@ func focus_on(position: Vector3, immediate := false) -> void:
 
 
 func set_height(height: float, immediate := false) -> void:
-	_target_height = clampf(height, MIN_HEIGHT, MAX_HEIGHT);
+	_target_height = clampf(height, MIN_HEIGHT, max_height);
 
 	if immediate:
 		_height = _target_height;
