@@ -35,8 +35,8 @@ for views that need an additional limit; it does not have to be calculated for
 each room. `get_effective_max_height()` returns the currently allowed zoom
 height. The limit applies to mouse-wheel zoom and `set_height()`.
 When the camera is tilted so high that part of its frustum never intersects
-the ground plane, the camera falls back to its configured absolute maximum
-and X/Z focus bounds.
+the ground plane, a top-down FOV-based height estimate is used instead.
+At these extreme angles, full screen-space containment cannot be guaranteed.
 
 The camera is tilted and can still see beyond a map boundary near its edge;
 bounds restrict the focus, not the entire visible frustum.
