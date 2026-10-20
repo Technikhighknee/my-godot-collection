@@ -727,7 +727,7 @@ func _ground_footprint_per_meter() -> Array[Vector2]:
 	var footprint: Array[Vector2] = [];
 	for vertical in [-1.0, 1.0]:
 		for horizontal in [-1.0, 1.0]:
-			var direction := forward + right * horizontal * half_x + up * vertical * half_y;
+			var direction: Vector3 = forward + right * float(horizontal) * half_x + up * float(vertical) * half_y;
 			if direction.y >= -0.0001:
 				# A horizon-facing camera has no finite ground footprint.
 				return [];
