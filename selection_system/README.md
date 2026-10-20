@@ -18,6 +18,7 @@ Collision masks, maximum ray distance and drag threshold are configurable.
 ## Input
 
 - Left click: select an object; clicking empty space clears selection.
+- Double-click a previously selected subject: emit `subject_activated(subject)` after its selection is resolved.
 - Shift/Ctrl + click: add or toggle eligible subjects.
 - Left drag: marquee-select subjects whose anchors fall inside the screen rectangle.
 - Right click with a selection: emit `target_requested` for a target or `location_requested` for a world hit.
@@ -30,6 +31,6 @@ Right-click targeting cooperates with the Strategy Camera's hold-to-pan pointer 
 
 `select(subject, additive = false)`, `clear_selection()`, `get_selection()`, `has_selection()`.
 
-Signals: `selection_changed(selection)`, `target_requested(target)`, `location_requested(position)`, `marquee_changed(rect, active)`.
+Signals: `selection_changed(selection)`, `subject_activated(subject)`, `target_requested(target)`, `location_requested(position)`, `marquee_changed(rect, active)`.
 
 `get_selection()` returns a copy. The marquee signal can drive a selection-rectangle overlay.
