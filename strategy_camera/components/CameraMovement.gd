@@ -206,6 +206,11 @@ func _set_view_tilt(tilt: float) -> void:
 	_tilt_ratio = 0.0 if span <= 0.0 else (clamped - min_tilt) / span
 
 
+func set_tilt(degrees: float) -> void:
+	_set_view_tilt(deg_to_rad(degrees))
+	_apply_camera_transform()
+
+
 func _min_tilt_for_height(height: float) -> float:
 	return deg_to_rad(
 		lerpf(
