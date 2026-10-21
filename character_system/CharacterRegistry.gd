@@ -16,14 +16,15 @@ var _parents: Dictionary = {}     # StringName -> Array[StringName]
 var _spouses: Dictionary = {}     # StringName -> StringName
 
 
-func register_character(character: Character, actor: PlaceActor) -> bool:
+func register_character(character: Character, actor: PlaceActor = null) -> bool:
 	if character == null or not character.is_valid():
 		return false
 	var id := character.get_id()
-	if _characters.has(id) or not _can_attach(id, actor):
+	if _characters.has(id) or (actor != null and not _can_attach(id, actor)):
 		return false
 	_characters[id] = character
-	_attach_actor(id, actor)
+	if actor != null:
+		_attach_actor(id, actor)
 	character_registered.emit(character)
 	return true
 
@@ -36,22 +37,26 @@ func attach_actor(id: StringName, actor: PlaceActor) -> bool:
 
 
 func _can_attach(id: StringName, actor: PlaceActor) -> bool:
-	if (
-		not is_instance_valid(actor) or not actor.is_inside_tree()
-		or not actor.is_bound() or actor.actor_id != id
-		or _ids_by_actor.has(actor)
-	):
-		return false
-	var body := actor.get_physical_body()
-	return body != null and body.is_inside_tree()
+	return (
+		is_instance_valid(actor) and actor.is_inside_tree()
+		and actor.actor_id == id and not _ids_by_actor.has(actor)
+		and actor.get_location() != null
+	)
 
 
 func _attach_actor(id: StringName, actor: PlaceActor) -> void:
 	_actors[id] = actor
 	_ids_by_actor[actor] = id
-	actor.body_unbound.connect(_on_actor_unavailable.bind(id))
+	# Physical bodies can be unloaded without losing the persistent actor.
 	actor.tree_exiting.connect(_on_actor_unavailable.bind(id))
 	actor_attached.emit(id)
+
+
+func detach_actor(id: StringName) -> bool:
+	if not _actors.has(id):
+		return false
+	_detach_actor(id)
+	return true
 
 
 func _detach_actor(id: StringName) -> void:
@@ -61,8 +66,6 @@ func _detach_actor(id: StringName) -> void:
 	_actors.erase(id)
 	if is_instance_valid(actor):
 		var callback := _on_actor_unavailable.bind(id)
-		if actor.body_unbound.is_connected(callback):
-			actor.body_unbound.disconnect(callback)
 		if actor.tree_exiting.is_connected(callback):
 			actor.tree_exiting.disconnect(callback)
 		_ids_by_actor.erase(actor)
