@@ -60,9 +60,13 @@ func unbind_body() -> void:
 
 	var manager := _manager
 	var body := _body
-	# Keep the last actual position before removing the physical representation.
+	# Keep the last position even if the manager is shutting down.
 	if is_instance_valid(body):
-		_location = PlaceLocation.new(manager.get_body_place(body), body.global_position)
+		var last_place := _location.place_id if _location != null else &""
+		if is_instance_valid(manager):
+			last_place = manager.get_body_place(body)
+		if last_place != &"":
+			_location = PlaceLocation.new(last_place, body.global_position)
 	_manager = null
 	_body = null
 
