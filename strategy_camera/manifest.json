@@ -1,6 +1,7 @@
 {
   "files": [
     "StrategyCamera.gd",
+    "StrategyCameraProfile.gd",
     "components/CameraMovement.gd",
     "components/CameraInput.gd",
     "components/CameraGroundTracker.gd",
