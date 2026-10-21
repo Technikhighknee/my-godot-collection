@@ -12,6 +12,18 @@ The scene contains three internal components:
 
 `StrategyCamera.gd` preserves the public API and exported settings; other systems should only talk to this facade. The components are supplied automatically when the camera script is attached directly rather than instantiated from the scene.
 
+## Camera profiles
+
+Optional `StrategyCameraProfile.gd` resources configure only the differences
+currently needed by camera instances: starting height, optional starting tilt,
+zoom enabled, and near/far minimum tilt. Assign a profile to a
+`StrategyCamera` scene instance in the Inspector. A starting tilt of 0°
+keeps the camera's existing height-dependent default.
+
+A camera without a profile continues to use its existing Inspector settings.
+Room bounds, ceiling and focus are supplied separately by the scene/game; they
+are not part of a profile.
+
 Required Input Map actions: `camera_left`, `camera_right`, `camera_forward`, `camera_back`.
 
 ## Controls
