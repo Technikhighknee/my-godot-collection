@@ -21,18 +21,29 @@ places.connect_portals(
 
 ## Persistent actors
 
-`PlaceActor` stores the persistent gameplay identity. Its physical `CharacterBody3D` belongs to one place at a time.
+`PlaceActor` stores a stable actor ID and `PlaceLocation` (place ID plus position), including when it has **no physical body**. The physical `CharacterBody3D` belongs to one place at a time. This is a world/placement concern, not a character's name, family or identity.
 
 ```gdscript
+# An actor may exist before its physical body is instantiated.
+var actor := PlaceActor.new()
+actor.actor_id = &"citizen_1"
+actor.set_location(PlaceLocation.new(&"city", Vector3(4, 0, 8)))
+persistent_parent.add_child(actor)
+
+# Later, after the body is placed in the correct world:
 var place := places.get_place(&"city")
 place.actors_root.add_child(body)
-actor.actor_id = &"citizen_1"
+body.global_position = actor.get_place_position()
 actor.bind_body(places, body, &"city")
+
+# Before unloading the body, retain its actual location.
+actor.unbind_body()
+body.queue_free()
 ```
 
-Both actor and body must already be in the scene tree. The physical body must belong to the target place's viewport and be inside its scene root. The manager tracks body-to-actor and ID-to-actor associations.
+Use `get_location`, `get_place_id` and `get_place_position` with or without a body. `set_location` is available only when unbound, allowing the logical location to change without instantiating a body. `bind_body` checks that an existing logical place matches the physical body's place; unbinding snapshots its current position.
 
-`PlaceActorSpawner.spawn(manager, parent, actor_scene, body_scene, actor_id, location)` instantiates and binds a pair of game-provided scenes. `PlaceLocation` stores a place ID and a position in that place's world coordinates.
+`PlaceActorSpawner.spawn(manager, persistent_parent, body_scene, actor_id, location)` is a convenience for creating one persistent actor **in code** and one physical body **from a PackedScene**. No actor scene is required.
 
 ## Portals and travel
 
