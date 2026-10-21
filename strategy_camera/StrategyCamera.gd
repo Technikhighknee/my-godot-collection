@@ -11,6 +11,7 @@ const MIN_HEIGHT := 0.35
 const MAX_HEIGHT := 120.0
 const INITIAL_HEIGHT := 28.7135
 
+@export var profile: StrategyCameraProfile
 @export_range(150, 1000, 25, "suffix:ms") var pointer_pan_hold_delay_msec := 250
 @export_range(1.0, 512.0, 0.5, "suffix:m") var max_height := MAX_HEIGHT
 @export_range(0.0, 89.0, 1.0, "suffix:°") var near_min_tilt_degrees := 65.0
@@ -29,8 +30,16 @@ const INITIAL_HEIGHT := 28.7135
 
 func _ready() -> void:
 	_ensure_components()
+	if profile != null:
+		zoom_enabled = profile.zoom_enabled
+		near_min_tilt_degrees = profile.near_min_tilt_degrees
+		far_min_tilt_degrees = profile.far_min_tilt_degrees
 	_movement.configure(max_height, near_min_tilt_degrees, far_min_tilt_degrees)
 	_movement.initialize(self, camera)
+	if profile != null:
+		set_height(profile.starting_height, true)
+		if profile.starting_tilt_degrees > 0.0:
+			set_tilt(profile.starting_tilt_degrees)
 	_camera_input.initialize(self, _movement)
 	camera.make_current()
 	get_window().focus_exited.connect(_camera_input.reset_pointer_state)
