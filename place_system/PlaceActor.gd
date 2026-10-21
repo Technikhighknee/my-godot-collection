@@ -1,8 +1,7 @@
 class_name PlaceActor
 extends Node
 
-# Gameplay state persists while the physical body moves between places.
-
+# Persistent location survives the absence of a physical body.
 signal body_bound(body: CharacterBody3D, place_id: StringName)
 signal body_unbound()
 signal place_changed(from_place: StringName, to_place: StringName)
@@ -11,14 +10,33 @@ signal place_changed(from_place: StringName, to_place: StringName)
 
 var _manager: PlaceManager3D
 var _body: CharacterBody3D
+var _location: PlaceLocation
+
+
+# An unbound actor can move logically without a physical scene instance.
+func set_location(location: PlaceLocation) -> bool:
+	if is_bound() or location == null or not location.is_valid():
+		return false
+	_location = PlaceLocation.new(location.place_id, location.position)
+	return true
+
+
+func get_location() -> PlaceLocation:
+	if is_bound():
+		return PlaceLocation.new(get_place_id(), _body.global_position)
+	if _location == null:
+		return null
+	return PlaceLocation.new(_location.place_id, _location.position)
 
 
 func bind_body(
 	manager: PlaceManager3D, body: CharacterBody3D, place_id: StringName
 ) -> bool:
-	if not is_inside_tree() or _manager != null:
+	if not is_inside_tree() or _manager != null or place_id == &"":
 		return false
 	if not is_instance_valid(manager) or not is_instance_valid(body):
+		return false
+	if _location != null and _location.place_id != place_id:
 		return false
 	if actor_id == &"" or manager.get_actor_by_id(actor_id) != null:
 		return false
@@ -30,6 +48,7 @@ func bind_body(
 
 	_manager = manager
 	_body = body
+	_location = PlaceLocation.new(place_id, body.global_position)
 	_manager.portal_traversed.connect(_on_portal_traversed)
 	body_bound.emit(body, place_id)
 	return true
@@ -41,6 +60,9 @@ func unbind_body() -> void:
 
 	var manager := _manager
 	var body := _body
+	# Keep the last actual position before removing the physical representation.
+	if is_instance_valid(body):
+		_location = PlaceLocation.new(manager.get_body_place(body), body.global_position)
 	_manager = null
 	_body = null
 
@@ -65,21 +87,22 @@ func get_physical_body() -> CharacterBody3D:
 
 
 func get_place_id() -> StringName:
-	if not is_bound():
-		return &""
-	return _manager.get_body_place(_body)
+	if is_bound():
+		return _manager.get_body_place(_body)
+	return _location.place_id if _location != null else &""
 
 
 func get_place_position() -> Vector3:
-	if not is_bound():
-		return Vector3.ZERO
-	return _body.global_position
+	if is_bound():
+		return _body.global_position
+	return _location.position if _location != null else Vector3.ZERO
 
 
 func _on_portal_traversed(
 	body: Node3D, from_place: StringName, to_place: StringName
 ) -> void:
 	if body == _body:
+		_location = PlaceLocation.new(to_place, body.global_position)
 		place_changed.emit(from_place, to_place)
 
 
